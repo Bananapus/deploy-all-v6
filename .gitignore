@@ -13,3 +13,4 @@ deployments/
 
 # OS files
 .DS_Store
+.claude/
