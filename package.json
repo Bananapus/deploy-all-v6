@@ -12,9 +12,7 @@
         "node": ">=20.0.0"
     },
     "scripts": {
-        "build": "forge build",
-        "deploy:mainnets": "./deploy.sh mainnets",
-        "deploy:testnets": "./deploy.sh testnets"
+        "build": "forge build"
     },
     "dependencies": {
         "@bananapus/core-v6": "file:../nana-core-v6",
