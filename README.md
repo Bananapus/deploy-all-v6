@@ -1,4 +1,4 @@
-# Deploy All V6
+# Juicebox Deploy All
 
 Single Foundry script that deploys the entire Juicebox V6 ecosystem via [Sphinx](https://github.com/sphinx-labs/sphinx) across 8 chains.
 
