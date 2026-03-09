@@ -18,6 +18,32 @@ jobs:
         with:
           node-version: 22.4.x
 
+      # Clone sibling repos required by file: dependencies
+      - name: Clone ecosystem repos
+        run: |
+          cd ..
+          repos=(
+            "Bananapus/nana-core-v6"
+            "Bananapus/nana-permission-ids-v6"
+            "Bananapus/nana-address-registry-v6"
+            "Bananapus/nana-721-hook-v6"
+            "Bananapus/nana-buyback-hook-v6"
+            "Bananapus/nana-router-terminal-v6"
+            "Bananapus/nana-suckers-v6"
+            "Bananapus/nana-omnichain-deployers-v6"
+            "Bananapus/nana-ownable-v6"
+            "rev-net/revnet-core-v6"
+            "mejango/croptop-core-v6"
+            "mejango/banny-retail-v6"
+            "BallKidz/defifa-collection-deployer-v6"
+          )
+          for repo in "${repos[@]}"; do
+            dir=$(basename "$repo")
+            echo "Cloning $repo..."
+            git clone --depth 1 "https://github.com/$repo.git" "$dir"
+            cd "$dir" && npm install --omit=dev 2>/dev/null || true && cd ..
+          done
+
       - name: Install npm dependencies
         run: npm install --omit=dev
 
