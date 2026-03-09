@@ -13,3 +13,10 @@ deployments/
 
 # OS files
 .DS_Store
+
+# Audit/nemesis output
+.audit/
+.audit-logs/
+AUDIT_FINDINGS.md
+NEMESIS_SCOPE.md
+run-nemesis-all.sh
