@@ -1,0 +1,31 @@
+name: test
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+jobs:
+  forge-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.4.x
+
+      - name: Install npm dependencies
+        run: npm install --omit=dev
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build
+        run: forge build --skip "*/test/**"
+
+      - name: Check contract sizes
+        run: FOUNDRY_PROFILE=ci_sizes forge build --sizes --skip "*/test/**" --skip SphinxUtils

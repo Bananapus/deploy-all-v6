@@ -1,0 +1,15 @@
+# Compiler files
+cache/
+out/
+
+# Dependencies
+node_modules/
+
+# Dotenv file
+.env
+
+# Deployments (local artifacts)
+deployments/
+
+# OS files
+.DS_Store
