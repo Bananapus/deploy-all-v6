@@ -24,18 +24,23 @@
         "@bananapus/suckers-v6": "file:../nana-suckers-v6",
         "@bananapus/omnichain-deployers-v6": "file:../nana-omnichain-deployers-v6",
         "@bananapus/ownable-v6": "file:../nana-ownable-v6",
+        "@bananapus/univ4-lp-split-hook-v6": "file:../univ4-lp-split-hook-v6",
+        "@bananapus/univ4-router-v6": "file:../univ4-router-v6",
         "@rev-net/core-v6": "file:../revnet-core-v6",
         "@croptop/core-v6": "file:../croptop-core-v6",
         "@bannynet/core-v6": "file:../banny-retail-v6",
         "@ballkidz/defifa": "file:../defifa-collection-deployer-v6",
         "@openzeppelin/contracts": "^5.6.1",
+        "@openzeppelin/uniswap-hooks": "^1.1.1",
         "@chainlink/contracts": "^1.3.0",
         "@uniswap/permit2": "github:Uniswap/permit2",
         "@uniswap/v3-core": "github:Uniswap/v3-core#0.8",
         "@uniswap/v3-periphery": "github:Uniswap/v3-periphery#0.8",
         "@uniswap/v4-core": "^1.0.2",
+        "@uniswap/v4-periphery": "^1.0.3",
         "@prb/math": "^4.1.0",
-        "solady": "^0.1.8"
+        "solady": "^0.1.8",
+        "solmate": "^6.8.0"
     },
     "devDependencies": {
         "@sphinx-labs/plugins": "^0.33.2"
