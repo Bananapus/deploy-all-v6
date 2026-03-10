@@ -5,30 +5,6 @@ via_ir = true
 optimizer = false
 libs = ["node_modules", "lib"]
 fs_permissions = [{ access = "read-write", path = "./"}]
-remappings = [
-    "@bananapus/core/=node_modules/@bananapus/core-v6/src/",
-    "@bananapus/permission-ids/=node_modules/@bananapus/permission-ids-v6/src/",
-    "@bananapus/address-registry/=node_modules/@bananapus/address-registry-v6/src/",
-    "@uniswap/v4-periphery/=node_modules/@uniswap/v4-periphery/",
-    "@uniswap/v4-core/=node_modules/@uniswap/v4-core/",
-    "@openzeppelin/uniswap-hooks/=node_modules/@openzeppelin/uniswap-hooks/",
-    "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
-    "solady/=node_modules/solady/",
-    "solmate/=node_modules/solmate/",
-    "@bananapus/univ4-lp-split-hook-v6/=node_modules/@bananapus/univ4-lp-split-hook-v6/",
-    "@bananapus/univ4-router-v6/=node_modules/@bananapus/univ4-router-v6/",
-    "@bananapus/core-v6/=node_modules/@bananapus/core-v6/",
-    "@bananapus/721-hook-v6/=node_modules/@bananapus/721-hook-v6/",
-    "@bananapus/buyback-hook-v6/=node_modules/@bananapus/buyback-hook-v6/",
-    "@bananapus/suckers-v6/=node_modules/@bananapus/suckers-v6/",
-    "@bananapus/address-registry-v6/=node_modules/@bananapus/address-registry-v6/",
-    "@bananapus/permission-ids-v6/=node_modules/@bananapus/permission-ids-v6/",
-    "@bananapus/ownable-v6/=node_modules/@bananapus/ownable-v6/",
-    "@rev-net/core-v6/=node_modules/@rev-net/core-v6/",
-    "@croptop/core-v6/=node_modules/@croptop/core-v6/",
-    "@prb/math/=node_modules/@prb/math/",
-    "forge-std/=node_modules/forge-std/",
-]
 
 [fuzz]
 runs = 4096
