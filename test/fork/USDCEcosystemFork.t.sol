@@ -373,12 +373,19 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         });
     }
 
-    /// @notice Build 721 tier config with USDC pricing.
-    /// @dev Note: tier splitPercent is 0 because ERC20 tier splits don't work —
-    ///      the 721 hook never holds terminal tokens (they stay in the terminal).
-    ///      This is a known limitation for ERC20-based projects.
+    /// @notice Build 721 tier config with USDC pricing and a 30% tier split to SPLIT_BENEFICIARY.
     function _build721ConfigUSDC() internal view returns (REVDeploy721TiersHookConfig memory) {
         JB721TierConfig[] memory tiers = new JB721TierConfig[](1);
+
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            percent: uint32(JBConstants.SPLITS_TOTAL_PERCENT),
+            projectId: 0,
+            beneficiary: payable(SPLIT_BENEFICIARY),
+            preferAddToBalance: false,
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
 
         tiers[0] = JB721TierConfig({
             price: TIER_PRICE,
@@ -395,8 +402,8 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
             useVotingUnits: false,
             cannotBeRemoved: false,
             cannotIncreaseDiscountPercent: false,
-            splitPercent: 0,
-            splits: new JBSplit[](0)
+            splitPercent: 300_000_000,
+            splits: splits
         });
 
         return REVDeploy721TiersHookConfig({
@@ -610,10 +617,8 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         assertGt(_terminalBalanceUSDC(revnetId), 0, "terminal should have USDC balance");
     }
 
-    /// @notice Pre-AMM: Pay with 721 tier metadata -> NFT minted.
-    /// @dev Note: ERC20 tier splits are not supported — the 721 hook doesn't hold terminal tokens.
-    ///      This test verifies the 721 mint path works for USDC payments without tier splits.
-    function test_eco_usdc_preAMM_payWith721Tier() public {
+    /// @notice Pre-AMM: Pay with 721 tier metadata -> NFT minted, 30% tier split distributed to SPLIT_BENEFICIARY.
+    function test_eco_usdc_preAMM_payWith721TierSplit() public {
         _deployFeeProject(5000);
 
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
@@ -650,10 +655,14 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         // NFT should be minted to PAYER.
         assertEq(IERC721(address(hook)).balanceOf(PAYER), 1, "payer should own 1 NFT");
 
-        // With 20% reserved: total mint = 100 * 1000 = 100,000 tokens.
-        // Reserved takes 20% = 20,000. Payer receives 80,000.
+        // Split beneficiary should have received 30% of 100 USDC = 30 USDC.
+        assertEq(usdc.balanceOf(SPLIT_BENEFICIARY), 30e6, "split beneficiary should have 30 USDC");
+
+        // With 30% tier split, weight is adjusted to 70% of original.
+        // Total mint = 100 USDC * 1000 tokens/USDC * 0.7 = 70,000 tokens.
+        // Reserved takes 20% = 14,000. Payer receives 56,000.
         assertGt(tokens, 0, "should receive tokens");
-        assertEq(tokens, 80_000e18, "payer should receive 80,000 tokens (80% of 100k)");
+        assertEq(tokens, 56_000e18, "payer should receive 56,000 tokens (80% of 70k)");
     }
 
     /// @notice Distribute reserved tokens -> LP-split hook accumulates them.
