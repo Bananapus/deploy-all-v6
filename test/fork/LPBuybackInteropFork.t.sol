@@ -481,10 +481,8 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
     /// @notice Full revnet lifecycle: deploy → pay (pre-AMM) → distribute reserved → LP split accumulates →
     /// deploy pool via LP split hook → pay again (post-AMM, buyback active) → verify buyback routes through
     /// the LP split hook's pool.
-    /// @dev Skipped: LP split hook's _getCashOutRate passes empty terminals to currentReclaimableSurplusOf,
-    ///      which returns 0 for revnets (useTotalSurplusForCashOuts=true). Fix belongs in univ4-lp-split-hook-v6.
+    /// @notice Full lifecycle: deploy → pay → distribute → LP deploy → buyback → cashout.
     function test_interop_revnet_fullLifecycle() public {
-        vm.skip(true);
         _deployFeeProject(5000);
 
         // Deploy revnet with LP split hook in reserved splits.
@@ -586,10 +584,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
     }
 
     /// @notice Post-deployment: reserved tokens going to LP split hook are burned (not accumulated).
-    /// @dev Skipped: LP split hook's _getCashOutRate passes empty terminals to currentReclaimableSurplusOf,
-    ///      which returns 0 for revnets (useTotalSurplusForCashOuts=true). Fix belongs in univ4-lp-split-hook-v6.
     function test_interop_revnet_postDeployment_burnReserved() public {
-        vm.skip(true);
         _deployFeeProject(5000);
 
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
@@ -619,7 +614,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         // More payments → more reserved tokens.
         _payRevnet(revnetId, PAYER, 5 ether);
 
-        uint256 totalSupplyBefore = jbTokens().totalSupplyOf(revnetId);
+        uint256 hookBalanceBefore = jbTokens().totalBalanceOf(address(LP_SPLIT_HOOK), revnetId);
 
         // Distribute again — LP split hook should burn these tokens (pool already deployed).
         jbController().sendReservedTokensToSplitsOf(revnetId);
@@ -627,9 +622,9 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         // Accumulated should remain 0 (burned, not accumulated).
         assertEq(LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId), 0, "should not accumulate after deployment");
 
-        // Total supply should decrease (tokens burned).
-        uint256 totalSupplyAfter = jbTokens().totalSupplyOf(revnetId);
-        assertLt(totalSupplyAfter, totalSupplyBefore, "total supply should decrease from burning");
+        // Hook balance should not increase (tokens were burned, not held).
+        uint256 hookBalanceAfter = jbTokens().totalBalanceOf(address(LP_SPLIT_HOOK), revnetId);
+        assertEq(hookBalanceAfter, hookBalanceBefore, "hook should burn tokens, not hold them");
     }
 
     /// @notice Pool parameters match: both hooks use the same fee and tick spacing.
@@ -648,10 +643,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
     }
 
     /// @notice After LP split deploys the pool, buyback hook can query TWAP and route swaps.
-    /// @dev Skipped: LP split hook's _getCashOutRate passes empty terminals to currentReclaimableSurplusOf,
-    ///      which returns 0 for revnets (useTotalSurplusForCashOuts=true). Fix belongs in univ4-lp-split-hook-v6.
     function test_interop_revnet_buybackRoutesAfterLPDeploy() public {
-        vm.skip(true);
         _deployFeeProject(5000);
 
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
@@ -691,10 +683,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
     }
 
     /// @notice Cash out works correctly after both hooks have set up the pool.
-    /// @dev Skipped: LP split hook's _getCashOutRate passes empty terminals to currentReclaimableSurplusOf,
-    ///      which returns 0 for revnets (useTotalSurplusForCashOuts=true). Fix belongs in univ4-lp-split-hook-v6.
     function test_interop_revnet_cashOutAfterPoolDeployment() public {
-        vm.skip(true);
         _deployFeeProject(5000);
 
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
