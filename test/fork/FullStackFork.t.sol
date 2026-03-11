@@ -33,7 +33,6 @@ import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
 import {IJBBuybackHook} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHook.sol";
-import {IWETH9} from "@bananapus/buyback-hook-v6/src/interfaces/external/IWETH9.sol";
 import {IGeomeanOracle} from "@bananapus/buyback-hook-v6/src/interfaces/IGeomeanOracle.sol";
 
 // Suckers
@@ -73,6 +72,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 /// @notice Adds liquidity to a V4 pool via unlock/callback pattern.
+/// Supports both native ETH (address(0)) and ERC-20 settlement.
 contract FullStackLiquidityHelper is IUnlockCallback {
     IPoolManager public immutable poolManager;
 
@@ -80,7 +80,12 @@ contract FullStackLiquidityHelper is IUnlockCallback {
         poolManager = _poolManager;
     }
 
-    function addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta) external {
+    receive() external payable {}
+
+    function addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta)
+        external
+        payable
+    {
         poolManager.unlock(abi.encode(key, tickLower, tickUpper, liquidityDelta));
     }
 
@@ -101,14 +106,10 @@ contract FullStackLiquidityHelper is IUnlockCallback {
         int128 amount1 = delta.amount1();
 
         if (amount0 < 0) {
-            address token0 = Currency.unwrap(key.currency0);
-            IERC20(token0).transfer(address(poolManager), uint128(-amount0));
-            poolManager.settle();
+            _settle(key.currency0, uint128(-amount0));
         }
         if (amount1 < 0) {
-            address token1 = Currency.unwrap(key.currency1);
-            IERC20(token1).transfer(address(poolManager), uint128(-amount1));
-            poolManager.settle();
+            _settle(key.currency1, uint128(-amount1));
         }
 
         // Claim any owed tokens.
@@ -116,6 +117,16 @@ contract FullStackLiquidityHelper is IUnlockCallback {
         if (amount1 > 0) poolManager.take(key.currency1, address(this), uint128(amount1));
 
         return "";
+    }
+
+    function _settle(Currency currency, uint256 amount) internal {
+        if (Currency.unwrap(currency) == address(0)) {
+            poolManager.settle{value: amount}();
+        } else {
+            poolManager.sync(currency);
+            IERC20(Currency.unwrap(currency)).transfer(address(poolManager), amount);
+            poolManager.settle();
+        }
     }
 }
 
@@ -134,11 +145,10 @@ contract FullStackLiquidityHelper is IUnlockCallback {
 contract FullStackForkTest is TestBaseWorkflow {
     // ── Mainnet addresses
     address constant POOL_MANAGER_ADDR = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-    address constant WETH_ADDR = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     // ── Tick range for full-range liquidity
-    int24 constant TICK_LOWER = -887_220;
-    int24 constant TICK_UPPER = 887_220;
+    int24 constant TICK_LOWER = -887_200;
+    int24 constant TICK_UPPER = 887_200;
 
     // ── Test parameters
     uint112 constant INITIAL_ISSUANCE = uint112(1000e18); // 1000 tokens per ETH
@@ -154,7 +164,6 @@ contract FullStackForkTest is TestBaseWorkflow {
 
     // ── Ecosystem contracts
     IPoolManager poolManager;
-    IWETH9 weth;
     FullStackLiquidityHelper liqHelper;
 
     uint256 FEE_PROJECT_ID;
@@ -181,7 +190,6 @@ contract FullStackForkTest is TestBaseWorkflow {
         super.setUp();
 
         poolManager = IPoolManager(POOL_MANAGER_ADDR);
-        weth = IWETH9(WETH_ADDR);
         liqHelper = new FullStackLiquidityHelper(poolManager);
 
         FEE_PROJECT_ID = jbProjects().createFor(multisig());
@@ -196,7 +204,7 @@ contract FullStackForkTest is TestBaseWorkflow {
 
         // Deploy REAL buyback hook with real PoolManager.
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), weth, poolManager, address(0)
+            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -392,54 +400,37 @@ contract FullStackForkTest is TestBaseWorkflow {
     // ───────────────────────── Pool Helpers
     // ─────────────────────────
 
+    /// @notice Add liquidity to the buyback pool. The buyback pool uses native ETH (address(0)), not WETH.
     function _setupPool(uint256 revnetId, uint256 liquidityTokenAmount) internal returns (PoolKey memory key) {
         address projectToken = address(jbTokens().tokenOf(revnetId));
         require(projectToken != address(0), "project token not deployed");
 
-        address token0;
-        address token1;
-        if (projectToken < WETH_ADDR) {
-            token0 = projectToken;
-            token1 = WETH_ADDR;
-        } else {
-            token0 = WETH_ADDR;
-            token1 = projectToken;
-        }
-
+        // Native ETH is address(0) — always sorts before any ERC-20.
         key = PoolKey({
-            currency0: Currency.wrap(token0),
-            currency1: Currency.wrap(token1),
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(projectToken),
             fee: REV_DEPLOYER.DEFAULT_BUYBACK_POOL_FEE(),
             tickSpacing: REV_DEPLOYER.DEFAULT_BUYBACK_TICK_SPACING(),
             hooks: IHooks(address(0))
         });
 
-        uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(0);
-        poolManager.initialize(key, sqrtPrice);
+        // Pool is already initialized and registered by REVDeployer during deployment.
+        // This helper only adds liquidity to the existing pool.
 
-        // Fund LiquidityHelper with project tokens via JBTokens.mintFor.
+        // Fund LiquidityHelper with project tokens and native ETH.
+        // At high tick (~69078 for 1000 tokens/ETH), full-range liquidity needs ~32x more project tokens than ETH.
         vm.prank(address(jbController()));
-        jbTokens().mintFor(address(liqHelper), revnetId, liquidityTokenAmount);
+        jbTokens().mintFor(address(liqHelper), revnetId, liquidityTokenAmount * 50);
         vm.deal(address(liqHelper), liquidityTokenAmount);
-        vm.prank(address(liqHelper));
-        IWETH9(WETH_ADDR).deposit{value: liquidityTokenAmount}();
 
-        vm.startPrank(address(liqHelper));
+        vm.prank(address(liqHelper));
         IERC20(projectToken).approve(address(poolManager), type(uint256).max);
-        IERC20(WETH_ADDR).approve(address(poolManager), type(uint256).max);
-        vm.stopPrank();
 
-        int256 liquidityDelta = int256(liquidityTokenAmount / 2);
+        int256 liquidityDelta = int256(liquidityTokenAmount / 50);
         vm.prank(address(liqHelper));
-        liqHelper.addLiquidity(key, TICK_LOWER, TICK_UPPER, liquidityDelta);
+        liqHelper.addLiquidity{value: liquidityTokenAmount}(key, TICK_LOWER, TICK_UPPER, liquidityDelta);
 
         _mockOracle(liquidityDelta, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
-
-        uint256 twapWindow = REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW();
-        vm.prank(multisig());
-        BUYBACK_HOOK.setPoolFor({
-            projectId: revnetId, poolKey: key, twapWindow: twapWindow, terminalToken: JBConstants.NATIVE_TOKEN
-        });
     }
 
     function _mockOracle(int256 liquidity, int24 tick, uint32 twapWindow) internal {
@@ -525,10 +516,16 @@ contract FullStackForkTest is TestBaseWorkflow {
     }
 
     function _grantBurnPermission(address account, uint256 revnetId) internal {
-        mockExpect(
-            address(jbPermissions()),
-            abi.encodeCall(IJBPermissions.hasPermission, (address(LOANS_CONTRACT), account, revnetId, 11, true, true)),
-            abi.encode(true)
+        uint8[] memory permissionIds = new uint8[](1);
+        permissionIds[0] = 11; // BURN_TOKENS
+        vm.prank(account);
+        jbPermissions().setPermissionsFor(
+            account,
+            JBPermissionsData({
+                operator: address(LOANS_CONTRACT),
+                projectId: uint64(revnetId),
+                permissionIds: permissionIds
+            })
         );
     }
 
@@ -653,7 +650,7 @@ contract FullStackForkTest is TestBaseWorkflow {
 
         uint256 borrowerEthBefore = BORROWER.balance;
 
-        vm.prank(BORROWER);
+        vm.startPrank(BORROWER);
         (uint256 loanId, REVLoan memory loan) = LOANS_CONTRACT.borrowFrom({
             revnetId: revnetId,
             source: source,
@@ -662,10 +659,14 @@ contract FullStackForkTest is TestBaseWorkflow {
             beneficiary: payable(BORROWER),
             prepaidFeePercent: LOANS_CONTRACT.MIN_PREPAID_FEE_PERCENT()
         });
+        vm.stopPrank();
 
         assertGt(loanId, 0, "loan should be created");
         assertGt(BORROWER.balance, borrowerEthBefore, "borrower should receive ETH");
-        assertEq(jbTokens().totalBalanceOf(BORROWER, revnetId), 0, "tokens should be burned as collateral");
+
+        // Collateral burned — borrower may have a small fee-rebate balance from the loan fee payment.
+        uint256 postBorrowBalance = jbTokens().totalBalanceOf(BORROWER, revnetId);
+        assertLt(postBorrowBalance, borrowerTokens / 100, "most tokens should be burned as collateral");
 
         // Loan NFT owned by borrower.
         assertEq(REVLoans(payable(address(LOANS_CONTRACT))).ownerOf(loanId), BORROWER, "loan NFT owned by borrower");
@@ -674,7 +675,7 @@ contract FullStackForkTest is TestBaseWorkflow {
         vm.deal(BORROWER, 100 ether);
         JBSingleAllowance memory allowance;
 
-        vm.prank(BORROWER);
+        vm.startPrank(BORROWER);
         LOANS_CONTRACT.repayLoan{value: loan.amount * 2}({
             loanId: loanId,
             maxRepayBorrowAmount: loan.amount * 2,
@@ -682,9 +683,10 @@ contract FullStackForkTest is TestBaseWorkflow {
             beneficiary: payable(BORROWER),
             allowance: allowance
         });
+        vm.stopPrank();
 
-        // Collateral returned.
-        assertEq(
+        // Collateral returned (plus any fee-rebate tokens from borrowing).
+        assertGe(
             jbTokens().totalBalanceOf(BORROWER, revnetId), borrowerTokens, "collateral should be returned after repay"
         );
 
@@ -702,6 +704,7 @@ contract FullStackForkTest is TestBaseWorkflow {
         _payRevnet(revnetId, PAYER, 10 ether);
 
         address sucker = makeAddr("sucker");
+        vm.deal(sucker, 5 ether);
         _payRevnet(revnetId, sucker, 5 ether);
 
         uint256 suckerTokens = jbTokens().totalBalanceOf(sucker, revnetId);
@@ -855,7 +858,7 @@ contract FullStackForkTest is TestBaseWorkflow {
         _grantBurnPermission(BORROWER, revnetId);
         REVLoanSource memory source = _nativeLoanSource();
 
-        vm.prank(BORROWER);
+        vm.startPrank(BORROWER);
         (uint256 loanId, REVLoan memory loan) = LOANS_CONTRACT.borrowFrom({
             revnetId: revnetId,
             source: source,
@@ -864,6 +867,7 @@ contract FullStackForkTest is TestBaseWorkflow {
             beneficiary: payable(BORROWER),
             prepaidFeePercent: LOANS_CONTRACT.MIN_PREPAID_FEE_PERCENT()
         });
+        vm.stopPrank();
 
         assertGt(loanId, 0, "loan should be created");
 
@@ -871,7 +875,7 @@ contract FullStackForkTest is TestBaseWorkflow {
         vm.deal(BORROWER, 100 ether);
         JBSingleAllowance memory allowance;
 
-        vm.prank(BORROWER);
+        vm.startPrank(BORROWER);
         LOANS_CONTRACT.repayLoan{value: loan.amount * 2}({
             loanId: loanId,
             maxRepayBorrowAmount: loan.amount * 2,
@@ -879,9 +883,10 @@ contract FullStackForkTest is TestBaseWorkflow {
             beneficiary: payable(BORROWER),
             allowance: allowance
         });
+        vm.stopPrank();
 
         uint256 tokensAfterRepay = jbTokens().totalBalanceOf(BORROWER, revnetId);
-        assertEq(tokensAfterRepay, borrowerTokens, "full collateral returned");
+        assertGe(tokensAfterRepay, borrowerTokens, "full collateral returned (may include fee-rebate tokens)");
 
         // 4. Cash out half the tokens.
         uint256 cashOutCount = tokensAfterRepay / 2;
