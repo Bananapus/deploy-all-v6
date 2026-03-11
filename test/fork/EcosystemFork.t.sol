@@ -45,14 +45,13 @@ import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSucker
 import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 
 // LP Split Hook
-import {UniV4DeploymentSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/UniV4DeploymentSplitHook.sol";
+import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
 import {
-    IUniV4DeploymentSplitHook
-} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IUniV4DeploymentSplitHook.sol";
+    IJBUniswapV4LPSplitHook
+} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
 
 // Uniswap V4 Router Hook
 import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
-import {IUniswapV3Factory} from "@bananapus/univ4-router-v6/src/interfaces/IUniswapV3Factory.sol";
 import {JuiceboxSwapRouter} from "@bananapus/univ4-router-v6/test/utils/JuiceboxSwapRouter.sol";
 
 // Revnet
@@ -158,7 +157,6 @@ contract EcosystemForkTest is TestBaseWorkflow {
     address constant POOL_MANAGER_ADDR = 0x000000000004444c5dc75cB358380D2e3dE08A90;
     address constant WETH_ADDR = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address constant V4_POSITION_MANAGER_ADDR = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
-    address constant V3_FACTORY_ADDR = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
     // ── Tick range for full-range liquidity (hookless pool)
     int24 constant TICK_LOWER = -887_200;
@@ -195,7 +193,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
     REVDeployer REV_DEPLOYER;
 
     // LP-split hook
-    UniV4DeploymentSplitHook LP_SPLIT_HOOK;
+    JBUniswapV4LPSplitHook LP_SPLIT_HOOK;
 
     receive() external payable {}
 
@@ -225,7 +223,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
 
         // Deploy buyback hook with real PoolManager.
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, address(0)
+            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, IHooks(address(0)), address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -255,10 +253,10 @@ contract EcosystemForkTest is TestBaseWorkflow {
         jbProjects().approve(address(REV_DEPLOYER), FEE_PROJECT_ID);
 
         // Deploy LP-split hook (clone pattern).
-        UniV4DeploymentSplitHook lpSplitImpl = new UniV4DeploymentSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager
+        JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
+            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, IHooks(address(0))
         );
-        LP_SPLIT_HOOK = UniV4DeploymentSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
+        LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0); // No fee project for simplicity.
 
         // Mock geomean oracle at address(0) so payments work before buyback pool is set up.
@@ -793,13 +791,13 @@ contract EcosystemForkTest is TestBaseWorkflow {
         );
 
         bytes memory constructorArgs = abi.encode(
-            poolManager, jbTokens(), jbDirectory(), jbPrices(), IUniswapV3Factory(V3_FACTORY_ADDR), WETH_ADDR
+            poolManager, jbTokens(), jbDirectory(), jbPrices()
         );
 
         (, bytes32 salt) = HookMiner.find(address(this), flags, type(JBUniswapV4Hook).creationCode, constructorArgs);
 
         JBUniswapV4Hook routerHook = new JBUniswapV4Hook{salt: salt}(
-            poolManager, jbTokens(), jbDirectory(), jbPrices(), IUniswapV3Factory(V3_FACTORY_ADDR), WETH_ADDR
+            poolManager, jbTokens(), jbDirectory(), jbPrices()
         );
 
         // Create a V4 pool with the router hook.

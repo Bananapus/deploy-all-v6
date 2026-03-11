@@ -35,7 +35,7 @@ import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSucker
 import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 
 // LP Split Hook
-import {UniV4DeploymentSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/UniV4DeploymentSplitHook.sol";
+import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
 
 // Revnet
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
@@ -206,7 +206,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
     REVDeployer REV_DEPLOYER;
 
     // LP-split hook
-    UniV4DeploymentSplitHook LP_SPLIT_HOOK;
+    JBUniswapV4LPSplitHook LP_SPLIT_HOOK;
 
     receive() external payable {}
 
@@ -237,7 +237,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, address(0)
+            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, IHooks(address(0)), address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -267,10 +267,10 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         jbProjects().approve(address(REV_DEPLOYER), FEE_PROJECT_ID);
 
         // Deploy LP-split hook (clone pattern).
-        UniV4DeploymentSplitHook lpSplitImpl = new UniV4DeploymentSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager
+        JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
+            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, IHooks(address(0))
         );
-        LP_SPLIT_HOOK = UniV4DeploymentSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
+        LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0); // No fee routing for simplicity.
 
         // Fund actors.

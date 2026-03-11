@@ -41,7 +41,9 @@ The script deploys the complete V6 ecosystem in dependency order:
 
 ### Hooks & Extensions
 - `JB721TiersHook` + `JB721TiersHookStore` + Deployers — NFT tiers
-- `JBBuybackHook` + `JBBuybackHookRegistry` — DEX buyback
+- `JBUniswapV4Hook` — Uniswap V4 router hook (oracle hook providing TWAP via `observe()`)
+- `JBBuybackHook` + `JBBuybackHookRegistry` — DEX buyback (wired to `JBUniswapV4Hook` as its oracle)
+- `JBUniswapV4LPSplitHook` — LP split hook (wired to `JBUniswapV4Hook` as its oracle)
 - `JBRouterTerminal` + `JBRouterTerminalRegistry` — Payment routing
 - `JBOwnable` — JB-aware ownership
 
@@ -66,6 +68,15 @@ Sphinx proposal → Deploy.deploy()
   Phase 5: Applications (depends on everything above)
   Phase 6: Wiring (set terminals, controllers, registrations)
 ```
+
+### Oracle Hook Dependency Chain
+
+The `JBUniswapV4Hook` (router hook) acts as the oracle hook for both the buyback hook and the LP split hook. It implements `IGeomeanOracle`-compatible `observe()` for TWAP queries. Both `JBBuybackHook` and `JBUniswapV4LPSplitHook` accept an `oracleHook` constructor parameter that must point to a deployed `JBUniswapV4Hook` instance.
+
+Required deployment ordering within Phase 3:
+1. `JBUniswapV4Hook` (router hook / oracle hook) -- deployed first, provides TWAP oracle
+2. `JBBuybackHook` -- constructor receives `JBUniswapV4Hook` address as `oracleHook`
+3. `JBUniswapV4LPSplitHook` -- constructor receives `JBUniswapV4Hook` address as `oracleHook`
 
 ## Target Chains
 - Mainnets: Ethereum, Optimism, Base, Arbitrum

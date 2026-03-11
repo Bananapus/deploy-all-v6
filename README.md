@@ -55,6 +55,8 @@ This repo references all other V6 repos via `file:../` paths in `package.json`:
 ../nana-suckers-v6
 ../nana-omnichain-deployers-v6
 ../nana-ownable-v6
+../univ4-router-v6
+../univ4-lp-split-hook-v6
 ../revnet-core-v6
 ../croptop-core-v6
 ../banny-retail-v6
