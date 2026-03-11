@@ -406,9 +406,10 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
     //  Pool / Buyback Helpers
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Initialize and register a USDC buyback pool for the given revnet.
-    /// REVDeployer only auto-registers native ETH pools. For USDC, we must manually
-    /// initialize the V4 pool and register it in the buyback hook.
+    /// @notice Add liquidity to the USDC buyback pool for the given revnet.
+    /// REVDeployer already initializes the pool and registers it in the buyback hook
+    /// for ALL terminal tokens (including USDC) during deployFor. This helper only
+    /// adds liquidity to the existing pool.
     function _setupUSDCBuybackPool(uint256 revnetId, uint256 liquidityUSDCAmount)
         internal
         returns (PoolKey memory key)
@@ -428,9 +429,8 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
             hooks: IHooks(address(0))
         });
 
-        // Initialize pool at 1:1 tick (sqrtPrice = 1 << 96).
-        uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(0);
-        poolManager.initialize(key, sqrtPrice);
+        // Pool is already initialized and registered by REVDeployer during deployment.
+        // Just add liquidity to it.
 
         // Fund liquidity helper with USDC and project tokens.
         usdc.mint(address(liqHelper), liquidityUSDCAmount);
@@ -445,18 +445,6 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         int256 liquidityDelta = int256(liquidityUSDCAmount / 2);
         vm.prank(address(liqHelper));
         liqHelper.addLiquidity(key, TICK_LOWER, TICK_UPPER, liquidityDelta);
-
-        // Register pool in the buyback hook.
-        // initializePoolFor does NOT check permissions (unlike setPoolFor), so we can call it directly.
-        // The pool is already initialized above, so the try-catch in initializePoolFor will silently succeed.
-        BUYBACK_HOOK.initializePoolFor({
-            projectId: revnetId,
-            fee: REV_DEPLOYER.DEFAULT_BUYBACK_POOL_FEE(),
-            tickSpacing: REV_DEPLOYER.DEFAULT_BUYBACK_TICK_SPACING(),
-            twapWindow: uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()),
-            terminalToken: address(usdc),
-            sqrtPriceX96: sqrtPrice
-        });
 
         _mockOracle(liquidityDelta, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
     }
@@ -550,16 +538,6 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
 
     function _terminalBalance(uint256 projectId, address token) internal view returns (uint256) {
         return jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, token);
-    }
-
-    /// @notice Grant SET_BUYBACK_POOL permission to an address for a project.
-    function _grantBuybackPoolPermission(address operator, uint256 projectId) internal {
-        address projectOwner = jbProjects().ownerOf(projectId);
-        mockExpect(
-            address(jbPermissions()),
-            abi.encodeCall(IJBPermissions.hasPermission, (operator, projectOwner, projectId, 26, true, true)),
-            abi.encode(true)
-        );
     }
 
     // ═══════════════════════════════════════════════════════════════════
