@@ -12,6 +12,7 @@
 | Risk | Description | Mitigation |
 |------|-------------|------------|
 | Deployment ordering | Partially deployed state between Sphinx phases | Contracts aren't usable until wiring phase completes |
+| Oracle hook dependency ordering | `JBBuybackHook` and `JBUniswapV4LPSplitHook` both require a deployed `JBUniswapV4Hook` (oracle hook) address at construction. Deploying them before the oracle hook, or passing the wrong address, means TWAP queries fail and swaps fall back to spot price (vulnerable to single-block manipulation) | Deploy `JBUniswapV4Hook` first; pass its address as `oracleHook` to buyback and LP split hook constructors |
 | Hardcoded addresses | External addresses (Uniswap, Chainlink) must match canonical per chain | Addresses verified against canonical deployments |
 | Constructor errors | Wrong parameters could lock funds or grant wrong permissions | Script tested via `forge build`; CI verifies compilation |
 | No optimizer | `optimizer = false` means very large bytecode | Acceptable for deployment scripts; not deployed as contracts |
