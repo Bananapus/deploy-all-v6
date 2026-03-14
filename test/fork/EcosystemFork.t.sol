@@ -46,9 +46,7 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 
 // LP Split Hook
 import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
-import {
-    IJBUniswapV4LPSplitHook
-} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
+import {IJBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
 
 // Uniswap V4 Router Hook
 import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
@@ -98,7 +96,12 @@ contract EcosystemLiquidityHelper is IUnlockCallback {
 
     receive() external payable {}
 
-    function addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta)
+    function addLiquidity(
+        PoolKey memory key,
+        int24 tickLower,
+        int24 tickUpper,
+        int256 liquidityDelta
+    )
         external
         payable
     {
@@ -215,15 +218,23 @@ contract EcosystemForkTest is TestBaseWorkflow {
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
-        EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+        EXAMPLE_HOOK = new JB721TiersHook(
+            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig()
+        );
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         // Deploy buyback hook with real PoolManager.
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, IHooks(address(0)), address(0)
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbProjects(),
+            jbTokens(),
+            poolManager,
+            IHooks(address(0)),
+            address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -254,7 +265,13 @@ contract EcosystemForkTest is TestBaseWorkflow {
 
         // Deploy LP-split hook (clone pattern).
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, permit2(), IHooks(address(0))
+            address(jbDirectory()),
+            jbPermissions(),
+            address(jbTokens()),
+            poolManager,
+            positionManager,
+            permit2(),
+            IHooks(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0); // No fee project for simplicity.
@@ -388,9 +405,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
                 tokenUriResolver: IJB721TokenUriResolver(address(0)),
                 contractUri: "ipfs://contract",
                 tiersConfig: JB721InitTiersConfig({
-                    tiers: tiers,
-                    currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                    decimals: 18
+                    tiers: tiers, currency: uint32(uint160(JBConstants.NATIVE_TOKEN)), decimals: 18
                 }),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
@@ -789,15 +804,11 @@ contract EcosystemForkTest is TestBaseWorkflow {
                 | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
         );
 
-        bytes memory constructorArgs = abi.encode(
-            poolManager, jbTokens(), jbDirectory(), jbPrices()
-        );
+        bytes memory constructorArgs = abi.encode(poolManager, jbTokens(), jbDirectory(), jbPrices());
 
         (, bytes32 salt) = HookMiner.find(address(this), flags, type(JBUniswapV4Hook).creationCode, constructorArgs);
 
-        JBUniswapV4Hook routerHook = new JBUniswapV4Hook{salt: salt}(
-            poolManager, jbTokens(), jbDirectory(), jbPrices()
-        );
+        JBUniswapV4Hook routerHook = new JBUniswapV4Hook{salt: salt}(poolManager, jbTokens(), jbDirectory(), jbPrices());
 
         // Create a V4 pool with the router hook.
         address projectToken = address(jbTokens().tokenOf(revnetId));

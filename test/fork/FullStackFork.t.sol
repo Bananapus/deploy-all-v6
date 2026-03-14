@@ -82,7 +82,12 @@ contract FullStackLiquidityHelper is IUnlockCallback {
 
     receive() external payable {}
 
-    function addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta)
+    function addLiquidity(
+        PoolKey memory key,
+        int24 tickLower,
+        int24 tickUpper,
+        int256 liquidityDelta
+    )
         external
         payable
     {
@@ -196,15 +201,23 @@ contract FullStackForkTest is TestBaseWorkflow {
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
-        EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+        EXAMPLE_HOOK = new JB721TiersHook(
+            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig()
+        );
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         // Deploy REAL buyback hook with real PoolManager.
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, IHooks(address(0)), address(0)
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbProjects(),
+            jbTokens(),
+            poolManager,
+            IHooks(address(0)),
+            address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -376,9 +389,7 @@ contract FullStackForkTest is TestBaseWorkflow {
                 tokenUriResolver: IJB721TokenUriResolver(address(0)),
                 contractUri: "ipfs://contract",
                 tiersConfig: JB721InitTiersConfig({
-                    tiers: tiers,
-                    currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                    decimals: 18
+                    tiers: tiers, currency: uint32(uint160(JBConstants.NATIVE_TOKEN)), decimals: 18
                 }),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
@@ -518,14 +529,13 @@ contract FullStackForkTest is TestBaseWorkflow {
         uint8[] memory permissionIds = new uint8[](1);
         permissionIds[0] = 11; // BURN_TOKENS
         vm.prank(account);
-        jbPermissions().setPermissionsFor(
-            account,
-            JBPermissionsData({
-                operator: address(LOANS_CONTRACT),
-                projectId: uint64(revnetId),
-                permissionIds: permissionIds
-            })
-        );
+        jbPermissions()
+            .setPermissionsFor(
+                account,
+                JBPermissionsData({
+                    operator: address(LOANS_CONTRACT), projectId: uint64(revnetId), permissionIds: permissionIds
+                })
+            );
     }
 
     function _buildPayMetadataNoQuote(address hookMetadataTarget) internal view returns (bytes memory) {

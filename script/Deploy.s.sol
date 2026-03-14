@@ -128,6 +128,7 @@ import {Banny721TokenUriResolver} from "@bannynet/core-v6/src/Banny721TokenUriRe
 // ── Defifa ── (TODO: uncomment when Defifa source is updated)
 // import {ITypeface} from "lib/typeface/contracts/interfaces/ITypeface.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 // import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
 // import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
 // import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
@@ -482,8 +483,9 @@ contract Deploy is Script, Sphinx {
     function _deploy721Hook() internal {
         _hookStore = new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
-        _hook721 =
-            new JB721TiersHook{salt: HOOK_721_SALT}(_directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder);
+        _hook721 = new JB721TiersHook{salt: HOOK_721_SALT}(
+            _directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder
+        );
 
         _hookDeployer = new JB721TiersHookDeployer{salt: HOOK_721_DEPLOYER_SALT}(
             _hook721, _hookStore, IJBAddressRegistry(address(_addressRegistry)), _trustedForwarder
@@ -1503,9 +1505,7 @@ contract Deploy is Script, Sphinx {
                 baseUri: "ipfs://",
                 tokenUriResolver: IJB721TokenUriResolver(address(resolver)),
                 contractUri: "https://jbm.infura-ipfs.io/ipfs/Qmd2hgb1E4caEB51VvoC3GvonhwkCoVyXjJ3zqsCxHPTKK",
-                tiersConfig: JB721InitTiersConfig({
-                    tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS
-                }),
+                tiersConfig: JB721InitTiersConfig({tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS}),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,

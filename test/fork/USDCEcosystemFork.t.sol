@@ -46,9 +46,7 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 
 // LP Split Hook
 import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
-import {
-    IJBUniswapV4LPSplitHook
-} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
+import {IJBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
 
 // Uniswap V4 Router Hook
 import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
@@ -112,7 +110,12 @@ contract USDCEcosystemLiquidityHelper is IUnlockCallback {
 
     receive() external payable {}
 
-    function addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta)
+    function addLiquidity(
+        PoolKey memory key,
+        int24 tickLower,
+        int24 tickUpper,
+        int256 liquidityDelta
+    )
         external
         payable
     {
@@ -231,15 +234,23 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
-        EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+        EXAMPLE_HOOK = new JB721TiersHook(
+            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig()
+        );
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         // Deploy buyback hook with real PoolManager.
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, IHooks(address(0)), address(0)
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbProjects(),
+            jbTokens(),
+            poolManager,
+            IHooks(address(0)),
+            address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -270,7 +281,13 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
 
         // Deploy LP-split hook (clone pattern).
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, permit2(), IHooks(address(0))
+            address(jbDirectory()),
+            jbPermissions(),
+            address(jbTokens()),
+            poolManager,
+            positionManager,
+            permit2(),
+            IHooks(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0); // No fee project for simplicity.
@@ -305,11 +322,7 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
-        acc[0] = JBAccountingContext({
-            token: address(usdc),
-            decimals: 6,
-            currency: uint32(uint160(address(usdc)))
-        });
+        acc[0] = JBAccountingContext({token: address(usdc), decimals: 6, currency: uint32(uint160(address(usdc)))});
         tc = new JBTerminalConfig[](1);
         tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
 
@@ -368,8 +381,7 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         });
 
         sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0),
-            salt: keccak256(abi.encodePacked("UECO"))
+            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("UECO"))
         });
     }
 
@@ -414,9 +426,7 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
                 tokenUriResolver: IJB721TokenUriResolver(address(0)),
                 contractUri: "ipfs://contract",
                 tiersConfig: JB721InitTiersConfig({
-                    tiers: tiers,
-                    currency: uint32(uint160(address(usdc))),
-                    decimals: 6
+                    tiers: tiers, currency: uint32(uint160(address(usdc))), decimals: 6
                 }),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
@@ -440,10 +450,7 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
 
     /// @notice Set up a USDC buyback pool. The pool is already initialized and registered by REVDeployer
     /// during deployment. This helper only adds liquidity to the existing pool.
-    function _setupUSDCBuybackPool(uint256 revnetId, uint256 liquidityAmount)
-        internal
-        returns (PoolKey memory key)
-    {
+    function _setupUSDCBuybackPool(uint256 revnetId, uint256 liquidityAmount) internal returns (PoolKey memory key) {
         address projectToken = address(jbTokens().tokenOf(revnetId));
         require(projectToken != address(0), "project token not deployed");
 
@@ -465,7 +472,8 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         // Fund LiquidityHelper with USDC and project tokens.
         usdc.mint(address(liqHelper), liquidityAmount);
         vm.prank(address(jbController()));
-        jbTokens().mintFor(address(liqHelper), revnetId, liquidityAmount * 1e12); // Scale 6-dec USDC to 18-dec project tokens.
+        jbTokens().mintFor(address(liqHelper), revnetId, liquidityAmount * 1e12); // Scale 6-dec USDC to 18-dec project
+        // tokens.
 
         vm.startPrank(address(liqHelper));
         IERC20(address(usdc)).approve(address(poolManager), type(uint256).max);
@@ -552,15 +560,16 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         usdc.mint(payer, amount);
         vm.startPrank(payer);
         usdc.approve(address(jbMultiTerminal()), amount);
-        tokensReceived = jbMultiTerminal().pay({
-            projectId: revnetId,
-            token: address(usdc),
-            amount: amount,
-            beneficiary: payer,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: ""
-        });
+        tokensReceived = jbMultiTerminal()
+            .pay({
+                projectId: revnetId,
+                token: address(usdc),
+                amount: amount,
+                beneficiary: payer,
+                minReturnedTokens: 0,
+                memo: "",
+                metadata: ""
+            });
         vm.stopPrank();
     }
 
@@ -640,15 +649,16 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         usdc.mint(PAYER, 100e6);
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 100e6);
-        uint256 tokens = jbMultiTerminal().pay({
-            projectId: revnetId,
-            token: address(usdc),
-            amount: 100e6,
-            beneficiary: PAYER,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: metadata
-        });
+        uint256 tokens = jbMultiTerminal()
+            .pay({
+                projectId: revnetId,
+                token: address(usdc),
+                amount: 100e6,
+                beneficiary: PAYER,
+                minReturnedTokens: 0,
+                memo: "",
+                metadata: metadata
+            });
         vm.stopPrank();
 
         // NFT should be minted to PAYER.
@@ -677,7 +687,7 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
 
         // Pay to generate reserved tokens.
         _payRevnetUSDC(revnetId, PAYER, 10_000e6); // 10,000 USDC
-        _payRevnetUSDC(revnetId, BORROWER, 5_000e6); // 5,000 USDC
+        _payRevnetUSDC(revnetId, BORROWER, 5000e6); // 5,000 USDC
 
         // Check pending reserved tokens.
         uint256 pending = jbController().pendingReservedTokenBalanceOf(revnetId);
@@ -710,10 +720,10 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         _setupUSDCBuybackPool(revnetId, 10_000e6); // 10,000 USDC
 
         // Pay some surplus so bonding curve has visible effect.
-        _payRevnetUSDC(revnetId, BORROWER, 5_000e6);
+        _payRevnetUSDC(revnetId, BORROWER, 5000e6);
 
         // Pay again — buyback hook is now active.
-        uint256 tokens = _payRevnetUSDC(revnetId, PAYER, 1_000e6); // 1,000 USDC
+        uint256 tokens = _payRevnetUSDC(revnetId, PAYER, 1000e6); // 1,000 USDC
 
         // Should receive tokens (either via mint or swap, whichever wins).
         assertGt(tokens, 0, "should receive tokens post-AMM");
@@ -737,7 +747,7 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
 
         // Pay in stage 1 (70% tax).
         _payRevnetUSDC(revnetId, PAYER, 10_000e6);
-        _payRevnetUSDC(revnetId, BORROWER, 5_000e6);
+        _payRevnetUSDC(revnetId, BORROWER, 5000e6);
 
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
 
@@ -755,7 +765,7 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
 
         // Payment in stage 2 should still work with buyback hook.
         address payer2 = makeAddr("payer2");
-        uint256 tokens = _payRevnetUSDC(revnetId, payer2, 1_000e6);
+        uint256 tokens = _payRevnetUSDC(revnetId, payer2, 1000e6);
         assertGt(tokens, 0, "payment should work in stage 2 with buyback");
     }
 
@@ -779,11 +789,11 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         });
 
         // 2. Pre-AMM payment (mint path only, no pool).
-        uint256 tokensPreAMM = _payRevnetUSDC(revnetId, PAYER, 5_000e6); // 5,000 USDC
+        uint256 tokensPreAMM = _payRevnetUSDC(revnetId, PAYER, 5000e6); // 5,000 USDC
         assertGt(tokensPreAMM, 0, "pre-AMM payment should mint tokens");
 
         // Another payer for bonding curve effects.
-        _payRevnetUSDC(revnetId, BORROWER, 5_000e6);
+        _payRevnetUSDC(revnetId, BORROWER, 5000e6);
 
         // 3. Distribute reserved tokens -> LP-split hook accumulates.
         uint256 pending = jbController().pendingReservedTokenBalanceOf(revnetId);
@@ -803,15 +813,16 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         usdc.mint(PAYER, 100e6);
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 100e6);
-        uint256 tokensPostAMM = jbMultiTerminal().pay({
-            projectId: revnetId,
-            token: address(usdc),
-            amount: 100e6,
-            beneficiary: PAYER,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: metadata
-        });
+        uint256 tokensPostAMM = jbMultiTerminal()
+            .pay({
+                projectId: revnetId,
+                token: address(usdc),
+                amount: 100e6,
+                beneficiary: PAYER,
+                minReturnedTokens: 0,
+                memo: "",
+                metadata: metadata
+            });
         vm.stopPrank();
         assertGt(tokensPostAMM, 0, "post-AMM payment should return tokens");
         assertEq(IERC721(address(hook)).balanceOf(PAYER), 1, "should own NFT from post-AMM payment");
@@ -822,15 +833,16 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         uint256 payerUSDCBefore = usdc.balanceOf(PAYER);
 
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: address(usdc),
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: address(usdc),
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         assertGt(usdc.balanceOf(PAYER), payerUSDCBefore, "should receive USDC from cashout");
         assertEq(

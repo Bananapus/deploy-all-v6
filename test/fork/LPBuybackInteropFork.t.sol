@@ -84,7 +84,12 @@ contract InteropLiquidityHelper is IUnlockCallback {
 
     receive() external payable {}
 
-    function addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta)
+    function addLiquidity(
+        PoolKey memory key,
+        int24 tickLower,
+        int24 tickUpper,
+        int256 liquidityDelta
+    )
         external
         payable
     {
@@ -93,7 +98,10 @@ contract InteropLiquidityHelper is IUnlockCallback {
 
     function swap(PoolKey memory key, bool zeroForOne, int256 amountSpecified) external payable {
         poolManager.unlock(
-            abi.encode(Action.SWAP, abi.encode(DoSwapParams({key: key, zeroForOne: zeroForOne, amountSpecified: amountSpecified})))
+            abi.encode(
+                Action.SWAP,
+                abi.encode(DoSwapParams({key: key, zeroForOne: zeroForOne, amountSpecified: amountSpecified}))
+            )
         );
     }
 
@@ -113,7 +121,9 @@ contract InteropLiquidityHelper is IUnlockCallback {
 
         (BalanceDelta delta,) = poolManager.modifyLiquidity(
             key,
-            ModifyLiquidityParams({tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0}),
+            ModifyLiquidityParams({
+                tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
+            }),
             ""
         );
 
@@ -126,8 +136,11 @@ contract InteropLiquidityHelper is IUnlockCallback {
 
         uint160 limit = p.zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1;
 
-        BalanceDelta delta =
-            poolManager.swap(p.key, SwapParams({zeroForOne: p.zeroForOne, amountSpecified: p.amountSpecified, sqrtPriceLimitX96: limit}), "");
+        BalanceDelta delta = poolManager.swap(
+            p.key,
+            SwapParams({zeroForOne: p.zeroForOne, amountSpecified: p.amountSpecified, sqrtPriceLimitX96: limit}),
+            ""
+        );
 
         _settleDelta(p.key, delta);
         return "";
@@ -230,14 +243,22 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
-        EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+        EXAMPLE_HOOK = new JB721TiersHook(
+            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig()
+        );
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, IHooks(address(0)), address(0)
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbProjects(),
+            jbTokens(),
+            poolManager,
+            IHooks(address(0)),
+            address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -268,7 +289,13 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
 
         // Deploy LP-split hook (clone pattern).
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, permit2(), IHooks(address(0))
+            address(jbDirectory()),
+            jbPermissions(),
+            address(jbTokens()),
+            poolManager,
+            positionManager,
+            permit2(),
+            IHooks(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0); // No fee routing for simplicity.
@@ -431,7 +458,10 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
     /// The buyback pool uses native ETH (address(0)) — the same pool the LP split hook deploys into.
     /// Uses a conservative liquidity delta to avoid ERC20InsufficientBalance when the pool tick
     /// is high (project token cheap relative to ETH → full-range needs many more project tokens than ETH).
-    function _seedBuybackPoolLiquidity(uint256 revnetId, uint256 liquidityTokenAmount)
+    function _seedBuybackPoolLiquidity(
+        uint256 revnetId,
+        uint256 liquidityTokenAmount
+    )
         internal
         returns (PoolKey memory key)
     {
@@ -522,11 +552,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
 
         // 3. Deploy pool via LP split hook (uses accumulated tokens as liquidity).
         _grantDeployPoolPermission(address(this), revnetId);
-        LP_SPLIT_HOOK.deployPool({
-            projectId: revnetId,
-            terminalToken: JBConstants.NATIVE_TOKEN,
-            minCashOutReturn: 0
-        });
+        LP_SPLIT_HOOK.deployPool({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
 
         // Accumulated tokens should be cleared after pool deployment.
         assertEq(LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId), 0, "accumulated tokens should be cleared");
@@ -601,11 +627,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
 
         // Deploy pool.
         _grantDeployPoolPermission(address(this), revnetId);
-        LP_SPLIT_HOOK.deployPool({
-            projectId: revnetId,
-            terminalToken: JBConstants.NATIVE_TOKEN,
-            minCashOutReturn: 0
-        });
+        LP_SPLIT_HOOK.deployPool({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
 
         // More payments → more reserved tokens.
         _payRevnet(revnetId, PAYER, 5 ether);
@@ -658,11 +680,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         // Distribute and deploy pool.
         jbController().sendReservedTokensToSplitsOf(revnetId);
         _grantDeployPoolPermission(address(this), revnetId);
-        LP_SPLIT_HOOK.deployPool({
-            projectId: revnetId,
-            terminalToken: JBConstants.NATIVE_TOKEN,
-            minCashOutReturn: 0
-        });
+        LP_SPLIT_HOOK.deployPool({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
 
         // Also add manual liquidity to the same native ETH pool to ensure swap path is competitive with mint.
         _seedBuybackPoolLiquidity(revnetId, 10_000 ether);
@@ -696,26 +714,23 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         // Distribute and deploy pool.
         jbController().sendReservedTokensToSplitsOf(revnetId);
         _grantDeployPoolPermission(address(this), revnetId);
-        LP_SPLIT_HOOK.deployPool({
-            projectId: revnetId,
-            terminalToken: JBConstants.NATIVE_TOKEN,
-            minCashOutReturn: 0
-        });
+        LP_SPLIT_HOOK.deployPool({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
 
         // Cash out tokens — bonding curve should work with pool deployed.
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: payerTokens / 2,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        uint256 reclaimed = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: payerTokens / 2,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         assertGt(reclaimed, 0, "should reclaim ETH via cash out");
         assertGt(PAYER.balance, payerEthBefore, "payer ETH should increase");
@@ -793,13 +808,14 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController().launchProjectFor({
-            owner: address(this),
-            projectUri: "ipfs://standalone",
-            rulesetConfigurations: rulesetConfigs,
-            terminalConfigurations: tc,
-            memo: ""
-        });
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: address(this),
+                projectUri: "ipfs://standalone",
+                rulesetConfigurations: rulesetConfigs,
+                terminalConfigurations: tc,
+                memo: ""
+            });
 
         // 2. Deploy ERC-20 (needed for buyback hook and LP split hook).
         jbController().deployERC20For({projectId: projectId, name: "Standalone", symbol: "SOLO", salt: bytes32(0)});
@@ -823,11 +839,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         // Must happen BEFORE initializePoolFor, because initializePoolFor would set tick 0
         // which puts the LP range out of reach (the range is one-sided project-token only).
         // No permission grant needed — address(this) IS the project owner.
-        LP_SPLIT_HOOK.deployPool({
-            projectId: projectId,
-            terminalToken: JBConstants.NATIVE_TOKEN,
-            minCashOutReturn: 0
-        });
+        LP_SPLIT_HOOK.deployPool({projectId: projectId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
 
         assertEq(LP_SPLIT_HOOK.accumulatedProjectTokens(projectId), 0, "accumulated should be cleared");
         assertGt(LP_SPLIT_HOOK.tokenIdOf(projectId, JBConstants.NATIVE_TOKEN), 0, "LP position should exist");
@@ -857,15 +869,16 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: projectId,
-            cashOutCount: payerTokens / 4,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: projectId,
+                cashOutCount: payerTokens / 4,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         assertGt(PAYER.balance, payerEthBefore, "should receive ETH from cash out");
     }

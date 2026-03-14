@@ -49,9 +49,7 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 
 // LP Split Hook
 import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
-import {
-    IJBUniswapV4LPSplitHook
-} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
+import {IJBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
 
 // Uniswap V4 Router Hook
 import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
@@ -128,7 +126,12 @@ contract CCLiquidityHelper is IUnlockCallback {
 
     receive() external payable {}
 
-    function addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta)
+    function addLiquidity(
+        PoolKey memory key,
+        int24 tickLower,
+        int24 tickUpper,
+        int256 liquidityDelta
+    )
         external
         payable
     {
@@ -141,7 +144,9 @@ contract CCLiquidityHelper is IUnlockCallback {
 
         (BalanceDelta delta,) = poolManager.modifyLiquidity(
             key,
-            ModifyLiquidityParams({tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0}),
+            ModifyLiquidityParams({
+                tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
+            }),
             ""
         );
 
@@ -246,14 +251,22 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
-        EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+        EXAMPLE_HOOK = new JB721TiersHook(
+            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig()
+        );
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, IHooks(address(0)), address(0)
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbProjects(),
+            jbTokens(),
+            poolManager,
+            IHooks(address(0)),
+            address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -284,7 +297,13 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
 
         // Deploy LP-split hook (clone pattern).
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, permit2(), IHooks(address(0))
+            address(jbDirectory()),
+            jbPermissions(),
+            address(jbTokens()),
+            poolManager,
+            positionManager,
+            permit2(),
+            IHooks(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0);
@@ -364,8 +383,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         });
 
         sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0),
-            salt: keccak256(abi.encodePacked("CC"))
+            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("CC"))
         });
     }
 
@@ -529,9 +547,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
 
     function _deployFeeProject(uint16 cashOutTaxRate) internal {
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
-        acc[0] = JBAccountingContext({
-            token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency
-        });
+        acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency});
         JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
         tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
 
@@ -590,15 +606,16 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         usdc.mint(payer, amount);
         vm.startPrank(payer);
         usdc.approve(address(jbMultiTerminal()), amount);
-        tokensReceived = jbMultiTerminal().pay({
-            projectId: revnetId,
-            token: address(usdc),
-            amount: amount,
-            beneficiary: payer,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: ""
-        });
+        tokensReceived = jbMultiTerminal()
+            .pay({
+                projectId: revnetId,
+                token: address(usdc),
+                amount: amount,
+                beneficiary: payer,
+                minReturnedTokens: 0,
+                memo: "",
+                metadata: ""
+            });
         vm.stopPrank();
     }
 
@@ -723,15 +740,16 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         usdc.mint(PAYER, 100e6);
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 100e6);
-        jbMultiTerminal().pay({
-            projectId: revnetId,
-            token: address(usdc),
-            amount: 100e6,
-            beneficiary: PAYER,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: metadata
-        });
+        jbMultiTerminal()
+            .pay({
+                projectId: revnetId,
+                token: address(usdc),
+                amount: 100e6,
+                beneficiary: PAYER,
+                minReturnedTokens: 0,
+                memo: "",
+                metadata: metadata
+            });
         vm.stopPrank();
 
         assertEq(IERC721(address(hook)).balanceOf(PAYER), 1, "1 NFT minted from USDC via cross-currency");
@@ -769,15 +787,16 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         usdc.mint(PAYER, 100e6);
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 100e6);
-        jbMultiTerminal().pay({
-            projectId: revnetId,
-            token: address(usdc),
-            amount: 100e6,
-            beneficiary: PAYER,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: metadata
-        });
+        jbMultiTerminal()
+            .pay({
+                projectId: revnetId,
+                token: address(usdc),
+                amount: 100e6,
+                beneficiary: PAYER,
+                minReturnedTokens: 0,
+                memo: "",
+                metadata: metadata
+            });
         vm.stopPrank();
 
         // NFT minted to payer.
@@ -883,11 +902,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                 baseUri: "ipfs://",
                 tokenUriResolver: IJB721TokenUriResolver(address(0)),
                 contractUri: "ipfs://contract",
-                tiersConfig: JB721InitTiersConfig({
-                    tiers: tierConfigs,
-                    currency: USD,
-                    decimals: 18
-                }),
+                tiersConfig: JB721InitTiersConfig({tiers: tierConfigs, currency: USD, decimals: 18}),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,
@@ -967,8 +982,8 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
 
         // Surplus should be ~$4000 worth (both tokens aggregated via price conversion).
         // There are no payouts configured, so surplus = total balance in USD terms.
-        assertGt(surplusUSD, 3_900e18, "surplus should be >= $3900 (allowing for rounding)");
-        assertLe(surplusUSD, 4_100e18, "surplus should be <= $4100");
+        assertGt(surplusUSD, 3900e18, "surplus should be >= $3900 (allowing for rounding)");
+        assertLe(surplusUSD, 4100e18, "surplus should be <= $4100");
     }
 
     /// @notice Test 10: ETH payment with ETH-priced tiers -> same-currency flow still works.

@@ -79,7 +79,12 @@ contract BuybackRouterLiquidityHelper is IUnlockCallback {
 
     receive() external payable {}
 
-    function addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta)
+    function addLiquidity(
+        PoolKey memory key,
+        int24 tickLower,
+        int24 tickUpper,
+        int256 liquidityDelta
+    )
         external
         payable
     {
@@ -192,15 +197,23 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
-        EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+        EXAMPLE_HOOK = new JB721TiersHook(
+            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig()
+        );
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         // Deploy buyback hook with real PoolManager.
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, IHooks(address(0)), address(0)
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbProjects(),
+            jbTokens(),
+            poolManager,
+            IHooks(address(0)),
+            address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -246,7 +259,10 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
     /// @notice Build a single-stage revnet config with the given weight and reserved percent.
     /// @param weight The issuance weight (tokens per ETH in 18-decimal fixed point).
     /// @param reservedPercent The reserved percent in basis points (out of 10000).
-    function _buildRevnetConfig(uint112 weight, uint16 reservedPercent)
+    function _buildRevnetConfig(
+        uint112 weight,
+        uint16 reservedPercent
+    )
         internal
         view
         returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
@@ -379,7 +395,11 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
     /// @param revnetId The revnet to set up the pool for.
     /// @param liquidityTokenAmount The amount of liquidity to add.
     /// @param twapTick The TWAP tick to mock (controls oracle-reported price).
-    function _setupBuybackPoolWithTick(uint256 revnetId, uint256 liquidityTokenAmount, int24 twapTick)
+    function _setupBuybackPoolWithTick(
+        uint256 revnetId,
+        uint256 liquidityTokenAmount,
+        int24 twapTick
+    )
         internal
         returns (PoolKey memory key)
     {
@@ -543,7 +563,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
         // The TWAP at this tick gives ~10 tokens per ETH (after slippage adjustment).
         // Weight gives 1 token per ETH. After 20% reserved, mint path gives 0.8 tokens.
         // The swap path (oracle says ~10) should win.
-        _setupBuybackPoolWithTick(revnetId, 100 ether, 23028);
+        _setupBuybackPoolWithTick(revnetId, 100 ether, 23_028);
 
         // Pay 1 ETH. Mint path gives 0.8 tokens. Swap path should give more.
         uint256 tokens = _payRevnet(revnetId, PAYER, 1 ether);
@@ -578,7 +598,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
         });
 
         // Deep liquidity and favorable TWAP tick (~10:1 tokens/ETH).
-        _setupBuybackPoolWithTick(revnetId, 100 ether, 23028);
+        _setupBuybackPoolWithTick(revnetId, 100 ether, 23_028);
 
         uint256[5] memory orderSizes = [uint256(0.01 ether), 0.1 ether, 1 ether, 10 ether, 50 ether];
 
@@ -643,7 +663,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
         // Now the TWAP quote should exceed mint output.
         // The hook will try to swap when oracle says pool gives more.
         int256 currentLiq = int256(10 ether / 50);
-        _mockOracle(currentLiq, 69078, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
+        _mockOracle(currentLiq, 69_078, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
 
         for (uint256 i; i < orderSizes.length; i++) {
             uint256 amount = orderSizes[i];
@@ -715,14 +735,11 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
                 _buildRevnetConfig(uint112(1e18), 2000);
 
             (uint256 lowWeightRevnetId,) = REV_DEPLOYER.deployFor({
-                revnetId: 0,
-                configuration: cfgLow,
-                terminalConfigurations: tcLow,
-                suckerDeploymentConfiguration: sdcLow
+                revnetId: 0, configuration: cfgLow, terminalConfigurations: tcLow, suckerDeploymentConfiguration: sdcLow
             });
 
             // Deep liquidity and favorable TWAP tick.
-            _setupBuybackPoolWithTick(lowWeightRevnetId, 100 ether, 23028);
+            _setupBuybackPoolWithTick(lowWeightRevnetId, 100 ether, 23_028);
 
             for (uint256 i; i < orderSizes.length; i++) {
                 uint256 amount = orderSizes[i];

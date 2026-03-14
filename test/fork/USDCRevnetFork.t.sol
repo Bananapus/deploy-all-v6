@@ -46,9 +46,7 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 
 // LP Split Hook
 import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
-import {
-    IJBUniswapV4LPSplitHook
-} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
+import {IJBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
 
 // Revnet
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
@@ -106,7 +104,12 @@ contract USDCLiquidityHelper is IUnlockCallback {
 
     receive() external payable {}
 
-    function addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta)
+    function addLiquidity(
+        PoolKey memory key,
+        int24 tickLower,
+        int24 tickUpper,
+        int256 liquidityDelta
+    )
         external
         payable
     {
@@ -229,15 +232,23 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
-        EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+        EXAMPLE_HOOK = new JB721TiersHook(
+            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig()
+        );
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         // Deploy buyback hook with real PoolManager.
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), poolManager, IHooks(address(0)), address(0)
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbProjects(),
+            jbTokens(),
+            poolManager,
+            IHooks(address(0)),
+            address(0)
         );
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
@@ -268,7 +279,13 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
 
         // Deploy LP-split hook (clone pattern).
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, permit2(), IHooks(address(0))
+            address(jbDirectory()),
+            jbPermissions(),
+            address(jbTokens()),
+            poolManager,
+            positionManager,
+            permit2(),
+            IHooks(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0); // No fee project for simplicity.
@@ -292,17 +309,16 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
     // ═══════════════════════════════════════════════════════════════════
 
     /// @notice Build a single-stage USDC revnet config.
-    function _buildUSDCRevnetConfig(uint16 cashOutTaxRate, uint16 reservedPercent)
+    function _buildUSDCRevnetConfig(
+        uint16 cashOutTaxRate,
+        uint16 reservedPercent
+    )
         internal
         view
         returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
-        acc[0] = JBAccountingContext({
-            token: address(usdc),
-            decimals: 6,
-            currency: uint32(uint160(address(usdc)))
-        });
+        acc[0] = JBAccountingContext({token: address(usdc), decimals: 6, currency: uint32(uint160(address(usdc)))});
         tc = new JBTerminalConfig[](1);
         tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
 
@@ -337,23 +353,21 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         });
 
         sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0),
-            salt: keccak256(abi.encodePacked("UREV"))
+            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("UREV"))
         });
     }
 
     /// @notice Build a single-stage USDC revnet config with LP-split hook as reserved split recipient.
-    function _buildUSDCRevnetConfigWithLPSplit(uint16 cashOutTaxRate, uint16 reservedPercent)
+    function _buildUSDCRevnetConfigWithLPSplit(
+        uint16 cashOutTaxRate,
+        uint16 reservedPercent
+    )
         internal
         view
         returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
-        acc[0] = JBAccountingContext({
-            token: address(usdc),
-            decimals: 6,
-            currency: uint32(uint160(address(usdc)))
-        });
+        acc[0] = JBAccountingContext({token: address(usdc), decimals: 6, currency: uint32(uint160(address(usdc)))});
         tc = new JBTerminalConfig[](1);
         tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
 
@@ -397,8 +411,7 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         });
 
         sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0),
-            salt: keccak256(abi.encodePacked("UREVLP"))
+            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("UREVLP"))
         });
     }
 
@@ -517,22 +530,20 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
     }
 
     /// @notice Pay a revnet with USDC. Mints USDC to the payer, approves terminal, and pays.
-    function _payRevnetUSDC(uint256 revnetId, address payer, uint256 amount)
-        internal
-        returns (uint256 tokensReceived)
-    {
+    function _payRevnetUSDC(uint256 revnetId, address payer, uint256 amount) internal returns (uint256 tokensReceived) {
         usdc.mint(payer, amount);
         vm.startPrank(payer);
         usdc.approve(address(jbMultiTerminal()), amount);
-        tokensReceived = jbMultiTerminal().pay({
-            projectId: revnetId,
-            token: address(usdc),
-            amount: amount,
-            beneficiary: payer,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: ""
-        });
+        tokensReceived = jbMultiTerminal()
+            .pay({
+                projectId: revnetId,
+                token: address(usdc),
+                amount: amount,
+                beneficiary: payer,
+                minReturnedTokens: 0,
+                memo: "",
+                metadata: ""
+            });
         vm.stopPrank();
     }
 
@@ -557,7 +568,7 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         });
 
         // Pay with varying USDC amounts — no pool yet, should mint directly.
-        uint256[3] memory amounts = [uint256(100e6), 1_000e6, 10_000e6];
+        uint256[3] memory amounts = [uint256(100e6), 1000e6, 10_000e6];
 
         for (uint256 i = 0; i < amounts.length; i++) {
             uint256 tokens = _payRevnetUSDC(revnetId, PAYER, amounts[i]);
@@ -585,7 +596,7 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
 
         // Pay with USDC to generate reserved tokens.
         _payRevnetUSDC(revnetId, PAYER, 10_000e6);
-        _payRevnetUSDC(revnetId, BORROWER, 5_000e6);
+        _payRevnetUSDC(revnetId, BORROWER, 5000e6);
 
         // Check pending reserved tokens.
         uint256 pending = jbController().pendingReservedTokenBalanceOf(revnetId);
@@ -618,10 +629,10 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         _setupUSDCBuybackPool(revnetId, 100_000e6);
 
         // Pay some surplus so bonding curve has visible effect.
-        _payRevnetUSDC(revnetId, BORROWER, 5_000e6);
+        _payRevnetUSDC(revnetId, BORROWER, 5000e6);
 
         // Pay again — buyback hook is now active for USDC.
-        uint256 tokens = _payRevnetUSDC(revnetId, PAYER, 1_000e6);
+        uint256 tokens = _payRevnetUSDC(revnetId, PAYER, 1000e6);
 
         // Should receive tokens (either via mint or swap, whichever wins).
         assertGt(tokens, 0, "should receive tokens post-AMM");
@@ -646,7 +657,7 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         _payRevnetUSDC(revnetId, PAYER, 10_000e6);
 
         // Another payer to create surplus (needed for bonding curve to return value).
-        _payRevnetUSDC(revnetId, BORROWER, 5_000e6);
+        _payRevnetUSDC(revnetId, BORROWER, 5000e6);
 
         // Get payer's token balance.
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
@@ -657,21 +668,20 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
 
         // Cash out tokens for USDC.
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: address(usdc),
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: address(usdc),
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         assertGt(usdc.balanceOf(PAYER), payerUSDCBefore, "should receive USDC from cashout");
         assertEq(
-            jbTokens().totalBalanceOf(PAYER, revnetId),
-            payerTokens - cashOutCount,
-            "remaining tokens should be correct"
+            jbTokens().totalBalanceOf(PAYER, revnetId), payerTokens - cashOutCount, "remaining tokens should be correct"
         );
     }
 
@@ -687,11 +697,11 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         });
 
         uint256[5] memory amounts = [
-            uint256(100e6),        // 100 USDC
-            1_000e6,               // 1,000 USDC
-            10_000e6,              // 10,000 USDC
-            100_000e6,             // 100,000 USDC
-            1_000_000e6            // 1,000,000 USDC
+            uint256(100e6), // 100 USDC
+            1000e6, // 1,000 USDC
+            10_000e6, // 10,000 USDC
+            100_000e6, // 100,000 USDC
+            1_000_000e6 // 1,000,000 USDC
         ];
 
         uint256 cumulativeTokens;
@@ -734,11 +744,11 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         });
 
         // 2. Pre-AMM payment (mint path only, no USDC pool).
-        uint256 tokensPreAMM = _payRevnetUSDC(revnetId, PAYER, 5_000e6);
+        uint256 tokensPreAMM = _payRevnetUSDC(revnetId, PAYER, 5000e6);
         assertGt(tokensPreAMM, 0, "pre-AMM payment should mint tokens");
 
         // Another payer for bonding curve effects.
-        _payRevnetUSDC(revnetId, BORROWER, 5_000e6);
+        _payRevnetUSDC(revnetId, BORROWER, 5000e6);
 
         // 3. Distribute reserved tokens — LP-split hook accumulates.
         uint256 pending = jbController().pendingReservedTokenBalanceOf(revnetId);
@@ -752,7 +762,7 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         _setupUSDCBuybackPool(revnetId, 100_000e6);
 
         // 5. Post-AMM payment — buyback hook compares swap vs mint.
-        uint256 tokensPostAMM = _payRevnetUSDC(revnetId, PAYER, 1_000e6);
+        uint256 tokensPostAMM = _payRevnetUSDC(revnetId, PAYER, 1000e6);
         assertGt(tokensPostAMM, 0, "post-AMM payment should return tokens");
 
         // 6. Cash out some tokens for USDC.
@@ -761,21 +771,20 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         uint256 payerUSDCBefore = usdc.balanceOf(PAYER);
 
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: address(usdc),
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: address(usdc),
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         assertGt(usdc.balanceOf(PAYER), payerUSDCBefore, "should receive USDC from cashout");
         assertEq(
-            jbTokens().totalBalanceOf(PAYER, revnetId),
-            payerTokens - cashOutCount,
-            "remaining tokens should be correct"
+            jbTokens().totalBalanceOf(PAYER, revnetId), payerTokens - cashOutCount, "remaining tokens should be correct"
         );
 
         // Verify terminal still has USDC balance.
