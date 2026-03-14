@@ -69,6 +69,7 @@ import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB
 
 // ── Buyback Hook ──
 import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
+import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 import {IWETH9 as IBuybackWETH9} from "@bananapus/buyback-hook-v6/src/interfaces/external/IWETH9.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -121,6 +122,8 @@ import {REVStageConfig} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
 import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
 import {REVCroptopAllowedPost} from "@rev-net/core-v6/src/structs/REVCroptopAllowedPost.sol";
 import {REVDeploy721TiersHookConfig} from "@rev-net/core-v6/src/structs/REVDeploy721TiersHookConfig.sol";
+import {REVBaseline721HookConfig} from "@rev-net/core-v6/src/structs/REVBaseline721HookConfig.sol";
+import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHookFlags.sol";
 
 // ── Banny ──
 import {Banny721TokenUriResolver} from "@bannynet/core-v6/src/Banny721TokenUriResolver.sol";
@@ -303,7 +306,7 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function configureSphinx() public override {
-        sphinxConfig.projectName = "juicebox-v6";
+        sphinxConfig.projectName = "nana-core-v5";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
         sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
@@ -482,8 +485,9 @@ contract Deploy is Script, Sphinx {
     function _deploy721Hook() internal {
         _hookStore = new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
-        _hook721 =
-            new JB721TiersHook{salt: HOOK_721_SALT}(_directory, _permissions, _rulesets, _hookStore, _trustedForwarder);
+        _hook721 = new JB721TiersHook{salt: HOOK_721_SALT}(
+            _directory, _permissions, _rulesets, _hookStore, _splits, _trustedForwarder
+        );
 
         _hookDeployer = new JB721TiersHookDeployer{salt: HOOK_721_DEPLOYER_SALT}(
             _hook721, _hookStore, IJBAddressRegistry(address(_addressRegistry)), _trustedForwarder
@@ -1107,7 +1111,7 @@ contract Deploy is Script, Sphinx {
             _revProjectId,
             IJB721TiersHookDeployer(address(_hookDeployer)),
             _ctPublisher,
-            IJBRulesetDataHook(address(_buybackRegistry)),
+            IJBBuybackHookRegistry(_buybackRegistry),
             address(_revLoans),
             _trustedForwarder
         );
@@ -1497,7 +1501,7 @@ contract Deploy is Script, Sphinx {
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(BAN_SUCKER_SALT);
 
         REVDeploy721TiersHookConfig memory hookConfig = REVDeploy721TiersHookConfig({
-            baseline721HookConfiguration: JBDeploy721TiersHookConfig({
+            baseline721HookConfiguration: REVBaseline721HookConfig({
                 name: "Banny Retail",
                 symbol: "BANNY",
                 baseUri: "ipfs://",
@@ -1507,7 +1511,7 @@ contract Deploy is Script, Sphinx {
                     tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS, prices: _prices
                 }),
                 reserveBeneficiary: address(0),
-                flags: JB721TiersHookFlags({
+                flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,
                     noNewTiersWithVotes: false,
                     noNewTiersWithOwnerMinting: false,
