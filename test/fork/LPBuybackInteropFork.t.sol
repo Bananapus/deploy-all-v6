@@ -231,7 +231,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
         EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
@@ -268,7 +268,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
 
         // Deploy LP-split hook (clone pattern).
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, IHooks(address(0))
+            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, permit2(), IHooks(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0); // No fee routing for simplicity.
@@ -469,7 +469,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         address projectOwner = jbProjects().ownerOf(projectId);
         mockExpect(
             address(jbPermissions()),
-            abi.encodeCall(IJBPermissions.hasPermission, (operator, projectOwner, projectId, 26, true, true)),
+            abi.encodeCall(IJBPermissions.hasPermission, (operator, projectOwner, projectId, 27, true, true)),
             abi.encode(true)
         );
     }
@@ -489,7 +489,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfigWithLPSplit(5000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -525,8 +525,6 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         LP_SPLIT_HOOK.deployPool({
             projectId: revnetId,
             terminalToken: JBConstants.NATIVE_TOKEN,
-            amount0Min: 0,
-            amount1Min: 0,
             minCashOutReturn: 0
         });
 
@@ -560,7 +558,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfigWithLPSplit(5000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -590,7 +588,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfigWithLPSplit(5000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -606,8 +604,6 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         LP_SPLIT_HOOK.deployPool({
             projectId: revnetId,
             terminalToken: JBConstants.NATIVE_TOKEN,
-            amount0Min: 0,
-            amount1Min: 0,
             minCashOutReturn: 0
         });
 
@@ -649,7 +645,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfigWithLPSplit(5000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -665,8 +661,6 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         LP_SPLIT_HOOK.deployPool({
             projectId: revnetId,
             terminalToken: JBConstants.NATIVE_TOKEN,
-            amount0Min: 0,
-            amount1Min: 0,
             minCashOutReturn: 0
         });
 
@@ -689,7 +683,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfigWithLPSplit(5000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -705,8 +699,6 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         LP_SPLIT_HOOK.deployPool({
             projectId: revnetId,
             terminalToken: JBConstants.NATIVE_TOKEN,
-            amount0Min: 0,
-            amount1Min: 0,
             minCashOutReturn: 0
         });
 
@@ -830,11 +822,10 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         // 5. Deploy pool via LP split hook — initializes pool at geometric mean price.
         // Must happen BEFORE initializePoolFor, because initializePoolFor would set tick 0
         // which puts the LP range out of reach (the range is one-sided project-token only).
+        // No permission grant needed — address(this) IS the project owner.
         LP_SPLIT_HOOK.deployPool({
             projectId: projectId,
             terminalToken: JBConstants.NATIVE_TOKEN,
-            amount0Min: 0,
-            amount1Min: 0,
             minCashOutReturn: 0
         });
 

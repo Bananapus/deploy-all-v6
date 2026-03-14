@@ -216,7 +216,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
         EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
@@ -254,7 +254,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
 
         // Deploy LP-split hook (clone pattern).
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, IHooks(address(0))
+            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, permit2(), IHooks(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0); // No fee project for simplicity.
@@ -390,8 +390,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
                 tiersConfig: JB721InitTiersConfig({
                     tiers: tiers,
                     currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                    decimals: 18,
-                    prices: IJBPrices(address(0))
+                    decimals: 18
                 }),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
@@ -402,10 +401,10 @@ contract EcosystemForkTest is TestBaseWorkflow {
                 })
             }),
             salt: bytes32("ECO_721"),
-            splitOperatorCanAdjustTiers: false,
-            splitOperatorCanUpdateMetadata: false,
-            splitOperatorCanMint: false,
-            splitOperatorCanIncreaseDiscountPercent: false
+            preventSplitOperatorAdjustingTiers: false,
+            preventSplitOperatorUpdatingMetadata: false,
+            preventSplitOperatorMinting: false,
+            preventSplitOperatorIncreasingDiscountPercent: false
         });
     }
 
@@ -559,7 +558,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployWith721sFor({
+        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,
@@ -587,7 +586,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployWith721sFor({
+        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,
@@ -628,7 +627,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -659,7 +658,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -687,7 +686,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployWith721sFor({
+        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,
@@ -735,7 +734,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -773,7 +772,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -866,7 +865,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployWith721sFor({
+        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,

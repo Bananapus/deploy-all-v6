@@ -197,7 +197,7 @@ contract FullStackForkTest is TestBaseWorkflow {
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
         EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
@@ -378,8 +378,7 @@ contract FullStackForkTest is TestBaseWorkflow {
                 tiersConfig: JB721InitTiersConfig({
                     tiers: tiers,
                     currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                    decimals: 18,
-                    prices: IJBPrices(address(0))
+                    decimals: 18
                 }),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
@@ -390,10 +389,10 @@ contract FullStackForkTest is TestBaseWorkflow {
                 })
             }),
             salt: bytes32("FSTK_721"),
-            splitOperatorCanAdjustTiers: false,
-            splitOperatorCanUpdateMetadata: false,
-            splitOperatorCanMint: false,
-            splitOperatorCanIncreaseDiscountPercent: false
+            preventSplitOperatorAdjustingTiers: false,
+            preventSplitOperatorUpdatingMetadata: false,
+            preventSplitOperatorMinting: false,
+            preventSplitOperatorIncreasingDiscountPercent: false
         });
     }
 
@@ -474,7 +473,7 @@ contract FullStackForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildConfig(cashOutTaxRate);
 
-        revnetId = REV_DEPLOYER.deployFor({
+        (revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
     }
@@ -484,7 +483,7 @@ contract FullStackForkTest is TestBaseWorkflow {
             _buildConfig(cashOutTaxRate);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
-        (revnetId, hook) = REV_DEPLOYER.deployWith721sFor({
+        (revnetId, hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,
@@ -753,7 +752,7 @@ contract FullStackForkTest is TestBaseWorkflow {
         // Modify to add 20% splitPercent (2000 out of 10_000).
         cfg.stageConfigurations[0].splitPercent = 2000;
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -783,7 +782,7 @@ contract FullStackForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageConfig(7000, 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 

@@ -247,7 +247,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
         EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
@@ -284,7 +284,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
 
         // Deploy LP-split hook (clone pattern).
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, IHooks(address(0))
+            address(jbDirectory()), jbPermissions(), address(jbTokens()), poolManager, positionManager, permit2(), IHooks(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0);
@@ -430,8 +430,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                 tiersConfig: JB721InitTiersConfig({
                     tiers: tierConfigs,
                     currency: USD, // Abstract USD
-                    decimals: 18,
-                    prices: jbPrices() // ENABLED
+                    decimals: 18
                 }),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
@@ -442,10 +441,10 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                 })
             }),
             salt: bytes32(withSplit ? bytes32("CC_USD_721_S") : bytes32("CC_USD_721")),
-            splitOperatorCanAdjustTiers: false,
-            splitOperatorCanUpdateMetadata: false,
-            splitOperatorCanMint: false,
-            splitOperatorCanIncreaseDiscountPercent: false
+            preventSplitOperatorAdjustingTiers: false,
+            preventSplitOperatorUpdatingMetadata: false,
+            preventSplitOperatorMinting: false,
+            preventSplitOperatorIncreasingDiscountPercent: false
         });
     }
 
@@ -482,8 +481,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                 tiersConfig: JB721InitTiersConfig({
                     tiers: tierConfigs,
                     currency: ETH_ID, // Abstract ETH
-                    decimals: 18,
-                    prices: jbPrices() // ENABLED
+                    decimals: 18
                 }),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
@@ -494,10 +492,10 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                 })
             }),
             salt: bytes32("CC_ETH_721"),
-            splitOperatorCanAdjustTiers: false,
-            splitOperatorCanUpdateMetadata: false,
-            splitOperatorCanMint: false,
-            splitOperatorCanIncreaseDiscountPercent: false
+            preventSplitOperatorAdjustingTiers: false,
+            preventSplitOperatorUpdatingMetadata: false,
+            preventSplitOperatorMinting: false,
+            preventSplitOperatorIncreasingDiscountPercent: false
         });
     }
 
@@ -629,7 +627,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -653,7 +651,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -674,7 +672,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
             _buildCrossCurrencyConfig();
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDTiers();
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployWith721sFor({
+        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,
@@ -709,7 +707,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
             _buildCrossCurrencyConfig();
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDTiers();
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployWith721sFor({
+        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,
@@ -751,7 +749,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
             _buildCrossCurrencyConfig();
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDTiersWithSplit(true);
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployWith721sFor({
+        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,
@@ -832,7 +830,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
             deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("NPF"))
         });
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -888,8 +886,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                 tiersConfig: JB721InitTiersConfig({
                     tiers: tierConfigs,
                     currency: USD,
-                    decimals: 18,
-                    prices: IJBPrices(address(0)) // NO prices contract
+                    decimals: 18
                 }),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
@@ -900,13 +897,13 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                 })
             }),
             salt: bytes32("NP_721"),
-            splitOperatorCanAdjustTiers: false,
-            splitOperatorCanUpdateMetadata: false,
-            splitOperatorCanMint: false,
-            splitOperatorCanIncreaseDiscountPercent: false
+            preventSplitOperatorAdjustingTiers: false,
+            preventSplitOperatorUpdatingMetadata: false,
+            preventSplitOperatorMinting: false,
+            preventSplitOperatorIncreasingDiscountPercent: false
         });
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployWith721sFor({
+        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,
@@ -933,7 +930,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -956,7 +953,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -1014,7 +1011,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
 
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigETHTiers();
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployWith721sFor({
+        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,

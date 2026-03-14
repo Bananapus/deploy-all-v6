@@ -125,13 +125,13 @@ import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHook
 // ── Banny ──
 import {Banny721TokenUriResolver} from "@bannynet/core-v6/src/Banny721TokenUriResolver.sol";
 
-// ── Defifa ──
-import {ITypeface} from "lib/typeface/contracts/interfaces/ITypeface.sol";
+// ── Defifa ── (TODO: uncomment when Defifa source is updated)
+// import {ITypeface} from "lib/typeface/contracts/interfaces/ITypeface.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
-import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
-import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
-import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
+// import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
+// import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
+// import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
+// import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
 
 /// @title Deploy — Juicebox V6 Ecosystem
 /// @notice One-shot deployment of the entire Juicebox V6 ecosystem.
@@ -483,7 +483,7 @@ contract Deploy is Script, Sphinx {
         _hookStore = new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
         _hook721 =
-            new JB721TiersHook{salt: HOOK_721_SALT}(_directory, _permissions, _rulesets, _hookStore, _splits, _trustedForwarder);
+            new JB721TiersHook{salt: HOOK_721_SALT}(_directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder);
 
         _hookDeployer = new JB721TiersHookDeployer{salt: HOOK_721_DEPLOYER_SALT}(
             _hook721, _hookStore, IJBAddressRegistry(address(_addressRegistry)), _trustedForwarder
@@ -1504,7 +1504,7 @@ contract Deploy is Script, Sphinx {
                 tokenUriResolver: IJB721TokenUriResolver(address(resolver)),
                 contractUri: "https://jbm.infura-ipfs.io/ipfs/Qmd2hgb1E4caEB51VvoC3GvonhwkCoVyXjJ3zqsCxHPTKK",
                 tiersConfig: JB721InitTiersConfig({
-                    tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS, prices: _prices
+                    tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS
                 }),
                 reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
@@ -1515,14 +1515,14 @@ contract Deploy is Script, Sphinx {
                 })
             }),
             salt: BAN_HOOK_SALT,
-            splitOperatorCanAdjustTiers: true,
-            splitOperatorCanUpdateMetadata: true,
-            splitOperatorCanMint: true,
-            splitOperatorCanIncreaseDiscountPercent: true
+            preventSplitOperatorAdjustingTiers: false,
+            preventSplitOperatorUpdatingMetadata: false,
+            preventSplitOperatorMinting: false,
+            preventSplitOperatorIncreasingDiscountPercent: false
         });
 
         // Deploy the $BAN revnet with 721 tiers (revnetId: 0 creates new project).
-        _revDeployer.deployWith721sFor({
+        _revDeployer.deployFor({
             revnetId: 0,
             configuration: banConfig,
             terminalConfigurations: terminalConfigs,

@@ -193,7 +193,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
         EXAMPLE_HOOK =
-            new JB721TiersHook(jbDirectory(), jbPermissions(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
+            new JB721TiersHook(jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig());
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
@@ -464,7 +464,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(10_000e18), 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -494,7 +494,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(10_000e18), 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -535,7 +535,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(1e18), 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -573,7 +573,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(1e18), 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -615,7 +615,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(500e18), 2000);
 
-        uint256 revnetId = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
@@ -671,7 +671,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
             (REVConfig memory cfgHigh, JBTerminalConfig[] memory tcHigh, REVSuckerDeploymentConfig memory sdcHigh) =
                 _buildRevnetConfig(uint112(10_000e18), 2000);
 
-            uint256 highWeightRevnetId = REV_DEPLOYER.deployFor({
+            (uint256 highWeightRevnetId,) = REV_DEPLOYER.deployFor({
                 revnetId: 0,
                 configuration: cfgHigh,
                 terminalConfigurations: tcHigh,
@@ -714,7 +714,7 @@ contract BuybackRouterForkTest is TestBaseWorkflow {
             (REVConfig memory cfgLow, JBTerminalConfig[] memory tcLow, REVSuckerDeploymentConfig memory sdcLow) =
                 _buildRevnetConfig(uint112(1e18), 2000);
 
-            uint256 lowWeightRevnetId = REV_DEPLOYER.deployFor({
+            (uint256 lowWeightRevnetId,) = REV_DEPLOYER.deployFor({
                 revnetId: 0,
                 configuration: cfgLow,
                 terminalConfigurations: tcLow,

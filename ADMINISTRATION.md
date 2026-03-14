@@ -34,7 +34,7 @@ The script creates projects in a deterministic order. Each project NFT is minted
 | 1 | NANA (fee project) | `JBProjects` constructor (automatic) | Sphinx Safe |
 | 2 | CPN (Croptop) | `_projects.createFor(safeAddress())` | Sphinx Safe |
 | 3 | REV (Revnet) | `_projects.createFor(safeAddress())` | Sphinx Safe |
-| 4 | BAN (Banny) | Created by `_revDeployer.deployWith721sFor()` (revnetId=0) | REVDeployer (managed by revnet rules) |
+| 4 | BAN (Banny) | Created by `_revDeployer.deployFor()` (revnetId=0) | REVDeployer (managed by revnet rules) |
 
 For projects 1, 2, and 3 the script explicitly approves the `REVDeployer` to take ownership via `_projects.approve(address(_revDeployer), projectId)`. The REVDeployer then configures each as a revnet, which locks the project into revnet governance rules (no further manual configuration by the original owner).
 
