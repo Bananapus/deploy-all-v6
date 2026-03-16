@@ -293,13 +293,14 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
             fundAccessLimitGroups: limits
         });
 
-        projectId = jbController().launchProjectFor({
-            owner: address(this),
-            projectUri: "ipfs://fee-held",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: tc,
-            memo: ""
-        });
+        projectId = jbController()
+            .launchProjectFor({
+                owner: address(this),
+                projectUri: "ipfs://fee-held",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: tc,
+                memo: ""
+            });
     }
 
     function _terminalBalance(uint256 projectId, address token) internal view returns (uint256) {
@@ -331,13 +332,14 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         uint256 feeProjectBalanceBefore =
             jbTerminalStore().balanceOf(address(jbMultiTerminal()), FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
 
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 5 ether,
-            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: 5 ether,
+                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+                minTokensPaidOut: 0
+            });
 
         // Fee = 5 ETH * 25/1000 = 0.125 ETH should be held.
         // Since holdFees is true, fee project balance should NOT increase yet.
@@ -346,9 +348,7 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
 
         // With holdFees, fees are not sent to fee project.
         assertEq(
-            feeProjectBalanceAfterPayout,
-            feeProjectBalanceBefore,
-            "fee project balance should not change with holdFees"
+            feeProjectBalanceAfterPayout, feeProjectBalanceBefore, "fee project balance should not change with holdFees"
         );
 
         // Check that held fees exist.
@@ -379,9 +379,7 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         uint256 feeProjectBalanceAfterProcess =
             jbTerminalStore().balanceOf(address(jbMultiTerminal()), FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
         assertGt(
-            feeProjectBalanceAfterProcess,
-            feeProjectBalanceBefore,
-            "fee project should receive fees after processing"
+            feeProjectBalanceAfterProcess, feeProjectBalanceBefore, "fee project should receive fees after processing"
         );
 
         // Held fees should be consumed.
@@ -463,15 +461,16 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
 
         vm.prank(PAYER);
-        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: payerTokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        uint256 reclaimed = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: payerTokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         assertGt(reclaimed, 0, "should reclaim some ETH");
 
@@ -500,13 +499,14 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         });
 
         // Send payouts of 5 ETH. Fees held (~0.125 ETH).
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 5 ether,
-            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: 5 ether,
+                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+                minTokensPaidOut: 0
+            });
 
         // Verify held fees exist.
         JBFee[] memory heldFees = jbMultiTerminal().heldFeesOf(projectId, JBConstants.NATIVE_TOKEN, 10);
@@ -604,13 +604,14 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
             fundAccessLimitGroups: limits
         });
 
-        uint256 projectId = jbController().launchProjectFor({
-            owner: address(this),
-            projectUri: "ipfs://multi-fee",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: tc,
-            memo: ""
-        });
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: address(this),
+                projectUri: "ipfs://multi-fee",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: tc,
+                memo: ""
+            });
 
         // Pay 100 ETH.
         vm.prank(PAYER);
@@ -625,25 +626,27 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         });
 
         // Send first payout of 5 ETH (creates first held fee).
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 5 ether,
-            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: 5 ether,
+                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+                minTokensPaidOut: 0
+            });
 
         // Advance time by 1 day.
         vm.warp(block.timestamp + 1 days);
 
         // Send second payout of 3 ETH (creates second held fee with later unlock).
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 3 ether,
-            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: 3 ether,
+                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+                minTokensPaidOut: 0
+            });
 
         // Check we have 2 held fees.
         JBFee[] memory heldFees = jbMultiTerminal().heldFeesOf(projectId, JBConstants.NATIVE_TOKEN, 10);

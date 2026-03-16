@@ -350,12 +350,13 @@ contract TestTerminalMigration is TestBaseWorkflow {
         uint8[] memory permissionIds = new uint8[](1);
         permissionIds[0] = 11; // BURN_TOKENS
         vm.prank(account);
-        jbPermissions().setPermissionsFor(
-            account,
-            JBPermissionsData({
-                operator: address(LOANS_CONTRACT), projectId: uint64(revnetId), permissionIds: permissionIds
-            })
-        );
+        jbPermissions()
+            .setPermissionsFor(
+                account,
+                JBPermissionsData({
+                    operator: address(LOANS_CONTRACT), projectId: uint64(revnetId), permissionIds: permissionIds
+                })
+            );
     }
 
     function _setupPool(uint256 revnetId, uint256 liquidityTokenAmount) internal {
@@ -594,11 +595,7 @@ contract TestTerminalMigration is TestBaseWorkflow {
         });
 
         assertGt(newTokens, 0, "should receive tokens when paying into new terminal");
-        assertGt(
-            jbTokens().totalBalanceOf(PAYER, revnetId),
-            payerTokensBefore,
-            "payer token balance should increase"
-        );
+        assertGt(jbTokens().totalBalanceOf(PAYER, revnetId), payerTokensBefore, "payer token balance should increase");
 
         // Terminal 2 balance should reflect both migration and new payment.
         uint256 t2Balance = _terminalBalance(address(jbMultiTerminal2()), revnetId, JBConstants.NATIVE_TOKEN);

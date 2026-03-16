@@ -307,13 +307,14 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
             fundAccessLimitGroups: limitGroups
         });
 
-        projectId = jbController().launchProjectFor({
-            owner: address(this),
-            projectUri: "ipfs://mcp-test",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: terminalConfigs,
-            memo: ""
-        });
+        projectId = jbController()
+            .launchProjectFor({
+                owner: address(this),
+                projectUri: "ipfs://mcp-test",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: terminalConfigs,
+                memo: ""
+            });
     }
 
     function _terminalBalance(uint256 projectId, address token) internal view returns (uint256) {
@@ -387,13 +388,14 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
 
         // Send payouts: $5000 USD limit at $2000/ETH = 2.5 ETH.
         uint256 recipientBefore = SPLIT_RECIPIENT.balance;
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 5000e18,
-            currency: USD,
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: 5000e18,
+                currency: USD,
+                minTokensPaidOut: 0
+            });
 
         uint256 recipientReceived = SPLIT_RECIPIENT.balance - recipientBefore;
 
@@ -481,26 +483,28 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
             fundAccessLimitGroups: limits
         });
 
-        uint256 projectId = jbController().launchProjectFor({
-            owner: address(this),
-            projectUri: "ipfs://mcp-usdc",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: tc,
-            memo: ""
-        });
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: address(this),
+                projectUri: "ipfs://mcp-usdc",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: tc,
+                memo: ""
+            });
 
         // Pay 10,000 USDC.
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 10_000e6);
-        jbMultiTerminal().pay({
-            projectId: projectId,
-            token: address(usdc),
-            amount: 10_000e6,
-            beneficiary: PAYER,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .pay({
+                projectId: projectId,
+                token: address(usdc),
+                amount: 10_000e6,
+                beneficiary: PAYER,
+                minReturnedTokens: 0,
+                memo: "",
+                metadata: ""
+            });
         vm.stopPrank();
 
         uint256 balance = jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, address(usdc));
@@ -508,13 +512,10 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
 
         // Send payouts: $5000 USD limit at 1 USDC/$1 = 5000 USDC.
         uint256 recipientBefore = usdc.balanceOf(SPLIT_RECIPIENT);
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: address(usdc),
-            amount: 5000e18,
-            currency: USD,
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId, token: address(usdc), amount: 5000e18, currency: USD, minTokensPaidOut: 0
+            });
 
         uint256 recipientReceived = usdc.balanceOf(SPLIT_RECIPIENT) - recipientBefore;
 
@@ -584,15 +585,16 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
         usdc.mint(payer2, 2000e6);
         vm.startPrank(payer2);
         usdc.approve(address(jbMultiTerminal()), 2000e6);
-        uint256 tokensFromUSDC = jbMultiTerminal().pay({
-            projectId: revnetId,
-            token: address(usdc),
-            amount: 2000e6,
-            beneficiary: payer2,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: ""
-        });
+        uint256 tokensFromUSDC = jbMultiTerminal()
+            .pay({
+                projectId: revnetId,
+                token: address(usdc),
+                amount: 2000e6,
+                beneficiary: payer2,
+                minReturnedTokens: 0,
+                memo: "",
+                metadata: ""
+            });
         vm.stopPrank();
 
         // Both should receive the same number of tokens (equivalent $2000 payments).
