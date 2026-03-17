@@ -194,6 +194,11 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant NANA_ERC20_SALT = "_NANA_ERC20_SALTV6__";
     bytes32 private constant NANA_SUCKER_SALT = "_NANA_SUCKER_SALTV6__";
 
+    // ── CPN salts ──
+    bytes32 private constant CPN_ERC20_SALT = "_CPN_ERC20_SALTV6__";
+    bytes32 private constant CPN_SUCKER_SALT = "_CPN_SUCKERV6__";
+    bytes32 private constant CPN_HOOK_SALT = "_CPN_HOOK_SALTV6__";
+
     // ── Banny salts ──
     bytes32 private constant BAN_ERC20_SALT = "_BAN_ERC20V6_";
     bytes32 private constant BAN_SUCKER_SALT = "_BAN_SUCKERV6_";
@@ -220,6 +225,13 @@ contract Deploy is Script, Sphinx {
     uint104 private constant NANA_BASE_AUTO_ISSUANCE = 1_604_412_323_715_200_204_800;
     uint104 private constant NANA_OP_AUTO_ISSUANCE = 6_266_215_368_602_910_600;
     uint104 private constant NANA_ARB_AUTO_ISSUANCE = 105_160_496_145_000_000;
+
+    // ── CPN constants ──
+    uint48 private constant CPN_START_TIME = 1_740_089_444;
+    uint104 private constant CPN_MAINNET_AUTO_ISSUANCE = 250_003_875_000_000_000_000_000;
+    uint104 private constant CPN_BASE_AUTO_ISSUANCE = 844_894_881_600_000_000_000;
+    uint104 private constant CPN_OP_AUTO_ISSUANCE = 844_894_881_600_000_000_000;
+    uint104 private constant CPN_ARB_AUTO_ISSUANCE = 3_844_000_000_000_000_000;
 
     // ── Banny constants ──
     uint48 private constant BAN_START_TIME = 1_740_435_044;
@@ -377,7 +389,7 @@ contract Deploy is Script, Sphinx {
         else if (block.chainid == 11_155_111) {
             _weth = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
             _v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
-            _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+            _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
         }
         // Optimism
         else if (block.chainid == 10) {
@@ -386,6 +398,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
         }
         // Optimism Sepolia
+        // TODO: Uniswap V4 PoolManager is not yet deployed on OP Sepolia. Verify and update once available.
         else if (block.chainid == 11_155_420) {
             _weth = 0x4200000000000000000000000000000000000006;
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
@@ -401,7 +414,7 @@ contract Deploy is Script, Sphinx {
         else if (block.chainid == 84_532) {
             _weth = 0x4200000000000000000000000000000000000006;
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
-            _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+            _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
         }
         // Arbitrum
         else if (block.chainid == 42_161) {
@@ -413,7 +426,7 @@ contract Deploy is Script, Sphinx {
         else if (block.chainid == 421_614) {
             _weth = 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73;
             _v3Factory = 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
-            _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+            _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
         } else {
             revert("Unsupported chain");
         }
@@ -746,6 +759,9 @@ contract Deploy is Script, Sphinx {
                 trustedForwarder: _trustedForwarder
             });
 
+            // inbox=address(0) is correct on L2. The Arbitrum inbox is only used on L1 to send
+            // retryable tickets. The deployer's validation in nana-suckers-v6 is layer-aware and
+            // accepts address(0) when layer == JBLayer.L2.
             arbDeployer.setChainSpecificConstants({
                 layer: JBLayer.L2,
                 inbox: IInbox(address(0)),
@@ -974,6 +990,7 @@ contract Deploy is Script, Sphinx {
             );
         }
         // Base Sepolia
+        // TODO: Verify this ETH/USD feed address independently for Base Sepolia.
         else if (block.chainid == 84_532) {
             feed = new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
                 AggregatorV3Interface(0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1), 3600 seconds
@@ -1036,6 +1053,8 @@ contract Deploy is Script, Sphinx {
             });
         } else if (block.chainid == 84_532) {
             usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+            // TODO: Replace with the correct Base Sepolia USDC/USD Chainlink feed address.
+            // The previous value was copied from Arbitrum Sepolia's ETH/USD feed (0xd30e...3165).
             usdcFeed = new JBChainlinkV3PriceFeed(
                 AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 86_400 seconds
             );
@@ -1122,7 +1141,7 @@ contract Deploy is Script, Sphinx {
     }
 
     function _deployRevFeeProject() internal {
-        address operator = safeAddress();
+        address operator = 0x6b92c73682f0e1fac35A18ab17efa5e77DDE9fE1;
 
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
@@ -1222,17 +1241,171 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployCpnRevnet() internal {
-        // TODO: Configure CPN (project 2) as a revnet.
-        // Approve the deployer, build config, call _revDeployer.deployFor.
+        address operator = 0x240dc2085caEF779F428dcd103CFD2fB510EdE82;
+
+        JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
+        accountingContexts[0] =
+            JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
+
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
+        terminalConfigs[1] = JBTerminalConfig({
+            terminal: IJBTerminal(address(_routerTerminalRegistry)),
+            accountingContextsToAccept: new JBAccountingContext[](0)
+        });
+
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            percent: JBConstants.SPLITS_TOTAL_PERCENT,
+            projectId: 0,
+            beneficiary: payable(operator),
+            preferAddToBalance: false,
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
+
+        REVStageConfig[] memory stages = new REVStageConfig[](3);
+
+        {
+            REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
+            autoIssuances[0] =
+                REVAutoIssuance({chainId: 1, count: CPN_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[1] =
+                REVAutoIssuance({chainId: 10, count: CPN_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[2] =
+                REVAutoIssuance({chainId: 8453, count: CPN_BASE_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[3] =
+                REVAutoIssuance({chainId: 42_161, count: CPN_ARB_AUTO_ISSUANCE, beneficiary: operator});
+
+            stages[0] = REVStageConfig({
+                startsAtOrAfter: CPN_START_TIME,
+                autoIssuances: autoIssuances,
+                splitPercent: 3800,
+                splits: splits,
+                initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
+                issuanceCutFrequency: 120 days,
+                issuanceCutPercent: 380_000_000,
+                cashOutTaxRate: 1000,
+                extraMetadata: 4
+            });
+        }
+
+        stages[1] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[0].startsAtOrAfter + 720 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 3800,
+            splits: splits,
+            initialIssuance: 1,
+            issuanceCutFrequency: 30 days,
+            issuanceCutPercent: 70_000_000,
+            cashOutTaxRate: 1000,
+            extraMetadata: 4
+        });
+
+        stages[2] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[1].startsAtOrAfter + 3800 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 3800,
+            splits: splits,
+            initialIssuance: 0,
+            issuanceCutFrequency: 0,
+            issuanceCutPercent: 0,
+            cashOutTaxRate: 1000,
+            extraMetadata: 4
+        });
+
+        REVConfig memory cpnConfig = REVConfig({
+            description: REVDescription({
+                name: "Croptop Publishing Network",
+                ticker: "CPN",
+                uri: "ipfs://QmUAFevoMn1iqSEQR8LogQYRxm39TNxQTPYnuLuq5BmfEi",
+                salt: CPN_ERC20_SALT
+            }),
+            baseCurrency: ETH_CURRENCY,
+            splitOperator: operator,
+            stageConfigurations: stages
+        });
+
+        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(CPN_SUCKER_SALT);
+
+        REVDeploy721TiersHookConfig memory hookConfig = REVDeploy721TiersHookConfig({
+            baseline721HookConfiguration: REVBaseline721HookConfig({
+                name: "Croptop Publishing Network",
+                symbol: "CPN",
+                baseUri: "ipfs://",
+                tokenUriResolver: IJB721TokenUriResolver(address(0)),
+                contractUri: "",
+                tiersConfig: JB721InitTiersConfig({
+                    tiers: new JB721TierConfig[](0), currency: ETH_CURRENCY, decimals: DECIMALS
+                }),
+                reserveBeneficiary: address(0),
+                flags: REV721TiersHookFlags({
+                    noNewTiersWithReserves: false,
+                    noNewTiersWithVotes: true,
+                    noNewTiersWithOwnerMinting: true,
+                    preventOverspending: false
+                })
+            }),
+            salt: CPN_HOOK_SALT,
+            preventSplitOperatorAdjustingTiers: false,
+            preventSplitOperatorUpdatingMetadata: false,
+            preventSplitOperatorMinting: false,
+            preventSplitOperatorIncreasingDiscountPercent: false
+        });
+
+        REVCroptopAllowedPost[] memory allowedPosts = new REVCroptopAllowedPost[](5);
+        allowedPosts[0] = REVCroptopAllowedPost({
+            category: 0,
+            minimumPrice: uint104(10 ** (DECIMALS - 5)),
+            minimumTotalSupply: 10_000,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+        allowedPosts[1] = REVCroptopAllowedPost({
+            category: 1,
+            minimumPrice: uint104(10 ** (DECIMALS - 3)),
+            minimumTotalSupply: 10_000,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+        allowedPosts[2] = REVCroptopAllowedPost({
+            category: 2,
+            minimumPrice: uint104(10 ** (DECIMALS - 1)),
+            minimumTotalSupply: 100,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+        allowedPosts[3] = REVCroptopAllowedPost({
+            category: 3,
+            minimumPrice: uint104(10 ** DECIMALS),
+            minimumTotalSupply: 10,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+        allowedPosts[4] = REVCroptopAllowedPost({
+            category: 4,
+            minimumPrice: uint104(10 ** (DECIMALS + 2)),
+            minimumTotalSupply: 10,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+
+        // Approve the deployer to configure CPN (project 2).
         _projects.approve(address(_revDeployer), _cpnProjectId);
 
-        // Placeholder — fill in CPN revnet config.
-        // _revDeployer.deployFor({
-        //     revnetId: _cpnProjectId,
-        //     configuration: cpnConfig,
-        //     terminalConfigurations: terminalConfigs,
-        //     suckerDeploymentConfiguration: suckerConfig
-        // });
+        _revDeployer.deployFor({
+            revnetId: _cpnProjectId,
+            configuration: cpnConfig,
+            terminalConfigurations: terminalConfigs,
+            suckerDeploymentConfiguration: suckerConfig,
+            tiered721HookConfiguration: hookConfig,
+            allowedPosts: allowedPosts
+        });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1241,7 +1414,7 @@ contract Deploy is Script, Sphinx {
 
     function _deployNanaRevnet() internal {
         uint256 feeProjectId = 1;
-        address operator = safeAddress();
+        address operator = 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5;
 
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
@@ -1313,7 +1486,7 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployBanny() internal {
-        address operator = safeAddress();
+        address operator = 0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450;
 
         // Deploy the URI resolver.
         string memory bannyBody =
