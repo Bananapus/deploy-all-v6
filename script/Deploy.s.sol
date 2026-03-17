@@ -1053,8 +1053,8 @@ contract Deploy is Script, Sphinx {
             });
         } else if (block.chainid == 84_532) {
             usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
-            // TODO: Replace with the correct Base Sepolia USDC/USD Chainlink feed address.
-            // The previous value was copied from Arbitrum Sepolia's ETH/USD feed (0xd30e...3165).
+            // Base Sepolia USDC/USD Chainlink feed.
+            // Verified at https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet
             usdcFeed = new JBChainlinkV3PriceFeed(
                 AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 86_400 seconds
             );
