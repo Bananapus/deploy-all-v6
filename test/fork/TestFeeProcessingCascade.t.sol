@@ -19,6 +19,8 @@ import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDa
 import {IJBRulesetApprovalHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetApprovalHook.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
+import {IJBFeeTerminal} from "@bananapus/core-v6/src/interfaces/IJBFeeTerminal.sol";
+import {JBFees} from "@bananapus/core-v6/src/libraries/JBFees.sol";
 
 // 721 Hook
 import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
@@ -96,6 +98,10 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
 
     receive() external payable {}
 
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
     function setUp() public override {
         vm.createSelectFork("ethereum", 21_700_000);
         require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed");
@@ -169,13 +175,16 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
 
         int56[] memory tickCumulatives = new int56[](2);
         tickCumulatives[0] = 0;
-        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow));
+        // forge-lint: disable-next-line(unsafe-typecast)
+        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow)); // safe: twapWindow fits int32
 
         uint136[] memory secondsPerLiquidityCumulativeX128s = new uint136[](2);
         secondsPerLiquidityCumulativeX128s[0] = 0;
         uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
         if (liq == 0) liq = 1;
-        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq);
+        // forge-lint: disable-next-line(unsafe-typecast)
+        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq); // safe: result fits
+        // uint136
 
         vm.mockCall(
             address(0),
@@ -530,9 +539,11 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         uint256 increase = projectBalanceAfter - projectBalanceBefore;
         assertGt(increase, 1 ether, "balance increase should exceed 1 ETH due to returned held fees");
 
-        // Held fees should be reduced or eliminated.
+        // Held fees should have a reduced amount (partial return doesn't remove the entry,
+        // it reduces its amount since only 1 ETH was returned against a 5 ETH held fee).
         JBFee[] memory remainingFees = jbMultiTerminal().heldFeesOf(projectId, JBConstants.NATIVE_TOKEN, 10);
-        assertLt(remainingFees.length, heldFees.length, "held fees should be reduced after return");
+        assertEq(remainingFees.length, heldFees.length, "partial return keeps the entry");
+        assertLt(remainingFees[0].amount, heldFees[0].amount, "held fee amount should decrease after partial return");
     }
 
     /// @notice Multiple payouts create multiple held fees; processing handles them correctly.
@@ -685,5 +696,167 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         // All fees processed.
         JBFee[] memory feesAfterAll = jbMultiTerminal().heldFeesOf(projectId, JBConstants.NATIVE_TOKEN, 10);
         assertEq(feesAfterAll.length, 0, "all held fees should be processed");
+    }
+
+    /// @notice When the fee terminal reverts during fee processing (holdFees=false),
+    /// the FeeReverted event is emitted and the fee amount is returned to the project's balance.
+    function test_fee_revertingFeeTerminalReturnsFundsToProject() public {
+        // 1. Deploy the fee project (project 1) with a terminal.
+        _deployFeeProject(5000);
+
+        // 2. Launch a second project (project 2) with holdFees: false so fees process immediately.
+        JBAccountingContext[] memory acc = new JBAccountingContext[](1);
+        acc[0] = JBAccountingContext({
+            token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        });
+        JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
+        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+
+        // Payout limit: 5 ETH.
+        JBFundAccessLimitGroup[] memory limits = new JBFundAccessLimitGroup[](1);
+        JBCurrencyAmount[] memory payoutLimits = new JBCurrencyAmount[](1);
+        payoutLimits[0] =
+            JBCurrencyAmount({amount: uint224(5 ether), currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
+        limits[0] = JBFundAccessLimitGroup({
+            terminal: address(jbMultiTerminal()),
+            token: JBConstants.NATIVE_TOKEN,
+            payoutLimits: payoutLimits,
+            surplusAllowances: new JBCurrencyAmount[](0)
+        });
+
+        // Splits: 100% to this contract (so all payout goes through splits, generating fees).
+        JBSplitGroup[] memory splitGroups = new JBSplitGroup[](1);
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            preferAddToBalance: false,
+            percent: uint32(JBConstants.SPLITS_TOTAL_PERCENT),
+            projectId: 0,
+            beneficiary: payable(address(this)),
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
+        splitGroups[0] = JBSplitGroup({groupId: uint256(uint160(JBConstants.NATIVE_TOKEN)), splits: splits});
+
+        JBRulesetMetadata memory metadata = JBRulesetMetadata({
+            reservedPercent: 0,
+            cashOutTaxRate: 0,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: false,
+            allowTerminalMigration: false,
+            allowSetTerminals: false,
+            allowSetController: false,
+            allowAddAccountingContext: false,
+            allowAddPriceFeed: false,
+            ownerMustSendPayouts: false,
+            holdFees: false, // Fees process immediately — no holding.
+            useTotalSurplusForCashOuts: false,
+            useDataHookForPay: false,
+            useDataHookForCashOut: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        JBRulesetConfig[] memory rulesets = new JBRulesetConfig[](1);
+        rulesets[0] = JBRulesetConfig({
+            mustStartAtOrAfter: 0,
+            duration: 0,
+            weight: uint112(INITIAL_ISSUANCE),
+            weightCutPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: metadata,
+            splitGroups: splitGroups,
+            fundAccessLimitGroups: limits
+        });
+
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: address(this),
+                projectUri: "ipfs://fee-revert-test",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: tc,
+                memo: ""
+            });
+
+        // 3. Fund project 2 with 10 ETH.
+        vm.prank(PAYER);
+        jbMultiTerminal().pay{value: 10 ether}({
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 10 ether,
+            beneficiary: PAYER,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: ""
+        });
+
+        // Record balances before the payout.
+        uint256 projectBalanceBefore = _terminalBalance(projectId, JBConstants.NATIVE_TOKEN);
+        uint256 feeProjectBalanceBefore = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
+
+        // 4. Mock the terminal's executeProcessFee to REVERT.
+        // _processFee calls this.executeProcessFee(...) via an external call wrapped in try-catch.
+        // By making executeProcessFee revert, the catch block fires, emitting FeeReverted and
+        // returning the fee amount to the project's balance.
+        vm.mockCallRevert(
+            address(jbMultiTerminal()),
+            abi.encodeWithSelector(jbMultiTerminal().executeProcessFee.selector),
+            "FEE_TERMINAL_BROKEN"
+        );
+
+        // 5. Send payouts of 5 ETH, which generates fees.
+        // With holdFees=false, _takeFeeFrom calls _processFee immediately.
+        // The fee = 5 ETH * 25 / 1000 = 0.125 ETH.
+        uint256 expectedFee = JBFees.feeAmountFrom({amountBeforeFee: 5 ether, feePercent: jbMultiTerminal().FEE()});
+        assertGt(expectedFee, 0, "expected fee should be non-zero");
+
+        // 6. Expect the FeeReverted event.
+        vm.expectEmit(true, true, true, false);
+        emit IJBFeeTerminal.FeeReverted({
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            feeProjectId: FEE_PROJECT_ID,
+            amount: expectedFee,
+            reason: "", // We don't check the exact reason bytes.
+            caller: address(0) // We don't check the exact caller.
+        });
+
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: 5 ether,
+                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+                minTokensPaidOut: 0
+            });
+
+        // Clear the mock so subsequent calls work normally.
+        vm.clearMockedCalls();
+
+        // 7. Verify: fee project balance did NOT increase (fee payment reverted).
+        uint256 feeProjectBalanceAfter = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
+        assertEq(
+            feeProjectBalanceAfter,
+            feeProjectBalanceBefore,
+            "fee project balance should not increase when fee terminal reverts"
+        );
+
+        // 8. Verify: fee amount was returned to project 2's balance.
+        // After the 5 ETH payout, the project's balance should be:
+        //   10 ETH (initial) - 5 ETH (payout) = 5 ETH remaining
+        // But since the fee reverted, the fee amount is returned to the project balance:
+        //   5 ETH + expectedFee = the project's balance
+        uint256 projectBalanceAfter = _terminalBalance(projectId, JBConstants.NATIVE_TOKEN);
+        uint256 expectedBalanceAfterPayout = projectBalanceBefore - 5 ether + expectedFee;
+        assertEq(
+            projectBalanceAfter,
+            expectedBalanceAfterPayout,
+            "fee amount should be returned to project balance when fee terminal reverts"
+        );
+
+        // Sanity: the fee amount that was returned is meaningful (not dust).
+        assertGt(expectedFee, 0.1 ether, "fee should be at least 0.1 ETH for a 5 ETH payout at 2.5%");
     }
 }
