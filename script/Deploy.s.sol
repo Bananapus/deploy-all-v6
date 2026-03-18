@@ -608,9 +608,9 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
+                feeProjectId: 1,
                 trustedForwarder: _trustedForwarder
             });
-
             opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
             _optimismSuckerDeployer = IJBSuckerDeployer(address(opDeployer));
@@ -636,9 +636,9 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
+                feeProjectId: 1,
                 trustedForwarder: _trustedForwarder
             });
-
             opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
             _optimismSuckerDeployer = IJBSuckerDeployer(address(opDeployer));
@@ -674,9 +674,9 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
+                feeProjectId: 1,
                 trustedForwarder: _trustedForwarder
             });
-
             baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
             _baseSuckerDeployer = IJBSuckerDeployer(address(baseDeployer));
@@ -702,9 +702,9 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
+                feeProjectId: 1,
                 trustedForwarder: _trustedForwarder
             });
-
             baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
             _baseSuckerDeployer = IJBSuckerDeployer(address(baseDeployer));
@@ -735,9 +735,9 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
+                feeProjectId: 1,
                 trustedForwarder: _trustedForwarder
             });
-
             arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
             _arbitrumSuckerDeployer = IJBSuckerDeployer(address(arbDeployer));
@@ -769,9 +769,9 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
+                feeProjectId: 1,
                 trustedForwarder: _trustedForwarder
             });
-
             arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
             _arbitrumSuckerDeployer = IJBSuckerDeployer(address(arbDeployer));
@@ -873,9 +873,9 @@ contract Deploy is Script, Sphinx {
             directory: _directory,
             tokens: _tokens,
             permissions: _permissions,
+            feeProjectId: 1,
             trustedForwarder: _trustedForwarder
         });
-
         deployer.configureSingleton(singleton);
     }
 
@@ -982,7 +982,8 @@ contract Deploy is Script, Sphinx {
             );
         }
         // Base Sepolia
-        // TODO: Verify this ETH/USD feed address independently for Base Sepolia.
+        // Verified: 0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1 is the Chainlink ETH/USD feed on Base Sepolia
+        // (description() returns "ETH / USD", 8 decimals, actively updated).
         else if (block.chainid == 84_532) {
             feed = new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
                 AggregatorV3Interface(0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1), 3600 seconds
@@ -1704,9 +1705,9 @@ contract Deploy is Script, Sphinx {
         JBTokenMapping[] memory tokenMappings = new JBTokenMapping[](1);
         tokenMappings[0] = JBTokenMapping({
             localToken: JBConstants.NATIVE_TOKEN,
-            remoteToken: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
             minGas: 200_000,
-            minBridgeAmount: 0.01 ether
+            remoteToken: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
+            toRemoteFee: 0
         });
 
         JBSuckerDeployerConfig[] memory suckerDeployerConfigs;

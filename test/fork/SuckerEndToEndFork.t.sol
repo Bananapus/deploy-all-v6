@@ -100,6 +100,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             directory: jbDirectory(),
             permissions: jbPermissions(),
             tokens: jbTokens(),
+            feeProjectId: 1,
             trustedForwarder: address(0)
         });
         opDeployer.configureSingleton(singleton);
@@ -194,7 +195,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             localToken: JBConstants.NATIVE_TOKEN,
             minGas: 200_000,
             remoteToken: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
-            minBridgeAmount: 0.01 ether
+            toRemoteFee: 0
         });
 
         JBSuckerDeployerConfig[] memory configs = new JBSuckerDeployerConfig[](1);
