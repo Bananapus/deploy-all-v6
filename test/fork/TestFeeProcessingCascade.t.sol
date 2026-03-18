@@ -175,13 +175,15 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
 
         int56[] memory tickCumulatives = new int56[](2);
         tickCumulatives[0] = 0;
-        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow));
+        // forge-lint: disable-next-line(unsafe-typecast)
+        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow)); // safe: twapWindow fits int32
 
         uint136[] memory secondsPerLiquidityCumulativeX128s = new uint136[](2);
         secondsPerLiquidityCumulativeX128s[0] = 0;
         uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
         if (liq == 0) liq = 1;
-        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq);
+        // forge-lint: disable-next-line(unsafe-typecast)
+        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq); // safe: result fits uint136
 
         vm.mockCall(
             address(0),
