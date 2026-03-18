@@ -554,6 +554,10 @@ contract Deploy is Script, Sphinx {
         );
 
         _routerTerminalRegistry.setDefaultTerminal(_routerTerminal);
+
+        // Mark the router terminal as feeless so that project-to-project token routing
+        // (cashout → pay) doesn't incur the 2.5% protocol fee. Value stays in the protocol.
+        _feeless.setFeelessAddress(address(_routerTerminal), true);
     }
 
     // ════════════════════════════════════════════════════════════════════
