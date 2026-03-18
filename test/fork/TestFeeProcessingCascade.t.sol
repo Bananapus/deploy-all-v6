@@ -183,7 +183,8 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
         if (liq == 0) liq = 1;
         // forge-lint: disable-next-line(unsafe-typecast)
-        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq); // safe: result fits uint136
+        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq); // safe: result fits
+        // uint136
 
         vm.mockCall(
             address(0),
@@ -770,13 +771,14 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
             fundAccessLimitGroups: limits
         });
 
-        uint256 projectId = jbController().launchProjectFor({
-            owner: address(this),
-            projectUri: "ipfs://fee-revert-test",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: tc,
-            memo: ""
-        });
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: address(this),
+                projectUri: "ipfs://fee-revert-test",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: tc,
+                memo: ""
+            });
 
         // 3. Fund project 2 with 10 ETH.
         vm.prank(PAYER);
@@ -821,13 +823,14 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
             caller: address(0) // We don't check the exact caller.
         });
 
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 5 ether,
-            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: 5 ether,
+                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+                minTokensPaidOut: 0
+            });
 
         // Clear the mock so subsequent calls work normally.
         vm.clearMockedCalls();
