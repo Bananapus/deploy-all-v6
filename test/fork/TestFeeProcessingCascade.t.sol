@@ -536,9 +536,11 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         uint256 increase = projectBalanceAfter - projectBalanceBefore;
         assertGt(increase, 1 ether, "balance increase should exceed 1 ETH due to returned held fees");
 
-        // Held fees should be reduced or eliminated.
+        // Held fees should have a reduced amount (partial return doesn't remove the entry,
+        // it reduces its amount since only 1 ETH was returned against a 5 ETH held fee).
         JBFee[] memory remainingFees = jbMultiTerminal().heldFeesOf(projectId, JBConstants.NATIVE_TOKEN, 10);
-        assertLt(remainingFees.length, heldFees.length, "held fees should be reduced after return");
+        assertEq(remainingFees.length, heldFees.length, "partial return keeps the entry");
+        assertLt(remainingFees[0].amount, heldFees[0].amount, "held fee amount should decrease after partial return");
     }
 
     /// @notice Multiple payouts create multiple held fees; processing handles them correctly.
