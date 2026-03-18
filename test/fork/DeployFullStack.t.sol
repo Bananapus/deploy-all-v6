@@ -339,15 +339,13 @@ contract DeployFullStackTest is Test {
     /// @dev Phase 03a: 721 Hook. Mirrors Deploy._deploy721Hook().
     function _deploy721Hook() internal {
         _hookStore = new JB721TiersHookStore();
-        _hook721 = new JB721TiersHook(
-            _directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder
-        );
+        _hook721 =
+            new JB721TiersHook(_directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder);
         _hookDeployer = new JB721TiersHookDeployer(
             _hook721, _hookStore, IJBAddressRegistry(address(_addressRegistry)), _trustedForwarder
         );
-        _hookProjectDeployer = new JB721TiersHookProjectDeployer(
-            _directory, _permissions, _hookDeployer, _trustedForwarder
-        );
+        _hookProjectDeployer =
+            new JB721TiersHookProjectDeployer(_directory, _permissions, _hookDeployer, _trustedForwarder);
     }
 
     /// @dev Phase 03b: Buyback Hook. Mirrors Deploy._deployBuybackHook().
@@ -368,9 +366,8 @@ contract DeployFullStackTest is Test {
 
     /// @dev Phase 03c: Router Terminal. Mirrors Deploy._deployRouterTerminal().
     function _deployRouterTerminal(ChainConfig memory cfg) internal {
-        _routerTerminalRegistry = new JBRouterTerminalRegistry(
-            _permissions, _projects, _PERMIT2, _deployer, _trustedForwarder
-        );
+        _routerTerminalRegistry =
+            new JBRouterTerminalRegistry(_permissions, _projects, _PERMIT2, _deployer, _trustedForwarder);
         _routerTerminal = new JBRouterTerminal(
             _directory,
             _permissions,
@@ -456,11 +453,7 @@ contract DeployFullStackTest is Test {
     /// @dev Phase 04: Omnichain Deployer. Mirrors Deploy._deployOmnichainDeployer().
     function _deployOmnichainDeployer() internal {
         _omnichainDeployer = new JBOmnichainDeployer(
-            _suckerRegistry,
-            IJB721TiersHookDeployer(address(_hookDeployer)),
-            _permissions,
-            _projects,
-            _trustedForwarder
+            _suckerRegistry, IJB721TiersHookDeployer(address(_hookDeployer)), _permissions, _projects, _trustedForwarder
         );
     }
 
@@ -477,10 +470,7 @@ contract DeployFullStackTest is Test {
             feed: ethUsdFeed
         });
         _prices.addPriceFeedFor({
-            projectId: 0,
-            pricingCurrency: JBCurrencyIds.USD,
-            unitCurrency: JBCurrencyIds.ETH,
-            feed: ethUsdFeed
+            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: JBCurrencyIds.ETH, feed: ethUsdFeed
         });
         _prices.addPriceFeedFor({
             projectId: 0,
@@ -552,10 +542,7 @@ contract DeployFullStackTest is Test {
         }
 
         _prices.addPriceFeedFor({
-            projectId: 0,
-            pricingCurrency: JBCurrencyIds.USD,
-            unitCurrency: uint32(uint160(cfg.usdc)),
-            feed: usdcFeed
+            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(cfg.usdc)), feed: usdcFeed
         });
     }
 
@@ -573,7 +560,7 @@ contract DeployFullStackTest is Test {
         });
         opDeployer.setChainSpecificConstants(IOPMessenger(cfg.opMessenger), IOPStandardBridge(cfg.opBridge));
         JBOptimismSucker singleton = new JBOptimismSucker(
-            opDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _trustedForwarder
+            opDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         opDeployer.configureSingleton(singleton);
         return address(opDeployer);
@@ -592,7 +579,7 @@ contract DeployFullStackTest is Test {
             IOPStandardBridge(0x4200000000000000000000000000000000000010)
         );
         JBOptimismSucker singleton = new JBOptimismSucker(
-            opDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _trustedForwarder
+            opDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         opDeployer.configureSingleton(singleton);
         return address(opDeployer);
@@ -608,7 +595,7 @@ contract DeployFullStackTest is Test {
         });
         baseDeployer.setChainSpecificConstants(IOPMessenger(cfg.baseMessenger), IOPStandardBridge(cfg.baseBridge));
         JBBaseSucker singleton = new JBBaseSucker(
-            baseDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _trustedForwarder
+            baseDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         baseDeployer.configureSingleton(singleton);
         return address(baseDeployer);
@@ -627,7 +614,7 @@ contract DeployFullStackTest is Test {
             IOPStandardBridge(0x4200000000000000000000000000000000000010)
         );
         JBBaseSucker singleton = new JBBaseSucker(
-            baseDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _trustedForwarder
+            baseDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         baseDeployer.configureSingleton(singleton);
         return address(baseDeployer);
@@ -647,7 +634,7 @@ contract DeployFullStackTest is Test {
             gatewayRouter: IArbGatewayRouter(ARBAddresses.L1_GATEWAY_ROUTER)
         });
         JBArbitrumSucker singleton = new JBArbitrumSucker(
-            arbDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _trustedForwarder
+            arbDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         arbDeployer.configureSingleton(singleton);
         return address(arbDeployer);
@@ -667,7 +654,7 @@ contract DeployFullStackTest is Test {
             gatewayRouter: IArbGatewayRouter(ARBAddresses.L2_GATEWAY_ROUTER)
         });
         JBArbitrumSucker singleton = new JBArbitrumSucker(
-            arbDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _trustedForwarder
+            arbDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         arbDeployer.configureSingleton(singleton);
         return address(arbDeployer);
@@ -701,16 +688,14 @@ contract DeployFullStackTest is Test {
     }
 
     function _deployCCIPSucker(uint256 remoteChainId) internal returns (JBCCIPSuckerDeployer deployer) {
-        deployer = new JBCCIPSuckerDeployer(
-            _directory, _permissions, _tokens, _deployer, _trustedForwarder
-        );
+        deployer = new JBCCIPSuckerDeployer(_directory, _permissions, _tokens, _deployer, _trustedForwarder);
         deployer.setChainSpecificConstants(
             remoteChainId,
             CCIPHelper.selectorOfChain(remoteChainId),
             ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
         );
         JBCCIPSucker singleton = new JBCCIPSucker(
-            deployer, _directory, _tokens, _permissions, FEE_PROJECT_ID, _trustedForwarder
+            deployer, _directory, _tokens, _permissions, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         deployer.configureSingleton(singleton);
     }
@@ -811,9 +796,7 @@ contract DeployFullStackTest is Test {
             string.concat(chainName, ": Controller.FUND_ACCESS_LIMITS mismatch")
         );
         assertEq(
-            address(_controller.PRICES()),
-            address(_prices),
-            string.concat(chainName, ": Controller.PRICES mismatch")
+            address(_controller.PRICES()), address(_prices), string.concat(chainName, ": Controller.PRICES mismatch")
         );
         assertEq(
             address(_controller.RULESETS()),
@@ -821,14 +804,10 @@ contract DeployFullStackTest is Test {
             string.concat(chainName, ": Controller.RULESETS mismatch")
         );
         assertEq(
-            address(_controller.SPLITS()),
-            address(_splits),
-            string.concat(chainName, ": Controller.SPLITS mismatch")
+            address(_controller.SPLITS()), address(_splits), string.concat(chainName, ": Controller.SPLITS mismatch")
         );
         assertEq(
-            address(_controller.TOKENS()),
-            address(_tokens),
-            string.concat(chainName, ": Controller.TOKENS mismatch")
+            address(_controller.TOKENS()), address(_tokens), string.concat(chainName, ": Controller.TOKENS mismatch")
         );
 
         // Controller is allowed to set first controller.
@@ -851,8 +830,7 @@ contract DeployFullStackTest is Test {
         assertTrue(address(_hookStore) != address(0), string.concat(chainName, ": HookStore not deployed"));
         assertTrue(address(_hookDeployer) != address(0), string.concat(chainName, ": HookDeployer not deployed"));
         assertTrue(
-            address(_hookProjectDeployer) != address(0),
-            string.concat(chainName, ": HookProjectDeployer not deployed")
+            address(_hookProjectDeployer) != address(0), string.concat(chainName, ": HookProjectDeployer not deployed")
         );
 
         // Buyback Hook.
@@ -870,9 +848,7 @@ contract DeployFullStackTest is Test {
         );
 
         // Sucker Registry.
-        assertTrue(
-            address(_suckerRegistry) != address(0), string.concat(chainName, ": SuckerRegistry not deployed")
-        );
+        assertTrue(address(_suckerRegistry) != address(0), string.concat(chainName, ": SuckerRegistry not deployed"));
 
         // Omnichain Deployer.
         assertTrue(
@@ -880,9 +856,7 @@ contract DeployFullStackTest is Test {
         );
 
         // Address Registry.
-        assertTrue(
-            address(_addressRegistry) != address(0), string.concat(chainName, ": AddressRegistry not deployed")
-        );
+        assertTrue(address(_addressRegistry) != address(0), string.concat(chainName, ": AddressRegistry not deployed"));
     }
 
     function _assertPriceFeeds(string memory chainName) internal view {

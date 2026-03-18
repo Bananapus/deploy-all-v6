@@ -202,17 +202,13 @@ contract DeployForkTest is Test {
         assertTrue(address(_terminal).code.length > 0, "Terminal has no code");
 
         // Verify wiring: TerminalStore references the correct Directory.
-        assertEq(
-            address(_terminalStore.DIRECTORY()), address(_directory), "TerminalStore.DIRECTORY != Directory"
-        );
+        assertEq(address(_terminalStore.DIRECTORY()), address(_directory), "TerminalStore.DIRECTORY != Directory");
 
         // Verify wiring: TerminalStore references the correct Prices.
         assertEq(address(_terminalStore.PRICES()), address(_prices), "TerminalStore.PRICES != Prices");
 
         // Verify wiring: TerminalStore references the correct Rulesets.
-        assertEq(
-            address(_terminalStore.RULESETS()), address(_rulesets), "TerminalStore.RULESETS != Rulesets"
-        );
+        assertEq(address(_terminalStore.RULESETS()), address(_rulesets), "TerminalStore.RULESETS != Rulesets");
     }
 
     /// @notice Deploys core + periphery (Phases 01-05) and verifies the Controller is wired correctly.
@@ -247,15 +243,13 @@ contract DeployForkTest is Test {
 
         // ── Phase 03a: 721 Hook ──
         _hookStore = new JB721TiersHookStore();
-        _hook721 = new JB721TiersHook(
-            _directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder
-        );
+        _hook721 =
+            new JB721TiersHook(_directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder);
         _hookDeployer = new JB721TiersHookDeployer(
             _hook721, _hookStore, IJBAddressRegistry(address(_addressRegistry)), _trustedForwarder
         );
-        _hookProjectDeployer = new JB721TiersHookProjectDeployer(
-            _directory, _permissions, _hookDeployer, _trustedForwarder
-        );
+        _hookProjectDeployer =
+            new JB721TiersHookProjectDeployer(_directory, _permissions, _hookDeployer, _trustedForwarder);
 
         // ── Phase 03b: Buyback Hook ──
         _buybackRegistry = new JBBuybackHookRegistry(_permissions, _projects, _deployer, _trustedForwarder);
@@ -272,9 +266,8 @@ contract DeployForkTest is Test {
         _buybackRegistry.setDefaultHook(_buybackHook);
 
         // ── Phase 03c: Router Terminal ──
-        _routerTerminalRegistry = new JBRouterTerminalRegistry(
-            _permissions, _projects, _PERMIT2, _deployer, _trustedForwarder
-        );
+        _routerTerminalRegistry =
+            new JBRouterTerminalRegistry(_permissions, _projects, _PERMIT2, _deployer, _trustedForwarder);
         _routerTerminal = new JBRouterTerminal(
             _directory,
             _permissions,
@@ -299,17 +292,11 @@ contract DeployForkTest is Test {
 
         // ── Phase 04: Omnichain Deployer ──
         _omnichainDeployer = new JBOmnichainDeployer(
-            _suckerRegistry,
-            IJB721TiersHookDeployer(address(_hookDeployer)),
-            _permissions,
-            _projects,
-            _trustedForwarder
+            _suckerRegistry, IJB721TiersHookDeployer(address(_hookDeployer)), _permissions, _projects, _trustedForwarder
         );
 
         // ── Phase 05: Periphery (Controller + Price Feeds + Deadlines) ──
-        IJBPriceFeed ethUsdFeed = new JBChainlinkV3PriceFeed(
-            AggregatorV3Interface(ETH_USD_FEED), 3600 seconds
-        );
+        IJBPriceFeed ethUsdFeed = new JBChainlinkV3PriceFeed(AggregatorV3Interface(ETH_USD_FEED), 3600 seconds);
         IJBPriceFeed matchingFeed = IJBPriceFeed(address(new JBMatchingPriceFeed()));
 
         _prices.addPriceFeedFor({
@@ -319,10 +306,7 @@ contract DeployForkTest is Test {
             feed: ethUsdFeed
         });
         _prices.addPriceFeedFor({
-            projectId: 0,
-            pricingCurrency: JBCurrencyIds.USD,
-            unitCurrency: JBCurrencyIds.ETH,
-            feed: ethUsdFeed
+            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: JBCurrencyIds.ETH, feed: ethUsdFeed
         });
         _prices.addPriceFeedFor({
             projectId: 0,
@@ -364,36 +348,14 @@ contract DeployForkTest is Test {
         assertTrue(address(_controller).code.length > 0, "Controller has no code");
 
         // Controller wiring.
+        assertEq(address(_controller.DIRECTORY()), address(_directory), "Controller.DIRECTORY mismatch");
         assertEq(
-            address(_controller.DIRECTORY()),
-            address(_directory),
-            "Controller.DIRECTORY mismatch"
+            address(_controller.FUND_ACCESS_LIMITS()), address(_fundAccess), "Controller.FUND_ACCESS_LIMITS mismatch"
         );
-        assertEq(
-            address(_controller.FUND_ACCESS_LIMITS()),
-            address(_fundAccess),
-            "Controller.FUND_ACCESS_LIMITS mismatch"
-        );
-        assertEq(
-            address(_controller.PRICES()),
-            address(_prices),
-            "Controller.PRICES mismatch"
-        );
-        assertEq(
-            address(_controller.RULESETS()),
-            address(_rulesets),
-            "Controller.RULESETS mismatch"
-        );
-        assertEq(
-            address(_controller.SPLITS()),
-            address(_splits),
-            "Controller.SPLITS mismatch"
-        );
-        assertEq(
-            address(_controller.TOKENS()),
-            address(_tokens),
-            "Controller.TOKENS mismatch"
-        );
+        assertEq(address(_controller.PRICES()), address(_prices), "Controller.PRICES mismatch");
+        assertEq(address(_controller.RULESETS()), address(_rulesets), "Controller.RULESETS mismatch");
+        assertEq(address(_controller.SPLITS()), address(_splits), "Controller.SPLITS mismatch");
+        assertEq(address(_controller.TOKENS()), address(_tokens), "Controller.TOKENS mismatch");
 
         // Directory allows the controller.
         assertTrue(
@@ -407,11 +369,7 @@ contract DeployForkTest is Test {
         assertTrue(address(_hookProjectDeployer) != address(0), "HookProjectDeployer not deployed");
 
         // Buyback Hook: default hook was set.
-        assertEq(
-            address(_buybackRegistry.defaultHook()),
-            address(_buybackHook),
-            "Buyback default hook mismatch"
-        );
+        assertEq(address(_buybackRegistry.defaultHook()), address(_buybackHook), "Buyback default hook mismatch");
 
         // Router Terminal: default terminal was set.
         assertEq(

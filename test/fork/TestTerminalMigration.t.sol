@@ -11,7 +11,6 @@ import {JBTerminalConfig} from "@bananapus/core-v6/src/structs/JBTerminalConfig.
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
-import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 
 // 721 Hook
 import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
@@ -50,70 +49,7 @@ import {REVLoanSource} from "@rev-net/core-v6/src/structs/REVLoanSource.sol";
 
 // Uniswap V4
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
-
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-/// @notice Adds liquidity to a V4 pool via unlock/callback pattern.
-contract MigrationLiquidityHelper is IUnlockCallback {
-    IPoolManager public immutable poolManager;
-
-    constructor(IPoolManager _poolManager) {
-        poolManager = _poolManager;
-    }
-
-    receive() external payable {}
-
-    function addLiquidity(
-        PoolKey memory key,
-        int24 tickLower,
-        int24 tickUpper,
-        int256 liquidityDelta
-    )
-        external
-        payable
-    {
-        poolManager.unlock(abi.encode(key, tickLower, tickUpper, liquidityDelta));
-    }
-
-    function unlockCallback(bytes calldata data) external override returns (bytes memory) {
-        (PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta) =
-            abi.decode(data, (PoolKey, int24, int24, int256));
-
-        (BalanceDelta delta,) = poolManager.modifyLiquidity(
-            key,
-            ModifyLiquidityParams({
-                tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
-            }),
-            ""
-        );
-
-        int128 amount0 = delta.amount0();
-        int128 amount1 = delta.amount1();
-
-        if (amount0 < 0) _settle(key.currency0, uint128(-amount0));
-        if (amount1 < 0) _settle(key.currency1, uint128(-amount1));
-        if (amount0 > 0) poolManager.take(key.currency0, address(this), uint128(amount0));
-        if (amount1 > 0) poolManager.take(key.currency1, address(this), uint128(amount1));
-
-        return "";
-    }
-
-    function _settle(Currency currency, uint256 amount) internal {
-        if (Currency.unwrap(currency) == address(0)) {
-            poolManager.settle{value: amount}();
-        } else {
-            poolManager.sync(currency);
-            IERC20(Currency.unwrap(currency)).transfer(address(poolManager), amount);
-            poolManager.settle();
-        }
-    }
-}
 
 /// @notice Terminal migration fork test during active REVLoans.
 ///
@@ -121,14 +57,14 @@ contract MigrationLiquidityHelper is IUnlockCallback {
 /// properly transfers balances, that loan collateral values remain consistent,
 /// and that loan repayment still works after migration.
 ///
+/// Uses a plain JB project (not a revnet) for the migrated project because revnets
+/// do not enable the allowTerminalMigration / allowAddAccountingContext / allowSetTerminals
+/// flags. The fee project is still deployed as a revnet via REVDeployer.
+///
 /// Run with: forge test --match-contract TestTerminalMigration -vvv
 contract TestTerminalMigration is TestBaseWorkflow {
     // -- Mainnet addresses
     address constant POOL_MANAGER_ADDR = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-
-    // -- Tick range for full-range liquidity
-    int24 constant TICK_LOWER = -887_200;
-    int24 constant TICK_UPPER = 887_200;
 
     // -- Test parameters
     uint112 constant INITIAL_ISSUANCE = uint112(1000e18);
@@ -141,7 +77,6 @@ contract TestTerminalMigration is TestBaseWorkflow {
 
     // -- Ecosystem contracts
     IPoolManager poolManager;
-    MigrationLiquidityHelper liqHelper;
 
     uint256 FEE_PROJECT_ID;
     JBSuckerRegistry SUCKER_REGISTRY;
@@ -157,6 +92,10 @@ contract TestTerminalMigration is TestBaseWorkflow {
 
     receive() external payable {}
 
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
     function setUp() public override {
         vm.createSelectFork("ethereum", 21_700_000);
         require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed");
@@ -164,7 +103,6 @@ contract TestTerminalMigration is TestBaseWorkflow {
         super.setUp();
 
         poolManager = IPoolManager(POOL_MANAGER_ADDR);
-        liqHelper = new MigrationLiquidityHelper(poolManager);
 
         FEE_PROJECT_ID = jbProjects().createFor(multisig());
 
@@ -288,51 +226,116 @@ contract TestTerminalMigration is TestBaseWorkflow {
         });
     }
 
-    function _buildMigrationConfig()
-        internal
-        view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
-    {
+    /// @notice Launch a plain JB project with migration-friendly flags and both terminals pre-configured.
+    /// Uses allowTerminalMigration, allowSetTerminals, allowOwnerMinting, and useTotalSurplusForCashOuts.
+    function _launchMigrationProject() internal returns (uint256 projectId) {
+        // Accounting context for ETH on both terminals.
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({
             token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
         });
-        tc = new JBTerminalConfig[](1);
+
+        // Include both terminals from the start so accounting contexts are set before rulesets.
+        JBTerminalConfig[] memory tc = new JBTerminalConfig[](2);
         tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        tc[1] = JBTerminalConfig({terminal: jbMultiTerminal2(), accountingContextsToAccept: acc});
 
+        // Splits: 100% to multisig.
+        JBSplitGroup[] memory splitGroups = new JBSplitGroup[](1);
         JBSplit[] memory splits = new JBSplit[](1);
-        splits[0].beneficiary = payable(multisig());
-        splits[0].percent = 10_000;
+        splits[0] = JBSplit({
+            preferAddToBalance: false,
+            percent: uint32(JBConstants.SPLITS_TOTAL_PERCENT),
+            projectId: 0,
+            beneficiary: payable(multisig()),
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
+        splitGroups[0] = JBSplitGroup({groupId: uint256(uint160(JBConstants.NATIVE_TOKEN)), splits: splits});
 
-        REVStageConfig[] memory stages = new REVStageConfig[](1);
-        stages[0] = REVStageConfig({
-            startsAtOrAfter: uint40(block.timestamp),
-            autoIssuances: new REVAutoIssuance[](0),
-            splitPercent: 0,
-            splits: splits,
-            initialIssuance: INITIAL_ISSUANCE,
-            issuanceCutFrequency: 0,
-            issuanceCutPercent: 0,
+        // Surplus allowances: unlimited for loan operations (REVLoans uses useAllowanceOf).
+        JBFundAccessLimitGroup[] memory limits = new JBFundAccessLimitGroup[](2);
+        JBCurrencyAmount[] memory surplusAllowances = new JBCurrencyAmount[](1);
+        surplusAllowances[0] =
+            JBCurrencyAmount({amount: type(uint224).max, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
+        limits[0] = JBFundAccessLimitGroup({
+            terminal: address(jbMultiTerminal()),
+            token: JBConstants.NATIVE_TOKEN,
+            payoutLimits: new JBCurrencyAmount[](0),
+            surplusAllowances: surplusAllowances
+        });
+        limits[1] = JBFundAccessLimitGroup({
+            terminal: address(jbMultiTerminal2()),
+            token: JBConstants.NATIVE_TOKEN,
+            payoutLimits: new JBCurrencyAmount[](0),
+            surplusAllowances: surplusAllowances
+        });
+
+        JBRulesetMetadata memory metadata = JBRulesetMetadata({
+            reservedPercent: 0,
             cashOutTaxRate: 5000,
-            extraMetadata: 0
-        });
-
-        cfg = REVConfig({
-            description: REVDescription("MigTest", "MIG", "ipfs://mig", "MIG_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            splitOperator: multisig(),
-            stageConfigurations: stages
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: false,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            allowSetController: false,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: false,
+            ownerMustSendPayouts: false,
+            holdFees: false,
+            useTotalSurplusForCashOuts: true,
+            useDataHookForPay: false,
+            useDataHookForCashOut: false,
+            dataHook: address(0),
+            metadata: 0
         });
 
-        sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("MIG"))
+        JBRulesetConfig[] memory rulesets = new JBRulesetConfig[](1);
+        rulesets[0] = JBRulesetConfig({
+            mustStartAtOrAfter: 0,
+            duration: 0,
+            weight: INITIAL_ISSUANCE,
+            weightCutPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: metadata,
+            splitGroups: splitGroups,
+            fundAccessLimitGroups: limits
         });
+
+        projectId = jbController()
+            .launchProjectFor({
+                owner: address(this),
+                projectUri: "ipfs://mig-test",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: tc,
+                memo: ""
+            });
+
+        // Deploy an ERC-20 token for this project so REVLoans can burn/mint.
+        jbController().deployERC20For({projectId: projectId, name: "MigTest", symbol: "MIG", salt: bytes32(0)});
+
+        // Grant MINT_TOKENS and USE_ALLOWANCE permissions to LOANS_CONTRACT.
+        // MINT_TOKENS: so it can re-mint collateral on repay.
+        // USE_ALLOWANCE: so it can pull loan funds from the terminal's surplus.
+        uint8[] memory loanPermissionIds = new uint8[](2);
+        loanPermissionIds[0] = 10; // MINT_TOKENS
+        loanPermissionIds[1] = 17; // USE_ALLOWANCE
+        jbPermissions()
+            .setPermissionsFor(
+                address(this),
+                JBPermissionsData({
+                    operator: address(LOANS_CONTRACT), projectId: uint64(projectId), permissionIds: loanPermissionIds
+                })
+            );
     }
 
-    function _payRevnet(uint256 revnetId, address payer, uint256 amount) internal returns (uint256 tokensReceived) {
+    function _payProject(uint256 projectId, address payer, uint256 amount) internal returns (uint256 tokensReceived) {
         vm.prank(payer);
         tokensReceived = jbMultiTerminal().pay{value: amount}({
-            projectId: revnetId,
+            projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: amount,
             beneficiary: payer,
@@ -346,7 +349,7 @@ contract TestTerminalMigration is TestBaseWorkflow {
         return jbTerminalStore().balanceOf(terminal, projectId, token);
     }
 
-    function _grantBurnPermission(address account, uint256 revnetId) internal {
+    function _grantBurnPermission(address account, uint256 projectId) internal {
         uint8[] memory permissionIds = new uint8[](1);
         permissionIds[0] = 11; // BURN_TOKENS
         vm.prank(account);
@@ -354,35 +357,9 @@ contract TestTerminalMigration is TestBaseWorkflow {
             .setPermissionsFor(
                 account,
                 JBPermissionsData({
-                    operator: address(LOANS_CONTRACT), projectId: uint64(revnetId), permissionIds: permissionIds
+                    operator: address(LOANS_CONTRACT), projectId: uint64(projectId), permissionIds: permissionIds
                 })
             );
-    }
-
-    function _setupPool(uint256 revnetId, uint256 liquidityTokenAmount) internal {
-        address projectToken = address(jbTokens().tokenOf(revnetId));
-        require(projectToken != address(0), "project token not deployed");
-
-        PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(address(0)),
-            currency1: Currency.wrap(projectToken),
-            fee: REV_DEPLOYER.DEFAULT_BUYBACK_POOL_FEE(),
-            tickSpacing: REV_DEPLOYER.DEFAULT_BUYBACK_TICK_SPACING(),
-            hooks: IHooks(address(0))
-        });
-
-        vm.prank(address(jbController()));
-        jbTokens().mintFor(address(liqHelper), revnetId, liquidityTokenAmount * 50);
-        vm.deal(address(liqHelper), liquidityTokenAmount);
-
-        vm.prank(address(liqHelper));
-        IERC20(projectToken).approve(address(poolManager), type(uint256).max);
-
-        int256 liquidityDelta = int256(liquidityTokenAmount / 50);
-        vm.prank(address(liqHelper));
-        liqHelper.addLiquidity{value: liquidityTokenAmount}(key, TICK_LOWER, TICK_UPPER, liquidityDelta);
-
-        _mockOracle(liquidityDelta, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
     }
 
     // ===================================================================
@@ -392,58 +369,28 @@ contract TestTerminalMigration is TestBaseWorkflow {
     /// @notice Migrate terminal with balance: verify full balance transfer.
     function test_mig_balanceTransferOnMigration() public {
         _deployFeeProject(5000);
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildMigrationConfig();
+        uint256 projectId = _launchMigrationProject();
 
-        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
-        });
+        // Pay into the project via terminal 1.
+        _payProject(projectId, PAYER, 10 ether);
+        _payProject(projectId, BORROWER, 5 ether);
 
-        _setupPool(revnetId, 10_000 ether);
-
-        // Pay into the revnet.
-        _payRevnet(revnetId, PAYER, 10 ether);
-        _payRevnet(revnetId, BORROWER, 5 ether);
-
-        uint256 balanceBefore = _terminalBalance(address(jbMultiTerminal()), revnetId, JBConstants.NATIVE_TOKEN);
+        uint256 balanceBefore = _terminalBalance(address(jbMultiTerminal()), projectId, JBConstants.NATIVE_TOKEN);
         assertEq(balanceBefore, 15 ether, "terminal 1 should have 15 ETH");
 
-        // Add the second terminal to the project's terminal list.
-        // The REVDeployer is the project's controller, so it has control.
-        // We need to add jbMultiTerminal2 as an accepted terminal with accounting context.
-        JBAccountingContext[] memory acc2 = new JBAccountingContext[](1);
-        acc2[0] = JBAccountingContext({
-            token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
-        });
-        vm.prank(address(REV_DEPLOYER));
-        jbMultiTerminal2().addAccountingContextsFor(revnetId, acc2);
-
-        // Set terminals to include both.
-        IJBTerminal[] memory terminals = new IJBTerminal[](2);
-        terminals[0] = jbMultiTerminal();
-        terminals[1] = jbMultiTerminal2();
-        vm.prank(address(REV_DEPLOYER));
-        jbDirectory().setTerminalsOf(revnetId, terminals);
-
         // Migrate balance from terminal 1 to terminal 2.
-        // The project owner (REV_DEPLOYER's generated project owner) needs MIGRATE_TERMINAL permission.
-        // For revnets, REV_DEPLOYER is the owner of the project NFT in the context of the REVDeployer.
-        // We use the multisig since that's who owns the project NFT indirectly.
-        // Actually for revnets, the project owner is the REV_DEPLOYER itself. Let's check and prank accordingly.
-        address projectOwner = jbProjects().ownerOf(revnetId);
-
-        vm.prank(projectOwner);
-        uint256 migrated = jbMultiTerminal().migrateBalanceOf(revnetId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
+        // address(this) is the project owner.
+        uint256 migrated = jbMultiTerminal().migrateBalanceOf(projectId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
 
         // Verify migration transferred the full balance.
         assertEq(migrated, balanceBefore, "migrated amount should equal original balance");
         assertEq(
-            _terminalBalance(address(jbMultiTerminal()), revnetId, JBConstants.NATIVE_TOKEN),
+            _terminalBalance(address(jbMultiTerminal()), projectId, JBConstants.NATIVE_TOKEN),
             0,
             "terminal 1 should have 0 balance after migration"
         );
         assertEq(
-            _terminalBalance(address(jbMultiTerminal2()), revnetId, JBConstants.NATIVE_TOKEN),
+            _terminalBalance(address(jbMultiTerminal2()), projectId, JBConstants.NATIVE_TOKEN),
             balanceBefore,
             "terminal 2 should have full balance after migration"
         );
@@ -452,34 +399,27 @@ contract TestTerminalMigration is TestBaseWorkflow {
     /// @notice Migrate terminal during active loan: verify borrowable amount consistency.
     function test_mig_loanConsistencyAfterMigration() public {
         _deployFeeProject(5000);
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildMigrationConfig();
-
-        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
-        });
-
-        _setupPool(revnetId, 10_000 ether);
+        uint256 projectId = _launchMigrationProject();
 
         // Pay and create a loan.
-        _payRevnet(revnetId, PAYER, 10 ether);
-        _payRevnet(revnetId, BORROWER, 5 ether);
+        _payProject(projectId, PAYER, 10 ether);
+        _payProject(projectId, BORROWER, 5 ether);
 
-        uint256 borrowerTokens = jbTokens().totalBalanceOf(BORROWER, revnetId);
-        _grantBurnPermission(BORROWER, revnetId);
+        uint256 borrowerTokens = jbTokens().totalBalanceOf(BORROWER, projectId);
+        _grantBurnPermission(BORROWER, projectId);
 
         REVLoanSource memory source = REVLoanSource({token: JBConstants.NATIVE_TOKEN, terminal: jbMultiTerminal()});
 
         // Check borrowable amount before migration.
         uint256 borrowableBefore = LOANS_CONTRACT.borrowableAmountFrom(
-            revnetId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN))
+            projectId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN))
         );
         assertGt(borrowableBefore, 0, "should have borrowable amount before migration");
 
         // Create loan.
         vm.startPrank(BORROWER);
         (uint256 loanId, REVLoan memory loan) = LOANS_CONTRACT.borrowFrom({
-            revnetId: revnetId,
+            revnetId: projectId,
             source: source,
             minBorrowAmount: 0,
             collateralCount: borrowerTokens,
@@ -490,39 +430,20 @@ contract TestTerminalMigration is TestBaseWorkflow {
 
         assertGt(loanId, 0, "loan should be created");
 
-        // Now migrate the terminal.
-        JBAccountingContext[] memory acc2 = new JBAccountingContext[](1);
-        acc2[0] = JBAccountingContext({
-            token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
-        });
-        vm.prank(address(REV_DEPLOYER));
-        jbMultiTerminal2().addAccountingContextsFor(revnetId, acc2);
-
-        IJBTerminal[] memory terminals = new IJBTerminal[](2);
-        terminals[0] = jbMultiTerminal();
-        terminals[1] = jbMultiTerminal2();
-        vm.prank(address(REV_DEPLOYER));
-        jbDirectory().setTerminalsOf(revnetId, terminals);
-
-        address projectOwner = jbProjects().ownerOf(revnetId);
-        vm.prank(projectOwner);
-        uint256 migrated = jbMultiTerminal().migrateBalanceOf(revnetId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
+        // Migrate the terminal. Both terminals were configured at launch.
+        uint256 migrated = jbMultiTerminal().migrateBalanceOf(projectId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
         assertGt(migrated, 0, "should migrate non-zero balance");
 
         // After migration, the surplus is now in terminal 2.
-        // The loan still references terminal 1 as its source.
-        // Check that borrowable amount is recalculated based on the new surplus distribution.
-        // Since the revnet uses total surplus across all terminals (useTotalSurplusForCashOuts),
-        // the loan collateral value should be consistent.
+        // Since the project uses useTotalSurplusForCashOuts, borrowable should be consistent.
         uint256 borrowableAfter = LOANS_CONTRACT.borrowableAmountFrom(
-            revnetId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN))
+            projectId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN))
         );
 
-        // Borrowable should be approximately the same (or slightly different due to loan impact on surplus).
         // The key invariant: borrowable should still be > 0 even after migration.
         assertGt(borrowableAfter, 0, "borrowable should remain > 0 after terminal migration");
 
-        // Repay the loan using ETH (loan source was terminal 1, but repayment goes to whatever terminal).
+        // Repay the loan using ETH.
         vm.deal(BORROWER, 100 ether);
         JBSingleAllowance memory allowance;
 
@@ -538,7 +459,7 @@ contract TestTerminalMigration is TestBaseWorkflow {
 
         // Collateral should be returned.
         assertGe(
-            jbTokens().totalBalanceOf(BORROWER, revnetId),
+            jbTokens().totalBalanceOf(BORROWER, projectId),
             borrowerTokens,
             "collateral should be returned after repay post-migration"
         );
@@ -547,45 +468,22 @@ contract TestTerminalMigration is TestBaseWorkflow {
     /// @notice Verify that payments into the new terminal work after migration.
     function test_mig_paymentToNewTerminalAfterMigration() public {
         _deployFeeProject(5000);
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildMigrationConfig();
-
-        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
-        });
-
-        _setupPool(revnetId, 10_000 ether);
+        uint256 projectId = _launchMigrationProject();
 
         // Initial payment to terminal 1.
-        _payRevnet(revnetId, PAYER, 10 ether);
+        _payProject(projectId, PAYER, 10 ether);
 
-        // Set up terminal 2 and migrate.
-        JBAccountingContext[] memory acc2 = new JBAccountingContext[](1);
-        acc2[0] = JBAccountingContext({
-            token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
-        });
-        vm.prank(address(REV_DEPLOYER));
-        jbMultiTerminal2().addAccountingContextsFor(revnetId, acc2);
-
-        IJBTerminal[] memory terminals = new IJBTerminal[](2);
-        terminals[0] = jbMultiTerminal();
-        terminals[1] = jbMultiTerminal2();
-        vm.prank(address(REV_DEPLOYER));
-        jbDirectory().setTerminalsOf(revnetId, terminals);
-
-        address projectOwner = jbProjects().ownerOf(revnetId);
-        vm.prank(projectOwner);
-        jbMultiTerminal().migrateBalanceOf(revnetId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
+        // Migrate balance from terminal 1 to terminal 2.
+        jbMultiTerminal().migrateBalanceOf(projectId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
 
         // Set terminal 2 as primary.
-        vm.prank(address(REV_DEPLOYER));
-        jbDirectory().setPrimaryTerminalOf(revnetId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
+        jbDirectory().setPrimaryTerminalOf(projectId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
 
         // Pay into terminal 2.
-        uint256 payerTokensBefore = jbTokens().totalBalanceOf(PAYER, revnetId);
+        uint256 payerTokensBefore = jbTokens().totalBalanceOf(PAYER, projectId);
         vm.prank(PAYER);
         uint256 newTokens = jbMultiTerminal2().pay{value: 5 ether}({
-            projectId: revnetId,
+            projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
             beneficiary: PAYER,
@@ -595,10 +493,10 @@ contract TestTerminalMigration is TestBaseWorkflow {
         });
 
         assertGt(newTokens, 0, "should receive tokens when paying into new terminal");
-        assertGt(jbTokens().totalBalanceOf(PAYER, revnetId), payerTokensBefore, "payer token balance should increase");
+        assertGt(jbTokens().totalBalanceOf(PAYER, projectId), payerTokensBefore, "payer token balance should increase");
 
         // Terminal 2 balance should reflect both migration and new payment.
-        uint256 t2Balance = _terminalBalance(address(jbMultiTerminal2()), revnetId, JBConstants.NATIVE_TOKEN);
+        uint256 t2Balance = _terminalBalance(address(jbMultiTerminal2()), projectId, JBConstants.NATIVE_TOKEN);
         assertEq(t2Balance, 15 ether, "terminal 2 should have 15 ETH (10 migrated + 5 new)");
     }
 }

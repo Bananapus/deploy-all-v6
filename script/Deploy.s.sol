@@ -609,6 +609,7 @@ contract Deploy is Script, Sphinx {
                 permissions: _permissions,
                 tokens: _tokens,
                 feeProjectId: 1,
+                registry: _suckerRegistry,
                 trustedForwarder: _trustedForwarder
             });
             opDeployer.configureSingleton(singleton);
@@ -637,6 +638,7 @@ contract Deploy is Script, Sphinx {
                 permissions: _permissions,
                 tokens: _tokens,
                 feeProjectId: 1,
+                registry: _suckerRegistry,
                 trustedForwarder: _trustedForwarder
             });
             opDeployer.configureSingleton(singleton);
@@ -675,6 +677,7 @@ contract Deploy is Script, Sphinx {
                 permissions: _permissions,
                 tokens: _tokens,
                 feeProjectId: 1,
+                registry: _suckerRegistry,
                 trustedForwarder: _trustedForwarder
             });
             baseDeployer.configureSingleton(singleton);
@@ -703,6 +706,7 @@ contract Deploy is Script, Sphinx {
                 permissions: _permissions,
                 tokens: _tokens,
                 feeProjectId: 1,
+                registry: _suckerRegistry,
                 trustedForwarder: _trustedForwarder
             });
             baseDeployer.configureSingleton(singleton);
@@ -736,6 +740,7 @@ contract Deploy is Script, Sphinx {
                 permissions: _permissions,
                 tokens: _tokens,
                 feeProjectId: 1,
+                registry: _suckerRegistry,
                 trustedForwarder: _trustedForwarder
             });
             arbDeployer.configureSingleton(singleton);
@@ -770,6 +775,7 @@ contract Deploy is Script, Sphinx {
                 permissions: _permissions,
                 tokens: _tokens,
                 feeProjectId: 1,
+                registry: _suckerRegistry,
                 trustedForwarder: _trustedForwarder
             });
             arbDeployer.configureSingleton(singleton);
@@ -874,6 +880,7 @@ contract Deploy is Script, Sphinx {
             tokens: _tokens,
             permissions: _permissions,
             feeProjectId: 1,
+            registry: _suckerRegistry,
             trustedForwarder: _trustedForwarder
         });
         deployer.configureSingleton(singleton);
@@ -1706,8 +1713,7 @@ contract Deploy is Script, Sphinx {
         tokenMappings[0] = JBTokenMapping({
             localToken: JBConstants.NATIVE_TOKEN,
             minGas: 200_000,
-            remoteToken: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
-            toRemoteFee: 0
+            remoteToken: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))
         });
 
         JBSuckerDeployerConfig[] memory suckerDeployerConfigs;
