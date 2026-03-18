@@ -133,6 +133,10 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
 
     receive() external payable {}
 
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
     function setUp() public override {
         vm.createSelectFork("ethereum", 21_700_000);
         require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed");
@@ -412,9 +416,14 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
         assertApproxEqAbs(remaining, 7.5 ether, 100, "remaining balance should be ~7.5 ETH");
     }
 
-    /// @notice USDC terminal with USD-denominated payout limit.
-    /// Pay 10,000 USDC, set $5000 USD limit, payout in USDC.
-    /// At 1 USDC = $1, 5000 USDC should be distributed.
+    /// @notice USDC terminal with USDC-denominated payout limit.
+    /// Pay 10,000 USDC, set 5000 USDC payout limit, send payouts in USDC.
+    /// 5000 USDC should be distributed.
+    ///
+    /// NOTE: Payout limits use the token's own currency (usdcCurrency) and the token's native
+    /// decimal precision (6 for USDC). When currency == accountingContext.currency, the
+    /// JBTerminalStore takes the fast path (amountPaidOut = amount) with no price conversion,
+    /// so amounts must match the token's stored balance precision.
     function test_mcp_usdPayoutLimitPaidInUSDC() public {
         _deployFeeProject();
 
@@ -424,12 +433,11 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
         JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
         tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
 
-        // Payout limit: $5000 USD.
+        // Payout limit: 5000 USDC in the token's native 6-decimal format.
         JBFundAccessLimitGroup[] memory limits = new JBFundAccessLimitGroup[](1);
         JBCurrencyAmount[] memory payoutLimits = new JBCurrencyAmount[](1);
-        payoutLimits[0] = JBCurrencyAmount({amount: 5000e18, currency: USD}); // $5000 in 18-decimal USD
+        payoutLimits[0] = JBCurrencyAmount({amount: 5000e6, currency: usdcCurrency});
 
-        // Split group keyed by USDC token.
         limits[0] = JBFundAccessLimitGroup({
             terminal: address(jbMultiTerminal()),
             token: address(usdc),
@@ -452,7 +460,7 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
         JBRulesetMetadata memory metadata = JBRulesetMetadata({
             reservedPercent: 0,
             cashOutTaxRate: 5000,
-            baseCurrency: USD,
+            baseCurrency: usdcCurrency,
             pausePay: false,
             pauseCreditTransfers: false,
             allowOwnerMinting: true,
@@ -510,11 +518,11 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
         uint256 balance = jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, address(usdc));
         assertEq(balance, 10_000e6, "balance should be 10,000 USDC");
 
-        // Send payouts: $5000 USD limit at 1 USDC/$1 = 5000 USDC.
+        // Send payouts: 5000 USDC payout limit, same currency as accounting context.
         uint256 recipientBefore = usdc.balanceOf(SPLIT_RECIPIENT);
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId, token: address(usdc), amount: 5000e18, currency: USD, minTokensPaidOut: 0
+                projectId: projectId, token: address(usdc), amount: 5000e6, currency: usdcCurrency, minTokensPaidOut: 0
             });
 
         uint256 recipientReceived = usdc.balanceOf(SPLIT_RECIPIENT) - recipientBefore;
