@@ -23,7 +23,6 @@ import {IJBSuckerDeployer} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerD
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.sol";
 import {JBSuckerState} from "@bananapus/suckers-v6/src/enums/JBSuckerState.sol";
-import {JBAddToBalanceMode} from "@bananapus/suckers-v6/src/enums/JBAddToBalanceMode.sol";
 import {JBOptimismSucker} from "@bananapus/suckers-v6/src/JBOptimismSucker.sol";
 import {JBOptimismSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBOptimismSuckerDeployer.sol";
 import {IOPMessenger} from "@bananapus/suckers-v6/src/interfaces/IOPMessenger.sol";
@@ -101,7 +100,6 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             directory: jbDirectory(),
             permissions: jbPermissions(),
             tokens: jbTokens(),
-            addToBalanceMode: JBAddToBalanceMode.MANUAL,
             trustedForwarder: address(0)
         });
         opDeployer.configureSingleton(singleton);

@@ -88,7 +88,6 @@ import {JBArbitrumSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBAr
 import {JBBaseSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBBaseSuckerDeployer.sol";
 import {JBCCIPSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBCCIPSuckerDeployer.sol";
 import {JBOptimismSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBOptimismSuckerDeployer.sol";
-import {JBAddToBalanceMode} from "@bananapus/suckers-v6/src/enums/JBAddToBalanceMode.sol";
 import {JBLayer} from "@bananapus/suckers-v6/src/enums/JBLayer.sol";
 import {IArbGatewayRouter} from "@bananapus/suckers-v6/src/interfaces/IArbGatewayRouter.sol";
 import {ICCIPRouter} from "@bananapus/suckers-v6/src/interfaces/ICCIPRouter.sol";
@@ -609,7 +608,6 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
-                addToBalanceMode: JBAddToBalanceMode.ON_CLAIM,
                 trustedForwarder: _trustedForwarder
             });
 
@@ -638,7 +636,6 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
-                addToBalanceMode: JBAddToBalanceMode.ON_CLAIM,
                 trustedForwarder: _trustedForwarder
             });
 
@@ -677,7 +674,6 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
-                addToBalanceMode: JBAddToBalanceMode.ON_CLAIM,
                 trustedForwarder: _trustedForwarder
             });
 
@@ -706,7 +702,6 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
-                addToBalanceMode: JBAddToBalanceMode.ON_CLAIM,
                 trustedForwarder: _trustedForwarder
             });
 
@@ -740,7 +735,6 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
-                addToBalanceMode: JBAddToBalanceMode.ON_CLAIM,
                 trustedForwarder: _trustedForwarder
             });
 
@@ -775,7 +769,6 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 permissions: _permissions,
                 tokens: _tokens,
-                addToBalanceMode: JBAddToBalanceMode.ON_CLAIM,
                 trustedForwarder: _trustedForwarder
             });
 
@@ -880,7 +873,6 @@ contract Deploy is Script, Sphinx {
             directory: _directory,
             tokens: _tokens,
             permissions: _permissions,
-            addToBalanceMode: JBAddToBalanceMode.ON_CLAIM,
             trustedForwarder: _trustedForwarder
         });
 
