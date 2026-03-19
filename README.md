@@ -5,11 +5,11 @@ Single Foundry script that deploys the current canonical Juicebox V6 rollout via
 ## Chains
 
 **Mainnets:** Ethereum, Optimism, Base, Arbitrum
-**Testnets:** Ethereum Sepolia, Optimism Sepolia, Base Sepolia, Arbitrum Sepolia
+**Testnets:** Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia
 
-The script contains chain-specific addresses for all 8 chains, but the testnet matrix is not equally mature. In
-particular, OP Sepolia still carries a PoolManager TODO in `script/Deploy.s.sol`, so treat testnet deployments as
-chain-by-chain validation targets rather than a blanket "all testnets are production-shaped" guarantee.
+The script contains chain-specific addresses for the supported chains, but the testnet matrix is not equally mature.
+Optimism Sepolia is intentionally excluded because Uniswap V4 does not publish a `PositionManager` there, so the
+canonical V4 stack cannot be deployed on that network.
 
 ## Deployment Phases
 

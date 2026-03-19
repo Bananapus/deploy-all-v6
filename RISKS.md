@@ -94,7 +94,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | WETH | HIGH | Different per chain. 7 distinct addresses across 8 chains. L2 chains share `0x4200000000000000000000000000000000000006`. | 372-419 |
 | Uniswap V3 Factory | HIGH | Different per chain. Used by `JBRouterTerminal` for swap routing. | 372-419 |
 | Uniswap V4 PoolManager | HIGH | Different per chain except testnets sharing `0x000000000004444c5dc75cB358380D2e3dE08A90`. Used by `JBBuybackHook`, `JBRouterTerminal`, and `JBUniswapV4LPSplitHook`. | 382-436 |
-| Uniswap V4 PositionManager | HIGH | Hardcoded per chain and required by `JBUniswapV4LPSplitHook` for pool initialization and liquidity management. A wrong address bricks LP split deployments on that chain. | 382-436 |
+| Uniswap V4 PositionManager | HIGH | Hardcoded per chain and required by `JBUniswapV4LPSplitHook` for pool initialization and liquidity management. A wrong address bricks LP split deployments on that chain. Optimism Sepolia is intentionally unsupported because no canonical `PositionManager` is published there. | 382-452 |
 | Chainlink ETH/USD feeds | CRITICAL | 8 distinct addresses, one per chain. | 941-998 |
 | Chainlink USDC/USD feeds | CRITICAL | 8 distinct addresses. | 1006-1057 |
 | L2 Sequencer feeds | HIGH | 3 addresses (OP, Base, Arb mainnets). | 957, 972, 987 |
