@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 
 import "forge-std/Test.sol";
+import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 
 // Core contracts — validates that every import in Deploy.s.sol compiles.
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
@@ -57,6 +58,12 @@ import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
+import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
+import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHookDeployer.sol";
 
 // Router Terminal
 import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
@@ -92,6 +99,7 @@ contract DeployForkTest is Test {
     address private constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address private constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
     address private constant POOL_MANAGER = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+    address private constant POSITION_MANAGER = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
     address private constant ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
 
     // Deployer
@@ -122,12 +130,15 @@ contract DeployForkTest is Test {
     JB721TiersHookProjectDeployer private _hookProjectDeployer;
 
     // Phase 03b: Buyback Hook
+    JBUniswapV4Hook private _uniswapV4Hook;
     JBBuybackHookRegistry private _buybackRegistry;
     JBBuybackHook private _buybackHook;
 
-    // Phase 03c: Router Terminal
+    // Phase 03c: Router Terminal + LP Split Hook
     JBRouterTerminalRegistry private _routerTerminalRegistry;
     JBRouterTerminal private _routerTerminal;
+    JBUniswapV4LPSplitHook private _lpSplitHook;
+    JBUniswapV4LPSplitHookDeployer private _lpSplitHookDeployer;
 
     // Phase 03d: Suckers
     JBSuckerRegistry private _suckerRegistry;
@@ -251,7 +262,10 @@ contract DeployForkTest is Test {
         _hookProjectDeployer =
             new JB721TiersHookProjectDeployer(_directory, _permissions, _hookDeployer, _trustedForwarder);
 
-        // ── Phase 03b: Buyback Hook ──
+        // ── Phase 03b: Uniswap V4 Router Hook ──
+        _uniswapV4Hook = _deployUniswapV4Hook();
+
+        // ── Phase 03c: Buyback Hook ──
         _buybackRegistry = new JBBuybackHookRegistry(_permissions, _projects, _deployer, _trustedForwarder);
         _buybackHook = new JBBuybackHook(
             _directory,
@@ -260,12 +274,12 @@ contract DeployForkTest is Test {
             _projects,
             _tokens,
             IPoolManager(POOL_MANAGER),
-            IHooks(address(0)),
+            IHooks(address(_uniswapV4Hook)),
             _trustedForwarder
         );
         _buybackRegistry.setDefaultHook(_buybackHook);
 
-        // ── Phase 03c: Router Terminal ──
+        // ── Phase 03d: Router Terminal ──
         _routerTerminalRegistry =
             new JBRouterTerminalRegistry(_permissions, _projects, _PERMIT2, _deployer, _trustedForwarder);
         _routerTerminal = new JBRouterTerminal(
@@ -281,8 +295,22 @@ contract DeployForkTest is Test {
             _trustedForwarder
         );
         _routerTerminalRegistry.setDefaultTerminal(_routerTerminal);
+        _feeless.setFeelessAddress(address(_routerTerminal), true);
 
-        // ── Phase 03d: Suckers (registry only — deployers are chain-specific) ──
+        // ── Phase 03e: LP Split Hook ──
+        _lpSplitHook = new JBUniswapV4LPSplitHook(
+            address(_directory),
+            _permissions,
+            address(_tokens),
+            IPoolManager(POOL_MANAGER),
+            IPositionManager(POSITION_MANAGER),
+            IAllowanceTransfer(address(_PERMIT2)),
+            IHooks(address(_uniswapV4Hook))
+        );
+        _lpSplitHookDeployer =
+            new JBUniswapV4LPSplitHookDeployer(_lpSplitHook, IJBAddressRegistry(address(_addressRegistry)));
+
+        // ── Phase 03f: Suckers (registry only — deployers are chain-specific) ──
         _suckerRegistry = new JBSuckerRegistry({
             directory: _directory,
             permissions: _permissions,
@@ -370,6 +398,7 @@ contract DeployForkTest is Test {
 
         // Buyback Hook: default hook was set.
         assertEq(address(_buybackRegistry.defaultHook()), address(_buybackHook), "Buyback default hook mismatch");
+        assertEq(address(_buybackHook.ORACLE_HOOK()), address(_uniswapV4Hook), "Buyback oracle hook mismatch");
 
         // Router Terminal: default terminal was set.
         assertEq(
@@ -377,6 +406,16 @@ contract DeployForkTest is Test {
             address(_routerTerminal),
             "Router default terminal mismatch"
         );
+        assertTrue(_feeless.isFeeless(address(_routerTerminal)), "Router terminal should be feeless");
+
+        // LP split hook deployer wiring.
+        assertEq(address(_lpSplitHookDeployer.HOOK()), address(_lpSplitHook), "LP split hook implementation mismatch");
+        assertEq(
+            address(_lpSplitHookDeployer.ADDRESS_REGISTRY()),
+            address(_addressRegistry),
+            "LP split hook registry mismatch"
+        );
+        assertEq(address(_lpSplitHook.ORACLE_HOOK()), address(_uniswapV4Hook), "LP split oracle hook mismatch");
 
         // Sucker Registry exists.
         assertTrue(address(_suckerRegistry) != address(0), "SuckerRegistry not deployed");
@@ -403,5 +442,19 @@ contract DeployForkTest is Test {
         // The test above exercises the actual deployment logic.
         // This is a minimal sanity check that the imports resolve.
         assertTrue(true, "Deploy script compilation verification");
+    }
+
+    function _deployUniswapV4Hook() internal returns (JBUniswapV4Hook hook) {
+        uint160 flags = uint160(
+            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG
+                | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+        );
+
+        bytes memory constructorArgs = abi.encode(IPoolManager(POOL_MANAGER), _tokens, _directory, _prices);
+
+        (, bytes32 salt) = HookMiner.find(address(this), flags, type(JBUniswapV4Hook).creationCode, constructorArgs);
+
+        hook = new JBUniswapV4Hook{salt: salt}(IPoolManager(POOL_MANAGER), _tokens, _directory, _prices);
     }
 }

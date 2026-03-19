@@ -125,21 +125,24 @@ cast code <address> --rpc-url <chain_rpc>
 17. `JB721TiersHook` (implementation)
 18. `JB721TiersHookDeployer`
 19. `JB721TiersHookProjectDeployer`
-20. `JBBuybackHookRegistry`
-21. `JBBuybackHook`
-22. `JBRouterTerminalRegistry`
-23. `JBRouterTerminal`
-24. `JBSuckerRegistry`
-25. Chain-specific sucker deployers and singletons
-26. `JBOmnichainDeployer`
-27. `JBChainlinkV3PriceFeed` or `JBChainlinkV3SequencerPriceFeed` (ETH/USD)
-28. `JBChainlinkV3PriceFeed` or `JBChainlinkV3SequencerPriceFeed` (USDC/USD)
-29. `JBMatchingPriceFeed`
-30. `JBDeadline3Hours`, `JBDeadline1Day`, `JBDeadline3Days`, `JBDeadline7Days`
-31. `CTPublisher`
-32. `CTDeployer`
-33. `CTProjectOwner`
-34. `REVLoans`
+20. `JBUniswapV4Hook`
+21. `JBBuybackHookRegistry`
+22. `JBBuybackHook`
+23. `JBRouterTerminalRegistry`
+24. `JBRouterTerminal`
+25. `JBUniswapV4LPSplitHook`
+26. `JBUniswapV4LPSplitHookDeployer`
+27. `JBSuckerRegistry`
+28. Chain-specific sucker deployers and singletons
+29. `JBOmnichainDeployer`
+30. `JBChainlinkV3PriceFeed` or `JBChainlinkV3SequencerPriceFeed` (ETH/USD)
+31. `JBChainlinkV3PriceFeed` or `JBChainlinkV3SequencerPriceFeed` (USDC/USD)
+32. `JBMatchingPriceFeed`
+33. `JBDeadline3Hours`, `JBDeadline1Day`, `JBDeadline3Days`, `JBDeadline7Days`
+34. `CTPublisher`
+35. `CTDeployer`
+36. `CTProjectOwner`
+37. `REVLoans`
 35. `REVDeployer`
 36. `Banny721TokenUriResolver`
 

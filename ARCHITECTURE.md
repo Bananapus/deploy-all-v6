@@ -42,7 +42,9 @@ The script deploys the following production-scoped stack in dependency order:
 
 ### Hooks & Extensions
 - `JB721TiersHook` + `JB721TiersHookStore` + deployers
+- `JBUniswapV4Hook`
 - `JBBuybackHook` + `JBBuybackHookRegistry`
+- `JBUniswapV4LPSplitHook` + `JBUniswapV4LPSplitHookDeployer`
 - `JBRouterTerminal` + `JBRouterTerminalRegistry`
 
 ### Cross-Chain
@@ -64,13 +66,8 @@ The script deploys the following production-scoped stack in dependency order:
 
 The current script does not instantiate:
 
-- `JBUniswapV4Hook`
-- `JBUniswapV4LPSplitHook`
 - `JBOwnable`
 - Defifa contracts
-
-The buyback hook is currently deployed with `oracleHook = address(0)`, so the canonical rollout does not include the
-advertised V4 router/oracle composition.
 
 ## Deployment Order
 
@@ -79,9 +76,11 @@ Sphinx proposal → Deploy.deploy()
   Phase 01: Core protocol
   Phase 02: Address registry
   Phase 03a: 721 hook stack
-  Phase 03b: Buyback hook stack
-  Phase 03c: Router terminal stack
-  Phase 03d: Cross-chain suckers
+  Phase 03b: Uniswap V4 router hook
+  Phase 03c: Buyback hook stack
+  Phase 03d: Router terminal stack
+  Phase 03e: LP split hook stack
+  Phase 03f: Cross-chain suckers
   Phase 04: Omnichain deployer
   Phase 05: Periphery and controller wiring
   Phase 06: Croptop

@@ -20,9 +20,11 @@ The script deploys contracts in dependency order within one Sphinx proposal:
 | 01 | Core protocol | ERC2771Forwarder, JBPermissions, JBProjects, JBDirectory, JBSplits, JBRulesets, JBPrices, JBTokens, JBERC20, JBFundAccessLimits, JBFeelessAddresses, JBTerminalStore, JBMultiTerminal |
 | 02 | Address registry | JBAddressRegistry |
 | 03a | 721 tier hook | JB721TiersHook, JB721TiersHookDeployer, JB721TiersHookProjectDeployer, JB721TiersHookStore |
-| 03b | Buyback hook | JBBuybackHook, JBBuybackHookRegistry |
-| 03c | Router terminal | JBRouterTerminal, JBRouterTerminalRegistry |
-| 03d | Cross-chain suckers | JBOptimismSucker, JBBaseSucker, JBArbitrumSucker, JBCCIPSucker, JBSuckerRegistry + deployers |
+| 03b | Uniswap V4 router hook | JBUniswapV4Hook |
+| 03c | Buyback hook | JBBuybackHook, JBBuybackHookRegistry |
+| 03d | Router terminal | JBRouterTerminal, JBRouterTerminalRegistry |
+| 03e | LP split hook | JBUniswapV4LPSplitHook, JBUniswapV4LPSplitHookDeployer |
+| 03f | Cross-chain suckers | JBOptimismSucker, JBBaseSucker, JBArbitrumSucker, JBCCIPSucker, JBSuckerRegistry + deployers |
 | 04 | Omnichain deployer | JBOmnichainDeployer |
 | 05 | Periphery | JBController, price feeds (Chainlink V3 + sequencer), deadlines (3h, 1d, 3d, 7d) |
 | 06 | Croptop | CPN project (ID 2), CTDeployer, CTPublisher |
@@ -30,9 +32,9 @@ The script deploys contracts in dependency order within one Sphinx proposal:
 | 08 | CPN + NANA revnets | Configure project 2 and project 1 as revnets |
 | 09 | Banny | BAN project (ID 4) |
 
-The current script does **not** deploy Defifa, `JBUniswapV4Hook`, `JBUniswapV4LPSplitHook`, or `JBOwnable`. The
-buyback hook is deployed with `oracleHook = address(0)`, so the Uniswap V4 router/oracle stack is not part of this
-canonical rollout.
+The current script does **not** deploy Defifa or `JBOwnable`. It does deploy the canonical Uniswap V4 stack:
+`JBUniswapV4Hook`, `JBBuybackHook` wired to that router hook as its oracle, and
+`JBUniswapV4LPSplitHook` plus `JBUniswapV4LPSplitHookDeployer`.
 
 ## Recovery Model
 

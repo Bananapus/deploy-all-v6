@@ -132,5 +132,5 @@ All auto-issuance entries across all revnets set `beneficiary: safeAddress()`. T
 ### Unfinished Deployment Steps
 
 - **CPN revnet** (project 2) -- `_deployCpnRevnet()` approves the REVDeployer but the actual revnet configuration is commented out (TODO placeholder).
-- **Uniswap V4 router/oracle stack** -- `JBUniswapV4Hook`, `JBUniswapV4LPSplitHook`, and `JBOwnable` are sibling packages but are not deployed by this script.
+- **Uniswap V4 router/oracle stack** -- `JBUniswapV4Hook`, `JBUniswapV4LPSplitHook`, and `JBUniswapV4LPSplitHookDeployer` are deployed by this script. `JBOwnable` is still out of scope.
 - **Defifa** -- `_deployDefifa()` and `_deployDefifaRevnet()` are commented out entirely.

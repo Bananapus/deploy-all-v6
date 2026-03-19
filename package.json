@@ -15,7 +15,7 @@
         "build": "forge build"
     },
     "dependencies": {
-        "@bananapus/core-v6": "^0.0.17",
+        "@bananapus/core-v6": "^0.0.19",
         "@bananapus/permission-ids-v6": "^0.0.10",
         "@bananapus/address-registry-v6": "^0.0.10",
         "@bananapus/721-hook-v6": "^0.0.17",
