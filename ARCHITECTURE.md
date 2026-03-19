@@ -99,11 +99,11 @@ is not a safe recovery path.
 ## Target Chains
 
 - Mainnets: Ethereum, Optimism, Base, Arbitrum
-- Testnets: Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia
+- Testnets: Ethereum Sepolia, Optimism Sepolia, Base Sepolia, Arbitrum Sepolia
 
-Configured addresses exist for the supported chains, but the testnet path is not equally production-ready. Optimism
-Sepolia is intentionally excluded because there is no published Uniswap V4 `PositionManager`, so the LP split portion
-of the canonical V4 stack cannot be deployed there.
+Configured addresses exist for the supported chains, but the testnet path is not equally production-ready. On
+Optimism Sepolia the canonical core/periphery rollout still deploys, but the Uniswap-dependent phases are skipped
+because there is no published Uniswap V4 `PositionManager`.
 
 ## Dependencies
 

@@ -330,7 +330,7 @@ contract Deploy is Script, Sphinx {
     function configureSphinx() public override {
         sphinxConfig.projectName = "juicebox-v6";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
-        sphinxConfig.testnets = ["ethereum_sepolia", "base_sepolia", "arbitrum_sepolia"];
+        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -352,17 +352,19 @@ contract Deploy is Script, Sphinx {
         // Phase 03a: 721 Tier Hook
         _deploy721Hook();
 
-        // Phase 03b: Uniswap V4 Router Hook
-        _deployUniswapV4Hook();
+        if (_shouldDeployUniswapStack()) {
+            // Phase 03b: Uniswap V4 Router Hook
+            _deployUniswapV4Hook();
 
-        // Phase 03c: Buyback Hook
-        _deployBuybackHook();
+            // Phase 03c: Buyback Hook
+            _deployBuybackHook();
 
-        // Phase 03d: Router Terminal
-        _deployRouterTerminal();
+            // Phase 03d: Router Terminal
+            _deployRouterTerminal();
 
-        // Phase 03e: Uniswap V4 LP Split Hook
-        _deployLpSplitHook();
+            // Phase 03e: Uniswap V4 LP Split Hook
+            _deployLpSplitHook();
+        }
 
         // Phase 03f: Cross-Chain Suckers
         _deploySuckers();
@@ -419,9 +421,12 @@ contract Deploy is Script, Sphinx {
             _positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
         }
         // Optimism Sepolia
-        // Uniswap V4 PositionManager is not deployed on OP Sepolia, so the canonical V4 stack cannot be deployed.
+        // Keep deploy-all supported here, but skip the Uniswap-dependent stack since no PositionManager is published.
         else if (block.chainid == 11_155_420) {
-            revert("Unsupported chain: OP Sepolia has no Uniswap V4 PositionManager");
+            _weth = 0x4200000000000000000000000000000000000006;
+            _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+            _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+            _positionManager = address(0);
         }
         // Base
         else if (block.chainid == 8453) {
@@ -453,6 +458,10 @@ contract Deploy is Script, Sphinx {
         } else {
             revert("Unsupported chain");
         }
+    }
+
+    function _shouldDeployUniswapStack() internal view returns (bool) {
+        return block.chainid != 11_155_420;
     }
 
     // ════════════════════════════════════════════════════════════════════
