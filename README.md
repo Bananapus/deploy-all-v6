@@ -1,11 +1,15 @@
 # Juicebox Deploy All
 
-Single Foundry script that deploys the entire Juicebox V6 ecosystem via [Sphinx](https://github.com/sphinx-labs/sphinx) across 8 chains.
+Single Foundry script that deploys the current canonical Juicebox V6 rollout via [Sphinx](https://github.com/sphinx-labs/sphinx) across the configured chains.
 
 ## Chains
 
 **Mainnets:** Ethereum, Optimism, Base, Arbitrum
 **Testnets:** Ethereum Sepolia, Optimism Sepolia, Base Sepolia, Arbitrum Sepolia
+
+The script contains chain-specific addresses for all 8 chains, but the testnet matrix is not equally mature. In
+particular, OP Sepolia still carries a PoolManager TODO in `script/Deploy.s.sol`, so treat testnet deployments as
+chain-by-chain validation targets rather than a blanket "all testnets are production-shaped" guarantee.
 
 ## Deployment Phases
 
@@ -26,7 +30,22 @@ The script deploys contracts in dependency order within one Sphinx proposal:
 | 08 | CPN + NANA revnets | Configure project 2 and project 1 as revnets |
 | 09 | Banny | BAN project (ID 4) |
 
-Defifa deployment (phase 10) is stubbed but not yet active.
+The current script does **not** deploy Defifa, `JBUniswapV4Hook`, `JBUniswapV4LPSplitHook`, or `JBOwnable`. The
+buyback hook is deployed with `oracleHook = address(0)`, so the Uniswap V4 router/oracle stack is not part of this
+canonical rollout.
+
+## Recovery Model
+
+This repo does **not** currently ship a resumable partial-deployment recovery script. If a live Sphinx execution stops
+after some CREATE2 deployments succeed, re-proposing the full script with the same salts is not a safe recovery path:
+those deployments will collide with contracts that already exist.
+
+Operationally, treat recovery as one of two explicit options:
+
+1. Resume with a purpose-built script that skips already-deployed contracts and performs only the remaining wiring.
+2. Redeploy from fresh salts and discard the partial deployment.
+
+Do not rely on ad hoc re-proposal of the full script after a partial execution.
 
 ## Prerequisites
 

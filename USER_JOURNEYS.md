@@ -53,7 +53,9 @@ In the Sphinx dashboard:
 
 **6. Execution**
 
-Sphinx executes the approved proposal on each target chain. Each chain's deployment is atomic -- either all contracts deploy or none do. Cross-chain ordering is managed by Sphinx.
+Sphinx executes the approved proposal on each target chain. Each chain gets one `deploy()` call, but operators should
+not treat that as a validated resume-safe atomic transport. If execution halts after some CREATE2 deployments succeed,
+the repo does not currently provide an in-repo resume script.
 
 **7. Verify deployment (see Journey 2)**
 
@@ -64,8 +66,8 @@ Sphinx executes the approved proposal on each target chain. Each chain's deploym
 | Compilation error | `forge build` fails | Fix source, rebuild |
 | Sphinx proposal rejection | Dashboard shows rejected | Fix parameters, re-propose |
 | Gas estimation failure | Sphinx reports insufficient gas | Fund Safe with more ETH |
-| Chain RPC failure during execution | Partial deployment on that chain | Sphinx retries; if persistent, re-propose |
-| Constructor revert on one chain | That chain's deployment fails entirely | Fix chain-specific parameter, re-propose for that chain |
+| Chain RPC failure during execution | Partial deployment on that chain | If retries do not clear it, prepare a resume script that skips completed CREATE2 deployments or redeploy from fresh salts |
+| Constructor revert on one chain | That chain's deployment fails entirely | Fix the chain-specific parameter, then either resume from the failed phase boundary or redeploy from fresh salts |
 | Wrong chain ID match | Chain-specific addresses from wrong chain | **Cannot recover without redeployment**. Contracts with wrong external addresses are permanently misconfigured. |
 
 ### Deployment Creates These Projects
@@ -76,6 +78,16 @@ Sphinx executes the approved proposal on each target chain. Each chain's deploym
 | 2 | 2 | CPN (Croptop) | `safeAddress()` | Not yet configured (TODO) |
 | 3 | 3 | REV (Revnet) | `safeAddress()` then REVDeployer | Revnet (3 stages) |
 | 4 | 4 | BAN (Banny) | REVDeployer | Revnet (3 stages + 721 tiers) |
+
+### Recovery Rule
+
+Do not blindly re-propose the full script after a partial execution. Once a CREATE2 deployment from this script lands
+on-chain, re-running the same deployment step with the same salt and initcode collides with an existing contract.
+Recovery must be an explicit operator action:
+
+1. Inspect which phases completed on-chain.
+2. Choose either a phase-aware resume script or a fresh deployment with new salts.
+3. Verify post-recovery wiring before proceeding to user-facing launch checks.
 
 ---
 
