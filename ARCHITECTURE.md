@@ -1,8 +1,9 @@
-# deploy-all-v6 — Architecture
+# deploy-all-v6 -- Architecture
 
 ## Purpose
 
-Master deployment script for the entire Juicebox V6 ecosystem. Deploys all core contracts, hooks, registries, and periphery in a single Sphinx-orchestrated multi-chain deployment. This is the canonical deployment path for production.
+Master deployment script for the current canonical Juicebox V6 rollout. This repo exists to describe what
+`script/Deploy.s.sol` actually deploys today, not every sibling package that exists in the workspace.
 
 ## Directory Map
 
@@ -15,72 +16,95 @@ There is no `src/` directory. This repo exists solely to orchestrate ecosystem d
 
 ## What It Deploys
 
-The script deploys the complete V6 ecosystem in dependency order:
+The script deploys the following production-scoped stack in dependency order:
 
 ### Core Protocol
-- `JBPermissions` — Permission system
-- `JBProjects` — ERC-721 project ownership
-- `JBPrices` — Price feed registry
-- `JBRulesets` — Ruleset lifecycle
-- `JBDirectory` — Terminal/controller routing
-- `JBERC20` — Cloneable ERC-20 implementation
-- `JBTokens` — Token management
-- `JBSplits` — Split distribution
-- `JBFeelessAddresses` — Fee exemptions
-- `JBFundAccessLimits` — Payout/surplus limits
-- `JBController` — Project orchestrator
-- `JBTerminalStore` — Bookkeeping
-- `JBMultiTerminal` — Multi-token terminal
-- `ERC2771Forwarder` — Meta-transaction forwarder
+- `JBPermissions`
+- `JBProjects`
+- `JBPrices`
+- `JBRulesets`
+- `JBDirectory`
+- `JBERC20`
+- `JBTokens`
+- `JBSplits`
+- `JBFeelessAddresses`
+- `JBFundAccessLimits`
+- `JBController`
+- `JBTerminalStore`
+- `JBMultiTerminal`
+- `ERC2771Forwarder`
 
 ### Periphery
-- `JBDeadline` variants (3h, 1d, 3d, 7d) — Approval hooks
-- `JBChainlinkV3PriceFeed` / `JBChainlinkV3SequencerPriceFeed` — Price feeds
-- `JBMatchingPriceFeed` — Price mediation
-- `JBAddressRegistry` — Deployer verification
+- `JBDeadline` variants (3h, 1d, 3d, 7d)
+- `JBChainlinkV3PriceFeed` / `JBChainlinkV3SequencerPriceFeed`
+- `JBMatchingPriceFeed`
+- `JBAddressRegistry`
 
 ### Hooks & Extensions
-- `JB721TiersHook` + `JB721TiersHookStore` + Deployers — NFT tiers
-- `JBUniswapV4Hook` — Uniswap V4 router hook (oracle hook providing TWAP via `observe()`)
-- `JBBuybackHook` + `JBBuybackHookRegistry` — DEX buyback (wired to `JBUniswapV4Hook` as its oracle)
-- `JBUniswapV4LPSplitHook` — LP split hook (wired to `JBUniswapV4Hook` as its oracle)
-- `JBRouterTerminal` + `JBRouterTerminalRegistry` — Payment routing
-- `JBOwnable` — JB-aware ownership
+- `JB721TiersHook` + `JB721TiersHookStore` + deployers
+- `JBUniswapV4Hook`
+- `JBBuybackHook` + `JBBuybackHookRegistry`
+- `JBUniswapV4LPSplitHook` + `JBUniswapV4LPSplitHookDeployer`
+- `JBRouterTerminal` + `JBRouterTerminalRegistry`
 
 ### Cross-Chain
-- `JBSuckerRegistry` — Sucker management
-- `JBOptimismSuckerDeployer` / `JBBaseSuckerDeployer` / `JBArbitrumSuckerDeployer` / `JBCCIPSuckerDeployer`
+- `JBSuckerRegistry`
+- `JBOptimismSuckerDeployer`
+- `JBBaseSuckerDeployer`
+- `JBArbitrumSuckerDeployer`
+- `JBCCIPSuckerDeployer`
 
 ### Applications
-- `REVDeployer` (basic + croptop variants) — Revnet deployers
-- `REVLoans` — Revnet loans
-- `CTPublisher` — Croptop publisher
-- Defifa contracts — Prediction games
+- `REVDeployer`
+- `REVLoans`
+- `CTPublisher`
+- `CTDeployer`
+- `CTProjectOwner`
+- `Banny721TokenUriResolver`
+
+## What It Does Not Deploy
+
+The current script does not instantiate:
+
+- `JBOwnable`
+- Defifa contracts
 
 ## Deployment Order
 
 ```
 Sphinx proposal → Deploy.deploy()
-  Phase 1: Core contracts (no external dependencies)
-  Phase 2: Periphery (depends on core)
-  Phase 3: Hooks (depends on core + periphery)
-  Phase 4: Cross-chain (depends on core + hooks)
-  Phase 5: Applications (depends on everything above)
-  Phase 6: Wiring (set terminals, controllers, registrations)
+  Phase 01: Core protocol
+  Phase 02: Address registry
+  Phase 03a: 721 hook stack
+  Phase 03b: Uniswap V4 router hook
+  Phase 03c: Buyback hook stack
+  Phase 03d: Router terminal stack
+  Phase 03e: LP split hook stack
+  Phase 03f: Cross-chain suckers
+  Phase 04: Omnichain deployer
+  Phase 05: Periphery and controller wiring
+  Phase 06: Croptop
+  Phase 07: REV revnet
+  Phase 08: Existing project configuration
+  Phase 09: Banny
 ```
 
-### Oracle Hook Dependency Chain
+## Deployment Transport Limits
 
-The `JBUniswapV4Hook` (router hook) acts as the oracle hook for both the buyback hook and the LP split hook. It implements `IGeomeanOracle`-compatible `observe()` for TWAP queries. Both `JBBuybackHook` and `JBUniswapV4LPSplitHook` accept an `oracleHook` constructor parameter that must point to a deployed `JBUniswapV4Hook` instance.
-
-Required deployment ordering within Phase 3:
-1. `JBUniswapV4Hook` (router hook / oracle hook) -- deployed first, provides TWAP oracle
-2. `JBBuybackHook` -- constructor receives `JBUniswapV4Hook` address as `oracleHook`
-3. `JBUniswapV4LPSplitHook` -- constructor receives `JBUniswapV4Hook` address as `oracleHook`
+Each chain executes one Sphinx-managed `deploy()` call, but this repo does not yet ship a resumable recovery script.
+If execution halts after some CREATE2 deployments succeed, operators must either resume with a purpose-built script
+that skips already-deployed contracts or redeploy from fresh salts. Re-proposing the full script with the same salts
+is not a safe recovery path.
 
 ## Target Chains
+
 - Mainnets: Ethereum, Optimism, Base, Arbitrum
 - Testnets: Ethereum Sepolia, Optimism Sepolia, Base Sepolia, Arbitrum Sepolia
 
+Configured addresses exist for the supported chains, but the testnet path is not equally production-ready. On
+Optimism Sepolia the canonical core/periphery rollout still deploys, but the Uniswap-dependent phases are skipped
+because there is no published Uniswap V4 `PositionManager`.
+
 ## Dependencies
+
 All V6 ecosystem packages plus Sphinx, OpenZeppelin, Chainlink, Uniswap, PRB Math, Solady.

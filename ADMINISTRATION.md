@@ -4,7 +4,9 @@ Admin privileges and their scope in deploy-all-v6.
 
 ## Overview
 
-This repo is a single Foundry/Sphinx deployment script (`script/Deploy.s.sol`, ~1,600 lines) that deploys the entire Juicebox V6 ecosystem in one atomic proposal. It has no `src/` directory and no runtime contracts of its own. All admin privileges originate from constructor arguments and post-deployment wiring calls made during the script's execution.
+This repo is a single Foundry/Sphinx deployment script (`script/Deploy.s.sol`, ~1,600 lines) that deploys the current
+canonical Juicebox V6 rollout. It has no `src/` directory and no runtime contracts of its own. All admin privileges
+originate from constructor arguments and post-deployment wiring calls made during the script's execution.
 
 The deployer identity is the **Sphinx Safe** (`safeAddress()`). Every contract that accepts an owner, configurator, or operator address receives `safeAddress()`. After deployment, the Sphinx Safe holds all protocol-level admin powers.
 
@@ -130,4 +132,5 @@ All auto-issuance entries across all revnets set `beneficiary: safeAddress()`. T
 ### Unfinished Deployment Steps
 
 - **CPN revnet** (project 2) -- `_deployCpnRevnet()` approves the REVDeployer but the actual revnet configuration is commented out (TODO placeholder).
+- **Uniswap V4 router/oracle stack** -- `JBUniswapV4Hook`, `JBUniswapV4LPSplitHook`, and `JBUniswapV4LPSplitHookDeployer` are deployed by this script. `JBOwnable` is still out of scope.
 - **Defifa** -- `_deployDefifa()` and `_deployDefifaRevnet()` are commented out entirely.

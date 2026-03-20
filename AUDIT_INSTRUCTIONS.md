@@ -1,6 +1,9 @@
 # Audit Instructions -- deploy-all-v6
 
-You are auditing the ecosystem deployment script for Juicebox V6. This repo contains no runtime contracts. The entire attack surface is a single Foundry/Sphinx deployment script (`script/Deploy.s.sol`, ~1,600 lines) that deploys and wires the full protocol across 8 chains, plus 7 fork test files that exercise the deployed ecosystem.
+You are auditing the ecosystem deployment script for Juicebox V6. This repo contains no runtime contracts. The entire
+attack surface is a single Foundry/Sphinx deployment script (`script/Deploy.s.sol`, ~1,600 lines) that deploys and
+wires the current canonical rollout across the configured chains, plus 7 fork test files that exercise the deployed
+ecosystem.
 
 Read [ARCHITECTURE.md](./ARCHITECTURE.md) for structure. Read [RISKS.md](./RISKS.md) for known risks. Read [ADMINISTRATION.md](./ADMINISTRATION.md) for post-deployment privileges. Then come back here.
 
@@ -28,9 +31,13 @@ The `Deploy` contract inherits from both Foundry's `Script` and Sphinx's `Sphinx
 
 3. **Phase 03a -- 721 Hook**: `JB721TiersHookStore`, `JB721TiersHook` (implementation), `JB721TiersHookDeployer`, `JB721TiersHookProjectDeployer`. The deployer clones the implementation for each project.
 
-4. **Phase 03b -- Buyback Hook**: `JBBuybackHookRegistry` and `JBBuybackHook`. Registry sets the hook as default. The buyback hook receives `IHooks(address(0))` as its oracle hook -- no TWAP oracle at deployment time.
+4. **Phase 03b -- Uniswap V4 Router Hook**: `JBUniswapV4Hook`. The hook address is mined with `HookMiner.find(...)` so its permission bits satisfy the Uniswap V4 hook flags.
 
-5. **Phase 03c -- Router Terminal**: `JBRouterTerminalRegistry` and `JBRouterTerminal`. Registry sets the terminal as default. Terminal receives chain-specific WETH, V3 Factory, and V4 PoolManager.
+5. **Phase 03c -- Buyback Hook**: `JBBuybackHookRegistry` and `JBBuybackHook`. Registry sets the hook as default. The buyback hook receives the deployed `JBUniswapV4Hook` as its oracle hook.
+
+6. **Phase 03d -- Router Terminal**: `JBRouterTerminalRegistry` and `JBRouterTerminal`. Registry sets the terminal as default. Terminal receives chain-specific WETH, V3 Factory, and V4 PoolManager.
+
+7. **Phase 03e -- LP Split Hook**: `JBUniswapV4LPSplitHook` and `JBUniswapV4LPSplitHookDeployer`. The implementation is wired to the same V4 router hook, chain-specific PoolManager and PositionManager, and the global address registry.
 
 6. **Phase 03d -- Cross-Chain Suckers**: Deploys sucker deployers and singletons for Optimism, Base, Arbitrum (native bridges) and CCIP (all pairings). Each deployer gets chain-specific bridge addresses via `setChainSpecificConstants()`. All are pushed to `_preApprovedSuckerDeployers[]`, then batch-approved when `JBSuckerRegistry` is created.
 
@@ -45,6 +52,8 @@ The `Deploy` contract inherits from both Foundry's `Script` and Sphinx's `Sphinx
 11. **Phase 08 -- Existing Project Configuration**: Configures project #2 (CPN) as a revnet (TODO -- currently commented out). Configures project #1 (NANA/fee project) as a revnet with 1 stage.
 
 12. **Phase 09 -- Banny**: Deploys `Banny721TokenUriResolver` with inline SVG data. Creates project #4 (BAN) as a revnet with 3 stages and 4 NFT tiers.
+
+Not deployed by this script: `JBOwnable` and Defifa.
 
 ## What Each Deployed Contract Does
 
@@ -71,8 +80,11 @@ This table maps every deployed contract to its role. Use it to understand what a
 | `JB721TiersHook` | NFT hook implementation (cloned per project) | `directory, permissions, prices, rulesets, hookStore, splits` |
 | `JB721TiersHookDeployer` | Deploys 721 hook clones | `hook721, hookStore, addressRegistry` |
 | `JB721TiersHookProjectDeployer` | Creates projects with 721 hooks | `directory, permissions, hookDeployer` |
+| `JBUniswapV4Hook` | Canonical Uniswap V4 router/oracle hook | `poolManager (chain-specific), directory, prices, tokens` |
 | `JBBuybackHookRegistry` | Registry of buyback hooks | `initialOwner: safeAddress()` |
-| `JBBuybackHook` | DEX buyback on payment | `poolManager (chain-specific), oracleHook: address(0)` |
+| `JBBuybackHook` | DEX buyback on payment | `poolManager (chain-specific), oracleHook: JBUniswapV4Hook` |
+| `JBUniswapV4LPSplitHook` | LP split hook implementation | `poolManager (chain-specific), positionManager (chain-specific), oracleHook: JBUniswapV4Hook` |
+| `JBUniswapV4LPSplitHookDeployer` | Clone deployer for LP split hooks | `hook: JBUniswapV4LPSplitHook, registry: JBAddressRegistry` |
 | `JBRouterTerminalRegistry` | Registry of router terminals | `initialOwner: safeAddress()` |
 | `JBRouterTerminal` | Payment routing via Uniswap | `weth, v3Factory, poolManager (all chain-specific)` |
 | `JBSuckerRegistry` | Sucker deployer whitelist | `initialOwner: safeAddress()` |
@@ -119,9 +131,9 @@ Every hardcoded address in `_setupChainAddresses()` and the price feed functions
 | Optimism | 10 | `0x4200000000000000000000000000000000000006` | `0x1F98431c8aD98523631AE4a59f267346ea31F984` | `0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3` |
 | OP Sepolia | 11155420 | `0x4200000000000000000000000000000000000006` | `0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24` | `0x000000000004444c5dc75cB358380D2e3dE08A90` |
 | Base | 8453 | `0x4200000000000000000000000000000000000006` | `0x33128a8fC17869897dcE68Ed026d694621f6FDfD` | `0x498581fF718922c3f8e6A244956aF099B2652b2b` |
-| Base Sepolia | 84532 | `0x4200000000000000000000000000000000000006` | `0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24` | `0x000000000004444c5dc75cB358380D2e3dE08A90` |
+| Base Sepolia | 84532 | `0x4200000000000000000000000000000000000006` | `0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24` | `0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408` |
 | Arbitrum | 42161 | `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | `0x1F98431c8aD98523631AE4a59f267346ea31F984` | `0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32` |
-| Arb Sepolia | 421614 | `0x980B62Da83eFf3D4576C647993b0c1D7faf17c73` | `0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e` | `0x000000000004444c5dc75cB358380D2e3dE08A90` |
+| Arb Sepolia | 421614 | `0x980B62Da83eFf3D4576C647993b0c1D7faf17c73` | `0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e` | `0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317` |
 
 ### Chainlink ETH/USD Feed Addresses
 
@@ -181,6 +193,7 @@ After reviewing the script, verify:
 - [ ] The `JBController` receives `_omnichainDeployer` as its omnichain operator.
 - [ ] `setIsAllowedToSetFirstController` is called for the correct controller address.
 - [ ] No dangling approvals or permissions exist after deployment completes.
+- [ ] Release claims match the script: the canonical rollout includes the V4 router/oracle stack and LP split hook deployer, while `JBOwnable` and Defifa remain out of scope.
 - [ ] The CPN revnet TODO is intentional and will be completed in a separate transaction.
 - [ ] Defifa is intentionally excluded and will be deployed separately.
 

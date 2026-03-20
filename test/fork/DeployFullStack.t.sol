@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 
 import "forge-std/Test.sol";
+import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 
 // ── Core ──
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
@@ -57,6 +58,12 @@ import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
+import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
+import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHookDeployer.sol";
 
 // ── Router Terminal ──
 import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
@@ -133,6 +140,7 @@ contract DeployFullStackTest is Test {
         address weth;
         address v3Factory;
         address poolManager;
+        address positionManager;
         // ETH/USD Chainlink feed
         address ethUsdFeed;
         // Sequencer feed (address(0) on L1 / chains without sequencer check)
@@ -172,10 +180,13 @@ contract DeployFullStackTest is Test {
     JB721TiersHook private _hook721;
     JB721TiersHookDeployer private _hookDeployer;
     JB721TiersHookProjectDeployer private _hookProjectDeployer;
+    JBUniswapV4Hook private _uniswapV4Hook;
     JBBuybackHookRegistry private _buybackRegistry;
     JBBuybackHook private _buybackHook;
     JBRouterTerminalRegistry private _routerTerminalRegistry;
     JBRouterTerminal private _routerTerminal;
+    JBUniswapV4LPSplitHook private _lpSplitHook;
+    JBUniswapV4LPSplitHookDeployer private _lpSplitHookDeployer;
     JBSuckerRegistry private _suckerRegistry;
     JBOmnichainDeployer private _omnichainDeployer;
 
@@ -193,6 +204,7 @@ contract DeployFullStackTest is Test {
             weth: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
             v3Factory: 0x1F98431c8aD98523631AE4a59f267346ea31F984,
             poolManager: 0x000000000004444c5dc75cB358380D2e3dE08A90,
+            positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
             ethUsdFeed: 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419,
             sequencerFeed: address(0),
             usdc: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
@@ -215,6 +227,7 @@ contract DeployFullStackTest is Test {
             weth: 0x4200000000000000000000000000000000000006,
             v3Factory: 0x1F98431c8aD98523631AE4a59f267346ea31F984,
             poolManager: 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3,
+            positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
             ethUsdFeed: 0x13e3Ee699D1909E989722E753853AE30b17e08c5,
             sequencerFeed: 0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389,
             usdc: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
@@ -237,6 +250,7 @@ contract DeployFullStackTest is Test {
             weth: 0x4200000000000000000000000000000000000006,
             v3Factory: 0x33128a8fC17869897dcE68Ed026d694621f6FDfD,
             poolManager: 0x498581fF718922c3f8e6A244956aF099B2652b2b,
+            positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
             ethUsdFeed: 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70,
             sequencerFeed: 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433,
             usdc: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
@@ -259,6 +273,7 @@ contract DeployFullStackTest is Test {
             weth: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1,
             v3Factory: 0x1F98431c8aD98523631AE4a59f267346ea31F984,
             poolManager: 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32,
+            positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
             ethUsdFeed: 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612,
             sequencerFeed: 0xFdB631F5EE196F0ed6FAa767959853A9F217697D,
             usdc: 0xaf88d065e77c8cC2239327C5EDb3A432268e5831,
@@ -348,7 +363,22 @@ contract DeployFullStackTest is Test {
             new JB721TiersHookProjectDeployer(_directory, _permissions, _hookDeployer, _trustedForwarder);
     }
 
-    /// @dev Phase 03b: Buyback Hook. Mirrors Deploy._deployBuybackHook().
+    /// @dev Phase 03b: Uniswap V4 hook. Mirrors Deploy._deployUniswapV4Hook().
+    function _deployUniswapV4Hook(ChainConfig memory cfg) internal {
+        uint160 flags = uint160(
+            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG
+                | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+        );
+
+        bytes memory constructorArgs = abi.encode(IPoolManager(cfg.poolManager), _tokens, _directory, _prices);
+
+        (, bytes32 salt) = HookMiner.find(address(this), flags, type(JBUniswapV4Hook).creationCode, constructorArgs);
+
+        _uniswapV4Hook = new JBUniswapV4Hook{salt: salt}(IPoolManager(cfg.poolManager), _tokens, _directory, _prices);
+    }
+
+    /// @dev Phase 03c: Buyback Hook. Mirrors Deploy._deployBuybackHook().
     function _deployBuybackHook(ChainConfig memory cfg) internal {
         _buybackRegistry = new JBBuybackHookRegistry(_permissions, _projects, _deployer, _trustedForwarder);
         _buybackHook = new JBBuybackHook(
@@ -358,13 +388,13 @@ contract DeployFullStackTest is Test {
             _projects,
             _tokens,
             IPoolManager(cfg.poolManager),
-            IHooks(address(0)),
+            IHooks(address(_uniswapV4Hook)),
             _trustedForwarder
         );
         _buybackRegistry.setDefaultHook(_buybackHook);
     }
 
-    /// @dev Phase 03c: Router Terminal. Mirrors Deploy._deployRouterTerminal().
+    /// @dev Phase 03d: Router Terminal. Mirrors Deploy._deployRouterTerminal().
     function _deployRouterTerminal(ChainConfig memory cfg) internal {
         _routerTerminalRegistry =
             new JBRouterTerminalRegistry(_permissions, _projects, _PERMIT2, _deployer, _trustedForwarder);
@@ -381,9 +411,25 @@ contract DeployFullStackTest is Test {
             _trustedForwarder
         );
         _routerTerminalRegistry.setDefaultTerminal(_routerTerminal);
+        _feeless.setFeelessAddress(address(_routerTerminal), true);
     }
 
-    /// @dev Phase 03d: Suckers. Deploys chain-appropriate suckers and the registry.
+    /// @dev Phase 03e: LP split hook. Mirrors Deploy._deployLpSplitHook().
+    function _deployLpSplitHook(ChainConfig memory cfg) internal {
+        _lpSplitHook = new JBUniswapV4LPSplitHook(
+            address(_directory),
+            _permissions,
+            address(_tokens),
+            IPoolManager(cfg.poolManager),
+            IPositionManager(cfg.positionManager),
+            IAllowanceTransfer(address(_PERMIT2)),
+            IHooks(address(_uniswapV4Hook))
+        );
+        _lpSplitHookDeployer =
+            new JBUniswapV4LPSplitHookDeployer(_lpSplitHook, IJBAddressRegistry(address(_addressRegistry)));
+    }
+
+    /// @dev Phase 03f: Suckers. Deploys chain-appropriate suckers and the registry.
     ///      Suckers require chain-specific bridge infrastructure. We wrap each sub-deployer in
     ///      try-catch so a missing bridge contract does not fail the entire test.
     function _deploySuckers(ChainConfig memory cfg) internal {
@@ -719,13 +765,19 @@ contract DeployFullStackTest is Test {
         // Phase 03a: 721 Hook
         _deploy721Hook();
 
-        // Phase 03b: Buyback Hook
+        // Phase 03b: Uniswap V4 Hook
+        _deployUniswapV4Hook(cfg);
+
+        // Phase 03c: Buyback Hook
         _deployBuybackHook(cfg);
 
-        // Phase 03c: Router Terminal
+        // Phase 03d: Router Terminal
         _deployRouterTerminal(cfg);
 
-        // Phase 03d: Cross-Chain Suckers
+        // Phase 03e: LP Split Hook
+        _deployLpSplitHook(cfg);
+
+        // Phase 03f: Cross-Chain Suckers
         _deploySuckers(cfg);
 
         // Phase 04: Omnichain Deployer
@@ -839,12 +891,37 @@ contract DeployFullStackTest is Test {
             address(_buybackHook),
             string.concat(chainName, ": Buyback default hook mismatch")
         );
+        assertEq(
+            address(_buybackHook.ORACLE_HOOK()),
+            address(_uniswapV4Hook),
+            string.concat(chainName, ": Buyback oracle hook mismatch")
+        );
 
         // Router Terminal.
         assertEq(
             address(_routerTerminalRegistry.defaultTerminal()),
             address(_routerTerminal),
             string.concat(chainName, ": Router default terminal mismatch")
+        );
+        assertTrue(
+            _feeless.isFeeless(address(_routerTerminal)), string.concat(chainName, ": Router terminal not feeless")
+        );
+
+        // LP split hook deployer.
+        assertEq(
+            address(_lpSplitHookDeployer.HOOK()),
+            address(_lpSplitHook),
+            string.concat(chainName, ": LP split hook implementation mismatch")
+        );
+        assertEq(
+            address(_lpSplitHookDeployer.ADDRESS_REGISTRY()),
+            address(_addressRegistry),
+            string.concat(chainName, ": LP split hook registry mismatch")
+        );
+        assertEq(
+            address(_lpSplitHook.ORACLE_HOOK()),
+            address(_uniswapV4Hook),
+            string.concat(chainName, ": LP split oracle hook mismatch")
         );
 
         // Sucker Registry.

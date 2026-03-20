@@ -1,6 +1,8 @@
 # deploy-all-v6 -- Risks
 
-Deployment-specific vulnerability vectors for auditors. This repo deploys the entire Juicebox V6 ecosystem via a single Sphinx-orchestrated script (`script/Deploy.s.sol`, ~1,600 lines). It has no runtime contracts of its own -- all risk lives in the deployment configuration itself.
+Deployment-specific vulnerability vectors for auditors. This repo deploys the current canonical Juicebox V6 rollout
+via a single Sphinx-orchestrated script (`script/Deploy.s.sol`, ~1,600 lines). It has no runtime contracts of its own
+-- all risk lives in the deployment configuration itself.
 
 For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
 
@@ -9,7 +11,7 @@ For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
 1. **Sphinx Platform** -- Deployment is orchestrated via Sphinx proposals. Sphinx controls execution order, gas management, and atomicity per chain. The Sphinx Safe (`safeAddress()`) receives ownership of every deployed contract.
 2. **Hardcoded Addresses** -- External contract addresses (Uniswap V4 PoolManager, Uniswap V3 Factory, WETH, Chainlink feeds, bridge contracts, CCIP routers, Permit2) are hardcoded per chain in the script. A wrong address means the deployed contract is permanently misconfigured.
 3. **Constructor Parameters** -- All initialization values (salts, prices, revnet stages, auto-issuance amounts, tier configs) are baked into the script. Many parameters are immutable after deployment -- constructor errors cannot be patched.
-4. **Deployment Ordering** -- Contracts deploy in dependency order within a single `deploy()` call. Between Sphinx proposal submission and execution, no intermediate state is exploitable because contracts are not usable until the full wiring phase completes. However, a partially executed proposal (Sphinx failure mid-execution) leaves the ecosystem in an inconsistent state.
+4. **Deployment Ordering** -- Contracts deploy in dependency order within a single `deploy()` call. Between Sphinx proposal submission and execution, no intermediate state is exploitable because contracts are not usable until the full wiring phase completes. However, a partially executed proposal leaves the chain in an inconsistent state and this repo does not yet ship a resumable recovery script.
 5. **Permit2** -- Hardcoded to canonical address `0x000000000022D473030F116dDEE9F6B43aC78BA3`. Assumed deployed on all target chains.
 
 ---
@@ -20,12 +22,12 @@ The script executes 9 phases in strict sequence. Each phase depends on state pro
 
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
-| Partial deployment | HIGH | If Sphinx execution halts mid-proposal (gas, revert, platform failure), core contracts may exist without wiring. Example: `JBDirectory` deployed but `setIsAllowedToSetFirstController` never called -- no projects can launch. | Sphinx atomic execution per chain. On failure, re-propose the full script. Contracts are not usable without wiring. |
+| Partial deployment | HIGH | If Sphinx execution halts mid-proposal (gas, revert, platform failure), core contracts may exist without wiring. Example: `JBDirectory` deployed but `setIsAllowedToSetFirstController` never called -- no projects can launch. | Do not re-propose the full script with the same salts. Recovery requires either a purpose-built resume script that skips completed CREATE2 deployments or a fresh deployment with new salts. |
 | Controller deploys after omnichain deployer | MEDIUM | `JBController` constructor takes `omnichainRulesetOperator: address(_omnichainDeployer)` (line 930). If the omnichain deployer address changes between phases, the controller is permanently misconfigured. | Single-proposal atomicity ensures deterministic ordering. Verify the `_omnichainDeployer` address in the controller's constructor after deployment. |
 | Sucker deployers before registry | LOW | All sucker deployers (OP, Base, Arb, CCIP) are deployed before `JBSuckerRegistry` (lines 551-568). Deployers are pushed to `_preApprovedSuckerDeployers[]`, then batch-approved on registry creation. If any deployer creation reverts, the array is incomplete. | The `if (_preApprovedSuckerDeployers.length != 0)` guard prevents empty-array revert but means a silently missing deployer is possible. |
 | Project ID determinism | HIGH | Project IDs are determined by deployment order: project 1 (fee project, auto-created), project 2 (CPN, line 1070), project 3 (REV, line 1093), project 4 (BAN, created by `deployFor` with `revnetId: 0`). If any `createFor` call is reordered or another project is inserted, all subsequent project IDs shift. Every revnet configuration, sucker config, and cross-reference hardcodes these IDs. | Verify project IDs match expected values after deployment. `REVLoans` constructor takes `revId: _revProjectId` -- if this ID is wrong, the loans contract references a non-existent or wrong project. |
 | Omnichain deployer needs hooks + registry | MEDIUM | Phase 04 deploys `JBOmnichainDeployer` which takes `_hookDeployer` and `_suckerRegistry` as constructor args (line 880). Both must be deployed in Phase 03. If Phase 03a or 03d reverts, the omnichain deployer gets `address(0)` references. | Sphinx reverts the entire chain's deployment on any constructor failure. No partial recovery path. |
-| NANA revnet after REV revnet | LOW | Phase 08b configures the fee project (ID 1) as a revnet. If Phase 07 ($REV) fails, `_revDeployer` is undeployed and the `_projects.approve` call in Phase 08b reverts. This blocks NANA configuration but does not leave the fee project in a dangerous state -- it just has no revnet rules. | Re-propose the full script. The fee project without revnet rules still collects fees but has no issuance or cashout mechanics. |
+| NANA revnet after REV revnet | LOW | Phase 08b configures the fee project (ID 1) as a revnet. If Phase 07 ($REV) fails, `_revDeployer` is undeployed and the `_projects.approve` call in Phase 08b reverts. This blocks NANA configuration but does not leave the fee project in a dangerous state -- it just has no revnet rules. | Resume from the failed phase boundary or redeploy from fresh salts. The fee project without revnet rules still collects fees but has no issuance or cashout mechanics. |
 
 ### Dependency Graph
 
@@ -44,7 +46,11 @@ Phase 08: CPN/NANA config (Revnet deployer)
 Phase 09: Banny (Revnet deployer + 721 Hook)
 ```
 
-If deployment is interrupted at any phase boundary, all contracts from completed phases exist on-chain but are inert -- the controller is not yet authorized, price feeds are not yet registered, and no projects are configured. **Re-proposing the full script will fail** because CREATE2 with the same salt and initcode will revert (contract already exists). Recovery requires either: (a) a new script that skips already-deployed contracts and performs only the remaining wiring, or (b) full redeployment with new salts.
+If deployment is interrupted at any phase boundary, all contracts from completed phases exist on-chain but are inert --
+the controller is not yet authorized, price feeds are not yet registered, and no projects are configured.
+**Re-proposing the full script is not a safe recovery path** because CREATE2 with the same salt and initcode will
+revert once any matching deployment already exists. Recovery requires either: (a) a new script that skips
+already-deployed contracts and performs only the remaining wiring, or (b) full redeployment with new salts.
 
 ---
 
@@ -87,7 +93,8 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | Permit2 | LOW | `0x000000000022D473030F116dDEE9F6B43aC78BA3` -- canonical, same on all chains. | 146 |
 | WETH | HIGH | Different per chain. 7 distinct addresses across 8 chains. L2 chains share `0x4200000000000000000000000000000000000006`. | 372-419 |
 | Uniswap V3 Factory | HIGH | Different per chain. Used by `JBRouterTerminal` for swap routing. | 372-419 |
-| Uniswap V4 PoolManager | HIGH | Different per chain except testnets sharing `0x000000000004444c5dc75cB358380D2e3dE08A90`. Used by `JBBuybackHook` and `JBRouterTerminal`. | 372-419 |
+| Uniswap V4 PoolManager | HIGH | Different per chain except testnets sharing `0x000000000004444c5dc75cB358380D2e3dE08A90`. Used by `JBBuybackHook`, `JBRouterTerminal`, and `JBUniswapV4LPSplitHook`. | 382-436 |
+| Uniswap V4 PositionManager | HIGH | Hardcoded per chain and required by `JBUniswapV4LPSplitHook` for pool initialization and liquidity management. A wrong address bricks LP split deployments on that chain. Optimism Sepolia intentionally skips the Uniswap-dependent phases because no canonical `PositionManager` is published there. | 382-456 |
 | Chainlink ETH/USD feeds | CRITICAL | 8 distinct addresses, one per chain. | 941-998 |
 | Chainlink USDC/USD feeds | CRITICAL | 8 distinct addresses. | 1006-1057 |
 | L2 Sequencer feeds | HIGH | 3 addresses (OP, Base, Arb mainnets). | 957, 972, 987 |
@@ -100,7 +107,8 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 | Risk | Severity | Description |
 |------|----------|-------------|
-| Buyback hook with `oracleHook: address(0)` | MEDIUM | Line 515: `JBBuybackHook` receives `IHooks(address(0))` as its oracle hook. This means TWAP queries go to `address(0)`, which must be mocked for testing. In production, the buyback hook will use spot prices (no TWAP protection) until pools are created with proper hook addresses. Payments are vulnerable to single-block price manipulation during this window. |
+| Hook-mined router hook | HIGH | `JBUniswapV4Hook` must be deployed to an address whose low bits match its declared Uniswap V4 hook permissions. The mined salt depends on the final constructor args and deployer address. If either drifts from execution reality, deployment reverts. |
+| Shared oracle hook wiring | MEDIUM | `JBBuybackHook` and `JBUniswapV4LPSplitHook` now both rely on the deployed `JBUniswapV4Hook`. If that hook is missing or miswired, buyback TWAP protection and LP split pool initialization both fail or degrade together. |
 | Revnet start times in the past | MEDIUM | `REV_START_TIME = 1_740_089_444` (Feb 20, 2025), `NANA_START_TIME = 1_740_089_444`, `BAN_START_TIME = 1_740_435_044`. If deployed after these timestamps, the first ruleset stage is already active and issuance decay has already been ticking. Auto-issuances may calculate differently than expected. |
 | Auto-issuance amounts | HIGH | Lines 212-229: Per-chain auto-issuance amounts for REV, NANA, and BAN are large uint104 constants. These represent preminted token allocations. If any amount is wrong, tokens are permanently minted to the wrong quantity. Cannot be corrected post-deployment. |
 | CPN revnet not configured | MEDIUM | `_deployCpnRevnet()` (line 1224) approves `_revDeployer` for project 2 but the actual configuration is commented out. Project 2 exists as an empty project owned by the Sphinx Safe with an approved-but-unused REVDeployer. Anyone who front-runs the separate CPN configuration could exploit the approval. |
@@ -137,6 +145,8 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | Section | Status | Risk |
 |---------|--------|------|
 | CPN Revnet (project 2) | Approved but not configured (TODO, line 1225) | Project 2 has dangling REVDeployer approval |
+| Uniswap V4 router/oracle stack | Deployed by this script | Deployment now depends on correct hook mining plus correct PoolManager and PositionManager constants |
+| JBOwnable | Not deployed by this script | Any ownership model depending on it is out of canonical-release scope |
 | Defifa | Fully commented out (lines 128-135, 360-361) | No deployment risk -- contracts simply not deployed |
 | Defifa Revnet | Commented out | No risk |
 
