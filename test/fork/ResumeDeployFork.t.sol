@@ -213,47 +213,57 @@ contract ResumeDeployHarness is IERC721Receiver {
             _isDeployed(coreSalt, type(JBProjects).creationCode, abi.encode(address(this), address(this), trustedForwarder));
         projects = projectsDeployed
             ? JBProjects(projectsAddress)
-            : new JBProjects{salt: coreSalt}(address(this), address(this), trustedForwarder);
+            : new JBProjects{salt: coreSalt}({
+                owner: address(this),
+                feeProjectOwner: address(this),
+                trustedForwarder: trustedForwarder
+            });
 
         (address directoryAddress, bool directoryDeployed) =
             _isDeployed(coreSalt, type(JBDirectory).creationCode, abi.encode(permissions, projects, address(this)));
         directory = directoryDeployed
             ? JBDirectory(directoryAddress)
-            : new JBDirectory{salt: coreSalt}(permissions, projects, address(this));
+            : new JBDirectory{salt: coreSalt}({permissions: permissions, projects: projects, owner: address(this)});
 
         (address splitsAddress, bool splitsDeployed) =
             _isDeployed(coreSalt, type(JBSplits).creationCode, abi.encode(directory));
-        splits = splitsDeployed ? JBSplits(splitsAddress) : new JBSplits{salt: coreSalt}(directory);
+        splits = splitsDeployed ? JBSplits(splitsAddress) : new JBSplits{salt: coreSalt}({directory: directory});
 
         (address rulesetsAddress, bool rulesetsDeployed) =
             _isDeployed(coreSalt, type(JBRulesets).creationCode, abi.encode(directory));
-        rulesets = rulesetsDeployed ? JBRulesets(rulesetsAddress) : new JBRulesets{salt: coreSalt}(directory);
+        rulesets = rulesetsDeployed ? JBRulesets(rulesetsAddress) : new JBRulesets{salt: coreSalt}({directory: directory});
 
         (address pricesAddress, bool pricesDeployed) = _isDeployed(
             coreSalt, type(JBPrices).creationCode, abi.encode(directory, permissions, projects, address(this), trustedForwarder)
         );
         prices = pricesDeployed
             ? JBPrices(pricesAddress)
-            : new JBPrices{salt: coreSalt}(directory, permissions, projects, address(this), trustedForwarder);
+            : new JBPrices{salt: coreSalt}({
+                directory: directory,
+                permissions: permissions,
+                projects: projects,
+                owner: address(this),
+                trustedForwarder: trustedForwarder
+            });
 
         (address erc20Address, bool erc20Deployed) = _isDeployed(coreSalt, type(JBERC20).creationCode, "");
         JBERC20 erc20 = erc20Deployed ? JBERC20(erc20Address) : new JBERC20{salt: coreSalt}();
 
         (address tokensAddress, bool tokensDeployed) =
             _isDeployed(coreSalt, type(JBTokens).creationCode, abi.encode(directory, erc20));
-        tokens = tokensDeployed ? JBTokens(tokensAddress) : new JBTokens{salt: coreSalt}(directory, erc20);
+        tokens = tokensDeployed ? JBTokens(tokensAddress) : new JBTokens{salt: coreSalt}({directory: directory, token: erc20});
 
         (address fundAccessAddress, bool fundAccessDeployed) =
             _isDeployed(coreSalt, type(JBFundAccessLimits).creationCode, abi.encode(directory));
         fundAccess = fundAccessDeployed
             ? JBFundAccessLimits(fundAccessAddress)
-            : new JBFundAccessLimits{salt: coreSalt}(directory);
+            : new JBFundAccessLimits{salt: coreSalt}({directory: directory});
 
         (address feelessAddress, bool feelessDeployed) =
             _isDeployed(coreSalt, type(JBFeelessAddresses).creationCode, abi.encode(address(this)));
         feeless = feelessDeployed
             ? JBFeelessAddresses(feelessAddress)
-            : new JBFeelessAddresses{salt: coreSalt}(address(this));
+            : new JBFeelessAddresses{salt: coreSalt}({owner: address(this)});
 
         (address terminalStoreAddress, bool terminalStoreDeployed) =
             _isDeployed(coreSalt, type(JBTerminalStore).creationCode, abi.encode(directory, prices, rulesets));
@@ -297,7 +307,15 @@ contract ResumeDeployHarness is IERC721Receiver {
         );
         hook721 = hook721Deployed
             ? JB721TiersHook(hook721Address)
-            : new JB721TiersHook{salt: HOOK_721_SALT}(directory, permissions, prices, rulesets, hookStore, splits, trustedForwarder);
+            : new JB721TiersHook{salt: HOOK_721_SALT}({
+                directory: directory,
+                permissions: permissions,
+                prices: prices,
+                rulesets: rulesets,
+                store: hookStore,
+                splits: splits,
+                trustedForwarder: trustedForwarder
+            });
 
         (address hookDeployerAddress, bool hookDeployerDeployed) = _isDeployed(
             HOOK_721_DEPLOYER_SALT,
@@ -306,9 +324,12 @@ contract ResumeDeployHarness is IERC721Receiver {
         );
         hookDeployer = hookDeployerDeployed
             ? JB721TiersHookDeployer(hookDeployerAddress)
-            : new JB721TiersHookDeployer{salt: HOOK_721_DEPLOYER_SALT}(
-                hook721, hookStore, IJBAddressRegistry(address(addressRegistry)), trustedForwarder
-            );
+            : new JB721TiersHookDeployer{salt: HOOK_721_DEPLOYER_SALT}({
+                hook: hook721,
+                store: hookStore,
+                addressRegistry: IJBAddressRegistry(address(addressRegistry)),
+                trustedForwarder: trustedForwarder
+            });
 
         (address hookProjectDeployerAddress, bool hookProjectDeployerDeployed) = _isDeployed(
             HOOK_721_PROJECT_DEPLOYER_SALT,
@@ -317,9 +338,12 @@ contract ResumeDeployHarness is IERC721Receiver {
         );
         hookProjectDeployer = hookProjectDeployerDeployed
             ? JB721TiersHookProjectDeployer(hookProjectDeployerAddress)
-            : new JB721TiersHookProjectDeployer{salt: HOOK_721_PROJECT_DEPLOYER_SALT}(
-                directory, permissions, hookDeployer, trustedForwarder
-            );
+            : new JB721TiersHookProjectDeployer{salt: HOOK_721_PROJECT_DEPLOYER_SALT}({
+                directory: directory,
+                permissions: permissions,
+                hookDeployer: hookDeployer,
+                trustedForwarder: trustedForwarder
+            });
     }
 
     function _deployUniswapV4Hook() internal {
@@ -332,7 +356,12 @@ contract ResumeDeployHarness is IERC721Receiver {
         );
         uniswapV4Hook = deployed
             ? JBUniswapV4Hook(payable(hookAddress))
-            : new JBUniswapV4Hook{salt: salt}(IPoolManager(POOL_MANAGER), tokens, directory, prices);
+            : new JBUniswapV4Hook{salt: salt}({
+                poolManager: IPoolManager(POOL_MANAGER),
+                tokens: tokens,
+                directory: directory,
+                prices: prices
+            });
     }
 
     function _deployBuybackHook() internal {
@@ -343,7 +372,12 @@ contract ResumeDeployHarness is IERC721Receiver {
         );
         buybackRegistry = registryDeployed
             ? JBBuybackHookRegistry(registryAddress)
-            : new JBBuybackHookRegistry{salt: BUYBACK_HOOK_SALT}(permissions, projects, address(this), trustedForwarder);
+            : new JBBuybackHookRegistry{salt: BUYBACK_HOOK_SALT}({
+                permissions: permissions,
+                projects: projects,
+                owner: address(this),
+                trustedForwarder: trustedForwarder
+            });
 
         (address hookAddress, bool hookDeployed) = _isDeployed(
             BUYBACK_HOOK_SALT,
@@ -354,19 +388,19 @@ contract ResumeDeployHarness is IERC721Receiver {
         );
         buybackHook = hookDeployed
             ? JBBuybackHook(payable(hookAddress))
-            : new JBBuybackHook{salt: BUYBACK_HOOK_SALT}(
-                directory,
-                permissions,
-                prices,
-                projects,
-                tokens,
-                IPoolManager(POOL_MANAGER),
-                IHooks(address(uniswapV4Hook)),
-                trustedForwarder
-            );
+            : new JBBuybackHook{salt: BUYBACK_HOOK_SALT}({
+                directory: directory,
+                permissions: permissions,
+                prices: prices,
+                projects: projects,
+                tokens: tokens,
+                poolManager: IPoolManager(POOL_MANAGER),
+                oracleHook: IHooks(address(uniswapV4Hook)),
+                trustedForwarder: trustedForwarder
+            });
 
         if (address(buybackRegistry.defaultHook()) == address(0)) {
-            buybackRegistry.setDefaultHook(IJBRulesetDataHook(address(buybackHook)));
+            buybackRegistry.setDefaultHook({hook: IJBRulesetDataHook(address(buybackHook))});
         }
     }
 
@@ -378,9 +412,13 @@ contract ResumeDeployHarness is IERC721Receiver {
         );
         routerTerminalRegistry = registryDeployed
             ? JBRouterTerminalRegistry(registryAddress)
-            : new JBRouterTerminalRegistry{salt: ROUTER_TERMINAL_REGISTRY_SALT}(
-                permissions, projects, _PERMIT2, address(this), trustedForwarder
-            );
+            : new JBRouterTerminalRegistry{salt: ROUTER_TERMINAL_REGISTRY_SALT}({
+                permissions: permissions,
+                projects: projects,
+                permit2: _PERMIT2,
+                owner: address(this),
+                trustedForwarder: trustedForwarder
+            });
 
         (address terminalAddress, bool terminalDeployed) = _isDeployed(
             ROUTER_TERMINAL_SALT,
@@ -400,24 +438,24 @@ contract ResumeDeployHarness is IERC721Receiver {
         );
         routerTerminal = terminalDeployed
             ? JBRouterTerminal(payable(terminalAddress))
-            : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}(
-                directory,
-                permissions,
-                projects,
-                tokens,
-                _PERMIT2,
-                address(this),
-                IRouterWETH9(WETH),
-                IUniswapV3Factory(V3_FACTORY),
-                IPoolManager(POOL_MANAGER),
-                trustedForwarder
-            );
+            : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}({
+                directory: directory,
+                permissions: permissions,
+                projects: projects,
+                tokens: tokens,
+                permit2: _PERMIT2,
+                owner: address(this),
+                weth: IRouterWETH9(WETH),
+                factory: IUniswapV3Factory(V3_FACTORY),
+                poolManager: IPoolManager(POOL_MANAGER),
+                trustedForwarder: trustedForwarder
+            });
 
         if (address(routerTerminalRegistry.defaultTerminal()) == address(0)) {
-            routerTerminalRegistry.setDefaultTerminal(IJBTerminal(address(routerTerminal)));
+            routerTerminalRegistry.setDefaultTerminal({terminal: IJBTerminal(address(routerTerminal))});
         }
         if (!feeless.isFeeless(address(routerTerminal))) {
-            feeless.setFeelessAddress(address(routerTerminal), true);
+            feeless.setFeelessAddress({addr: address(routerTerminal), flag: true});
         }
     }
 

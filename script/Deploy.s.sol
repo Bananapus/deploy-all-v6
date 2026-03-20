@@ -485,69 +485,111 @@ contract Deploy is Script, Sphinx {
             : address(new ERC2771Forwarder{salt: coreSalt}(TRUSTED_FORWARDER_NAME));
 
         (address permissions, bool permissionsDeployed) =
-            _isDeployed(coreSalt, type(JBPermissions).creationCode, abi.encode(_trustedForwarder));
+            _isDeployed({salt: coreSalt, creationCode: type(JBPermissions).creationCode, arguments: abi.encode(_trustedForwarder)});
         _permissions = permissionsDeployed
             ? JBPermissions(permissions)
             : new JBPermissions{salt: coreSalt}(_trustedForwarder);
 
         (address projects, bool projectsDeployed) = _isDeployed(
-            coreSalt, type(JBProjects).creationCode, abi.encode(safeAddress(), safeAddress(), _trustedForwarder)
+            {
+                salt: coreSalt,
+                creationCode: type(JBProjects).creationCode,
+                arguments: abi.encode(safeAddress(), safeAddress(), _trustedForwarder)
+            }
         );
         _projects = projectsDeployed
             ? JBProjects(projects)
-            : new JBProjects{salt: coreSalt}(safeAddress(), safeAddress(), _trustedForwarder);
+            : new JBProjects{salt: coreSalt}({
+                owner: safeAddress(),
+                feeProjectOwner: safeAddress(),
+                trustedForwarder: _trustedForwarder
+            });
 
         (address directory, bool directoryDeployed) =
-            _isDeployed(coreSalt, type(JBDirectory).creationCode, abi.encode(_permissions, _projects, safeAddress()));
+            _isDeployed({
+                salt: coreSalt,
+                creationCode: type(JBDirectory).creationCode,
+                arguments: abi.encode(_permissions, _projects, safeAddress())
+            });
         _directory = directoryDeployed
             ? JBDirectory(directory)
-            : new JBDirectory{salt: coreSalt}(_permissions, _projects, safeAddress());
+            : new JBDirectory{salt: coreSalt}({
+                permissions: _permissions,
+                projects: _projects,
+                owner: safeAddress()
+            });
 
         (address splits, bool splitsDeployed) =
-            _isDeployed(coreSalt, type(JBSplits).creationCode, abi.encode(_directory));
-        _splits = splitsDeployed ? JBSplits(splits) : new JBSplits{salt: coreSalt}(_directory);
+            _isDeployed({salt: coreSalt, creationCode: type(JBSplits).creationCode, arguments: abi.encode(_directory)});
+        _splits = splitsDeployed ? JBSplits(splits) : new JBSplits{salt: coreSalt}({directory: _directory});
 
         (address rulesets, bool rulesetsDeployed) =
-            _isDeployed(coreSalt, type(JBRulesets).creationCode, abi.encode(_directory));
-        _rulesets = rulesetsDeployed ? JBRulesets(rulesets) : new JBRulesets{salt: coreSalt}(_directory);
+            _isDeployed({salt: coreSalt, creationCode: type(JBRulesets).creationCode, arguments: abi.encode(_directory)});
+        _rulesets = rulesetsDeployed ? JBRulesets(rulesets) : new JBRulesets{salt: coreSalt}({directory: _directory});
 
         (address prices, bool pricesDeployed) = _isDeployed(
-            coreSalt, type(JBPrices).creationCode, abi.encode(_directory, _permissions, _projects, safeAddress(), _trustedForwarder)
+            {
+                salt: coreSalt,
+                creationCode: type(JBPrices).creationCode,
+                arguments: abi.encode(_directory, _permissions, _projects, safeAddress(), _trustedForwarder)
+            }
         );
         _prices = pricesDeployed
             ? JBPrices(prices)
-            : new JBPrices{salt: coreSalt}(_directory, _permissions, _projects, safeAddress(), _trustedForwarder);
+            : new JBPrices{salt: coreSalt}({
+                directory: _directory,
+                permissions: _permissions,
+                projects: _projects,
+                owner: safeAddress(),
+                trustedForwarder: _trustedForwarder
+            });
 
         (address erc20, bool erc20Deployed) = _isDeployed(coreSalt, type(JBERC20).creationCode, "");
         JBERC20 token = erc20Deployed ? JBERC20(erc20) : new JBERC20{salt: coreSalt}();
 
         (address tokens, bool tokensDeployed) =
-            _isDeployed(coreSalt, type(JBTokens).creationCode, abi.encode(_directory, token));
-        _tokens = tokensDeployed ? JBTokens(tokens) : new JBTokens{salt: coreSalt}(_directory, token);
+            _isDeployed({salt: coreSalt, creationCode: type(JBTokens).creationCode, arguments: abi.encode(_directory, token)});
+        _tokens = tokensDeployed
+            ? JBTokens(tokens)
+            : new JBTokens{salt: coreSalt}({directory: _directory, token: token});
 
         (address fundAccess, bool fundAccessDeployed) =
-            _isDeployed(coreSalt, type(JBFundAccessLimits).creationCode, abi.encode(_directory));
+            _isDeployed({
+                salt: coreSalt,
+                creationCode: type(JBFundAccessLimits).creationCode,
+                arguments: abi.encode(_directory)
+            });
         _fundAccess = fundAccessDeployed
             ? JBFundAccessLimits(fundAccess)
-            : new JBFundAccessLimits{salt: coreSalt}(_directory);
+            : new JBFundAccessLimits{salt: coreSalt}({directory: _directory});
 
         (address feeless, bool feelessDeployed) =
-            _isDeployed(coreSalt, type(JBFeelessAddresses).creationCode, abi.encode(safeAddress()));
+            _isDeployed({
+                salt: coreSalt,
+                creationCode: type(JBFeelessAddresses).creationCode,
+                arguments: abi.encode(safeAddress())
+            });
         _feeless = feelessDeployed
             ? JBFeelessAddresses(feeless)
-            : new JBFeelessAddresses{salt: coreSalt}(safeAddress());
+            : new JBFeelessAddresses{salt: coreSalt}({owner: safeAddress()});
 
         (address terminalStore, bool terminalStoreDeployed) = _isDeployed(
-            coreSalt, type(JBTerminalStore).creationCode, abi.encode(_directory, _rulesets, _prices)
+            {
+                salt: coreSalt,
+                creationCode: type(JBTerminalStore).creationCode,
+                arguments: abi.encode(_directory, _rulesets, _prices)
+            }
         );
         _terminalStore = terminalStoreDeployed
             ? JBTerminalStore(terminalStore)
             : new JBTerminalStore{salt: coreSalt}({directory: _directory, rulesets: _rulesets, prices: _prices});
 
         (address terminal, bool terminalDeployed) = _isDeployed(
-            coreSalt,
-            type(JBMultiTerminal).creationCode,
-            abi.encode(_permissions, _projects, _splits, _terminalStore, _tokens, _feeless, _PERMIT2, _trustedForwarder)
+            {
+                salt: coreSalt,
+                creationCode: type(JBMultiTerminal).creationCode,
+                arguments: abi.encode(_permissions, _projects, _splits, _terminalStore, _tokens, _feeless, _PERMIT2, _trustedForwarder)
+            }
         );
         _terminal = terminalDeployed
             ? JBMultiTerminal(terminal)
@@ -568,7 +610,8 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployAddressRegistry() internal {
-        (address registry, bool deployed) = _isDeployed(ADDRESS_REGISTRY_SALT, type(JBAddressRegistry).creationCode, "");
+        (address registry, bool deployed) =
+            _isDeployed({salt: ADDRESS_REGISTRY_SALT, creationCode: type(JBAddressRegistry).creationCode, arguments: ""});
         _addressRegistry = deployed ? JBAddressRegistry(registry) : new JBAddressRegistry{salt: ADDRESS_REGISTRY_SALT}();
     }
 
@@ -578,41 +621,59 @@ contract Deploy is Script, Sphinx {
 
     function _deploy721Hook() internal {
         (address hookStore, bool hookStoreDeployed) =
-            _isDeployed(HOOK_721_STORE_SALT, type(JB721TiersHookStore).creationCode, "");
+            _isDeployed({salt: HOOK_721_STORE_SALT, creationCode: type(JB721TiersHookStore).creationCode, arguments: ""});
         _hookStore = hookStoreDeployed ? JB721TiersHookStore(hookStore) : new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
         (address hook721, bool hook721Deployed) = _isDeployed(
-            HOOK_721_SALT,
-            type(JB721TiersHook).creationCode,
-            abi.encode(_directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder)
+            {
+                salt: HOOK_721_SALT,
+                creationCode: type(JB721TiersHook).creationCode,
+                arguments: abi.encode(_directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder)
+            }
         );
         _hook721 = hook721Deployed
             ? JB721TiersHook(hook721)
-            : new JB721TiersHook{salt: HOOK_721_SALT}(
-                _directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder
-            );
+            : new JB721TiersHook{salt: HOOK_721_SALT}({
+                directory: _directory,
+                permissions: _permissions,
+                prices: _prices,
+                rulesets: _rulesets,
+                store: _hookStore,
+                splits: _splits,
+                trustedForwarder: _trustedForwarder
+            });
 
         (address hookDeployer, bool hookDeployerDeployed) = _isDeployed(
-            HOOK_721_DEPLOYER_SALT,
-            type(JB721TiersHookDeployer).creationCode,
-            abi.encode(_hook721, _hookStore, IJBAddressRegistry(address(_addressRegistry)), _trustedForwarder)
+            {
+                salt: HOOK_721_DEPLOYER_SALT,
+                creationCode: type(JB721TiersHookDeployer).creationCode,
+                arguments: abi.encode(_hook721, _hookStore, IJBAddressRegistry(address(_addressRegistry)), _trustedForwarder)
+            }
         );
         _hookDeployer = hookDeployerDeployed
             ? JB721TiersHookDeployer(hookDeployer)
-            : new JB721TiersHookDeployer{salt: HOOK_721_DEPLOYER_SALT}(
-                _hook721, _hookStore, IJBAddressRegistry(address(_addressRegistry)), _trustedForwarder
-            );
+            : new JB721TiersHookDeployer{salt: HOOK_721_DEPLOYER_SALT}({
+                hook: _hook721,
+                store: _hookStore,
+                addressRegistry: IJBAddressRegistry(address(_addressRegistry)),
+                trustedForwarder: _trustedForwarder
+            });
 
         (address hookProjectDeployer, bool hookProjectDeployerDeployed) = _isDeployed(
-            HOOK_721_PROJECT_DEPLOYER_SALT,
-            type(JB721TiersHookProjectDeployer).creationCode,
-            abi.encode(_directory, _permissions, _hookDeployer, _trustedForwarder)
+            {
+                salt: HOOK_721_PROJECT_DEPLOYER_SALT,
+                creationCode: type(JB721TiersHookProjectDeployer).creationCode,
+                arguments: abi.encode(_directory, _permissions, _hookDeployer, _trustedForwarder)
+            }
         );
         _hookProjectDeployer = hookProjectDeployerDeployed
             ? JB721TiersHookProjectDeployer(hookProjectDeployer)
-            : new JB721TiersHookProjectDeployer{salt: HOOK_721_PROJECT_DEPLOYER_SALT}(
-                _directory, _permissions, _hookDeployer, _trustedForwarder
-            );
+            : new JB721TiersHookProjectDeployer{salt: HOOK_721_PROJECT_DEPLOYER_SALT}({
+                directory: _directory,
+                permissions: _permissions,
+                hookDeployer: _hookDeployer,
+                trustedForwarder: _trustedForwarder
+            });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -636,14 +697,21 @@ contract Deploy is Script, Sphinx {
         });
 
         (address hook, bool deployed) = _isDeployed(
-            salt,
-            type(JBUniswapV4Hook).creationCode,
-            abi.encode(IPoolManager(_poolManager), _tokens, _directory, _prices)
+            {
+                salt: salt,
+                creationCode: type(JBUniswapV4Hook).creationCode,
+                arguments: abi.encode(IPoolManager(_poolManager), _tokens, _directory, _prices)
+            }
         );
 
         _uniswapV4Hook = deployed
             ? JBUniswapV4Hook(payable(hook))
-            : new JBUniswapV4Hook{salt: salt}(IPoolManager(_poolManager), _tokens, _directory, _prices);
+            : new JBUniswapV4Hook{salt: salt}({
+                poolManager: IPoolManager(_poolManager),
+                tokens: _tokens,
+                directory: _directory,
+                prices: _prices
+            });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -652,15 +720,20 @@ contract Deploy is Script, Sphinx {
 
     function _deployBuybackHook() internal {
         (address registry, bool registryDeployed) = _isDeployed(
-            BUYBACK_HOOK_SALT,
-            type(JBBuybackHookRegistry).creationCode,
-            abi.encode(_permissions, _projects, safeAddress(), _trustedForwarder)
+            {
+                salt: BUYBACK_HOOK_SALT,
+                creationCode: type(JBBuybackHookRegistry).creationCode,
+                arguments: abi.encode(_permissions, _projects, safeAddress(), _trustedForwarder)
+            }
         );
         _buybackRegistry = registryDeployed
             ? JBBuybackHookRegistry(registry)
-            : new JBBuybackHookRegistry{salt: BUYBACK_HOOK_SALT}(
-                _permissions, _projects, safeAddress(), _trustedForwarder
-            );
+            : new JBBuybackHookRegistry{salt: BUYBACK_HOOK_SALT}({
+                permissions: _permissions,
+                projects: _projects,
+                owner: safeAddress(),
+                trustedForwarder: _trustedForwarder
+            });
 
         (address hook, bool hookDeployed) = _isDeployed(
             BUYBACK_HOOK_SALT,
@@ -678,19 +751,19 @@ contract Deploy is Script, Sphinx {
         );
         _buybackHook = hookDeployed
             ? JBBuybackHook(payable(hook))
-            : new JBBuybackHook{salt: BUYBACK_HOOK_SALT}(
-                _directory,
-                _permissions,
-                _prices,
-                _projects,
-                _tokens,
-                IPoolManager(_poolManager),
-                IHooks(address(_uniswapV4Hook)),
-                _trustedForwarder
-            );
+            : new JBBuybackHook{salt: BUYBACK_HOOK_SALT}({
+                directory: _directory,
+                permissions: _permissions,
+                prices: _prices,
+                projects: _projects,
+                tokens: _tokens,
+                poolManager: IPoolManager(_poolManager),
+                oracleHook: IHooks(address(_uniswapV4Hook)),
+                trustedForwarder: _trustedForwarder
+            });
 
         if (address(_buybackRegistry.defaultHook()) == address(0)) {
-            _buybackRegistry.setDefaultHook(_buybackHook);
+            _buybackRegistry.setDefaultHook({hook: _buybackHook});
         } else if (address(_buybackRegistry.defaultHook()) != address(_buybackHook)) {
             revert Deploy_ExistingAddressMismatch(address(_buybackHook), address(_buybackRegistry.defaultHook()));
         }
@@ -702,15 +775,21 @@ contract Deploy is Script, Sphinx {
 
     function _deployRouterTerminal() internal {
         (address registry, bool registryDeployed) = _isDeployed(
-            ROUTER_TERMINAL_REGISTRY_SALT,
-            type(JBRouterTerminalRegistry).creationCode,
-            abi.encode(_permissions, _projects, _PERMIT2, safeAddress(), _trustedForwarder)
+            {
+                salt: ROUTER_TERMINAL_REGISTRY_SALT,
+                creationCode: type(JBRouterTerminalRegistry).creationCode,
+                arguments: abi.encode(_permissions, _projects, _PERMIT2, safeAddress(), _trustedForwarder)
+            }
         );
         _routerTerminalRegistry = registryDeployed
             ? JBRouterTerminalRegistry(registry)
-            : new JBRouterTerminalRegistry{salt: ROUTER_TERMINAL_REGISTRY_SALT}(
-                _permissions, _projects, _PERMIT2, safeAddress(), _trustedForwarder
-            );
+            : new JBRouterTerminalRegistry{salt: ROUTER_TERMINAL_REGISTRY_SALT}({
+                permissions: _permissions,
+                projects: _projects,
+                permit2: _PERMIT2,
+                owner: safeAddress(),
+                trustedForwarder: _trustedForwarder
+            });
 
         (address terminal, bool terminalDeployed) = _isDeployed(
             ROUTER_TERMINAL_SALT,
@@ -730,21 +809,21 @@ contract Deploy is Script, Sphinx {
         );
         _routerTerminal = terminalDeployed
             ? JBRouterTerminal(payable(terminal))
-            : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}(
-                _directory,
-                _permissions,
-                _projects,
-                _tokens,
-                _PERMIT2,
-                safeAddress(),
-                IRouterWETH9(_weth),
-                IUniswapV3Factory(_v3Factory),
-                IPoolManager(_poolManager),
-                _trustedForwarder
-            );
+            : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}({
+                directory: _directory,
+                permissions: _permissions,
+                projects: _projects,
+                tokens: _tokens,
+                permit2: _PERMIT2,
+                owner: safeAddress(),
+                weth: IRouterWETH9(_weth),
+                factory: IUniswapV3Factory(_v3Factory),
+                poolManager: IPoolManager(_poolManager),
+                trustedForwarder: _trustedForwarder
+            });
 
         if (address(_routerTerminalRegistry.defaultTerminal()) == address(0)) {
-            _routerTerminalRegistry.setDefaultTerminal(_routerTerminal);
+            _routerTerminalRegistry.setDefaultTerminal({terminal: _routerTerminal});
         } else if (address(_routerTerminalRegistry.defaultTerminal()) != address(_routerTerminal)) {
             revert Deploy_ExistingAddressMismatch(
                 address(_routerTerminal), address(_routerTerminalRegistry.defaultTerminal())
@@ -752,7 +831,7 @@ contract Deploy is Script, Sphinx {
         }
 
         if (!_feeless.isFeeless(address(_routerTerminal))) {
-            _feeless.setFeelessAddress(address(_routerTerminal), true);
+            _feeless.setFeelessAddress({addr: address(_routerTerminal), flag: true});
         }
     }
 
