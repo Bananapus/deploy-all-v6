@@ -151,7 +151,9 @@ contract ResumeDeployHarness is IERC721Receiver {
 
     function expectedUniswapV4HookAddress() external view returns (address) {
         return _create2Address(
-            uniswapV4HookSalt, type(JBUniswapV4Hook).creationCode, abi.encode(IPoolManager(POOL_MANAGER), tokens, directory, prices)
+            uniswapV4HookSalt,
+            type(JBUniswapV4Hook).creationCode,
+            abi.encode(IPoolManager(POOL_MANAGER), tokens, directory, prices)
         );
     }
 
@@ -207,16 +209,17 @@ contract ResumeDeployHarness is IERC721Receiver {
 
         (address permissionsAddress, bool permissionsDeployed) =
             _isDeployed(coreSalt, type(JBPermissions).creationCode, abi.encode(trustedForwarder));
-        permissions = permissionsDeployed ? JBPermissions(permissionsAddress) : new JBPermissions{salt: coreSalt}(trustedForwarder);
+        permissions = permissionsDeployed
+            ? JBPermissions(permissionsAddress)
+            : new JBPermissions{salt: coreSalt}(trustedForwarder);
 
-        (address projectsAddress, bool projectsDeployed) =
-            _isDeployed(coreSalt, type(JBProjects).creationCode, abi.encode(address(this), address(this), trustedForwarder));
+        (address projectsAddress, bool projectsDeployed) = _isDeployed(
+            coreSalt, type(JBProjects).creationCode, abi.encode(address(this), address(this), trustedForwarder)
+        );
         projects = projectsDeployed
             ? JBProjects(projectsAddress)
             : new JBProjects{salt: coreSalt}({
-                owner: address(this),
-                feeProjectOwner: address(this),
-                trustedForwarder: trustedForwarder
+                owner: address(this), feeProjectOwner: address(this), trustedForwarder: trustedForwarder
             });
 
         (address directoryAddress, bool directoryDeployed) =
@@ -231,10 +234,13 @@ contract ResumeDeployHarness is IERC721Receiver {
 
         (address rulesetsAddress, bool rulesetsDeployed) =
             _isDeployed(coreSalt, type(JBRulesets).creationCode, abi.encode(directory));
-        rulesets = rulesetsDeployed ? JBRulesets(rulesetsAddress) : new JBRulesets{salt: coreSalt}({directory: directory});
+        rulesets =
+            rulesetsDeployed ? JBRulesets(rulesetsAddress) : new JBRulesets{salt: coreSalt}({directory: directory});
 
         (address pricesAddress, bool pricesDeployed) = _isDeployed(
-            coreSalt, type(JBPrices).creationCode, abi.encode(directory, permissions, projects, address(this), trustedForwarder)
+            coreSalt,
+            type(JBPrices).creationCode,
+            abi.encode(directory, permissions, projects, address(this), trustedForwarder)
         );
         prices = pricesDeployed
             ? JBPrices(pricesAddress)
@@ -251,7 +257,9 @@ contract ResumeDeployHarness is IERC721Receiver {
 
         (address tokensAddress, bool tokensDeployed) =
             _isDeployed(coreSalt, type(JBTokens).creationCode, abi.encode(directory, erc20));
-        tokens = tokensDeployed ? JBTokens(tokensAddress) : new JBTokens{salt: coreSalt}({directory: directory, token: erc20});
+        tokens = tokensDeployed
+            ? JBTokens(tokensAddress)
+            : new JBTokens{salt: coreSalt}({directory: directory, token: erc20});
 
         (address fundAccessAddress, bool fundAccessDeployed) =
             _isDeployed(coreSalt, type(JBFundAccessLimits).creationCode, abi.encode(directory));
@@ -291,14 +299,18 @@ contract ResumeDeployHarness is IERC721Receiver {
     }
 
     function _deployAddressRegistry() internal {
-        (address registryAddress, bool deployed) = _isDeployed(ADDRESS_REGISTRY_SALT, type(JBAddressRegistry).creationCode, "");
-        addressRegistry = deployed ? JBAddressRegistry(registryAddress) : new JBAddressRegistry{salt: ADDRESS_REGISTRY_SALT}();
+        (address registryAddress, bool deployed) =
+            _isDeployed(ADDRESS_REGISTRY_SALT, type(JBAddressRegistry).creationCode, "");
+        addressRegistry =
+            deployed ? JBAddressRegistry(registryAddress) : new JBAddressRegistry{salt: ADDRESS_REGISTRY_SALT}();
     }
 
     function _deploy721Hook() internal {
         (address hookStoreAddress, bool hookStoreDeployed) =
             _isDeployed(HOOK_721_STORE_SALT, type(JB721TiersHookStore).creationCode, "");
-        hookStore = hookStoreDeployed ? JB721TiersHookStore(hookStoreAddress) : new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
+        hookStore = hookStoreDeployed
+            ? JB721TiersHookStore(hookStoreAddress)
+            : new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
         (address hook721Address, bool hook721Deployed) = _isDeployed(
             HOOK_721_SALT,
@@ -350,17 +362,12 @@ contract ResumeDeployHarness is IERC721Receiver {
         (, bytes32 salt) = _hookSalt();
         uniswapV4HookSalt = salt;
         (address hookAddress, bool deployed) = _isDeployed(
-            salt,
-            type(JBUniswapV4Hook).creationCode,
-            abi.encode(IPoolManager(POOL_MANAGER), tokens, directory, prices)
+            salt, type(JBUniswapV4Hook).creationCode, abi.encode(IPoolManager(POOL_MANAGER), tokens, directory, prices)
         );
         uniswapV4Hook = deployed
             ? JBUniswapV4Hook(payable(hookAddress))
             : new JBUniswapV4Hook{salt: salt}({
-                poolManager: IPoolManager(POOL_MANAGER),
-                tokens: tokens,
-                directory: directory,
-                prices: prices
+                poolManager: IPoolManager(POOL_MANAGER), tokens: tokens, directory: directory, prices: prices
             });
     }
 
@@ -373,17 +380,21 @@ contract ResumeDeployHarness is IERC721Receiver {
         buybackRegistry = registryDeployed
             ? JBBuybackHookRegistry(registryAddress)
             : new JBBuybackHookRegistry{salt: BUYBACK_HOOK_SALT}({
-                permissions: permissions,
-                projects: projects,
-                owner: address(this),
-                trustedForwarder: trustedForwarder
+                permissions: permissions, projects: projects, owner: address(this), trustedForwarder: trustedForwarder
             });
 
         (address hookAddress, bool hookDeployed) = _isDeployed(
             BUYBACK_HOOK_SALT,
             type(JBBuybackHook).creationCode,
             abi.encode(
-                directory, permissions, prices, projects, tokens, IPoolManager(POOL_MANAGER), IHooks(address(uniswapV4Hook)), trustedForwarder
+                directory,
+                permissions,
+                prices,
+                projects,
+                tokens,
+                IPoolManager(POOL_MANAGER),
+                IHooks(address(uniswapV4Hook)),
+                trustedForwarder
             )
         );
         buybackHook = hookDeployed
@@ -521,7 +532,9 @@ contract ResumeDeployHarness is IERC721Receiver {
         (address deployerAddress, bool deployed) = _isDeployed(
             OMNICHAIN_DEPLOYER_SALT,
             type(JBOmnichainDeployer).creationCode,
-            abi.encode(suckerRegistry, IJB721TiersHookDeployer(address(hookDeployer)), permissions, projects, trustedForwarder)
+            abi.encode(
+                suckerRegistry, IJB721TiersHookDeployer(address(hookDeployer)), permissions, projects, trustedForwarder
+            )
         );
         omnichainDeployer = deployed
             ? JBOmnichainDeployer(deployerAddress)
@@ -535,7 +548,8 @@ contract ResumeDeployHarness is IERC721Receiver {
         _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)), ethUsdFeed);
         _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, JBCurrencyIds.ETH, ethUsdFeed);
 
-        IJBPriceFeed nativeEthFeed = prices.priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)));
+        IJBPriceFeed nativeEthFeed =
+            prices.priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)));
         if (address(nativeEthFeed) == address(0)) {
             nativeEthFeed = IJBPriceFeed(address(new JBMatchingPriceFeed()));
         }
@@ -593,12 +607,19 @@ contract ResumeDeployHarness is IERC721Receiver {
     }
 
     function _deployUsdcFeed() internal {
-        IJBPriceFeed existing = prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)));
+        IJBPriceFeed existing =
+            prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)));
         if (address(existing) == address(0)) {
             IJBPriceFeed usdcFeed = IJBPriceFeed(
-                address(new JBChainlinkV3PriceFeed(AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6), 86_400))
+                address(
+                    new JBChainlinkV3PriceFeed(
+                        AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6), 86_400
+                    )
+                )
             );
-            _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)), usdcFeed);
+            _ensureDefaultPriceFeed(
+                0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)), usdcFeed
+            );
         }
     }
 
@@ -625,14 +646,19 @@ contract ResumeDeployHarness is IERC721Receiver {
     function _hookSalt() internal view returns (uint160, bytes32 salt) {
         uint160 flags = uint160(
             Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG
-                | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
         );
         bytes memory constructorArgs = abi.encode(IPoolManager(POOL_MANAGER), tokens, directory, prices);
         salt = _findHookSalt(address(this), flags, type(JBUniswapV4Hook).creationCode, constructorArgs);
         return (flags, salt);
     }
 
-    function _isDeployed(bytes32 salt, bytes memory creationCode, bytes memory arguments)
+    function _isDeployed(
+        bytes32 salt,
+        bytes memory creationCode,
+        bytes memory arguments
+    )
         internal
         view
         returns (address deployedTo, bool isDeployed)
@@ -641,15 +667,34 @@ contract ResumeDeployHarness is IERC721Receiver {
         isDeployed = deployedTo.code.length != 0;
     }
 
-    function _create2Address(bytes32 salt, bytes memory creationCode, bytes memory arguments) internal view returns (address) {
+    function _create2Address(
+        bytes32 salt,
+        bytes memory creationCode,
+        bytes memory arguments
+    )
+        internal
+        view
+        returns (address)
+    {
         return address(
             uint160(
-                uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, keccak256(abi.encodePacked(creationCode, arguments)))))
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff), address(this), salt, keccak256(abi.encodePacked(creationCode, arguments))
+                        )
+                    )
+                )
             )
         );
     }
 
-    function _findHookSalt(address deployer, uint160 flags, bytes memory creationCode, bytes memory constructorArgs)
+    function _findHookSalt(
+        address deployer,
+        uint160 flags,
+        bytes memory creationCode,
+        bytes memory constructorArgs
+    )
         internal
         pure
         returns (bytes32 salt)
@@ -718,7 +763,10 @@ contract ResumeDeployForkTest is Test {
         assertEq(address(harness.routerTerminal()), routerTerminal, "routerTerminal changed");
 
         assertEq(address(harness.controller()), harness.expectedControllerAddress(), "controller address drifted");
-        assertTrue(harness.directory().isAllowedToSetFirstController(address(harness.controller())), "controller not allowlisted");
+        assertTrue(
+            harness.directory().isAllowedToSetFirstController(address(harness.controller())),
+            "controller not allowlisted"
+        );
         assertEq(harness.projects().count(), 3, "unexpected project count");
         assertEq(harness.cpnProjectId(), 2, "cpn project id");
         assertEq(harness.revProjectId(), 3, "rev project id");
@@ -729,7 +777,8 @@ contract ResumeDeployForkTest is Test {
         assertTrue(harness.suckerRegistry().suckerDeployerIsAllowed(address(0x1002)), "deployer 2 not allowlisted");
         assertTrue(harness.feeless().isFeeless(address(harness.routerTerminal())), "router terminal not feeless");
         assertTrue(
-            address(harness.prices().priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)))) != address(0),
+            address(harness.prices().priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN))))
+                != address(0),
             "missing native USD feed"
         );
         assertTrue(
@@ -737,21 +786,36 @@ contract ResumeDeployForkTest is Test {
             "missing eth USD feed"
         );
         assertTrue(
-            address(harness.prices().priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)))) != address(0),
+            address(harness.prices().priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN))))
+                != address(0),
             "missing native eth feed"
         );
         assertTrue(
-            address(harness.prices().priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)))) != address(0),
+            address(
+                harness.prices()
+                    .priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)))
+            ) != address(0),
             "missing usdc usd feed"
         );
     }
 
     function _assertPartialReplayState(ResumeDeployHarness harness) internal view {
-        assertEq(address(harness.buybackRegistry().defaultHook()), address(harness.buybackHook()), "buyback hook not preserved");
-        assertEq(address(harness.routerTerminalRegistry().defaultTerminal()), address(harness.routerTerminal()), "router terminal not preserved");
+        assertEq(
+            address(harness.buybackRegistry().defaultHook()),
+            address(harness.buybackHook()),
+            "buyback hook not preserved"
+        );
+        assertEq(
+            address(harness.routerTerminalRegistry().defaultTerminal()),
+            address(harness.routerTerminal()),
+            "router terminal not preserved"
+        );
         assertTrue(harness.feeless().isFeeless(address(harness.routerTerminal())), "router terminal not feeless");
         assertEq(address(harness.uniswapV4Hook()), harness.expectedUniswapV4HookAddress(), "hook address drifted");
-        assertEq(address(harness.routerTerminal()), harness.expectedRouterTerminalAddress(), "router terminal address drifted");
+        assertEq(
+            address(harness.routerTerminal()),
+            harness.expectedRouterTerminalAddress(),
+            "router terminal address drifted"
+        );
     }
-
 }
