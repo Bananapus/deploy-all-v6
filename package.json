@@ -46,7 +46,6 @@
         "solmate": "^6.8.0"
     },
     "devDependencies": {
-        "@sphinx-labs/contracts": "^0.23.1",
         "@sphinx-labs/plugins": "^0.33.2"
     }
 }
