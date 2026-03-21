@@ -538,7 +538,7 @@ contract FullStackForkTest is TestBaseWorkflow {
             );
     }
 
-    function _buildPayMetadataNoQuote(address hookMetadataTarget) internal view returns (bytes memory) {
+    function _buildPayMetadataNoQuote(address hookMetadataTarget) internal pure returns (bytes memory) {
         uint16[] memory tierIds = new uint16[](1);
         tierIds[0] = 1;
         bytes memory tierData = abi.encode(true, tierIds);
@@ -729,7 +729,7 @@ contract FullStackForkTest is TestBaseWorkflow {
         uint256 suckerEthBefore = sucker.balance;
 
         vm.prank(sucker);
-        uint256 reclaimed = jbMultiTerminal()
+        jbMultiTerminal()
             .cashOutTokensOf({
                 holder: sucker,
                 projectId: revnetId,

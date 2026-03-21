@@ -64,31 +64,25 @@ forge build
 
 ## Dependencies
 
-This repo references all other V6 repos via `file:../` paths in `package.json`:
+All V6 dependencies are installed from npm:
 
-```
-../nana-core-v6
-../nana-permission-ids-v6
-../nana-address-registry-v6
-../nana-721-hook-v6
-../nana-buyback-hook-v6
-../nana-router-terminal-v6
-../nana-suckers-v6
-../nana-omnichain-deployers-v6
-../nana-ownable-v6
-../univ4-router-v6
-../univ4-lp-split-hook-v6
-../revnet-core-v6
-../croptop-core-v6
-../banny-retail-v6
-../defifa-collection-deployer-v6
-```
-
-Clone all repos as siblings, or use the [meta-repo](https://github.com/Bananapus/version-6):
-
-```bash
-git clone --recursive https://github.com/Bananapus/version-6.git
-```
+| Package | Repo |
+|---------|------|
+| `@bananapus/core-v6` | nana-core-v6 |
+| `@bananapus/permission-ids-v6` | nana-permission-ids-v6 |
+| `@bananapus/address-registry-v6` | nana-address-registry-v6 |
+| `@bananapus/721-hook-v6` | nana-721-hook-v6 |
+| `@bananapus/buyback-hook-v6` | nana-buyback-hook-v6 |
+| `@bananapus/router-terminal-v6` | nana-router-terminal-v6 |
+| `@bananapus/suckers-v6` | nana-suckers-v6 |
+| `@bananapus/omnichain-deployers-v6` | nana-omnichain-deployers-v6 |
+| `@bananapus/ownable-v6` | nana-ownable-v6 |
+| `@bananapus/univ4-router-v6` | univ4-router-v6 |
+| `@bananapus/univ4-lp-split-hook-v6` | univ4-lp-split-hook-v6 |
+| `@rev-net/core-v6` | revnet-core-v6 |
+| `@croptop/core-v6` | croptop-core-v6 |
+| `@bannynet/core-v6` | banny-retail-v6 |
+| `@ballkidz/defifa` | defifa-collection-deployer-v6 |
 
 ## Build Configuration
 

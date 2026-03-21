@@ -646,7 +646,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
     }
 
     /// @notice Pool parameters match: both hooks use the same fee and tick spacing.
-    function test_interop_revnet_poolParametersMatch() public {
+    function test_interop_revnet_poolParametersMatch() public view {
         // The critical interop requirement: both hooks target the same pool.
         assertEq(
             LP_SPLIT_HOOK.POOL_FEE(),

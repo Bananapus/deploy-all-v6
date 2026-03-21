@@ -546,7 +546,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
         return jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, token);
     }
 
-    function _buildPayMetadataWithTier(address hookMetadataTarget) internal view returns (bytes memory) {
+    function _buildPayMetadataWithTier(address hookMetadataTarget) internal pure returns (bytes memory) {
         uint16[] memory tierIds = new uint16[](1);
         tierIds[0] = 1;
         bytes memory tierData = abi.encode(true, tierIds);
@@ -573,7 +573,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
-        (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
             terminalConfigurations: tc,

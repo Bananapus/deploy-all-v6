@@ -467,7 +467,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
     }
 
     /// @notice 721 tiers priced in abstract ETH(1).
-    function _build721ConfigETHTiers() internal view returns (REVDeploy721TiersHookConfig memory) {
+    function _build721ConfigETHTiers() internal pure returns (REVDeploy721TiersHookConfig memory) {
         JB721TierConfig[] memory tierConfigs = new JB721TierConfig[](1);
 
         tierConfigs[0] = JB721TierConfig({
@@ -619,7 +619,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         vm.stopPrank();
     }
 
-    function _buildPayMetadataWithTier(address hookMetadataTarget) internal view returns (bytes memory) {
+    function _buildPayMetadataWithTier(address hookMetadataTarget) internal pure returns (bytes memory) {
         uint16[] memory tierIds = new uint16[](1);
         tierIds[0] = 1;
         bytes memory tierData = abi.encode(true, tierIds);
@@ -927,9 +927,6 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
             allowedPosts: new REVCroptopAllowedPost[](0)
         });
 
-        address metadataTarget = hook.METADATA_ID_TARGET();
-        bytes memory metadata = _buildPayMetadataWithTier(metadataTarget);
-
         // Pay with ETH (currencies differ, no prices contract).
         // normalizePaymentValue returns (0, false) -> no NFT minted, but payer still gets project tokens.
         uint256 tokens = _payRevnetETH(revnetId, PAYER, 1 ether);
@@ -953,7 +950,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         // mulDiv(1, 1000e18, 1e6) = 1000e12 = 1e15 tokens (non-zero actually due to weight)
         // But with weight = 1000e18 and weightRatio = 1e6, mulDiv(1, 1000e18, 1e6) = 1e15
         // This is actually non-zero! The test verifies no revert on tiny payments.
-        uint256 tokens = _payRevnetUSDC(revnetId, PAYER, 1);
+        _payRevnetUSDC(revnetId, PAYER, 1);
 
         // Should not revert. Token count may be very small or zero depending on reserved rate.
         // With 20% reserved and 1e15 total: payer gets 800e12 which is > 0.
@@ -977,8 +974,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         _payRevnetUSDC(revnetId, PAYER2, 2000e6);
 
         // Check surplus in USD terms.
-        JBAccountingContext[] memory contexts = jbMultiTerminal().accountingContextsOf(revnetId);
-        uint256 surplusUSD = jbMultiTerminal().currentSurplusOf(revnetId, contexts, 18, USD);
+        uint256 surplusUSD = jbMultiTerminal().currentSurplusOf(revnetId, new address[](0), 18, USD);
 
         // Surplus should be ~$4000 worth (both tokens aggregated via price conversion).
         // There are no payouts configured, so surplus = total balance in USD terms.
