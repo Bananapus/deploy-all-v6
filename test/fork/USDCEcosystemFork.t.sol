@@ -577,7 +577,7 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
         return jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, address(usdc));
     }
 
-    function _buildPayMetadataWithTier(address hookMetadataTarget) internal view returns (bytes memory) {
+    function _buildPayMetadataWithTier(address hookMetadataTarget) internal pure returns (bytes memory) {
         uint16[] memory tierIds = new uint16[](1);
         tierIds[0] = 1;
         bytes memory tierData = abi.encode(true, tierIds);
