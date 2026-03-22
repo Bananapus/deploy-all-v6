@@ -294,6 +294,165 @@ forge test --match-path "test/fork/*" --gas-report
 - Testnet-specific address correctness.
 - CCIP sucker bridge operations.
 
+## Post-Deployment Verification Commands
+
+After deployment, use these `cast call` commands to verify on-chain state. Replace `$RPC` with the chain's RPC URL and substitute the actual deployed addresses for each placeholder (e.g., `$DIRECTORY`, `$CONTROLLER`).
+
+### 1. Directory returns the correct controller for a project
+
+```bash
+# controllerOf(uint256 projectId) returns (address)
+# Check project 1 (NANA/fee project)
+cast call $DIRECTORY "controllerOf(uint256)(address)" 1 --rpc-url $RPC
+
+# Check all four projects
+for id in 1 2 3 4; do
+  echo "Project $id controller:"
+  cast call $DIRECTORY "controllerOf(uint256)(address)" $id --rpc-url $RPC
+done
+```
+
+Expected: all projects return `$CONTROLLER`.
+
+### 2. Controller is allowed to set first controller
+
+```bash
+# isAllowedToSetFirstController(address) returns (bool)
+cast call $DIRECTORY "isAllowedToSetFirstController(address)(bool)" $CONTROLLER --rpc-url $RPC
+```
+
+Expected: `true`.
+
+### 3. Terminal is registered for each project
+
+```bash
+# isTerminalOf(uint256 projectId, address terminal) returns (bool)
+cast call $DIRECTORY "isTerminalOf(uint256,address)(bool)" 1 $TERMINAL --rpc-url $RPC
+
+# List all terminals for a project
+cast call $DIRECTORY "terminalsOf(uint256)(address[])" 1 --rpc-url $RPC
+```
+
+Expected: `isTerminalOf` returns `true` for the deployed `JBMultiTerminal`.
+
+### 4. Project ownership
+
+```bash
+# ownerOf(uint256 tokenId) returns (address)  (ERC-721)
+for id in 1 2 3 4; do
+  echo "Project $id owner:"
+  cast call $PROJECTS "ownerOf(uint256)(address)" $id --rpc-url $RPC
+done
+```
+
+Expected: all projects owned by the Sphinx Safe (`$SAFE`), except projects configured as revnets (which transfer ownership to the `REVDeployer` during `deployFor` and then to the revnet's designated owner).
+
+### 5. Price feed addresses
+
+```bash
+# priceFeedFor(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency) returns (address)
+# projectId=0 for protocol-default feeds
+
+# ETH(1) priced in NATIVE_TOKEN (uint256(uint160(0x...EEEe)))
+NATIVE_CURRENCY=$(cast --to-uint256 0x000000000000000000000000000000000000EEEe)
+cast call $PRICES "priceFeedFor(uint256,uint256,uint256)(address)" 0 1 $NATIVE_CURRENCY --rpc-url $RPC
+
+# USD(2) priced in NATIVE_TOKEN
+cast call $PRICES "priceFeedFor(uint256,uint256,uint256)(address)" 0 2 $NATIVE_CURRENCY --rpc-url $RPC
+
+# USD(2) priced in USDC token
+USDC_CURRENCY=$(cast --to-uint256 $USDC_TOKEN)
+cast call $PRICES "priceFeedFor(uint256,uint256,uint256)(address)" 0 2 $USDC_CURRENCY --rpc-url $RPC
+```
+
+Expected: each returns the corresponding deployed price feed contract (not `address(0)`).
+
+### 6. Price feed liveness
+
+```bash
+# Verify that a Chainlink feed returns a current price (not stale, not zero)
+cast call $ETH_USD_FEED "latestRoundData()(uint80,int256,uint256,uint256,uint80)" --rpc-url $RPC
+```
+
+Expected: `answer > 0`, `updatedAt` within the staleness threshold of `block.timestamp`.
+
+### 7. Buyback hook and router terminal defaults
+
+```bash
+# defaultHook() returns (address)
+cast call $BUYBACK_REGISTRY "defaultHook()(address)" --rpc-url $RPC
+
+# defaultTerminal() returns (address)
+cast call $ROUTER_TERMINAL_REGISTRY "defaultTerminal()(address)" --rpc-url $RPC
+```
+
+Expected: returns the deployed `JBBuybackHook` and `JBRouterTerminal` respectively.
+
+### 8. Sucker deployer whitelist
+
+```bash
+# suckerDeployerIsAllowed(address deployer) returns (bool)
+cast call $SUCKER_REGISTRY "suckerDeployerIsAllowed(address)(bool)" $OP_SUCKER_DEPLOYER --rpc-url $RPC
+cast call $SUCKER_REGISTRY "suckerDeployerIsAllowed(address)(bool)" $BASE_SUCKER_DEPLOYER --rpc-url $RPC
+cast call $SUCKER_REGISTRY "suckerDeployerIsAllowed(address)(bool)" $ARB_SUCKER_DEPLOYER --rpc-url $RPC
+# Repeat for each CCIP sucker deployer
+```
+
+Expected: `true` for every deployer that should be whitelisted on that chain.
+
+### 9. Contract ownership
+
+```bash
+# Verify Sphinx Safe owns all ownable contracts
+for addr in $DIRECTORY $PRICES $FEELESS $BUYBACK_REGISTRY $ROUTER_TERMINAL_REGISTRY $SUCKER_REGISTRY; do
+  echo "Owner of $addr:"
+  cast call $addr "owner()(address)" --rpc-url $RPC
+done
+```
+
+Expected: all return `$SAFE` (the Sphinx Safe address).
+
+### 10. Cross-chain project ID consistency
+
+Run the same `ownerOf` calls on every chain and confirm project IDs 1-4 exist and map to the same logical project (same owner, same controller).
+
+```bash
+# On each chain:
+for id in 1 2 3 4; do
+  echo "Project $id owner:"
+  cast call $PROJECTS "ownerOf(uint256)(address)" $id --rpc-url $RPC
+  echo "Project $id controller:"
+  cast call $DIRECTORY "controllerOf(uint256)(address)" $id --rpc-url $RPC
+done
+```
+
+---
+
+## Previous Audit Findings
+
+No prior formal audit with finding IDs has been conducted for this deployment script. Known risk vectors are documented in [RISKS.md](./RISKS.md), which covers deployment ordering risks, oracle/price feed risks, cross-chain consistency risks, configuration risks, and catastrophic misconfiguration scenarios.
+
+---
+
+## Compiler and Version Info
+
+These values are from [`foundry.toml`](./foundry.toml):
+
+| Setting | Value |
+|---------|-------|
+| Solidity version | `0.8.26` |
+| EVM target | `cancun` |
+| Optimizer | `false` (disabled in default profile) |
+| `via_ir` | `true` |
+| Optimizer (CI sizes profile) | `true`, 200 runs |
+| Fuzz runs | 4096 |
+| Invariant runs | 1024, depth 100 |
+| Libs | `node_modules`, `lib` |
+
+**Note**: The default profile compiles with `optimizer = false` and `via_ir = true`. This means bytecode is generated through the IR pipeline without optimization passes -- builds are slower but bytecode matches the production deployment configuration. The `ci_sizes` profile enables the optimizer at 200 runs for size checks only.
+
+---
+
 ## How to Report Findings
 
 For each finding:
