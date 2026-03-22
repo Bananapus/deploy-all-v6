@@ -64,7 +64,7 @@ already-deployed contracts and performs only the remaining wiring, or (b) full r
 | JBMatchingPriceFeed (1:1) for ETH/NATIVE_TOKEN | LOW | Line 891: `JBMatchingPriceFeed` returns 1:1 for ETH abstract currency to NATIVE_TOKEN concrete currency. This is correct by definition but only if the pair is correct. If accidentally set for USD/NATIVE_TOKEN, all USD-denominated operations compute wrong values. | Verify the three `addPriceFeedFor` calls in `_deployPeriphery()` set the correct currency pairs. |
 | Price feed immutability | HIGH | Once `JBPrices.addPriceFeedFor()` is called for a `(projectId, pricingCurrency, unitCurrency)` tuple, the feed cannot be replaced. A wrong feed address is permanent. The only workaround is project-specific feed overrides (which override the default but require per-project action). | Double-check all four `addPriceFeedFor` calls before proposal approval. |
 | Shared sequencer feed address | LOW | Optimism and Base share sequencer feed addresses across their respective ETH/USD and USDC/USD feeds. If a sequencer feed goes offline permanently, both currency pairs revert simultaneously, halting all multi-currency operations on that L2. | Monitor Chainlink sequencer feed health. No on-chain mitigation -- feeds are immutable. |
-| Base Sepolia USDC/ETH feed reuse | LOW | Base Sepolia uses `0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165` for USDC/USD (line 1040), the same address used for Arbitrum Sepolia's ETH/USD feed (line 994). This may be intentional (testnet feeds are shared) or a copy-paste error. | Verify against Chainlink's testnet feed directory. |
+| Base Sepolia USDC/ETH feed reuse | MEDIUM | Base Sepolia uses `0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165` for USDC/USD (line 1040), the same address used for Arbitrum Sepolia's ETH/USD feed (line 994). This may be intentional (testnet feeds are shared) or a copy-paste error. | Verify against Chainlink's testnet feed directory. |
 
 ---
 
@@ -81,6 +81,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | CCIP deployer per-chain coverage | MEDIUM | Each chain gets exactly 3 CCIP sucker deployers (lines 774-845), one per remote chain. If a new chain is added without updating all existing chains' CCIP deployer lists, the new chain can bridge to existing chains but not vice versa. | Ensure symmetry: for every (chainA, chainB) pair, both chainA and chainB deploy a CCIP sucker targeting the other. |
 | L2 sucker builds only one config | LOW | `_buildSuckerConfig()` on L2 chains creates only one sucker deployer config (line 1560) using whichever deployer is non-zero. If multiple deployers are deployed on the same L2 (e.g., both OP native bridge and CCIP), only the first non-zero is used for the revnet's default sucker config. Additional bridge paths require separate sucker deployment. | The first non-zero check order is: Optimism, then Base, then Arbitrum (line 1563-1565). Verify this matches the intended primary bridge for each L2. |
 | Project IDs diverge across chains | HIGH | Each chain independently increments project IDs via `JBProjects.createFor()`. If the deployment order differs across chains (e.g., one chain's proposal has an extra `createFor` call), project 1 on chain A is not the same project as project 1 on chain B. Sucker operations reference project IDs -- a mismatch means bridged tokens go to the wrong project. | Sphinx executes the same script on all chains. Verify project IDs match across all chains after deployment. |
+| Multi-chain partial failure | HIGH | Sphinx proposals execute independently per chain. If the proposal succeeds on 6 of 8 chains but fails on 2 (gas issues, RPC failure, bridge contract unavailable), the successful chains have fully wired contracts while the failed chains have nothing. Sucker pairs between successful and failed chains are bricked — the source chain has a sucker pointing to a non-existent peer. Cross-chain project IDs remain consistent only if the proposal is re-executed identically on the failed chains. | Monitor Sphinx proposal status per chain. If partial failure occurs, re-propose only for the failed chains with identical salts and constructor args. Verify sucker peers are live before enabling bridge operations. |
 
 ---
 
@@ -211,3 +212,25 @@ For each of the 8 target chains, verify every expected contract is deployed at t
 - [ ] No dangling approvals on project NFTs (except the intentional CPN approval)
 - [ ] `JBFeelessAddresses` has no unexpected entries
 - [ ] `JBDirectory` has exactly one allowed controller
+
+## 6. Recovery Procedures
+
+### Partial Deployment Recovery
+
+If a Sphinx proposal fails mid-execution on a chain:
+
+1. **Identify the failure boundary.** Check which contracts exist on-chain (have code) vs. which are missing.
+2. **Do NOT re-propose the full script with the same salts.** CREATE2 with identical `(deployer, salt, initCodeHash)` reverts if the contract already exists.
+3. **Write a targeted resume script** that:
+   - Skips already-deployed contracts (check `extcodesize`)
+   - Performs only the remaining wiring (`setIsAllowedToSetFirstController`, price feed registration, sucker deployer approval)
+   - Queues revnet configurations for projects that exist but lack rulesets
+4. **Verify project IDs match** across all chains before enabling sucker operations. A single mismatched project ID can route bridged tokens to the wrong treasury.
+
+### Wrong Address Recovery
+
+If a hardcoded address is wrong and already deployed:
+
+- **Price feeds:** Cannot be replaced in `JBPrices`. The only recovery is per-project feed overrides (requires each affected project to act independently).
+- **WETH/PoolManager/V3Factory:** These are immutable constructor args. The affected contracts must be redeployed with new salts.
+- **Chainlink feed on wrong chain variant:** If a testnet feed is deployed on mainnet, all multi-currency operations halt. Redeploy with corrected addresses.
