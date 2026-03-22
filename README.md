@@ -62,6 +62,31 @@ npm install
 forge build
 ```
 
+## Deployment Commands
+
+| Command | Description |
+|---------|-------------|
+| `npx sphinx propose script/Deploy.s.sol --networks testnets` | Propose testnet deployment via Sphinx |
+| `npx sphinx propose script/Deploy.s.sol --networks mainnets` | Propose mainnet deployment via Sphinx |
+| `forge test --match-path "test/fork/*" -vvv --fork-url $RPC_ETHEREUM_MAINNET` | Run fork tests against mainnet state |
+
+Set `SPHINX_ORG_ID` in `.env` before proposing. See `.env.example` for the required variables.
+
+## Deployment Verification
+
+After Sphinx executes an approved proposal, verify the deployment:
+
+1. **Sphinx dashboard** -- confirm all transactions landed on every target chain. Each chain should show a completed execution with no skipped or failed steps.
+2. **Contract existence** -- for each deployed address, run `cast code <address> --rpc-url <chain_rpc>` and confirm non-empty bytecode.
+3. **Etherscan verification** -- Sphinx auto-verifies source on supported explorers. Spot-check a few contracts (e.g. `JBController`, `JBMultiTerminal`) on the relevant block explorer to confirm verified source is visible.
+4. **Wiring checks** -- validate critical post-deployment state:
+   - `JBDirectory.isAllowedToSetFirstController(controller)` returns `true`.
+   - `JBPrices.pricePerUnitOf(...)` returns a live ETH/USD price.
+   - `JBBuybackHookRegistry.defaultHook()` returns the buyback hook address.
+   - `JBSuckerRegistry.isSuckerDeployerAllowed(deployer)` returns `true` for each deployer.
+   - Projects 1-4 exist via `JBProjects.ownerOf(projectId)`.
+5. **Smoke test** -- send a small payment to project 1 and confirm tokens are minted and the terminal balance increases.
+
 ## Dependencies
 
 This repo references all other V6 repos via `file:../` paths in `package.json`:
@@ -96,6 +121,33 @@ git clone --recursive https://github.com/Bananapus/version-6.git
 - `via_ir = true` (required for stack depth)
 - Optimizer disabled (stack-too-deep with optimization enabled)
 - Sphinx plugin for multi-chain atomic deployment
+
+## Repository Layout
+
+```
+deploy-all-v6/
+├── script/
+│   └── Deploy.s.sol        # Single Sphinx deployment script (all 9 phases)
+├── src/                     # Empty -- no application contracts (deployment-only repo)
+├── test/
+│   └── fork/                # Fork tests that replay the deployment against live mainnet state
+│       ├── DeployFork.t.sol
+│       ├── DeployFullStack.t.sol
+│       ├── DeployScriptVerification.t.sol
+│       ├── EcosystemFork.t.sol
+│       ├── FullStackFork.t.sol
+│       ├── BuybackRouterFork.t.sol
+│       ├── CrossCurrencyFork.t.sol
+│       ├── LPBuybackInteropFork.t.sol
+│       ├── USDCEcosystemFork.t.sol
+│       ├── USDCRevnetFork.t.sol
+│       └── ...
+├── lib/
+│   └── forge-std/           # Foundry standard library
+├── foundry.toml             # Forge config (via_ir, Cancun, optimizer off)
+├── package.json             # npm dependencies linking all sibling V6 repos
+└── remappings.txt           # Solidity import remappings
+```
 
 ## License
 
