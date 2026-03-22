@@ -40,6 +40,23 @@ The script creates projects in a deterministic order. Each project NFT is minted
 
 For projects 1, 2, and 3 the script explicitly approves the `REVDeployer` to take ownership via `_projects.approve(address(_revDeployer), projectId)`. The REVDeployer then configures each as a revnet, which locks the project into revnet governance rules (no further manual configuration by the original owner).
 
+## Deployment Order
+
+The script deploys contracts in strict dependency order. Each layer depends only on contracts from previous layers:
+
+1. **Foundation:** JBPermissions, JBProjects (creates project #1 automatically), JBERC20 (implementation)
+2. **Directory:** JBDirectory (← JBPermissions, JBProjects)
+3. **Core stores:** JBRulesets, JBSplits, JBFundAccessLimits, JBTokens, JBPrices, JBFeelessAddresses (← JBDirectory)
+4. **Terminal store:** JBTerminalStore (← JBDirectory, JBPrices, JBRulesets)
+5. **Terminal + Controller:** JBMultiTerminal, JBController (← layers 1-4)
+6. **Hooks:** JBUniswapV4Hook, JBBuybackHook, JBBuybackHookRegistry, JB721TiersHookStore, JB721TiersHookDeployer, JBUniswapV4LPSplitHook, JBUniswapV4LPSplitHookDeployer (← layers 1-5)
+7. **Registries:** JBAddressRegistry, JBRouterTerminalRegistry, JBRouterTerminal, JBSuckerRegistry (← layers 1-6)
+8. **Higher-level deployers:** JBOmnichainDeployer, REVDeployer, CTPublisher, CTDeployer (← layers 1-7)
+9. **Sucker deployers:** JBOptimismSuckerDeployer, JBBaseSuckerDeployer, JBArbitrumSuckerDeployer, JBCCIPSuckerDeployer (← JBDirectory, JBTokens)
+10. **Post-deploy wiring:** `setIsAllowedToSetFirstController`, `setDefaultHook`, `setDefaultTerminal`, `allowSuckerDeployers`, sucker configurator calls
+
+If any contract in a given layer fails to deploy, all subsequent layers will fail because constructor arguments reference earlier contract addresses.
+
 ## Protocol-Level Administration
 
 After deployment completes, the Sphinx Safe retains admin capabilities over the following protocol-level functions:
@@ -134,3 +151,13 @@ All auto-issuance entries across all revnets set `beneficiary: safeAddress()`. T
 - **CPN revnet** (project 2) -- `_deployCpnRevnet()` approves the REVDeployer but the actual revnet configuration is commented out (TODO placeholder).
 - **Uniswap V4 router/oracle stack** -- `JBUniswapV4Hook`, `JBUniswapV4LPSplitHook`, and `JBUniswapV4LPSplitHookDeployer` are deployed by this script. `JBOwnable` is still out of scope.
 - **Defifa** -- `_deployDefifa()` and `_deployDefifaRevnet()` are commented out entirely.
+
+## Recovery
+
+The deployment script is executed as a Sphinx proposal, which is an atomic batch transaction. If any step fails, the entire deployment reverts -- there is no partial deployment state to recover from.
+
+**Post-deployment issues:**
+- Misconfigured price feeds cannot be corrected (immutable once set). A new JBPrices contract would need to be deployed and the directory owner would need to authorize a new controller.
+- Misconfigured sucker deployer singletons (`configureSingleton()` is one-time). A new deployer contract must be deployed and allowlisted.
+- Incorrect revnet stage parameters are permanent. The revnet must be abandoned and a new one deployed.
+- The CPN revnet (project 2) deployment is currently commented out (TODO). It can be completed in a separate deployment script.
