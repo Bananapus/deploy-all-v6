@@ -79,13 +79,13 @@ the repo does not currently provide an in-repo resume script.
 
 ### State changes (numbered by phase)
 
-1. **Phase 01 -- Core Protocol** (`_deployCore`): CREATE2-deploys 13 core contracts: `ERC2771Forwarder`, `JBPermissions`, `JBProjects`, `JBDirectory`, `JBSplits`, `JBRulesets`, `JBPrices`, `JBERC20` (implementation), `JBTokens`, `JBFundAccessLimits`, `JBFeelessAddresses`, `JBTerminalStore`, `JBMultiTerminal`.
+1. **Phase 01 -- Core Protocol** (`_deployCore`): CREATE2-deploys 13 core contracts: `ERC2771Forwarder`, `JBPermissions`, `JBProjects` (constructor creates project 1, the fee project, owned by `safeAddress()`), `JBDirectory`, `JBSplits`, `JBRulesets`, `JBPrices`, `JBERC20` (implementation), `JBTokens`, `JBFundAccessLimits`, `JBFeelessAddresses`, `JBTerminalStore`, `JBMultiTerminal`.
 2. **Phase 02 -- Address Registry** (`_deployAddressRegistry`): CREATE2-deploys `JBAddressRegistry`.
 3. **Phase 03a -- 721 Tier Hook** (`_deploy721Hook`): CREATE2-deploys `JB721TiersHookStore`, `JB721TiersHook` (implementation), `JB721TiersHookDeployer`, `JB721TiersHookProjectDeployer`.
 4. **Phase 03b -- Uniswap V4 Hook** (`_deployUniswapV4Hook`): CREATE2-deploys `JBUniswapV4Hook` with flag-mined salt. Skipped on Optimism Sepolia (`_shouldDeployUniswapStack()` returns false).
-5. **Phase 03c -- Buyback Hook** (`_deployBuybackHook`): CREATE2-deploys `JBBuybackHookRegistry` and `JBBuybackHook`. Calls `_buybackRegistry.setDefaultHook(_buybackHook)`.
-6. **Phase 03d -- Router Terminal** (`_deployRouterTerminal`): CREATE2-deploys `JBRouterTerminalRegistry` and `JBRouterTerminal`. Calls `_routerTerminalRegistry.setDefaultTerminal(_routerTerminal)` and `_feeless.setFeelessAddress(address(_routerTerminal), true)`.
-7. **Phase 03e -- LP Split Hook** (`_deployLpSplitHook`): CREATE2-deploys `JBUniswapV4LPSplitHook` and `JBUniswapV4LPSplitHookDeployer`.
+5. **Phase 03c -- Buyback Hook** (`_deployBuybackHook`): CREATE2-deploys `JBBuybackHookRegistry` and `JBBuybackHook`. Calls `_buybackRegistry.setDefaultHook(_buybackHook)`. Skipped on Optimism Sepolia.
+6. **Phase 03d -- Router Terminal** (`_deployRouterTerminal`): CREATE2-deploys `JBRouterTerminalRegistry` and `JBRouterTerminal`. Calls `_routerTerminalRegistry.setDefaultTerminal(_routerTerminal)` and `_feeless.setFeelessAddress(address(_routerTerminal), true)`. Skipped on Optimism Sepolia.
+7. **Phase 03e -- LP Split Hook** (`_deployLpSplitHook`): CREATE2-deploys `JBUniswapV4LPSplitHook` and `JBUniswapV4LPSplitHookDeployer`. Skipped on Optimism Sepolia.
 8. **Phase 03f -- Suckers** (`_deploySuckers`): CREATE2-deploys chain-specific sucker deployers (`JBOptimismSuckerDeployer`, `JBBaseSuckerDeployer`, `JBArbitrumSuckerDeployer`, `JBCCIPSuckerDeployer`) and their singletons. Calls `setChainSpecificConstants()` and `configureSingleton()` on each deployer. Deploys `JBSuckerRegistry` and calls `_suckerRegistry.allowSuckerDeployer()` for each deployer.
 9. **Phase 04 -- Omnichain Deployer** (`_deployOmnichainDeployer`): CREATE2-deploys `JBOmnichainDeployer`.
 10. **Phase 05 -- Periphery** (`_deployPeriphery`): CREATE2-deploys `JBChainlinkV3PriceFeed` or `JBChainlinkV3SequencerPriceFeed` for ETH/USD and USDC/USD. Deploys `JBMatchingPriceFeed` for ETH/NATIVE_TOKEN matching. Calls `_prices.addPriceFeedFor()` for each feed. CREATE2-deploys `JBDeadline3Hours`, `JBDeadline1Day`, `JBDeadline3Days`, `JBDeadline7Days`. CREATE2-deploys `JBController` with `omnichainRulesetOperator = address(_omnichainDeployer)`. Calls `_directory.setIsAllowedToSetFirstController(address(_controller), true)`.
@@ -113,7 +113,7 @@ Phase 01--04 are pure CREATE2 deployments with no configuration events. Starting
 - Phase 08b: `DeployRevnet(...)` -- emitted by `REVDeployer.deployFor()` for NANA
 - Phase 09: `DeployRevnet(...)` -- emitted by `REVDeployer.deployFor()` for BAN
 
-Each `DeployRevnet` also triggers downstream events: `SetController(projectId, controller, caller)`, `AddTerminal(projectId, terminal, caller)`, `DeploySuckers(...)` from `JBSuckerRegistry`, and ERC-20 token deployment.
+Each `DeployRevnet` also triggers downstream events: `SetController(projectId, controller, caller)`, `AddTerminal(projectId, terminal, caller)`, `SuckerDeployedFor(...)` from `JBSuckerRegistry`, and ERC-20 token deployment.
 
 ### Edge cases
 
@@ -136,7 +136,7 @@ Each `DeployRevnet` also triggers downstream events: `SetController(projectId, c
 | Order | Project ID | Name | Owner | Configured As |
 |-------|------------|------|-------|---------------|
 | 1 | 1 | NANA (fee project) | `safeAddress()` then REVDeployer | Revnet (1 stage) |
-| 2 | 2 | CPN (Croptop) | `safeAddress()` | Revnet (3 stages + 721 hook + Croptop posts) |
+| 2 | 2 | CPN (Croptop) | `safeAddress()` then REVDeployer | Revnet (3 stages + 721 hook + Croptop posts) |
 | 3 | 3 | REV (Revnet) | `safeAddress()` then REVDeployer | Revnet (3 stages) |
 | 4 | 4 | BAN (Banny) | REVDeployer | Revnet (3 stages + 721 tiers) |
 
@@ -234,13 +234,13 @@ cast call <directory> "isAllowedToSetFirstController(address)(bool)" <controller
 
 2. **Price feeds -- USD/NATIVE_TOKEN:**
 ```bash
-cast call <prices> "pricePerUnitOf(uint256,uint32,uint32,uint256)(uint256)" 0 2 <native_currency> 18
+cast call <prices> "pricePerUnitOf(uint256,uint256,uint256,uint256)(uint256)" 0 2 <native_currency> 18
 # Must return non-zero (current ETH/USD price with 18 decimals)
 ```
 
 3. **Price feeds -- USD/USDC:**
 ```bash
-cast call <prices> "pricePerUnitOf(uint256,uint32,uint32,uint256)(uint256)" 0 2 <usdc_currency> 18
+cast call <prices> "pricePerUnitOf(uint256,uint256,uint256,uint256)(uint256)" 0 2 <usdc_currency> 18
 # Must return approximately 1e18 (USDC ~ $1)
 ```
 
@@ -265,7 +265,7 @@ cast call <feeless> "isFeeless(address)(bool)" <router_terminal>
 7. **Sucker registry -- deployers allowed:**
 ```bash
 # For each sucker deployer address:
-cast call <sucker_registry> "isSuckerDeployerAllowed(address)(bool)" <deployer>
+cast call <sucker_registry> "suckerDeployerIsAllowed(address)(bool)" <deployer>
 # Must return true
 ```
 
@@ -337,7 +337,7 @@ cast call <tokens> "tokenOf(uint256)(address)" 3  # REV ERC-20
 ### Edge cases
 
 - **Stale price feed**: `latestRoundData().updatedAt` is older than the threshold (3600s for ETH/USD, 86400s for USDC/USD). The JBChainlinkV3PriceFeed wrapper will revert with `JBChainlinkV3PriceFeed_StalePrice()`.
-- **L2 sequencer down**: `latestRoundData().answer != 0` on the sequencer feed. `JBChainlinkV3SequencerPriceFeed` will revert with `JBChainlinkV3SequencerPriceFeed_SequencerDown()` or `JBChainlinkV3SequencerPriceFeed_GracePeriodNotOver()`.
+- **L2 sequencer down**: `latestRoundData().answer != 0` on the sequencer feed. `JBChainlinkV3SequencerPriceFeed` will revert with `JBChainlinkV3SequencerPriceFeed_SequencerDownOrRestarting(timestamp, gracePeriodTime, startedAt)` or `JBChainlinkV3SequencerPriceFeed_InvalidRound()`.
 - **Optimism Sepolia missing contracts**: Items 20--26 in Phase A are absent by design. Verification must skip these.
 - **controllerOf returns IERC165**: The return type is `IERC165`, not `address`. Cast will still decode the raw address correctly.
 
@@ -371,12 +371,12 @@ cast send <terminal> "pay(uint256,address,uint256,address,uint256,string,bytes)"
 ```
 
 **State changes:**
-1. `JBTerminalStore.balanceOf(terminal, 1, NATIVE_TOKEN)` increases by ~0.0975 ETH (0.01 ETH minus 2.5% fee to project 1's own terminal balance, since project 1 is the fee project)
+1. `JBTerminalStore.balanceOf(terminal, 1, NATIVE_TOKEN)` increases by 0.01 ETH (payments do not incur fees; fees are only taken on cashouts and payouts)
 2. `JBTokens.totalSupplyOf(1)` increases by minted token count (based on current ruleset weight)
 3. `JBTokens.totalBalanceOf(your_address, 1)` increases (credits or ERC-20)
 
 **Events:**
-- `Pay(rulesetId, rulesetCycleNumber, projectId, payer, beneficiary, amount, beneficiaryTokenCount, memo, metadata, caller)` -- emitted by `JBMultiTerminal`
+- `Pay(rulesetId, rulesetCycleNumber, projectId, payer, beneficiary, amount, newlyIssuedTokenCount, memo, metadata, caller)` -- emitted by `JBMultiTerminal`
 
 **Verify:**
 - Transaction succeeds
@@ -388,7 +388,7 @@ cast send <terminal> "pay(uint256,address,uint256,address,uint256,string,bytes)"
 
 ```bash
 # Query ETH/USD price through JBPrices
-cast call <prices> "pricePerUnitOf(uint256,uint32,uint32,uint256)(uint256)" \
+cast call <prices> "pricePerUnitOf(uint256,uint256,uint256,uint256)(uint256)" \
   0 2 <native_currency> 18
 # Should return current ETH price in 18-decimal USD
 ```
