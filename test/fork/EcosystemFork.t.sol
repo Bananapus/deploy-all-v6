@@ -459,8 +459,8 @@ contract EcosystemForkTest is TestBaseWorkflow {
         vm.prank(address(liqHelper));
         liqHelper.addLiquidity{value: liquidityTokenAmount}(key, TICK_LOWER, TICK_UPPER, liquidityDelta);
 
-        // Mock geomean oracle at address(0) for hookless pool TWAP.
-        _mockOracle(liquidityDelta, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
+        // Mock geomean oracle at tick 69078 (~1000 tokens/ETH, matching INITIAL_ISSUANCE).
+        _mockOracle(liquidityDelta, 69_078, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
     }
 
     function _mockOracle(int256 liquidity, int24 tick, uint32 twapWindow) internal {
