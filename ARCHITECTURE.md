@@ -53,6 +53,7 @@ The script deploys the following production-scoped stack in dependency order:
 - `JBBaseSuckerDeployer`
 - `JBArbitrumSuckerDeployer`
 - `JBCCIPSuckerDeployer`
+- `JBOmnichainDeployer`
 
 ### Applications
 - `REVDeployer`
@@ -155,6 +156,7 @@ because there is no published Uniswap V4 `PositionManager`.
 | `solady` | Gas-optimized utilities |
 | `solmate` | Solmate utilities |
 | `@arbitrum/nitro-contracts` | Arbitrum Inbox interface for suckers |
+| `base64-sol` | Base64 encoding (transitive dependency) |
 
 ### Dev / Tooling
 
