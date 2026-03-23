@@ -39,19 +39,19 @@ The `Deploy` contract inherits from both Foundry's `Script` and Sphinx's `Sphinx
 
 7. **Phase 03e -- LP Split Hook**: `JBUniswapV4LPSplitHook` and `JBUniswapV4LPSplitHookDeployer`. The implementation is wired to the same V4 router hook, chain-specific PoolManager and PositionManager, and the global address registry.
 
-6. **Phase 03d -- Cross-Chain Suckers**: Deploys sucker deployers and singletons for Optimism, Base, Arbitrum (native bridges) and CCIP (all pairings). Each deployer gets chain-specific bridge addresses via `setChainSpecificConstants()`. All are pushed to `_preApprovedSuckerDeployers[]`, then batch-approved when `JBSuckerRegistry` is created.
+8. **Phase 03f -- Cross-Chain Suckers**: Deploys sucker deployers and singletons for Optimism, Base, Arbitrum (native bridges) and CCIP (all pairings). Each deployer gets chain-specific bridge addresses via `setChainSpecificConstants()`. All are pushed to `_preApprovedSuckerDeployers[]`, then batch-approved when `JBSuckerRegistry` is created.
 
-7. **Phase 04 -- Omnichain Deployer**: `JBOmnichainDeployer`. Depends on sucker registry and 721 hook deployer.
+9. **Phase 04 -- Omnichain Deployer**: `JBOmnichainDeployer`. Depends on sucker registry and 721 hook deployer.
 
-8. **Phase 05 -- Periphery**: Chainlink price feeds (ETH/USD, USDC/USD), `JBMatchingPriceFeed` (ETH=NATIVE_TOKEN), four deadline contracts, and finally `JBController`. The controller depends on the omnichain deployer address. `JBDirectory.setIsAllowedToSetFirstController()` is called here.
+10. **Phase 05 -- Periphery**: Chainlink price feeds (ETH/USD, USDC/USD), `JBMatchingPriceFeed` (ETH=NATIVE_TOKEN), four deadline contracts, and finally `JBController`. The controller depends on the omnichain deployer address. `JBDirectory.setIsAllowedToSetFirstController()` is called here.
 
-9. **Phase 06 -- Croptop**: Creates project #2 (CPN). Deploys `CTPublisher`, `CTDeployer`, `CTProjectOwner`.
+11. **Phase 06 -- Croptop**: Creates project #2 (CPN). Deploys `CTPublisher`, `CTDeployer`, `CTProjectOwner`.
 
-10. **Phase 07 -- Revnet**: Creates project #3 (REV). Deploys `REVLoans`, `REVDeployer`. Configures the $REV revnet with 3 stages, auto-issuances, and suckers.
+12. **Phase 07 -- Revnet**: Creates project #3 (REV). Deploys `REVLoans`, `REVDeployer`. Configures the $REV revnet with 3 stages, auto-issuances, and suckers.
 
-11. **Phase 08 -- Existing Project Configuration**: Configures project #2 (CPN) as a revnet (TODO -- currently commented out). Configures project #1 (NANA/fee project) as a revnet with 1 stage.
+13. **Phase 08 -- Existing Project Configuration**: Configures project #2 (CPN) as a revnet. Configures project #1 (NANA/fee project) as a revnet with 1 stage.
 
-12. **Phase 09 -- Banny**: Deploys `Banny721TokenUriResolver` with inline SVG data. Creates project #4 (BAN) as a revnet with 3 stages and 4 NFT tiers.
+14. **Phase 09 -- Banny**: Deploys `Banny721TokenUriResolver` with inline SVG data. Creates project #4 (BAN) as a revnet with 3 stages and 4 NFT tiers.
 
 Not deployed by this script: `JBOwnable` and Defifa.
 
@@ -111,7 +111,7 @@ These are the permission/ownership actions taken during the script. Each is a po
 | `_directory.setIsAllowedToSetFirstController(_controller, true)` | 1329 | Allows `_controller` to be set as first controller for new projects | If called with wrong address, no projects can launch, or a malicious controller gets whitelist access |
 | `_buybackRegistry.setDefaultHook(_buybackHook)` | 740 | Sets default buyback hook | Wrong hook = all projects using default get broken buyback |
 | `_routerTerminalRegistry.setDefaultTerminal(_routerTerminal)` | 798 | Sets default router terminal | Wrong terminal = routing payments fail |
-| `_suckerRegistry.allowSuckerDeployers(...)` | 877 | Whitelists sucker deployers | Missing deployer = that bridge pair is unavailable. Extra deployer = potential unauthorized bridge |
+| `_suckerRegistry.allowSuckerDeployer(...)` | 877 | Whitelists sucker deployers | Missing deployer = that bridge pair is unavailable. Extra deployer = potential unauthorized bridge |
 | `opDeployer.setChainSpecificConstants(...)` | 908+ | Sets bridge addresses per chain | Wrong bridge = cross-chain messages go to wrong contract |
 | `opDeployer.configureSingleton(singleton)` | 921+ | Sets clone source for sucker deployer | Wrong singleton = all suckers for that pair are broken |
 | `_prices.addPriceFeedFor(...)` | 2179 | Registers immutable price feeds | Wrong feed = permanent price miscalculation. Cannot be changed after set. |
@@ -194,7 +194,7 @@ After reviewing the script, verify:
 - [ ] `setIsAllowedToSetFirstController` is called for the correct controller address.
 - [ ] No dangling approvals or permissions exist after deployment completes.
 - [ ] Release claims match the script: the canonical rollout includes the V4 router/oracle stack and LP split hook deployer, while `JBOwnable` and Defifa remain out of scope.
-- [ ] The CPN revnet TODO is intentional and will be completed in a separate transaction.
+- [ ] The CPN revnet (project #2) is correctly configured via `_deployCpnRevnet()` in Phase 08.
 - [ ] Defifa is intentionally excluded and will be deployed separately.
 
 ## Revnet Economic Parameters
