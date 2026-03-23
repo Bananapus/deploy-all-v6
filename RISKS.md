@@ -91,7 +91,6 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 | Risk | Severity | Description | Affected Lines |
 |------|----------|-------------|----------------|
-| Permit2 | LOW | `0x000000000022D473030F116dDEE9F6B43aC78BA3` -- canonical, same on all chains. | 146 |
 | WETH | HIGH | Different per chain. 7 distinct addresses across 8 chains. L2 chains share `0x4200000000000000000000000000000000000006`. | 372-419 |
 | Uniswap V3 Factory | HIGH | Different per chain. Used by `JBRouterTerminal` for swap routing. | 372-419 |
 | Uniswap V4 PoolManager | HIGH | Different per chain except testnets sharing `0x000000000004444c5dc75cB358380D2e3dE08A90`. Used by `JBBuybackHook`, `JBRouterTerminal`, and `JBUniswapV4LPSplitHook`. | 382-436 |
@@ -113,7 +112,6 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | Revnet start times in the past | MEDIUM | `REV_START_TIME = 1_740_089_444` (Feb 20, 2025), `NANA_START_TIME = 1_740_089_444`, `BAN_START_TIME = 1_740_435_044`. If deployed after these timestamps, the first ruleset stage is already active and issuance decay has already been ticking. Auto-issuances may calculate differently than expected. |
 | Auto-issuance amounts | HIGH | Lines 212-229: Per-chain auto-issuance amounts for REV, NANA, and BAN are large uint104 constants. These represent preminted token allocations. If any amount is wrong, tokens are permanently minted to the wrong quantity. Cannot be corrected post-deployment. |
 | CPN revnet not configured | MEDIUM | `_deployCpnRevnet()` (line 1224) approves `_revDeployer` for project 2 but the actual configuration is commented out. Project 2 exists as an empty project owned by the Sphinx Safe with an approved-but-unused REVDeployer. Anyone who front-runs the separate CPN configuration could exploit the approval. |
-| Banny 721 tiers all same category | LOW | All 4 Banny tiers use `category: 0` (lines 1426-1497). The 721 hook store requires ascending category order -- same category is valid but means no category-based sorting or filtering. |
 | Fee percentage non-configurable | LOW | The 2.5% fee is a constant in `JBMultiTerminal` (`FEE = 25`, `MAX_FEE = 1000`). It cannot be changed post-deployment. This is by design but means a fee adjustment requires full protocol redeployment. |
 | NANA 62% split percentage | HIGH | Project 1 (NANA/fee project) has `splitPercent: 6200` -- 62% of all tokens minted during payments go to reserved token splits. If this percentage is misconfigured, fee revenue distribution is permanently affected. |
 | REV cashOutTaxRate of 10% | MEDIUM | All three revnets use `cashOutTaxRate: 1000` (10%). This is low enough that revnet loans become more attractive than cashouts above ~39% (per CryptoEconLab finding). If the intended rate was different, it cannot be changed. |
@@ -123,14 +121,12 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
 | Salt front-running | MEDIUM | All salts are deterministic string hashes (e.g., `keccak256("_JBDeadlinesV6_")`). An attacker who knows the salt and initcode can compute the CREATE2 address and deploy a malicious contract there before the legitimate deployment. | Sphinx deploys from its own deterministic deployer address. The `CREATE2` address depends on `(sphinxDeployer, salt, initCodeHash)`. An attacker would need to deploy from the same Sphinx deployer -- which requires Safe approval. LOW practical risk. |
-| Salt reuse across contracts | LOW | `BUYBACK_HOOK_SALT` is used for both `JBBuybackHookRegistry` and `JBBuybackHook` (lines 504, 508). Similarly, `OP_SALT` is used for both `JBOptimismSuckerDeployer` and `JBOptimismSucker`. This is safe because different constructor args produce different initcode hashes, yielding different addresses. But if constructor args were identical, CREATE2 would collide. | No action needed -- different types guarantee different initcode. |
 
 ### Sphinx Deployment Mechanics Risks
 
 | Risk | Severity | Description |
 |------|----------|-------------|
 | Sphinx Safe compromise | CRITICAL | The Sphinx Safe owns every deployed contract. Compromise of Safe signers means total protocol control: add malicious controllers, drain fee-exempt addresses, change sucker deployers, adjust splits on all revnets. |
-| Sphinx replay across networks | LOW | Sphinx proposals are network-scoped. A proposal for testnets cannot be replayed on mainnets and vice versa (enforced by `sphinxConfig.mainnets` and `sphinxConfig.testnets`). |
 | Sphinx artifact name collision | LOW | `sphinxConfig.projectName = "juicebox-v6"`. If a previous deployment used a different project name, Sphinx may create a new deployment context rather than upgrading. |
 
 ### Fee Project Configuration Risks
