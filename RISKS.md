@@ -23,10 +23,10 @@ The script executes 9 phases in strict sequence. Each phase depends on state pro
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
 | Partial deployment | HIGH | If Sphinx execution halts mid-proposal (gas, revert, platform failure), core contracts may exist without wiring. Example: `JBDirectory` deployed but `setIsAllowedToSetFirstController` never called -- no projects can launch. | Do not re-propose the full script with the same salts. Recovery requires either a purpose-built resume script that skips completed CREATE2 deployments or a fresh deployment with new salts. |
-| Controller deploys after omnichain deployer | MEDIUM | `JBController` constructor takes `omnichainRulesetOperator: address(_omnichainDeployer)` (line 930). If the omnichain deployer address changes between phases, the controller is permanently misconfigured. | Single-proposal atomicity ensures deterministic ordering. Verify the `_omnichainDeployer` address in the controller's constructor after deployment. |
-| Sucker deployers before registry | LOW | All sucker deployers (OP, Base, Arb, CCIP) are deployed before `JBSuckerRegistry` (lines 551-568). Deployers are pushed to `_preApprovedSuckerDeployers[]`, then batch-approved on registry creation. If any deployer creation reverts, the array is incomplete. | The `if (_preApprovedSuckerDeployers.length != 0)` guard prevents empty-array revert but means a silently missing deployer is possible. |
-| Project ID determinism | HIGH | Project IDs are determined by deployment order: project 1 (fee project, auto-created), project 2 (CPN, line 1070), project 3 (REV, line 1093), project 4 (BAN, created by `deployFor` with `revnetId: 0`). If any `createFor` call is reordered or another project is inserted, all subsequent project IDs shift. Every revnet configuration, sucker config, and cross-reference hardcodes these IDs. | Verify project IDs match expected values after deployment. `REVLoans` constructor takes `revId: _revProjectId` -- if this ID is wrong, the loans contract references a non-existent or wrong project. |
-| Omnichain deployer needs hooks + registry | MEDIUM | Phase 04 deploys `JBOmnichainDeployer` which takes `_hookDeployer` and `_suckerRegistry` as constructor args (line 880). Both must be deployed in Phase 03. If Phase 03a or 03d reverts, the omnichain deployer gets `address(0)` references. | Sphinx reverts the entire chain's deployment on any constructor failure. No partial recovery path. |
+| Controller deploys after omnichain deployer | MEDIUM | `JBController` constructor takes `omnichainRulesetOperator: address(_omnichainDeployer)`. If the omnichain deployer address changes between phases, the controller is permanently misconfigured. | Single-proposal atomicity ensures deterministic ordering. Verify the `_omnichainDeployer` address in the controller's constructor after deployment. |
+| Sucker deployers before registry | LOW | All sucker deployers (OP, Base, Arb, CCIP) are deployed before `JBSuckerRegistry`. Deployers are pushed to `_preApprovedSuckerDeployers[]`, then batch-approved on registry creation. If any deployer creation reverts, the array is incomplete. | The `if (_preApprovedSuckerDeployers.length != 0)` guard prevents empty-array revert but means a silently missing deployer is possible. |
+| Project ID determinism | HIGH | Project IDs are determined by deployment order: project 1 (fee project, auto-created), project 2 (CPN), project 3 (REV), project 4 (BAN, created by `deployFor` with `revnetId: 0`). If any `createFor` call is reordered or another project is inserted, all subsequent project IDs shift. Every revnet configuration, sucker config, and cross-reference hardcodes these IDs. | Verify project IDs match expected values after deployment. `REVLoans` constructor takes `revId: _revProjectId` -- if this ID is wrong, the loans contract references a non-existent or wrong project. |
+| Omnichain deployer needs hooks + registry | MEDIUM | Phase 04 deploys `JBOmnichainDeployer` which takes `_hookDeployer` and `_suckerRegistry` as constructor args. Both must be deployed in Phase 03. If Phase 03a or 03d reverts, the omnichain deployer gets `address(0)` references. | Sphinx reverts the entire chain's deployment on any constructor failure. No partial recovery path. |
 | NANA revnet after REV revnet | LOW | Phase 08b configures the fee project (ID 1) as a revnet. If Phase 07 ($REV) fails, `_revDeployer` is undeployed and the `_projects.approve` call in Phase 08b reverts. This blocks NANA configuration but does not leave the fee project in a dangerous state -- it just has no revnet rules. | Resume from the failed phase boundary or redeploy from fresh salts. The fee project without revnet rules still collects fees but has no issuance or cashout mechanics. |
 
 ### Dependency Graph
@@ -58,13 +58,13 @@ already-deployed contracts and performs only the remaining wiring, or (b) full r
 
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
-| Wrong Chainlink feed address | CRITICAL | ETH/USD and USDC/USD feeds are hardcoded per chain (lines 941-1057). A wrong address passes a non-Chainlink contract to `JBChainlinkV3PriceFeed`, which calls `latestRoundData()`. If the address is a contract that happens to implement that function, it could return arbitrary prices. If not, it reverts -- DoS on all multi-currency operations. | Cross-reference every Chainlink address against the official Chainlink feeds directory for each chain. Feeds are immutable once set in `JBPrices`. |
-| Missing sequencer feed on L2 | HIGH | Optimism, Base, and Arbitrum mainnets use `JBChainlinkV3SequencerPriceFeed` with L2 sequencer uptime feeds (lines 954-989). Testnets use `JBChainlinkV3PriceFeed` without sequencer checks. If a mainnet address is accidentally given the non-sequencer variant, L2 sequencer downtime will not trigger price rejections. | Verify that mainnet L2 chains use `JBChainlinkV3SequencerPriceFeed` and that the sequencer feed addresses match canonical Chainlink L2 sequencer feeds. |
+| Wrong Chainlink feed address | CRITICAL | ETH/USD and USDC/USD feeds are hardcoded per chain. A wrong address passes a non-Chainlink contract to `JBChainlinkV3PriceFeed`, which calls `latestRoundData()`. If the address is a contract that happens to implement that function, it could return arbitrary prices. If not, it reverts -- DoS on all multi-currency operations. | Cross-reference every Chainlink address against the official Chainlink feeds directory for each chain. Feeds are immutable once set in `JBPrices`. |
+| Missing sequencer feed on L2 | HIGH | Optimism, Base, and Arbitrum mainnets use `JBChainlinkV3SequencerPriceFeed` with L2 sequencer uptime feeds. Testnets use `JBChainlinkV3PriceFeed` without sequencer checks. If a mainnet address is accidentally given the non-sequencer variant, L2 sequencer downtime will not trigger price rejections. | Verify that mainnet L2 chains use `JBChainlinkV3SequencerPriceFeed` and that the sequencer feed addresses match canonical Chainlink L2 sequencer feeds. |
 | Staleness threshold mismatch | MEDIUM | ETH/USD feeds use `3600 seconds` threshold. USDC/USD feeds use `86_400 seconds`. If the Chainlink ETH/USD feed on a chain actually updates less frequently than hourly (unlikely but possible during congestion), operations revert. | Verify Chainlink heartbeat intervals match configured thresholds for each chain. |
-| JBMatchingPriceFeed (1:1) for ETH/NATIVE_TOKEN | LOW | Line 891: `JBMatchingPriceFeed` returns 1:1 for ETH abstract currency to NATIVE_TOKEN concrete currency. This is correct by definition but only if the pair is correct. If accidentally set for USD/NATIVE_TOKEN, all USD-denominated operations compute wrong values. | Verify the three `addPriceFeedFor` calls in `_deployPeriphery()` set the correct currency pairs. |
+| JBMatchingPriceFeed (1:1) for ETH/NATIVE_TOKEN | LOW | `JBMatchingPriceFeed` returns 1:1 for ETH abstract currency to NATIVE_TOKEN concrete currency. This is correct by definition but only if the pair is correct. If accidentally set for USD/NATIVE_TOKEN, all USD-denominated operations compute wrong values. | Verify the three `addPriceFeedFor` calls in `_deployPeriphery()` set the correct currency pairs. |
 | Price feed immutability | HIGH | Once `JBPrices.addPriceFeedFor()` is called for a `(projectId, pricingCurrency, unitCurrency)` tuple, the feed cannot be replaced. A wrong feed address is permanent. The only workaround is project-specific feed overrides (which override the default but require per-project action). | Double-check all four `addPriceFeedFor` calls before proposal approval. |
 | Shared sequencer feed address | LOW | Optimism and Base share sequencer feed addresses across their respective ETH/USD and USDC/USD feeds. If a sequencer feed goes offline permanently, both currency pairs revert simultaneously, halting all multi-currency operations on that L2. | Monitor Chainlink sequencer feed health. No on-chain mitigation -- feeds are immutable. |
-| Base Sepolia USDC/ETH feed reuse | MEDIUM | Base Sepolia uses `0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165` for USDC/USD (line 1040), the same address used for Arbitrum Sepolia's ETH/USD feed (line 994). This may be intentional (testnet feeds are shared) or a copy-paste error. | Verify against Chainlink's testnet feed directory. |
+| Base Sepolia USDC/ETH feed reuse | MEDIUM | Base Sepolia uses `0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165` for USDC/USD, the same address used for Arbitrum Sepolia's ETH/USD feed. This may be intentional (testnet feeds are shared) or a copy-paste error. | Verify against Chainlink's testnet feed directory. |
 
 ---
 
@@ -75,11 +75,11 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
 | Non-deterministic addresses across chains | HIGH | Sphinx uses CREATE2 from its deterministic deployer. Contract addresses depend on `(deployer, salt, initCodeHash)`. Core contracts share the same salt (`CORE_DEPLOYMENT_NONCE = 6`) but chain-specific constructor args (WETH, PoolManager, V3Factory) change `initCodeHash`, producing different addresses. | Sphinx handles cross-chain determinism for same-bytecode contracts. Contracts with chain-specific constructor args (router terminal, buyback hook, sucker deployers) WILL have different addresses per chain. Verify that cross-chain references (sucker pairs) use correct per-chain addresses. |
-| Chain-specific constants per sucker | HIGH | Each sucker deployer calls `setChainSpecificConstants()` with bridge addresses that differ by chain and by mainnet/testnet (lines 570-846). Wrong bridge address = bridge operations fail or, worse, route to a malicious contract. | Verify every bridge address: OP Messenger, OP Standard Bridge, Arbitrum Inbox, Arbitrum Gateway Router, CCIP Router, and CCIP chain selectors. Each has a mainnet and testnet variant. |
-| CCIP chain selector mismatch | HIGH | CCIP sucker deployers use `CCIPHelper.selectorOfChain(remoteChainId)` to look up CCIP selectors (lines 856-860). If `CCIPHelper` has a wrong mapping, CCIP messages route to the wrong destination. | Verify `CCIPHelper` mappings against official CCIP documentation. |
+| Chain-specific constants per sucker | HIGH | Each sucker deployer calls `setChainSpecificConstants()` with bridge addresses that differ by chain and by mainnet/testnet. Wrong bridge address = bridge operations fail or, worse, route to a malicious contract. | Verify every bridge address: OP Messenger, OP Standard Bridge, Arbitrum Inbox, Arbitrum Gateway Router, CCIP Router, and CCIP chain selectors. Each has a mainnet and testnet variant. |
+| CCIP chain selector mismatch | HIGH | CCIP sucker deployers use `CCIPHelper.selectorOfChain(remoteChainId)` to look up CCIP selectors. If `CCIPHelper` has a wrong mapping, CCIP messages route to the wrong destination. | Verify `CCIPHelper` mappings against official CCIP documentation. |
 | L2-only sucker deployer on L1 | MEDIUM | L2 sucker deployers (OP, Base, Arb) use canonical predeploy addresses (`0x42...07`, `0x42...10`) that do not exist on L1. The script correctly gates deployment with `block.chainid` checks, but if a chain ID check is wrong, L1 gets an L2 sucker with non-existent bridge contracts. | Verify each `if (block.chainid == ...)` branch deploys only the appropriate bridge variant. |
-| CCIP deployer per-chain coverage | MEDIUM | Each chain gets exactly 3 CCIP sucker deployers (lines 774-845), one per remote chain. If a new chain is added without updating all existing chains' CCIP deployer lists, the new chain can bridge to existing chains but not vice versa. | Ensure symmetry: for every (chainA, chainB) pair, both chainA and chainB deploy a CCIP sucker targeting the other. |
-| L2 sucker builds only one config | LOW | `_buildSuckerConfig()` on L2 chains creates only one sucker deployer config (line 1560) using whichever deployer is non-zero. If multiple deployers are deployed on the same L2 (e.g., both OP native bridge and CCIP), only the first non-zero is used for the revnet's default sucker config. Additional bridge paths require separate sucker deployment. | The first non-zero check order is: Optimism, then Base, then Arbitrum (line 1563-1565). Verify this matches the intended primary bridge for each L2. |
+| CCIP deployer per-chain coverage | MEDIUM | Each chain gets exactly 3 CCIP sucker deployers, one per remote chain. If a new chain is added without updating all existing chains' CCIP deployer lists, the new chain can bridge to existing chains but not vice versa. | Ensure symmetry: for every (chainA, chainB) pair, both chainA and chainB deploy a CCIP sucker targeting the other. |
+| L2 sucker builds only one config | LOW | `_buildSuckerConfig()` on L2 chains creates only one sucker deployer config using whichever deployer is non-zero. If multiple deployers are deployed on the same L2 (e.g., both OP native bridge and CCIP), only the first non-zero is used for the revnet's default sucker config. Additional bridge paths require separate sucker deployment. | The first non-zero check order is: Optimism, then Base, then Arbitrum. Verify this matches the intended primary bridge for each L2. |
 | Project IDs diverge across chains | HIGH | Each chain independently increments project IDs via `JBProjects.createFor()`. If the deployment order differs across chains (e.g., one chain's proposal has an extra `createFor` call), project 1 on chain A is not the same project as project 1 on chain B. Sucker operations reference project IDs -- a mismatch means bridged tokens go to the wrong project. | Sphinx executes the same script on all chains. Verify project IDs match across all chains after deployment. |
 | Multi-chain partial failure | HIGH | Sphinx proposals execute independently per chain. If the proposal succeeds on 6 of 8 chains but fails on 2 (gas issues, RPC failure, bridge contract unavailable), the successful chains have fully wired contracts while the failed chains have nothing. Sucker pairs between successful and failed chains are bricked — the source chain has a sucker pointing to a non-existent peer. Cross-chain project IDs remain consistent only if the proposal is re-executed identically on the failed chains. | Monitor Sphinx proposal status per chain. If partial failure occurs, re-propose only for the failed chains with identical salts and constructor args. Verify sucker peers are live before enabling bridge operations. |
 
@@ -89,19 +89,19 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 ### Hardcoded Address Risks
 
-| Risk | Severity | Description | Affected Lines |
-|------|----------|-------------|----------------|
-| WETH | HIGH | Different per chain. 7 distinct addresses across 8 chains. L2 chains share `0x4200000000000000000000000000000000000006`. | 372-419 |
-| Uniswap V3 Factory | HIGH | Different per chain. Used by `JBRouterTerminal` for swap routing. | 372-419 |
-| Uniswap V4 PoolManager | HIGH | Different per chain except testnets sharing `0x000000000004444c5dc75cB358380D2e3dE08A90`. Used by `JBBuybackHook`, `JBRouterTerminal`, and `JBUniswapV4LPSplitHook`. | 382-436 |
-| Uniswap V4 PositionManager | HIGH | Hardcoded per chain and required by `JBUniswapV4LPSplitHook` for pool initialization and liquidity management. A wrong address bricks LP split deployments on that chain. Optimism Sepolia intentionally skips the Uniswap-dependent phases because no canonical `PositionManager` is published there. | 382-456 |
-| Chainlink ETH/USD feeds | CRITICAL | 8 distinct addresses, one per chain. | 941-998 |
-| Chainlink USDC/USD feeds | CRITICAL | 8 distinct addresses. | 1006-1057 |
-| L2 Sequencer feeds | HIGH | 3 addresses (OP, Base, Arb mainnets). | 957, 972, 987 |
-| USDC token addresses | HIGH | 8 distinct addresses. | 1007-1051 |
-| OP Messenger/Bridge (L1) | HIGH | Mainnet and Sepolia variants for both Optimism and Base. 4 addresses each side. | 583-660 |
-| OP Messenger/Bridge (L2) | LOW | Canonical predeploys `0x42...07` and `0x42...10`. | 619-620, 687-688 |
-| Arbitrum Inbox/Gateway | HIGH | Uses `ARBAddresses` library constants. | 718-753 |
+| Risk | Severity | Description |
+|------|----------|-------------|
+| WETH | HIGH | Different per chain. 7 distinct addresses across 8 chains. L2 chains share `0x4200000000000000000000000000000000000006`. |
+| Uniswap V3 Factory | HIGH | Different per chain. Used by `JBRouterTerminal` for swap routing. |
+| Uniswap V4 PoolManager | HIGH | Different per chain except testnets sharing `0x000000000004444c5dc75cB358380D2e3dE08A90`. Used by `JBBuybackHook`, `JBRouterTerminal`, and `JBUniswapV4LPSplitHook`. |
+| Uniswap V4 PositionManager | HIGH | Hardcoded per chain and required by `JBUniswapV4LPSplitHook` for pool initialization and liquidity management. A wrong address bricks LP split deployments on that chain. Optimism Sepolia intentionally skips the Uniswap-dependent phases because no canonical `PositionManager` is published there. |
+| Chainlink ETH/USD feeds | CRITICAL | 8 distinct addresses, one per chain. |
+| Chainlink USDC/USD feeds | CRITICAL | 8 distinct addresses. |
+| L2 Sequencer feeds | HIGH | 3 addresses (OP, Base, Arb mainnets). |
+| USDC token addresses | HIGH | 8 distinct addresses. |
+| OP Messenger/Bridge (L1) | HIGH | Mainnet and Sepolia variants for both Optimism and Base. 4 addresses each side. |
+| OP Messenger/Bridge (L2) | LOW | Canonical predeploys `0x42...07` and `0x42...10`. |
+| Arbitrum Inbox/Gateway | HIGH | Uses `ARBAddresses` library constants. |
 
 ### Constructor Parameter Risks
 
@@ -110,8 +110,8 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | Hook-mined router hook | HIGH | `JBUniswapV4Hook` must be deployed to an address whose low bits match its declared Uniswap V4 hook permissions. The mined salt depends on the final constructor args and deployer address. If either drifts from execution reality, deployment reverts. |
 | Shared oracle hook wiring | MEDIUM | `JBBuybackHook` and `JBUniswapV4LPSplitHook` now both rely on the deployed `JBUniswapV4Hook`. If that hook is missing or miswired, buyback TWAP protection and LP split pool initialization both fail or degrade together. |
 | Revnet start times in the past | MEDIUM | `REV_START_TIME = 1_740_089_444` (Feb 20, 2025), `NANA_START_TIME = 1_740_089_444`, `BAN_START_TIME = 1_740_435_044`. If deployed after these timestamps, the first ruleset stage is already active and issuance decay has already been ticking. Auto-issuances may calculate differently than expected. |
-| Auto-issuance amounts | HIGH | Lines 212-229: Per-chain auto-issuance amounts for REV, NANA, and BAN are large uint104 constants. These represent preminted token allocations. If any amount is wrong, tokens are permanently minted to the wrong quantity. Cannot be corrected post-deployment. |
-| CPN revnet not configured | MEDIUM | `_deployCpnRevnet()` (line 1224) approves `_revDeployer` for project 2 but the actual configuration is commented out. Project 2 exists as an empty project owned by the Sphinx Safe with an approved-but-unused REVDeployer. Anyone who front-runs the separate CPN configuration could exploit the approval. |
+| Auto-issuance amounts | HIGH | Per-chain auto-issuance amounts for REV, NANA, and BAN are large uint104 constants. These represent preminted token allocations. If any amount is wrong, tokens are permanently minted to the wrong quantity. Cannot be corrected post-deployment. |
+| CPN revnet configuration | LOW | `_deployCpnRevnet()` is fully implemented and called during deployment. Verify stage parameters, splits, and terminal configs match intended CPN economics. |
 | Fee percentage non-configurable | LOW | The 2.5% fee is a constant in `JBMultiTerminal` (`FEE = 25`, `MAX_FEE = 1000`). It cannot be changed post-deployment. This is by design but means a fee adjustment requires full protocol redeployment. |
 | NANA 62% split percentage | HIGH | Project 1 (NANA/fee project) has `splitPercent: 6200` -- 62% of all tokens minted during payments go to reserved token splits. If this percentage is misconfigured, fee revenue distribution is permanently affected. |
 | REV cashOutTaxRate of 10% | MEDIUM | All three revnets use `cashOutTaxRate: 1000` (10%). This is low enough that revnet loans become more attractive than cashouts above ~39% (per CryptoEconLab finding). If the intended rate was different, it cannot be changed. |
@@ -133,18 +133,18 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 | Risk | Severity | Description |
 |------|----------|-------------|
-| Fee project is project #1 | HIGH | `JBMultiTerminal` hardcodes fee payments to project ID 1. The deployment creates project 1 automatically in the `JBProjects` constructor. If the constructor mints to the wrong owner, fees flow to an attacker. The script sets `safeAddress()` as both `initialOwner` and `initialOperator` (line 433). |
-| NANA revnet misconfiguration | HIGH | Project 1 is configured as the NANA revnet (lines 1242-1308). If the revnet configuration is wrong (e.g., wrong `splitPercent`, wrong `cashOutTaxRate`), fee distributions are permanently affected. NANA has 62% split and 10% cashout tax. |
-| REVDeployer approval on fee project | MEDIUM | Line 1301: `_projects.approve(address(_revDeployer), feeProjectId)`. This gives `_revDeployer` ERC-721 transfer approval on project 1. After `deployFor` completes, REVDeployer becomes the project's controller and the approval is consumed. But if `deployFor` reverts, the approval remains dangling -- though `_revDeployer` is a trusted contract. |
+| Fee project is project #1 | HIGH | `JBMultiTerminal` hardcodes fee payments to project ID 1. The deployment creates project 1 automatically in the `JBProjects` constructor. If the constructor mints to the wrong owner, fees flow to an attacker. The script sets `safeAddress()` as both `initialOwner` and `initialOperator`. |
+| NANA revnet misconfiguration | HIGH | Project 1 is configured as the NANA revnet. If the revnet configuration is wrong (e.g., wrong `splitPercent`, wrong `cashOutTaxRate`), fee distributions are permanently affected. NANA has 62% split and 10% cashout tax. |
+| REVDeployer approval on fee project | MEDIUM | `_projects.approve(address(_revDeployer), feeProjectId)`. This gives `_revDeployer` ERC-721 transfer approval on project 1. After `deployFor` completes, REVDeployer becomes the project's controller and the approval is consumed. But if `deployFor` reverts, the approval remains dangling -- though `_revDeployer` is a trusted contract. |
 
 ### Incomplete Deployment Sections
 
 | Section | Status | Risk |
 |---------|--------|------|
-| CPN Revnet (project 2) | Approved but not configured (TODO, line 1225) | Project 2 has dangling REVDeployer approval |
+| CPN Revnet (project 2) | Fully configured | Deployed as a revnet via `_deployCpnRevnet()` |
 | Uniswap V4 router/oracle stack | Deployed by this script | Deployment now depends on correct hook mining plus correct PoolManager and PositionManager constants |
 | JBOwnable | Not deployed by this script | Any ownership model depending on it is out of canonical-release scope |
-| Defifa | Fully commented out (lines 128-135, 360-361) | No deployment risk -- contracts simply not deployed |
+| Defifa | Fully commented out | No deployment risk -- contracts simply not deployed |
 | Defifa Revnet | Commented out | No risk |
 
 ### Catastrophic Misconfiguration Scenarios
@@ -205,7 +205,7 @@ For each of the 8 target chains, verify every expected contract is deployed at t
 ### Security
 
 - [ ] Sphinx Safe address is the owner/admin of all ownable contracts
-- [ ] No dangling approvals on project NFTs (except the intentional CPN approval)
+- [ ] No dangling approvals on project NFTs
 - [ ] `JBFeelessAddresses` has no unexpected entries
 - [ ] `JBDirectory` has exactly one allowed controller
 
