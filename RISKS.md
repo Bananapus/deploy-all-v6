@@ -1,7 +1,7 @@
 # deploy-all-v6 -- Risks
 
 Deployment-specific vulnerability vectors for auditors. This repo deploys the current canonical Juicebox V6 rollout
-via a single Sphinx-orchestrated script (`script/Deploy.s.sol`, ~1,600 lines). It has no runtime contracts of its own
+via a single Sphinx-orchestrated script (`script/Deploy.s.sol`, ~2,200 lines). It has no runtime contracts of its own
 -- all risk lives in the deployment configuration itself.
 
 For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
@@ -93,7 +93,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 |------|----------|-------------|
 | WETH | HIGH | Different per chain. 7 distinct addresses across 8 chains. L2 chains share `0x4200000000000000000000000000000000000006`. |
 | Uniswap V3 Factory | HIGH | Different per chain. Used by `JBRouterTerminal` for swap routing. |
-| Uniswap V4 PoolManager | HIGH | Different per chain except testnets sharing `0x000000000004444c5dc75cB358380D2e3dE08A90`. Used by `JBBuybackHook`, `JBRouterTerminal`, and `JBUniswapV4LPSplitHook`. |
+| Uniswap V4 PoolManager | HIGH | Different per chain except Ethereum Mainnet and Optimism Sepolia sharing `0x000000000004444c5dc75cB358380D2e3dE08A90`. Used by `JBBuybackHook`, `JBRouterTerminal`, and `JBUniswapV4LPSplitHook`. |
 | Uniswap V4 PositionManager | HIGH | Hardcoded per chain and required by `JBUniswapV4LPSplitHook` for pool initialization and liquidity management. A wrong address bricks LP split deployments on that chain. Optimism Sepolia intentionally skips the Uniswap-dependent phases because no canonical `PositionManager` is published there. |
 | Chainlink ETH/USD feeds | CRITICAL | 8 distinct addresses, one per chain. |
 | Chainlink USDC/USD feeds | CRITICAL | 8 distinct addresses. |
@@ -133,7 +133,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 | Risk | Severity | Description |
 |------|----------|-------------|
-| Fee project is project #1 | HIGH | `JBMultiTerminal` hardcodes fee payments to project ID 1. The deployment creates project 1 automatically in the `JBProjects` constructor. If the constructor mints to the wrong owner, fees flow to an attacker. The script sets `safeAddress()` as both `initialOwner` and `initialOperator`. |
+| Fee project is project #1 | HIGH | `JBMultiTerminal` hardcodes fee payments to project ID 1. The deployment creates project 1 automatically in the `JBProjects` constructor. If the constructor mints to the wrong owner, fees flow to an attacker. The script sets `safeAddress()` as both `owner` and `feeProjectOwner`. |
 | NANA revnet misconfiguration | HIGH | Project 1 is configured as the NANA revnet. If the revnet configuration is wrong (e.g., wrong `splitPercent`, wrong `cashOutTaxRate`), fee distributions are permanently affected. NANA has 62% split and 10% cashout tax. |
 | REVDeployer approval on fee project | MEDIUM | `_projects.approve(address(_revDeployer), feeProjectId)`. This gives `_revDeployer` ERC-721 transfer approval on project 1. After `deployFor` completes, REVDeployer becomes the project's controller and the approval is consumed. But if `deployFor` reverts, the approval remains dangling -- though `_revDeployer` is a trusted contract. |
 
@@ -176,7 +176,7 @@ For each of the 8 target chains, verify every expected contract is deployed at t
 - [ ] `JBDirectory.isAllowedToSetFirstController(controllerAddress)` returns `true`
 - [ ] `JBBuybackHookRegistry.defaultHook()` returns the buyback hook address
 - [ ] `JBRouterTerminalRegistry.defaultTerminal()` returns the router terminal address
-- [ ] All sucker deployers registered in `JBSuckerRegistry` (call `isSuckerDeployerAllowed` for each)
+- [ ] All sucker deployers registered in `JBSuckerRegistry` (call `suckerDeployerIsAllowed` for each)
 
 ### Price Feeds
 
