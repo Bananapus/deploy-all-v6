@@ -125,17 +125,27 @@ deploy-all-v6/
 ├── src/                     # Empty -- no application contracts (deployment-only repo)
 ├── test/
 │   └── fork/                # Fork tests that replay the deployment against live mainnet state
+│       ├── ApprovalHookFork.t.sol
+│       ├── BuybackRouterFork.t.sol
+│       ├── CrossCurrencyFork.t.sol
 │       ├── DeployFork.t.sol
 │       ├── DeployFullStack.t.sol
 │       ├── DeployScriptVerification.t.sol
 │       ├── EcosystemFork.t.sol
 │       ├── FullStackFork.t.sol
-│       ├── BuybackRouterFork.t.sol
-│       ├── CrossCurrencyFork.t.sol
+│       ├── HookCompositionFork.t.sol
 │       ├── LPBuybackInteropFork.t.sol
+│       ├── PayoutReentrancyFork.t.sol
+│       ├── PriceFeedFailureFork.t.sol
+│       ├── ReservedInflationFork.t.sol
+│       ├── ResumeDeployFork.t.sol
+│       ├── SuckerBuybackFork.t.sol
+│       ├── SuckerEndToEndFork.t.sol
+│       ├── TestFeeProcessingCascade.t.sol
+│       ├── TestMultiCurrencyPayout.t.sol
+│       ├── TestTerminalMigration.t.sol
 │       ├── USDCEcosystemFork.t.sol
-│       ├── USDCRevnetFork.t.sol
-│       └── ...
+│       └── USDCRevnetFork.t.sol
 ├── lib/
 │   └── forge-std/           # Foundry standard library
 ├── foundry.toml             # Forge config (via_ir, Cancun, optimizer off)
