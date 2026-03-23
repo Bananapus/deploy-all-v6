@@ -147,6 +147,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract Deploy is Script, Sphinx {
     error Deploy_ExistingAddressMismatch(address expected, address actual);
     error Deploy_ProjectIdMismatch(uint256 expected, uint256 actual);
+    error Deploy_ProjectNotOwned(uint256 projectId);
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
 
     // ════════════════════════════════════════════════════════════════════
@@ -854,12 +855,7 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deploySuckers() internal {
-        _deploySuckersOptimism();
-        _deploySuckersBase();
-        _deploySuckersArbitrum();
-        _deploySuckersCCIP();
-
-        // Deploy the registry and pre-approve deployers.
+        // Deploy the registry FIRST — singleton sucker constructors consume it as an immutable.
         (address registry, bool registryDeployed) = _isDeployed(
             SUCKER_REGISTRY_SALT,
             type(JBSuckerRegistry).creationCode,
@@ -871,6 +867,13 @@ contract Deploy is Script, Sphinx {
                 _directory, _permissions, safeAddress(), _trustedForwarder
             );
 
+        // Deploy singleton implementations and deployers (they reference _suckerRegistry).
+        _deploySuckersOptimism();
+        _deploySuckersBase();
+        _deploySuckersArbitrum();
+        _deploySuckersCCIP();
+
+        // Pre-approve deployers in the registry.
         if (_preApprovedSuckerDeployers.length != 0) {
             for (uint256 i; i < _preApprovedSuckerDeployers.length; i++) {
                 if (!_suckerRegistry.suckerDeployerIsAllowed(_preApprovedSuckerDeployers[i])) {
@@ -1511,6 +1514,12 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployRevnet() internal {
+        // Skip revnet deployment when the Uniswap stack was not deployed — revnets require buyback + router
+        // registries.
+        if (address(_buybackRegistry) == address(0)) {
+            return;
+        }
+
         _revProjectId = _ensureProjectExists(_REV_PROJECT_ID);
 
         // Deploy REVLoans.
@@ -1661,6 +1670,9 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployCpnRevnet() internal {
+        // Skip when the Uniswap stack was not deployed — CPN revnet requires buyback + router registries.
+        if (address(_buybackRegistry) == address(0)) return;
+
         address operator = 0x240dc2085caEF779F428dcd103CFD2fB510EdE82;
 
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
@@ -1831,6 +1843,9 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployNanaRevnet() internal {
+        // Skip when the Uniswap stack was not deployed — NANA revnet requires buyback + router registries.
+        if (address(_buybackRegistry) == address(0)) return;
+
         uint256 feeProjectId = _FEE_PROJECT_ID;
         address operator = 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5;
 
@@ -1906,6 +1921,9 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployBanny() internal {
+        // Skip when the Uniswap stack was not deployed — Banny revnet requires buyback + router registries.
+        if (address(_buybackRegistry) == address(0)) return;
+
         if (_projects.count() >= _BAN_PROJECT_ID && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)) {
             return;
         }
@@ -2184,7 +2202,12 @@ contract Deploy is Script, Sphinx {
 
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {
         uint256 count = _projects.count();
-        if (count >= expectedProjectId) return expectedProjectId;
+        if (count >= expectedProjectId) {
+            if (_projects.ownerOf(expectedProjectId) != safeAddress()) {
+                revert Deploy_ProjectNotOwned(expectedProjectId);
+            }
+            return expectedProjectId;
+        }
 
         uint256 created = _projects.createFor(safeAddress());
         if (created != expectedProjectId) revert Deploy_ProjectIdMismatch(expectedProjectId, created);

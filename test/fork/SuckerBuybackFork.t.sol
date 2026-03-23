@@ -15,15 +15,10 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
 
     /// @notice Deploy a single-stage revnet with buyback hook active and a meaningful cashOutTaxRate.
     /// No pool setup — the buyback hook is registered but pre-AMM (no liquidity).
-    function _deployRevnetForSuckerTest(uint16 cashOutTaxRate)
-        internal
-        returns (uint256 revnetId)
-    {
+    function _deployRevnetForSuckerTest(uint16 cashOutTaxRate) internal returns (uint256 revnetId) {
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({
-            token: JBConstants.NATIVE_TOKEN,
-            decimals: 18,
-            currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+            token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
         });
         JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
         tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
@@ -59,15 +54,11 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
         });
 
         REVSuckerDeploymentConfig memory sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0),
-            salt: keccak256(abi.encodePacked("SUCKER_TEST"))
+            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("SUCKER_TEST"))
         });
 
         (revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0,
-            configuration: cfg,
-            terminalConfigurations: tc,
-            suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
     }
 
@@ -116,15 +107,16 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
 
         // Sucker cashes out all tokens.
         vm.prank(MOCK_SUCKER);
-        uint256 reclaimAmount = jbMultiTerminal().cashOutTokensOf({
-            holder: MOCK_SUCKER,
-            projectId: revnetId,
-            cashOutCount: suckerTokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(MOCK_SUCKER),
-            metadata: ""
-        });
+        uint256 reclaimAmount = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: MOCK_SUCKER,
+                projectId: revnetId,
+                cashOutCount: suckerTokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(MOCK_SUCKER),
+                metadata: ""
+            });
 
         // Sucker should receive ETH.
         assertGt(reclaimAmount, 0, "sucker should reclaim ETH");
@@ -175,37 +167,37 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
 
         // --- Non-sucker cashes out first ---
         vm.prank(NON_SUCKER);
-        uint256 nonSuckerReclaim = jbMultiTerminal().cashOutTokensOf({
-            holder: NON_SUCKER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(NON_SUCKER),
-            metadata: ""
-        });
+        uint256 nonSuckerReclaim = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: NON_SUCKER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(NON_SUCKER),
+                metadata: ""
+            });
 
         assertGt(nonSuckerReclaim, 0, "non-sucker should reclaim some ETH");
 
         // Fee project balance should increase from non-sucker cashout.
         uint256 feeBalanceAfterNonSucker = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
         assertGt(
-            feeBalanceAfterNonSucker,
-            feeBalanceBefore,
-            "fee project balance should increase from non-sucker cashout"
+            feeBalanceAfterNonSucker, feeBalanceBefore, "fee project balance should increase from non-sucker cashout"
         );
 
         // --- Sucker cashes out second ---
         vm.prank(MOCK_SUCKER);
-        uint256 suckerReclaim = jbMultiTerminal().cashOutTokensOf({
-            holder: MOCK_SUCKER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(MOCK_SUCKER),
-            metadata: ""
-        });
+        uint256 suckerReclaim = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: MOCK_SUCKER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(MOCK_SUCKER),
+                metadata: ""
+            });
 
         assertGt(suckerReclaim, 0, "sucker should reclaim ETH");
 
