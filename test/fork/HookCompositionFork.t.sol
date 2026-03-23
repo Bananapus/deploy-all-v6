@@ -39,15 +39,16 @@ contract HookCompositionForkTest is EcosystemForkTest {
         uint256 cashOutCount = payerTokens / 2;
 
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         // Fee project balance should have increased (2.5% fee on cashout).
         uint256 feeBalanceAfter = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
@@ -58,9 +59,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         assertGt(feeAccrued, 0, "fee accrued should be positive");
 
         // Payer should have fewer tokens.
-        assertEq(
-            jbTokens().totalBalanceOf(PAYER, revnetId), payerTokens - cashOutCount, "payer tokens should decrease"
-        );
+        assertEq(jbTokens().totalBalanceOf(PAYER, revnetId), payerTokens - cashOutCount, "payer tokens should decrease");
     }
 
     /// @notice Mock fee terminal to revert on external pay(). Cash out tokens.
@@ -74,10 +73,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0,
-            configuration: cfg,
-            terminalConfigurations: tc,
-            suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay to build surplus.
@@ -87,15 +83,16 @@ contract HookCompositionForkTest is EcosystemForkTest {
         // Do a NORMAL cashout first to measure baseline fee accrual.
         uint256 borrowerTokens = jbTokens().totalBalanceOf(BORROWER, revnetId);
         vm.prank(BORROWER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: BORROWER,
-            projectId: revnetId,
-            cashOutCount: borrowerTokens / 4,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(BORROWER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: BORROWER,
+                projectId: revnetId,
+                cashOutCount: borrowerTokens / 4,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(BORROWER),
+                metadata: ""
+            });
         uint256 feeAfterNormalCashout = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
         assertGt(feeAfterNormalCashout, 0, "normal cashout should accrue fees");
 
@@ -104,9 +101,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         // The terminal's internal _processFee path is unaffected by external mocks.
         vm.mockCallRevert(
             address(jbMultiTerminal()),
-            abi.encodeWithSignature(
-                "pay(uint256,address,uint256,address,uint256,string,bytes)", FEE_PROJECT_ID
-            ),
+            abi.encodeWithSignature("pay(uint256,address,uint256,address,uint256,string,bytes)", FEE_PROJECT_ID),
             "fee terminal reverted"
         );
 
@@ -117,15 +112,16 @@ contract HookCompositionForkTest is EcosystemForkTest {
         uint256 projectBalanceBefore = _terminalBalance(revnetId, JBConstants.NATIVE_TOKEN);
 
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         // Main assertion: cashout succeeded (try-catch worked).
         assertGt(PAYER.balance, payerEthBefore, "payer should receive ETH despite fee terminal revert");
@@ -204,10 +200,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
             _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0,
-            configuration: cfg,
-            terminalConfigurations: tc,
-            suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
         uint256 feeBalancePrev = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
@@ -231,15 +224,16 @@ contract HookCompositionForkTest is EcosystemForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         assertGt(PAYER.balance, payerEthBefore, "inv: payer received ETH from cashout");
 
@@ -260,15 +254,16 @@ contract HookCompositionForkTest is EcosystemForkTest {
         if (borrowerTokens > 0) {
             uint256 borrowerEthBefore = BORROWER.balance;
             vm.prank(BORROWER);
-            jbMultiTerminal().cashOutTokensOf({
-                holder: BORROWER,
-                projectId: revnetId,
-                cashOutCount: borrowerTokens / 2,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(BORROWER),
-                metadata: ""
-            });
+            jbMultiTerminal()
+                .cashOutTokensOf({
+                    holder: BORROWER,
+                    projectId: revnetId,
+                    cashOutCount: borrowerTokens / 2,
+                    tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                    minTokensReclaimed: 0,
+                    beneficiary: payable(BORROWER),
+                    metadata: ""
+                });
             assertGt(BORROWER.balance, borrowerEthBefore, "inv: borrower received ETH");
 
             feeBalanceNow = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
@@ -285,9 +280,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         assertGt(tokens, 0, "inv: post-AMM pay should return tokens");
 
         // Invariant: LP split hook position exists (accumulated tokens > 0 from step 2).
-        assertGt(
-            LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId), 0, "inv: LP split hook has accumulated tokens"
-        );
+        assertGt(LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId), 0, "inv: LP split hook has accumulated tokens");
 
         // Final invariant: fee balance only grew.
         feeBalanceNow = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
@@ -304,10 +297,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
             _buildTwoStageConfigWithLPSplit(0, 0, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0,
-            configuration: cfg,
-            terminalConfigurations: tc,
-            suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay to build surplus.
@@ -323,15 +313,16 @@ contract HookCompositionForkTest is EcosystemForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         // Payer should receive ETH (full pro-rata with 0% tax).
         assertGt(PAYER.balance, payerEthBefore, "should receive ETH from 0% tax cashout");

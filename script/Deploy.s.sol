@@ -1514,7 +1514,8 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployRevnet() internal {
-        // Skip revnet deployment when the Uniswap stack was not deployed — revnets require buyback + router registries.
+        // Skip revnet deployment when the Uniswap stack was not deployed — revnets require buyback + router
+        // registries.
         if (address(_buybackRegistry) == address(0)) {
             return;
         }

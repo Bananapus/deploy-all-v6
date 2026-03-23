@@ -51,11 +51,7 @@ contract MaliciousSplitHook is IJBSplitHook {
             // Attempt re-entry into sendPayoutsOf. This should fail because the payout limit
             // was already consumed by recordPayoutFor before splits execute.
             try terminal.sendPayoutsOf({
-                projectId: targetProjectId,
-                token: token,
-                amount: amount,
-                currency: currency,
-                minTokensPaidOut: 0
+                projectId: targetProjectId, token: token, amount: amount, currency: currency, minTokensPaidOut: 0
             }) {
                 // If we get here, re-entry succeeded (should NOT happen).
                 reentrySucceeded = true;
@@ -90,7 +86,13 @@ contract AddToBalanceSplitHook is IJBSplitHook {
 
     receive() external payable {}
 
-    function processSplitWith(JBSplitHookContext calldata /* context */) external payable override {
+    function processSplitWith(
+        JBSplitHookContext calldata /* context */
+    )
+        external
+        payable
+        override
+    {
         if (!addToBalanceCalled && msg.value > 0) {
             addToBalanceCalled = true;
             // Re-enter via addToBalanceOf, forwarding all received ETH back to the project.
@@ -117,8 +119,8 @@ contract AddToBalanceSplitHook is IJBSplitHook {
 /// @notice Tests that payout split hooks cannot exploit re-entry to double-spend payouts.
 ///
 /// The `sendPayoutsOf()` flow is:
-///   1. `JBTerminalStore.recordPayoutFor()` — records payout limit usage and decreases balance BEFORE any external calls
-///   2. `JBPayoutSplitGroupLib.sendPayoutsToSplitGroupOf()` — iterates splits, calling `executePayout()` for each
+///   1. `JBTerminalStore.recordPayoutFor()` — records payout limit usage and decreases balance BEFORE any external
+/// calls 2. `JBPayoutSplitGroupLib.sendPayoutsToSplitGroupOf()` — iterates splits, calling `executePayout()` for each
 ///   3. `executePayout()` — transfers funds to split hook and calls `processSplitWith()`
 ///
 /// Since step 1 consumes the payout limit before step 3 executes, a re-entrant call to `sendPayoutsOf()`
@@ -208,13 +210,14 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         });
 
         // Launch the project.
-        projectId = jbController().launchProjectFor({
-            owner: PROJECT_OWNER,
-            projectUri: "",
-            rulesetConfigurations: rulesetConfigs,
-            terminalConfigurations: tc,
-            memo: ""
-        });
+        projectId = jbController()
+            .launchProjectFor({
+                owner: PROJECT_OWNER,
+                projectUri: "",
+                rulesetConfigurations: rulesetConfigs,
+                terminalConfigurations: tc,
+                memo: ""
+            });
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -266,13 +269,14 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         //   3. Hook tries to re-enter sendPayoutsOf -> recordPayoutFor reverts (limit consumed)
         //   4. try-catch in the hook catches the revert
         //   5. The first payout still completes (hook received the funds via try-catch in executePayout)
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: PAYOUT_LIMIT,
-            currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: PAYOUT_LIMIT,
+                currency: NATIVE_CURRENCY,
+                minTokensPaidOut: 0
+            });
 
         // Verify the hook attempted re-entry.
         assertTrue(maliciousHook.reentryCalled(), "hook should have attempted re-entry");
@@ -299,13 +303,14 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         // A second sendPayoutsOf should also fail since payout limit is consumed for this cycle.
         // Since duration=0, same ruleset stays active, so payout limit persists.
         vm.expectRevert();
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: PAYOUT_LIMIT,
-            currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: PAYOUT_LIMIT,
+                currency: NATIVE_CURRENCY,
+                minTokensPaidOut: 0
+            });
     }
 
     /// @notice A split hook re-enters via `addToBalanceOf()` during payout processing.
@@ -341,13 +346,14 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         // Step 5: Trigger payouts.
         // The hook will receive its split amount (after fee), then re-enter via addToBalanceOf
         // to send the ETH back to the project.
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: PAYOUT_LIMIT,
-            currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: PAYOUT_LIMIT,
+                currency: NATIVE_CURRENCY,
+                minTokensPaidOut: 0
+            });
 
         // Verify the hook called addToBalanceOf.
         assertTrue(addHook.addToBalanceCalled(), "hook should have called addToBalanceOf");
@@ -373,12 +379,13 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
 
         // No double-payout occurred: we can verify the payout limit is consumed by trying again.
         vm.expectRevert();
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: PAYOUT_LIMIT,
-            currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: PAYOUT_LIMIT,
+                currency: NATIVE_CURRENCY,
+                minTokensPaidOut: 0
+            });
     }
 }
