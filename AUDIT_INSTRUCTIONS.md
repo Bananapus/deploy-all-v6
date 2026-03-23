@@ -1,8 +1,8 @@
 # Audit Instructions -- deploy-all-v6
 
 You are auditing the ecosystem deployment script for Juicebox V6. This repo contains no runtime contracts. The entire
-attack surface is a single Foundry/Sphinx deployment script (`script/Deploy.s.sol`, ~1,600 lines) that deploys and
-wires the current canonical rollout across the configured chains, plus 7 fork test files that exercise the deployed
+attack surface is a single Foundry/Sphinx deployment script (`script/Deploy.s.sol`, ~2,230 lines) that deploys and
+wires the current canonical rollout across the configured chains, plus 21 fork test files that exercise the deployed
 ecosystem.
 
 Read [ARCHITECTURE.md](./ARCHITECTURE.md) for structure. Read [RISKS.md](./RISKS.md) for known risks. Read [ADMINISTRATION.md](./ADMINISTRATION.md) for post-deployment privileges. Then come back here.
@@ -11,8 +11,8 @@ Read [ARCHITECTURE.md](./ARCHITECTURE.md) for structure. Read [RISKS.md](./RISKS
 
 **In scope:**
 ```
-script/Deploy.s.sol        # The deployment script (~1,600 lines)
-test/fork/*.t.sol          # 7 fork integration tests (~270,000 lines total)
+script/Deploy.s.sol        # The deployment script (~2,230 lines)
+test/fork/*.t.sol          # 21 fork integration tests (~13,100 lines total)
 foundry.toml               # Build configuration
 package.json               # Dependency versions
 ```
@@ -108,15 +108,15 @@ These are the permission/ownership actions taken during the script. Each is a po
 
 | Action | Line | What It Does | What Could Go Wrong |
 |--------|------|-------------|-------------------|
-| `_directory.setIsAllowedToSetFirstController(_controller, true)` | 934 | Allows `_controller` to be set as first controller for new projects | If called with wrong address, no projects can launch, or a malicious controller gets whitelist access |
-| `_buybackRegistry.setDefaultHook(_buybackHook)` | 519 | Sets default buyback hook | Wrong hook = all projects using default get broken buyback |
-| `_routerTerminalRegistry.setDefaultTerminal(_routerTerminal)` | 544 | Sets default router terminal | Wrong terminal = routing payments fail |
-| `_suckerRegistry.allowSuckerDeployers(...)` | 566 | Whitelists sucker deployers | Missing deployer = that bridge pair is unavailable. Extra deployer = potential unauthorized bridge |
-| `opDeployer.setChainSpecificConstants(...)` | 581+ | Sets bridge addresses per chain | Wrong bridge = cross-chain messages go to wrong contract |
-| `opDeployer.configureSingleton(singleton)` | 603+ | Sets clone source for sucker deployer | Wrong singleton = all suckers for that pair are broken |
-| `_prices.addPriceFeedFor(...)` | 893-908, 1059-1061 | Registers immutable price feeds | Wrong feed = permanent price miscalculation. Cannot be changed after set. |
-| `_projects.createFor(safeAddress())` | 1070, 1093 | Creates projects 2 and 3 | Wrong owner = project lost |
-| `_projects.approve(_revDeployer, projectId)` | 1118, 1227, 1301 | Grants NFT transfer approval for REVDeployer to configure projects | If REVDeployer is malicious or wrong address, project ownership can be stolen |
+| `_directory.setIsAllowedToSetFirstController(_controller, true)` | 1329 | Allows `_controller` to be set as first controller for new projects | If called with wrong address, no projects can launch, or a malicious controller gets whitelist access |
+| `_buybackRegistry.setDefaultHook(_buybackHook)` | 740 | Sets default buyback hook | Wrong hook = all projects using default get broken buyback |
+| `_routerTerminalRegistry.setDefaultTerminal(_routerTerminal)` | 798 | Sets default router terminal | Wrong terminal = routing payments fail |
+| `_suckerRegistry.allowSuckerDeployers(...)` | 877 | Whitelists sucker deployers | Missing deployer = that bridge pair is unavailable. Extra deployer = potential unauthorized bridge |
+| `opDeployer.setChainSpecificConstants(...)` | 908+ | Sets bridge addresses per chain | Wrong bridge = cross-chain messages go to wrong contract |
+| `opDeployer.configureSingleton(singleton)` | 921+ | Sets clone source for sucker deployer | Wrong singleton = all suckers for that pair are broken |
+| `_prices.addPriceFeedFor(...)` | 2179 | Registers immutable price feeds | Wrong feed = permanent price miscalculation. Cannot be changed after set. |
+| `_projects.createFor(safeAddress())` | 2189 | Creates projects | Wrong owner = project lost |
+| `_projects.approve(_revDeployer, projectId)` | 1557, 1816, 1893 | Grants NFT transfer approval for REVDeployer to configure projects | If REVDeployer is malicious or wrong address, project ownership can be stolen |
 
 ## Chain-Specific Address Verification
 
@@ -240,7 +240,7 @@ These are hardcoded and immutable after deployment. Verify each value against th
 
 ## How to Run Fork Tests
 
-The repo includes 7 fork tests in `test/fork/`. These deploy a fresh JB core on forked Ethereum mainnet (block 21700000+) and exercise the full stack.
+The repo includes 21 fork tests in `test/fork/`. These deploy a fresh JB core on forked Ethereum mainnet (block 21700000+) and exercise the full stack.
 
 ```bash
 # Install dependencies
@@ -276,11 +276,25 @@ forge test --match-path "test/fork/*" --gas-report
 
 | Test File | What It Exercises |
 |-----------|------------------|
-| `EcosystemFork.t.sol` | Multi-stage revnet with buyback hook, 721 tier splits, LP-split hook, payments via terminal + V4 router |
-| `FullStackFork.t.sol` | Full deployment stack: core + hooks + revnets + loans |
+| `ApprovalHookFork.t.sol` | Approval hook timing and ruleset transitions |
 | `BuybackRouterFork.t.sol` | Buyback hook + router terminal integration |
 | `CrossCurrencyFork.t.sol` | Multi-currency operations with price feed conversions |
+| `DeployFork.t.sol` | Deployment script execution on fork |
+| `DeployFullStack.t.sol` | Full deployment stack verification |
+| `DeployScriptVerification.t.sol` | Post-deployment state verification |
+| `EcosystemFork.t.sol` | Multi-stage revnet with buyback hook, 721 tier splits, LP-split hook, payments via terminal + V4 router |
+| `FullStackFork.t.sol` | Full deployment stack: core + hooks + revnets + loans |
+| `HookCompositionFork.t.sol` | Multi-hook composition and interaction |
 | `LPBuybackInteropFork.t.sol` | LP split hook + buyback hook interoperability |
+| `PayoutReentrancyFork.t.sol` | Reentrancy during payout distribution |
+| `PriceFeedFailureFork.t.sol` | Price feed failure and staleness handling |
+| `ReservedInflationFork.t.sol` | Reserved token inflation on cashout values |
+| `ResumeDeployFork.t.sol` | Resuming partial deployments |
+| `SuckerBuybackFork.t.sol` | Sucker + buyback hook interaction |
+| `SuckerEndToEndFork.t.sol` | End-to-end sucker bridging flow |
+| `TestFeeProcessingCascade.t.sol` | Fee processing cascade and held fees |
+| `TestMultiCurrencyPayout.t.sol` | Multi-currency payout distribution |
+| `TestTerminalMigration.t.sol` | Terminal migration lifecycle |
 | `USDCEcosystemFork.t.sol` | USDC-denominated ecosystem operations |
 | `USDCRevnetFork.t.sol` | USDC-denominated revnet configuration |
 
