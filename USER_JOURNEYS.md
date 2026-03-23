@@ -97,7 +97,7 @@ the repo does not currently provide an in-repo resume script.
 
 ### Events (downstream contract events emitted during deployment)
 
-Phase 01--04 are pure CREATE2 deployments with no configuration events. Starting from Phase 03c:
+Phases 01, 02, 03a, 03b, 03e, and 04 are pure CREATE2 deployments with no configuration events. Phases 03c, 03d, and 03f include post-deployment configuration calls that emit events:
 
 - Phase 03c: `JBBuybackHookRegistry_SetDefaultHook(hook)` -- emitted by `JBBuybackHookRegistry.setDefaultHook()`
 - Phase 03d: `JBRouterTerminalRegistry_SetDefaultTerminal(terminal, caller)` -- emitted by `JBRouterTerminalRegistry.setDefaultTerminal()`
@@ -129,7 +129,7 @@ Each `DeployRevnet` also triggers downstream events: `SetController(projectId, c
 | `Deploy_ExistingAddressMismatch` revert | Buyback default hook or router default terminal already set to a different address | Cannot recover without redeployment with fresh salts |
 | `Deploy_ProjectIdMismatch` revert | `_ensureProjectExists()` created a project with unexpected ID | Means another project was created between phases; restart with awareness of new project count |
 | `Deploy_PriceFeedMismatch` revert | Price feed already set to a different feed for same currency pair | Cannot override; existing feed is immutable in `JBPrices` |
-| Optimism Sepolia missing Uniswap stack | `_shouldDeployUniswapStack()` returns false | By design -- `_positionManager = address(0)` on OP Sepolia; Uniswap-dependent contracts skipped |
+| Optimism Sepolia missing Uniswap stack | `_shouldDeployUniswapStack()` returns false | By design -- `_shouldDeployUniswapStack()` checks `block.chainid != 11_155_420`; Uniswap-dependent contracts skipped on OP Sepolia |
 
 ### Deployment Creates These Projects
 
@@ -336,7 +336,7 @@ cast call <tokens> "tokenOf(uint256)(address)" 3  # REV ERC-20
 
 ### Edge cases
 
-- **Stale price feed**: `latestRoundData().updatedAt` is older than the threshold (3600s for ETH/USD, 86400s for USDC/USD). The JBChainlinkV3PriceFeed wrapper will revert with `JBChainlinkV3PriceFeed_StalePrice()`.
+- **Stale price feed**: `latestRoundData().updatedAt` is older than the threshold (3600s for ETH/USD, 86400s for USDC/USD). The JBChainlinkV3PriceFeed wrapper will revert with `JBChainlinkV3PriceFeed_StalePrice(uint256 timestamp, uint256 threshold, uint256 updatedAt)`.
 - **L2 sequencer down**: `latestRoundData().answer != 0` on the sequencer feed. `JBChainlinkV3SequencerPriceFeed` will revert with `JBChainlinkV3SequencerPriceFeed_SequencerDownOrRestarting(timestamp, gracePeriodTime, startedAt)` or `JBChainlinkV3SequencerPriceFeed_InvalidRound()`.
 - **Optimism Sepolia missing contracts**: Items 20--26 in Phase A are absent by design. Verification must skip these.
 - **controllerOf returns IERC165**: The return type is `IERC165`, not `address`. Cast will still decode the raw address correctly.
@@ -396,7 +396,7 @@ cast call <prices> "pricePerUnitOf(uint256,uint256,uint256,uint256)(uint256)" \
 **Events:** None -- read-only call.
 
 **Edge cases:**
-- Reverts with `JBChainlinkV3PriceFeed_StalePrice()` if Chainlink feed is stale
+- Reverts with `JBChainlinkV3PriceFeed_StalePrice(uint256 timestamp, uint256 threshold, uint256 updatedAt)` if Chainlink feed is stale
 - Reverts with `JBPrices_PriceFeedNotFound()` if feed was not registered in Phase 05
 
 ### Test 3: Cashout
@@ -550,6 +550,9 @@ forge test --match-path "test/fork/*" -vvv --fork-url $RPC_ETHEREUM_MAINNET
 | `TestFeeProcessingCascade.t.sol` | Fee processing cascades correctly across split recipients |
 | `TestMultiCurrencyPayout.t.sol` | Multi-currency payout distribution |
 | `TestTerminalMigration.t.sol` | Terminal migration preserves balances and state |
+| `PayoutReentrancyFork.t.sol` | Payout reentrancy via malicious split hook is safely caught by try-catch |
+| `ReservedInflationFork.t.sol` | Pending reserved tokens inflate totalSupply, reducing cashout value (H-4 behavior) |
+| `SuckerBuybackFork.t.sol` | Sucker exemption path bypasses cashout tax and buyback hook delegation |
 
 ### Events
 
@@ -650,5 +653,5 @@ None -- all verification is read-only.
 ### Edge cases
 
 - **Chain not in `_setupChainAddresses()`**: The deploy script reverts with `"Unsupported chain"` for unrecognized chain IDs. Only the 8 chains listed above are supported.
-- **OP Sepolia missing Uniswap stack**: By design -- `_positionManager = address(0)`, so `_shouldDeployUniswapStack()` returns false. Contracts 20--26 from Phase A will not exist.
+- **OP Sepolia missing Uniswap stack**: By design -- `_shouldDeployUniswapStack()` checks `block.chainid != 11_155_420` and returns false for OP Sepolia. Contracts 20--26 from Phase A will not exist.
 - **L2 sequencer feed only on mainnets**: Sepolia chains use `JBChainlinkV3PriceFeed` (no sequencer check), not `JBChainlinkV3SequencerPriceFeed`. Do not attempt Step 5 on testnets.
