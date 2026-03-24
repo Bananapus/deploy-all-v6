@@ -149,6 +149,7 @@ contract Deploy is Script, Sphinx {
     error Deploy_ProjectIdMismatch(uint256 expected, uint256 actual);
     error Deploy_ProjectNotOwned(uint256 projectId);
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
+    error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
 
     // ════════════════════════════════════════════════════════════════════
     //  Constants
@@ -161,6 +162,7 @@ contract Deploy is Script, Sphinx {
     // ── Core salts ──
     bytes32 private constant DEADLINES_SALT = keccak256("_JBDeadlinesV6_");
     bytes32 private constant USD_NATIVE_FEED_SALT = keccak256("USD_FEEDV6");
+    bytes32 private constant USDC_FEED_SALT = keccak256("USDC_FEEDV6");
 
     // ── Address Registry salt ──
     bytes32 private constant ADDRESS_REGISTRY_SALT = "_JBAddressRegistryV6_";
@@ -1335,65 +1337,159 @@ contract Deploy is Script, Sphinx {
 
     function _deployEthUsdFeed() internal returns (IJBPriceFeed feed) {
         uint256 L2GracePeriod = 3600 seconds;
+        address feedAddress;
+        bool feedDeployed;
 
         // Ethereum Mainnet
         if (block.chainid == 1) {
-            feed = new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419), 3600 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419), 3600 seconds);
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419), 3600 seconds
+                        )
+                    )
+                );
         }
         // Ethereum Sepolia
         else if (block.chainid == 11_155_111) {
-            feed = new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306), 3600 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306), 3600 seconds);
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306), 3600 seconds
+                        )
+                    )
+                );
         }
         // Optimism
         else if (block.chainid == 10) {
-            feed = new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}(
+            bytes memory args = abi.encode(
                 AggregatorV3Interface(0x13e3Ee699D1909E989722E753853AE30b17e08c5),
                 3600 seconds,
                 AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
                 L2GracePeriod
             );
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(0x13e3Ee699D1909E989722E753853AE30b17e08c5),
+                            3600 seconds,
+                            AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
+                            L2GracePeriod
+                        )
+                    )
+                );
         }
         // Optimism Sepolia
         else if (block.chainid == 11_155_420) {
-            feed = new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                AggregatorV3Interface(0x61Ec26aA57019C486B10502285c5A3D4A4750AD7), 3600 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0x61Ec26aA57019C486B10502285c5A3D4A4750AD7), 3600 seconds);
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(0x61Ec26aA57019C486B10502285c5A3D4A4750AD7), 3600 seconds
+                        )
+                    )
+                );
         }
         // Base
         else if (block.chainid == 8453) {
-            feed = new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}(
+            bytes memory args = abi.encode(
                 AggregatorV3Interface(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70),
                 3600 seconds,
                 AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
                 L2GracePeriod
             );
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70),
+                            3600 seconds,
+                            AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
+                            L2GracePeriod
+                        )
+                    )
+                );
         }
         // Base Sepolia
         // Verified: 0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1 is the Chainlink ETH/USD feed on Base Sepolia
         // (description() returns "ETH / USD", 8 decimals, actively updated).
         else if (block.chainid == 84_532) {
-            feed = new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                AggregatorV3Interface(0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1), 3600 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1), 3600 seconds);
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1), 3600 seconds
+                        )
+                    )
+                );
         }
         // Arbitrum
         else if (block.chainid == 42_161) {
-            feed = new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}(
+            bytes memory args = abi.encode(
                 AggregatorV3Interface(0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612),
                 3600 seconds,
                 AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
                 L2GracePeriod
             );
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612),
+                            3600 seconds,
+                            AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
+                            L2GracePeriod
+                        )
+                    )
+                );
         }
         // Arbitrum Sepolia
         else if (block.chainid == 421_614) {
-            feed = new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 3600 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 3600 seconds);
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 3600 seconds
+                        )
+                    )
+                );
         } else {
             revert("Unsupported chain for ETH/USD feed");
         }
@@ -1403,58 +1499,147 @@ contract Deploy is Script, Sphinx {
         uint256 L2GracePeriod = 3600 seconds;
         IJBPriceFeed usdcFeed;
         address usdc;
+        address feedAddress;
+        bool feedDeployed;
 
         if (block.chainid == 1) {
             usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-            usdcFeed = new JBChainlinkV3PriceFeed(
-                AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6), 86_400 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6), 86_400 seconds);
+            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            usdcFeed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
+                            AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6), 86_400 seconds
+                        )
+                    )
+                );
         } else if (block.chainid == 11_155_111) {
             usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
-            usdcFeed = new JBChainlinkV3PriceFeed(
-                AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E), 86_400 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E), 86_400 seconds);
+            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            usdcFeed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
+                            AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E), 86_400 seconds
+                        )
+                    )
+                );
         } else if (block.chainid == 10) {
             usdc = 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
-            usdcFeed = new JBChainlinkV3SequencerPriceFeed({
-                feed: AggregatorV3Interface(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3),
-                threshold: 86_400 seconds,
-                sequencerFeed: AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
-                gracePeriod: L2GracePeriod
-            });
+            bytes memory args = abi.encode(
+                AggregatorV3Interface(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3),
+                86_400 seconds,
+                AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
+                L2GracePeriod
+            );
+            (feedAddress, feedDeployed) =
+                _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            usdcFeed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3SequencerPriceFeed{salt: USDC_FEED_SALT}(
+                            AggregatorV3Interface(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3),
+                            86_400 seconds,
+                            AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
+                            L2GracePeriod
+                        )
+                    )
+                );
         } else if (block.chainid == 11_155_420) {
             usdc = 0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
-            usdcFeed = new JBChainlinkV3PriceFeed(
-                AggregatorV3Interface(0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C), 86_400 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C), 86_400 seconds);
+            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            usdcFeed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
+                            AggregatorV3Interface(0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C), 86_400 seconds
+                        )
+                    )
+                );
         } else if (block.chainid == 8453) {
             usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-            usdcFeed = new JBChainlinkV3SequencerPriceFeed({
-                feed: AggregatorV3Interface(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B),
-                threshold: 86_400 seconds,
-                sequencerFeed: AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
-                gracePeriod: L2GracePeriod
-            });
+            bytes memory args = abi.encode(
+                AggregatorV3Interface(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B),
+                86_400 seconds,
+                AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
+                L2GracePeriod
+            );
+            (feedAddress, feedDeployed) =
+                _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            usdcFeed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3SequencerPriceFeed{salt: USDC_FEED_SALT}(
+                            AggregatorV3Interface(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B),
+                            86_400 seconds,
+                            AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
+                            L2GracePeriod
+                        )
+                    )
+                );
         } else if (block.chainid == 84_532) {
             usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
             // Base Sepolia USDC/USD Chainlink feed.
             // Verified at https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet
-            usdcFeed = new JBChainlinkV3PriceFeed(
-                AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 86_400 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 86_400 seconds);
+            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            usdcFeed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
+                            AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 86_400 seconds
+                        )
+                    )
+                );
         } else if (block.chainid == 42_161) {
             usdc = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-            usdcFeed = new JBChainlinkV3SequencerPriceFeed({
-                feed: AggregatorV3Interface(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3),
-                threshold: 86_400 seconds,
-                sequencerFeed: AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
-                gracePeriod: L2GracePeriod
-            });
+            bytes memory args = abi.encode(
+                AggregatorV3Interface(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3),
+                86_400 seconds,
+                AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
+                L2GracePeriod
+            );
+            (feedAddress, feedDeployed) =
+                _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            usdcFeed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3SequencerPriceFeed{salt: USDC_FEED_SALT}(
+                            AggregatorV3Interface(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3),
+                            86_400 seconds,
+                            AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
+                            L2GracePeriod
+                        )
+                    )
+                );
         } else if (block.chainid == 421_614) {
             usdc = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
-            usdcFeed = new JBChainlinkV3PriceFeed(
-                AggregatorV3Interface(0x0153002d20B96532C639313c2d54c3dA09109309), 86_400 seconds
-            );
+            bytes memory args =
+                abi.encode(AggregatorV3Interface(0x0153002d20B96532C639313c2d54c3dA09109309), 86_400 seconds);
+            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            usdcFeed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
+                            AggregatorV3Interface(0x0153002d20B96532C639313c2d54c3dA09109309), 86_400 seconds
+                        )
+                    )
+                );
         } else {
             revert("Unsupported chain for USDC feed");
         }
@@ -1942,13 +2127,38 @@ contract Deploy is Script, Sphinx {
         string memory defaultAlienEyes =
             '<g class="o"><path d="M190 127h3v3h-3zm3 13h4v3h-4zm-42 0h6v6h-6z"/><path d="M151 133h3v7h-3zm10 0h6v4h-6z"/><path d="M157 137h17v6h-17zm3 13h14v3h-14zm17-13h7v16h-7z"/><path d="M184 137h6v6h-6zm0 10h10v6h-10z"/><path d="M187 143h10v4h-10z"/><path d="M190 140h3v3h-3zm-6-10h3v7h-3z"/><path d="M187 130h6v3h-6zm-36 0h10v3h-10zm16 13h7v7h-7zm-10 0h7v7h-7z"/><path d="M164 147h3v3h-3zm29-20h4v6h-4z"/><path d="M194 133h3v7h-3z"/></g><g class="w"><path d="M154 133h7v4h-7z"/><path d="M154 137h3v3h-3zm10 6h3v4h-3zm20 0h3v4h-3zm3-10h7v4h-7z"/><path d="M190 137h4v3h-4z"/></g>';
 
-        Banny721TokenUriResolver resolver = new Banny721TokenUriResolver{salt: BAN_RESOLVER_SALT}(
-            bannyBody, defaultNecklace, defaultMouth, defaultStandardEyes, defaultAlienEyes, operator, _trustedForwarder
-        );
-
-        resolver.setMetadata(
-            "A piece of Banny Retail.", "https://retail.banny.eth.shop", "https://bannyverse.infura-ipfs.io/ipfs/"
-        );
+        Banny721TokenUriResolver resolver;
+        {
+            bytes memory resolverArgs = abi.encode(
+                bannyBody,
+                defaultNecklace,
+                defaultMouth,
+                defaultStandardEyes,
+                defaultAlienEyes,
+                operator,
+                _trustedForwarder
+            );
+            (address resolverAddress, bool resolverDeployed) =
+                _isDeployed(BAN_RESOLVER_SALT, type(Banny721TokenUriResolver).creationCode, resolverArgs);
+            if (resolverDeployed) {
+                resolver = Banny721TokenUriResolver(resolverAddress);
+            } else {
+                resolver = new Banny721TokenUriResolver{salt: BAN_RESOLVER_SALT}(
+                    bannyBody,
+                    defaultNecklace,
+                    defaultMouth,
+                    defaultStandardEyes,
+                    defaultAlienEyes,
+                    operator,
+                    _trustedForwarder
+                );
+                resolver.setMetadata(
+                    "A piece of Banny Retail.",
+                    "https://retail.banny.eth.shop",
+                    "https://bannyverse.infura-ipfs.io/ipfs/"
+                );
+            }
+        }
 
         // Build the Banny revnet config.
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
@@ -2137,7 +2347,7 @@ contract Deploy is Script, Sphinx {
         });
 
         // Deploy the $BAN revnet with 721 tiers (revnetId: 0 creates new project).
-        _revDeployer.deployFor({
+        (uint256 banProjectId,) = _revDeployer.deployFor({
             revnetId: 0,
             configuration: banConfig,
             terminalConfigurations: terminalConfigs,
@@ -2145,6 +2355,7 @@ contract Deploy is Script, Sphinx {
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
         });
+        if (banProjectId != _BAN_PROJECT_ID) revert Deploy_BannyProjectIdMismatch(banProjectId, _BAN_PROJECT_ID);
     }
 
     // TODO: Defifa phases — add back when ready.
