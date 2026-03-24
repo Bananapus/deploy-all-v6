@@ -131,14 +131,14 @@ import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHook
 // ── Banny ──
 import {Banny721TokenUriResolver} from "@bannynet/core-v6/src/Banny721TokenUriResolver.sol";
 
-// ── Defifa ── (TODO: uncomment when Defifa source is updated)
-// import {ITypeface} from "lib/typeface/contracts/interfaces/ITypeface.sol";
+// ── Defifa ──
+import {ITypeface} from "lib/typeface/contracts/interfaces/ITypeface.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-// import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
-// import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
-// import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
-// import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
+import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
+import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
+import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
+import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
 
 /// @title Deploy — Juicebox V6 Ecosystem
 /// @notice One-shot deployment of the entire Juicebox V6 ecosystem.
@@ -320,6 +320,12 @@ contract Deploy is Script, Sphinx {
     REVLoans private _revLoans;
     REVDeployer private _revDeployer;
 
+    // Defifa
+    DefifaHook private _defifaHook;
+    DefifaTokenUriResolver private _defifaTokenUriResolver;
+    DefifaGovernor private _defifaGovernor;
+    DefifaDeployer private _defifaDeployer;
+
     // Project IDs (determined by deploy order)
     uint256 private _cpnProjectId; // project 2
     uint256 private _revProjectId; // project 3
@@ -333,6 +339,7 @@ contract Deploy is Script, Sphinx {
     address private _v3Factory;
     address private _poolManager;
     address private _positionManager;
+    address private _typeface;
 
     // ════════════════════════════════════════════════════════════════════
     //  Sphinx Configuration
@@ -400,9 +407,8 @@ contract Deploy is Script, Sphinx {
         // Phase 09: Banny — creates BAN project (ID 4)
         _deployBanny();
 
-        // TODO: Defifa — uncomment when ready.
-        // _deployDefifaRevnet();
-        // _deployDefifa();
+        // Phase 10: Defifa — deploys the Defifa game infrastructure (hook, resolver, governor, deployer).
+        _deployDefifa();
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -416,6 +422,7 @@ contract Deploy is Script, Sphinx {
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
+            _typeface = 0xA77b7D93E79f1E6B4f77FaB29d9ef85733A3D44A;
         }
         // Ethereum Sepolia
         else if (block.chainid == 11_155_111) {
@@ -423,6 +430,7 @@ contract Deploy is Script, Sphinx {
             _v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
             _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
             _positionManager = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
+            _typeface = 0x8C420d3388C882F40d263714d7A6e2c8DB93905F;
         }
         // Optimism
         else if (block.chainid == 10) {
@@ -430,6 +438,7 @@ contract Deploy is Script, Sphinx {
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
             _positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
+            _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
         }
         // Optimism Sepolia
         // Keep deploy-all supported here, but skip the Uniswap-dependent stack since no PositionManager is published.
@@ -438,6 +447,7 @@ contract Deploy is Script, Sphinx {
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = address(0);
+            _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
         }
         // Base
         else if (block.chainid == 8453) {
@@ -445,6 +455,7 @@ contract Deploy is Script, Sphinx {
             _v3Factory = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
             _poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
             _positionManager = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
+            _typeface = 0x3DE45A14ea0fe24037D6363Ae71Ef18F336D1C27;
         }
         // Base Sepolia
         else if (block.chainid == 84_532) {
@@ -452,6 +463,7 @@ contract Deploy is Script, Sphinx {
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
             _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
             _positionManager = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
+            _typeface = 0xEb269d9F0850CEf5e3aB0F9718fb79c466720784;
         }
         // Arbitrum
         else if (block.chainid == 42_161) {
@@ -459,6 +471,7 @@ contract Deploy is Script, Sphinx {
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
             _positionManager = 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
+            _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
         }
         // Arbitrum Sepolia
         else if (block.chainid == 421_614) {
@@ -466,6 +479,7 @@ contract Deploy is Script, Sphinx {
             _v3Factory = 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
             _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
             _positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
+            _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
         } else {
             revert("Unsupported chain");
         }
@@ -2358,7 +2372,115 @@ contract Deploy is Script, Sphinx {
         if (banProjectId != _BAN_PROJECT_ID) revert Deploy_BannyProjectIdMismatch(banProjectId, _BAN_PROJECT_ID);
     }
 
-    // TODO: Defifa phases — add back when ready.
+    // ════════════════════════════════════════════════════════════════════
+    //  Phase 10: Defifa
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @notice Deploys the Defifa game infrastructure: hook code origin, token URI resolver, governor, and deployer.
+    /// @dev Uses the REV project (ID 3) as the Defifa fee project and the NANA fee project (ID 1) as the base
+    /// protocol project. These will be updated when a dedicated Defifa revnet is created.
+    function _deployDefifa() internal {
+        // Resolve the ERC-20 token for the Defifa fee project (REV, project 3).
+        IERC20 defifaToken = IERC20(address(_tokens.tokenOf(_REV_PROJECT_ID)));
+
+        // Resolve the ERC-20 token for the base protocol fee project (NANA, project 1).
+        IERC20 baseProtocolToken = IERC20(address(_tokens.tokenOf(_FEE_PROJECT_ID)));
+
+        // Skip deployment if either project token is not yet deployed on this chain.
+        if (address(defifaToken) == address(0) || address(baseProtocolToken) == address(0)) return;
+
+        // ── DefifaHook (code origin for clone-based game deployment) ──
+        {
+            // Encode the constructor arguments for the DefifaHook.
+            bytes memory hookArgs = abi.encode(_directory, defifaToken, baseProtocolToken);
+
+            // Predict the CREATE2 address for the hook.
+            (address hookAddr, bool hookDeployed) = _isDeployed(DEFIFA_SALT, type(DefifaHook).creationCode, hookArgs);
+
+            if (hookDeployed) {
+                // Re-use the already-deployed hook.
+                _defifaHook = DefifaHook(hookAddr);
+            } else {
+                // Deploy the Defifa hook code origin used as a template for clones.
+                _defifaHook = new DefifaHook{salt: DEFIFA_SALT}({
+                    _directory: _directory, _defifaToken: defifaToken, _baseProtocolToken: baseProtocolToken
+                });
+            }
+        }
+
+        // ── DefifaTokenUriResolver (on-chain SVG renderer for game NFTs) ──
+        {
+            // Encode the constructor arguments for the token URI resolver.
+            bytes memory resolverArgs = abi.encode(_typeface);
+
+            // Predict the CREATE2 address for the resolver.
+            (address resolverAddr, bool resolverDeployed) =
+                _isDeployed(DEFIFA_SALT, type(DefifaTokenUriResolver).creationCode, resolverArgs);
+
+            if (resolverDeployed) {
+                // Re-use the already-deployed resolver.
+                _defifaTokenUriResolver = DefifaTokenUriResolver(resolverAddr);
+            } else {
+                // Deploy the on-chain SVG token URI resolver for Defifa games.
+                _defifaTokenUriResolver = new DefifaTokenUriResolver{salt: DEFIFA_SALT}(ITypeface(_typeface));
+            }
+        }
+
+        // ── DefifaGovernor (scorecard attestation and ratification) ──
+        {
+            // Encode the constructor arguments for the governor.
+            bytes memory governorArgs = abi.encode(_controller, safeAddress());
+
+            // Predict the CREATE2 address for the governor.
+            (address governorAddr, bool governorDeployed) =
+                _isDeployed(DEFIFA_SALT, type(DefifaGovernor).creationCode, governorArgs);
+
+            if (governorDeployed) {
+                // Re-use the already-deployed governor.
+                _defifaGovernor = DefifaGovernor(governorAddr);
+            } else {
+                // Deploy the governor that manages scorecard voting and ratification.
+                _defifaGovernor = new DefifaGovernor{salt: DEFIFA_SALT}({controller: _controller, owner: safeAddress()});
+            }
+        }
+
+        // ── DefifaDeployer (factory that creates new Defifa games) ──
+        {
+            // Encode the constructor arguments for the deployer.
+            bytes memory deployerArgs = abi.encode(
+                address(_defifaHook),
+                _defifaTokenUriResolver,
+                _defifaGovernor,
+                _controller,
+                _addressRegistry,
+                _REV_PROJECT_ID,
+                _FEE_PROJECT_ID
+            );
+
+            // Predict the CREATE2 address for the deployer.
+            (address deployerAddr, bool deployerDeployed) =
+                _isDeployed(DEFIFA_SALT, type(DefifaDeployer).creationCode, deployerArgs);
+
+            if (deployerDeployed) {
+                // Re-use the already-deployed deployer.
+                _defifaDeployer = DefifaDeployer(deployerAddr);
+            } else {
+                // Deploy the Defifa game factory that clones the hook and launches projects.
+                _defifaDeployer = new DefifaDeployer{salt: DEFIFA_SALT}({
+                    _hookCodeOrigin: address(_defifaHook),
+                    _tokenUriResolver: _defifaTokenUriResolver,
+                    _governor: _defifaGovernor,
+                    _controller: _controller,
+                    _registry: _addressRegistry,
+                    _defifaProjectId: _REV_PROJECT_ID,
+                    _baseProtocolProjectId: _FEE_PROJECT_ID
+                });
+
+                // Transfer governor ownership to the deployer so it can initialize games.
+                _defifaGovernor.transferOwnership(address(_defifaDeployer));
+            }
+        }
+    }
 
     // ════════════════════════════════════════════════════════════════════
     //  Helpers
