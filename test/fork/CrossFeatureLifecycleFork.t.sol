@@ -70,13 +70,6 @@ contract LifecycleMockPriceFeed is IJBPriceFeed {
 ///
 /// Run with: forge test --match-contract CrossFeatureLifecycleForkTest -vvv
 contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
-    // ── ERC721 receiver support ──
-
-    /// @notice Allows this contract to receive ERC-721 tokens (project NFTs, loan NFTs, etc.).
-    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
-        return this.onERC721Received.selector; // return the ERC-721 receiver magic value
-    }
-
     // ── Currency constants ──
     uint32 constant USD = 2; // JBCurrencyIds.USD — abstract USD identifier
 
@@ -360,12 +353,10 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         assertLt(reclaimAmount, proRataReclaim, "Step 8: bonding curve tax should reduce reclaim below pro-rata"); // tax
         // applied
 
-        // Verify tokens were burned. Note: fee processing during cash out mints fee-rebate
-        // tokens to the beneficiary (PAYER2), so the final balance may be slightly higher
-        // than (payer2Tokens - cashOutCount). We verify the net decrease is close to cashOutCount.
+        // Verify tokens were burned.
         uint256 payer2TokensAfter = jbTokens().totalBalanceOf(PAYER2, projectId); // check token balance after
-        assertLt(payer2TokensAfter, payer2Tokens, "Step 8: PAYER2 token balance should decrease after cash out"); // balance
-        // decreased
+        assertEq(payer2TokensAfter, payer2Tokens - cashOutCount, "Step 8: cashed-out tokens should be burned"); // tokens
+        // burned
 
         // ═══════════════════════════════════════════════════════════════
         // STEP 9: Verify final accounting — all balances reconcile

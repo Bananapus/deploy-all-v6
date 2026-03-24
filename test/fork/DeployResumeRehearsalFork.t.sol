@@ -300,7 +300,8 @@ contract InstrumentedDeployer is IERC721Receiver {
         feeless = flD ? JBFeelessAddresses(fl) : new JBFeelessAddresses{salt: coreSalt}({owner: address(this)});
 
         (address ts, bool tsD) =
-            _isDeployed(coreSalt, type(JBTerminalStore).creationCode, abi.encode(directory, rulesets, prices));
+            _isDeployed(coreSalt, type(JBTerminalStore).creationCode, abi.encode(directory, prices, rulesets)); // Match
+        // constructor order: (directory, prices, rulesets).
         terminalStore = tsD
             ? JBTerminalStore(ts)
             : new JBTerminalStore{salt: coreSalt}({directory: directory, rulesets: rulesets, prices: prices});
@@ -308,7 +309,9 @@ contract InstrumentedDeployer is IERC721Receiver {
         (address tm, bool tmD) = _isDeployed(
             coreSalt,
             type(JBMultiTerminal).creationCode,
-            abi.encode(permissions, projects, splits, terminalStore, tokens, feeless, _PERMIT2, trustedForwarder)
+            abi.encode(feeless, permissions, projects, splits, terminalStore, tokens, _PERMIT2, trustedForwarder) // Match
+            // constructor order: (feelessAddresses, permissions, projects, splits, store, tokens, permit2,
+            // trustedForwarder).
         );
         terminal = tmD
             ? JBMultiTerminal(tm)
@@ -609,8 +612,8 @@ contract InstrumentedDeployer is IERC721Receiver {
             abi.encode(
                 directory,
                 fundAccess,
+                permissions, // Match constructor order: permissions before prices.
                 prices,
-                permissions,
                 projects,
                 rulesets,
                 splits,
