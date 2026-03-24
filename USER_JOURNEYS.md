@@ -71,9 +71,9 @@ In the Sphinx dashboard:
 
 **6. Execution**
 
-Sphinx executes the approved proposal on each target chain. Each chain gets one `deploy()` call, but operators should
-not treat that as a validated resume-safe atomic transport. If execution halts after some CREATE2 deployments succeed,
-the repo does not currently provide an in-repo resume script.
+Sphinx executes the approved proposal on each target chain. Each chain gets one `deploy()` call. If execution halts
+after some CREATE2 deployments succeed, use `script/Resume.s.sol` to resume from the first incomplete phase. After
+any deployment (full or resumed), run `script/Verify.s.sol` to validate post-deployment state.
 
 **7. Verify deployment (see Journey 2)**
 
@@ -122,8 +122,8 @@ Each `DeployRevnet` also triggers downstream events: `SetController(projectId, c
 | Compilation error | `forge build` fails | Fix source, rebuild |
 | Sphinx proposal rejection | Dashboard shows rejected | Fix parameters, re-propose |
 | Gas estimation failure | Sphinx reports insufficient gas | Fund Safe with more ETH |
-| Chain RPC failure during execution | Partial deployment on that chain | If retries do not clear it, prepare a resume script that skips completed CREATE2 deployments or redeploy from fresh salts |
-| Constructor revert on one chain | That chain's deployment fails entirely | Fix the chain-specific parameter, then either resume from the failed phase boundary or redeploy from fresh salts |
+| Chain RPC failure during execution | Partial deployment on that chain | If retries do not clear it, run `script/Resume.s.sol` to resume from the first incomplete phase, or redeploy from fresh salts |
+| Constructor revert on one chain | That chain's deployment fails entirely | Fix the chain-specific parameter, then run `script/Resume.s.sol` or redeploy from fresh salts |
 | Wrong chain ID match | Chain-specific addresses from wrong chain | **Cannot recover without redeployment**. Contracts with wrong external addresses are permanently misconfigured. |
 | CREATE2 address collision on rerun | `_isDeployed()` returns true, script skips redeployment | Safe by design -- the script detects existing deployments and reuses them |
 | `Deploy_ExistingAddressMismatch` revert | Buyback default hook or router default terminal already set to a different address | Cannot recover without redeployment with fresh salts |
@@ -147,8 +147,8 @@ on-chain, re-running the same deployment step with the same salt and initcode co
 Recovery must be an explicit operator action:
 
 1. Inspect which phases completed on-chain.
-2. Choose either a phase-aware resume script or a fresh deployment with new salts.
-3. Verify post-recovery wiring before proceeding to user-facing launch checks.
+2. Run `script/Resume.s.sol` (phase-aware, skips completed deployments) or redeploy from fresh salts.
+3. Run `script/Verify.s.sol` to validate post-recovery wiring before proceeding to user-facing launch checks.
 
 ---
 

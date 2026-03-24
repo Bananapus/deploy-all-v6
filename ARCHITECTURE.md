@@ -9,7 +9,9 @@ Master deployment script for the current canonical Juicebox V6 rollout. This rep
 
 ```
 script/
-└── Deploy.s.sol — Sphinx deployment script (~1,600 lines)
+├── Deploy.s.sol  — Sphinx deployment script
+├── Resume.s.sol  — Resumable recovery script (skips already-deployed contracts)
+└── Verify.s.sol  — Post-deployment verification script
 ```
 
 There is no `src/` directory. This repo exists solely to orchestrate ecosystem deployment.
@@ -62,13 +64,16 @@ The script deploys the following production-scoped stack in dependency order:
 - `CTDeployer`
 - `CTProjectOwner`
 - `Banny721TokenUriResolver`
+- `DefifaHook`
+- `DefifaTokenUriResolver`
+- `DefifaGovernor`
+- `DefifaDeployer`
 
 ## What It Does Not Deploy
 
 The current script does not instantiate:
 
 - `JBOwnable`
-- Defifa contracts
 
 ## Sphinx Proposal Flow
 
@@ -99,14 +104,15 @@ Sphinx proposal → Deploy.deploy()
   Phase 07: REV revnet
   Phase 08: Existing project configuration
   Phase 09: Banny
+  Phase 10: Defifa
 ```
 
 ## Deployment Transport Limits
 
-Each chain executes one Sphinx-managed `deploy()` call, but this repo does not yet ship a resumable recovery script.
-If execution halts after some CREATE2 deployments succeed, operators must either resume with a purpose-built script
-that skips already-deployed contracts or redeploy from fresh salts. Re-proposing the full script with the same salts
-is not a safe recovery path.
+Each chain executes one Sphinx-managed `deploy()` call. If execution halts after some CREATE2 deployments succeed,
+`script/Resume.s.sol` can resume from the first incomplete phase -- it detects already-deployed contracts via
+`extcodesize` checks and performs only the remaining deployments and wiring. `script/Verify.s.sol` validates
+post-deployment state. Re-proposing the full script with the same salts is not a safe recovery path.
 
 ## Target Chains
 
@@ -137,7 +143,7 @@ because there is no published Uniswap V4 `PositionManager`.
 | `@rev-net/core-v6` | REVDeployer, REVLoans |
 | `@croptop/core-v6` | CTPublisher, CTDeployer, CTProjectOwner |
 | `@bannynet/core-v6` | Banny 721 token URI resolver |
-| `@ballkidz/defifa` | Defifa (not deployed by this script) |
+| `@ballkidz/defifa` | Defifa game infrastructure (Phase 10) |
 
 ### Third-Party
 

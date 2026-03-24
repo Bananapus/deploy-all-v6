@@ -31,23 +31,20 @@ The script deploys contracts in dependency order within one Sphinx proposal:
 | 07 | Revnet | REV project (ID 3), REVLoans, REVDeployer |
 | 08 | CPN + NANA revnets | Configure project 2 and project 1 as revnets |
 | 09 | Banny | BAN project (ID 4) |
+| 10 | Defifa | DefifaHook, DefifaTokenUriResolver, DefifaGovernor, DefifaDeployer |
 
-The current script does **not** deploy Defifa or `JBOwnable`. It does deploy the canonical Uniswap V4 stack:
+The current script does **not** deploy `JBOwnable`. It does deploy the canonical Uniswap V4 stack:
 `JBUniswapV4Hook`, `JBBuybackHook` wired to that router hook as its oracle, and
 `JBUniswapV4LPSplitHook` plus `JBUniswapV4LPSplitHookDeployer`.
 
 ## Recovery Model
 
-This repo does **not** currently ship a resumable partial-deployment recovery script. If a live Sphinx execution stops
-after some CREATE2 deployments succeed, re-proposing the full script with the same salts is not a safe recovery path:
-those deployments will collide with contracts that already exist.
+`script/Resume.s.sol` is a resumable recovery script. If a live Sphinx execution stops after some CREATE2
+deployments succeed, re-proposing the full script with the same salts is not a safe recovery path: those
+deployments will collide with contracts that already exist. Instead, use `Resume.s.sol`, which detects
+already-deployed contracts via `extcodesize` checks and performs only the remaining deployments and wiring.
 
-Operationally, treat recovery as one of two explicit options:
-
-1. Resume with a purpose-built script that skips already-deployed contracts and performs only the remaining wiring.
-2. Redeploy from fresh salts and discard the partial deployment.
-
-Do not rely on ad hoc re-proposal of the full script after a partial execution.
+See `DEPLOY.md` for the full operator runbook, including recovery procedures.
 
 ## Prerequisites
 
@@ -121,7 +118,9 @@ All V6 dependencies are installed from npm:
 ```
 deploy-all-v6/
 ├── script/
-│   └── Deploy.s.sol        # Single Sphinx deployment script (all 9 phases)
+│   ├── Deploy.s.sol        # Single Sphinx deployment script (all 10 phases)
+│   ├── Resume.s.sol        # Resumable recovery script (skips already-deployed contracts)
+│   └── Verify.s.sol        # Post-deployment verification script
 ├── src/                     # Empty -- no application contracts (deployment-only repo)
 ├── test/
 │   └── fork/                # Fork tests that replay the deployment against live mainnet state

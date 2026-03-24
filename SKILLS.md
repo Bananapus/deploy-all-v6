@@ -173,4 +173,4 @@ If wiring state is partially set and mismatches expectations, the script will re
 - **CCIP sucker full mesh** -- L1 deploys 3 CCIP deployers (one per L2). Each L2 deploys 3 CCIP deployers (one per L2 + L1). This creates a full mesh of CCIP cross-chain bridges.
 - **Fork tests require multiple RPCs** -- The test suite needs `RPC_ETHEREUM_MAINNET`, `RPC_OPTIMISM_MAINNET`, `RPC_BASE_MAINNET`, and `RPC_ARBITRUM_MAINNET` for comprehensive coverage.
 - **Feeless router terminal** -- The router terminal is automatically marked feeless via `_feeless.setFeelessAddress()`. Payments through it do not incur protocol fees.
-- **Defifa is TODO** -- The deploy script has commented-out Defifa phases (`_deployDefifaRevnet()`, `_deployDefifa()`). These will be added when Defifa source is updated.
+- **Defifa is deployed in Phase 10** -- `_deployDefifa()` deploys DefifaHook, DefifaTokenUriResolver, DefifaGovernor, and DefifaDeployer. Uses the REV project (ID 3) as the fee project.
