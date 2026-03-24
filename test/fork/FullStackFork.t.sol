@@ -617,7 +617,7 @@ contract FullStackForkTest is TestBaseWorkflow {
 
         // Cash out all payer tokens.
         vm.prank(PAYER);
-        uint256 reclaimed = jbMultiTerminal()
+        jbMultiTerminal()
             .cashOutTokensOf({
                 holder: PAYER,
                 projectId: revnetId,
