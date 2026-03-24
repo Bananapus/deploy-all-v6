@@ -766,7 +766,10 @@ contract DeployFullStackTest is Test {
         _deploy721Hook();
 
         // Phase 03b: Uniswap V4 Hook
+        // Stop prank: CREATE2 deployer must be address(this) to match HookMiner.find(address(this), ...).
+        vm.stopPrank();
         _deployUniswapV4Hook(cfg);
+        vm.startPrank(_deployer);
 
         // Phase 03c: Buyback Hook
         _deployBuybackHook(cfg);

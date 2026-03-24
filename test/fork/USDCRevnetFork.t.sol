@@ -459,7 +459,11 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
         vm.prank(address(liqHelper));
         liqHelper.addLiquidity(key, TICK_LOWER, TICK_UPPER, liquidityDelta);
 
-        _mockOracle(liquidityDelta, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
+        // Compute the oracle tick that matches the issuance rate: 1000 project tokens (18 dec) per USDC (6 dec).
+        // Raw ratio = 1e21 / 1e6 = 1e15. tick = ln(1e15)/ln(1.0001) ≈ 345_400.
+        // Sign depends on token sort order: positive if USDC is token0 (project token is more expensive in raw terms).
+        int24 issuanceTick = address(usdc) < projectToken ? int24(345_400) : int24(-345_400);
+        _mockOracle(liquidityDelta, issuanceTick, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
     }
 
     function _mockOracle(int256 liquidity, int24 tick, uint32 twapWindow) internal {
