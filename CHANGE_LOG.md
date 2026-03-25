@@ -117,5 +117,4 @@ v6 ships with comprehensive operational documentation:
 
 ## 5. Not Yet Deployed
 
-- Defifa contracts (commented out, awaiting source updates)
 - `JBOwnable` (v6 exists but not included in deploy phases)

@@ -263,7 +263,11 @@ contract DeployForkTest is Test {
             new JB721TiersHookProjectDeployer(_directory, _permissions, _hookDeployer, _trustedForwarder);
 
         // ── Phase 03b: Uniswap V4 Router Hook ──
+        // Stop prank: CREATE2 deployer must be address(this) to match HookMiner.find(address(this), ...).
+        // Under vm.startPrank, CREATE2 uses the pranked address, causing an address mismatch.
+        vm.stopPrank();
         _uniswapV4Hook = _deployUniswapV4Hook();
+        vm.startPrank(_deployer);
 
         // ── Phase 03c: Buyback Hook ──
         _buybackRegistry = new JBBuybackHookRegistry(_permissions, _projects, _deployer, _trustedForwarder);

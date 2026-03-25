@@ -164,8 +164,7 @@ Each revnet has a hardcoded operator address (see table above) that is separate 
 
 ### Unfinished Deployment Steps
 
-- **Uniswap V4 router/oracle stack** -- `JBUniswapV4Hook`, `JBUniswapV4LPSplitHook`, and `JBUniswapV4LPSplitHookDeployer` are deployed by this script. `JBOwnable` is still out of scope.
-- **Defifa** -- `_deployDefifa()` and `_deployDefifaRevnet()` are commented out entirely.
+- **`JBOwnable`** -- Not deployed by this script.
 
 ## Recovery
 
