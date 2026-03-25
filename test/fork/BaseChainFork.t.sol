@@ -2,6 +2,19 @@
 pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+
+/// @dev Stub oracle hook returning zero-liquidity observations, causing the buyback hook to fall back to minting.
+contract StubOracleHook {
+    function observe(PoolKey calldata, uint32[] calldata secondsAgos)
+        external
+        pure
+        returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s)
+    {
+        tickCumulatives = new int56[](secondsAgos.length);
+        secondsPerLiquidityCumulativeX128s = new uint160[](secondsAgos.length);
+    }
+}
 import /* {*} from */ "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
 
 // Core imports for stack deployment and payment flows.
@@ -171,6 +184,8 @@ contract BaseChainForkTest is TestBaseWorkflow {
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         // Deploy buyback hook using Base's real PoolManager address.
+        // Use a stub oracle hook that returns zero-liquidity so the buyback hook falls back to minting.
+        StubOracleHook stubOracle = new StubOracleHook();
         BUYBACK_HOOK = new JBBuybackHook(
             jbDirectory(),
             jbPermissions(),
@@ -178,7 +193,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
             jbProjects(),
             jbTokens(),
             IPoolManager(BASE_POOL_MANAGER),
-            IHooks(address(0)),
+            IHooks(address(stubOracle)),
             address(0)
         );
 
