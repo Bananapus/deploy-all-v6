@@ -186,9 +186,8 @@ contract BaseChainForkTest is TestBaseWorkflow {
             abi.encode(IPoolManager(BASE_POOL_MANAGER), jbTokens(), jbDirectory(), jbPrices());
         (, bytes32 hookSalt) =
             HookMiner.find(address(this), hookFlags, type(JBUniswapV4Hook).creationCode, constructorArgs);
-        JBUniswapV4Hook oracleHook = new JBUniswapV4Hook{salt: hookSalt}(
-            IPoolManager(BASE_POOL_MANAGER), jbTokens(), jbDirectory(), jbPrices()
-        );
+        JBUniswapV4Hook oracleHook =
+            new JBUniswapV4Hook{salt: hookSalt}(IPoolManager(BASE_POOL_MANAGER), jbTokens(), jbDirectory(), jbPrices());
 
         // Deploy buyback hook using Base's real PoolManager and the univ4 router as oracle hook.
         BUYBACK_HOOK = new JBBuybackHook(

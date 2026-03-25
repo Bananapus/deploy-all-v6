@@ -52,7 +52,7 @@ cp .env.example .env
 ```bash
 forge build
 ```
-Build uses `via_ir = true`, `optimizer = false`, Solidity 0.8.26, Cancun EVM. This is slow (~5-10 minutes). Verify zero compilation errors.
+Build uses `via_ir = true`, `optimizer = false`, Solidity 0.8.28, Cancun EVM. This is slow (~5-10 minutes). Verify zero compilation errors.
 
 **4. Propose deployment**
 
