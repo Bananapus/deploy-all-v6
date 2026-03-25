@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
 import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
@@ -422,7 +422,7 @@ contract ResumeDeployHarness is IERC721Receiver {
             abi.encode(permissions, projects, _PERMIT2, address(this), trustedForwarder)
         );
         routerTerminalRegistry = registryDeployed
-            ? JBRouterTerminalRegistry(registryAddress)
+            ? JBRouterTerminalRegistry(payable(registryAddress))
             : new JBRouterTerminalRegistry{salt: ROUTER_TERMINAL_REGISTRY_SALT}({
                 permissions: permissions,
                 projects: projects,

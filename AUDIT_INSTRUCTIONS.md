@@ -454,7 +454,7 @@ These values are from [`foundry.toml`](./foundry.toml):
 
 | Setting | Value |
 |---------|-------|
-| Solidity version | `0.8.26` |
+| Solidity version | `^0.8.28` |
 | EVM target | `cancun` |
 | Optimizer | `false` (disabled in default profile) |
 | `via_ir` | `true` |

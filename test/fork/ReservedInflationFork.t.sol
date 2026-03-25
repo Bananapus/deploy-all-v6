@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {EcosystemForkTest} from "./EcosystemFork.t.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";

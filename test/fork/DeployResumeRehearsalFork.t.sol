@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 // ════════════════════════════════════════════════════════════════════════════════
 // DeployResumeRehearsalFork.t.sol — Phase-boundary interruption tests for Resume.s.sol.
@@ -455,7 +455,7 @@ contract InstrumentedDeployer is IERC721Receiver {
             abi.encode(permissions, projects, _PERMIT2, address(this), trustedForwarder)
         );
         routerTerminalRegistry = rD
-            ? JBRouterTerminalRegistry(r)
+            ? JBRouterTerminalRegistry(payable(r))
             : new JBRouterTerminalRegistry{salt: ROUTER_TERMINAL_REGISTRY_SALT}({
                 permissions: permissions,
                 projects: projects,
