@@ -2,19 +2,6 @@
 pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-
-/// @dev Stub oracle hook returning zero-liquidity observations, causing the buyback hook to fall back to minting.
-contract StubOracleHook {
-    function observe(PoolKey calldata, uint32[] calldata secondsAgos)
-        external
-        pure
-        returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s)
-    {
-        tickCumulatives = new int56[](secondsAgos.length);
-        secondsPerLiquidityCumulativeX128s = new uint160[](secondsAgos.length);
-    }
-}
 import /* {*} from */ "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
 
 // Core imports for stack deployment and payment flows.
@@ -62,6 +49,11 @@ import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerD
 // Uniswap V4 imports for verifying PoolManager presence on Base.
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+
+// Uniswap V4 router (geomean oracle) for buyback hook slippage protection.
+import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
 
 /// @notice Base mainnet (chain ID 8453) fork test exercising the full Juicebox V6 stack.
 ///
@@ -183,9 +175,22 @@ contract BaseChainForkTest is TestBaseWorkflow {
         // Deploy croptop publisher (required by REVDeployer).
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
-        // Deploy buyback hook using Base's real PoolManager address.
-        // Use a stub oracle hook that returns zero-liquidity so the buyback hook falls back to minting.
-        StubOracleHook stubOracle = new StubOracleHook();
+        // Deploy the univ4 router (JBUniswapV4Hook) as the oracle hook for geomean slippage protection.
+        // Hook addresses must encode permission flags in lower bits — use HookMiner to find a valid salt.
+        uint160 hookFlags = uint160(
+            Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+        );
+        bytes memory constructorArgs =
+            abi.encode(IPoolManager(BASE_POOL_MANAGER), jbTokens(), jbDirectory(), jbPrices());
+        (, bytes32 hookSalt) =
+            HookMiner.find(address(this), hookFlags, type(JBUniswapV4Hook).creationCode, constructorArgs);
+        JBUniswapV4Hook oracleHook = new JBUniswapV4Hook{salt: hookSalt}(
+            IPoolManager(BASE_POOL_MANAGER), jbTokens(), jbDirectory(), jbPrices()
+        );
+
+        // Deploy buyback hook using Base's real PoolManager and the univ4 router as oracle hook.
         BUYBACK_HOOK = new JBBuybackHook(
             jbDirectory(),
             jbPermissions(),
@@ -193,7 +198,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
             jbProjects(),
             jbTokens(),
             IPoolManager(BASE_POOL_MANAGER),
-            IHooks(address(stubOracle)),
+            IHooks(address(oracleHook)),
             address(0)
         );
 
