@@ -87,7 +87,7 @@ Sucker infrastructure deployed as a canonical phase:
 ### 3.2 Compiler & Tooling
 | Aspect | v5 | v6 |
 |--------|----|----|
-| Solidity | `0.8.23` | `0.8.26` |
+| Solidity | `0.8.23` | `^0.8.28` |
 | EVM target | `paris` | `cancun` |
 | `via_ir` | varies | `true` (required for stack depth) |
 | Optimizer | enabled | disabled |

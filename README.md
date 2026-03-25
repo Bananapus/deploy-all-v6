@@ -108,7 +108,7 @@ All V6 dependencies are installed from npm:
 
 ## Build Configuration
 
-- Solidity 0.8.26, Cancun EVM
+- Solidity ^0.8.28, Cancun EVM
 - `via_ir = true` (required for stack depth)
 - Optimizer disabled (stack-too-deep with optimization enabled)
 - Sphinx plugin for multi-chain atomic deployment

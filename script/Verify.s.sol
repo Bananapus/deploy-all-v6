@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity ^0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
 
@@ -237,7 +237,8 @@ contract Verify is Script {
         buybackRegistry = JBBuybackHookRegistry(vm.envOr("VERIFY_BUYBACK_REGISTRY", address(0)));
 
         // Read the router terminal registry address from env (address(0) if not deployed on this chain).
-        routerTerminalRegistry = JBRouterTerminalRegistry(vm.envOr("VERIFY_ROUTER_TERMINAL_REGISTRY", address(0)));
+        routerTerminalRegistry =
+            JBRouterTerminalRegistry(payable(vm.envOr("VERIFY_ROUTER_TERMINAL_REGISTRY", address(0))));
         // Read the router terminal address from env (address(0) if not deployed on this chain).
         routerTerminal = JBRouterTerminal(payable(vm.envOr("VERIFY_ROUTER_TERMINAL", address(0))));
 

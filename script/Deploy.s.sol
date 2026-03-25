@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity ^0.8.28;
 
 import "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script, stdJson, VmSafe} from "forge-std/Script.sol";
@@ -771,7 +771,7 @@ contract Deploy is Script, Sphinx {
             arguments: abi.encode(_permissions, _projects, _PERMIT2, safeAddress(), _trustedForwarder)
         });
         _routerTerminalRegistry = registryDeployed
-            ? JBRouterTerminalRegistry(registry)
+            ? JBRouterTerminalRegistry(payable(registry))
             : new JBRouterTerminalRegistry{salt: ROUTER_TERMINAL_REGISTRY_SALT}({
                 permissions: _permissions,
                 projects: _projects,
