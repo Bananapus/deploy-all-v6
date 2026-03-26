@@ -273,8 +273,18 @@ contract Verify is Script {
         // Read the current total project count from the registry.
         uint256 totalProjects = projects.count();
 
-        // Verify at least 4 projects have been created (NANA, CPN, REV, BAN).
-        _check(totalProjects >= 4, "Project count >= 4", true);
+        // Determine whether the Uniswap stack was deployed on this chain.
+        // Chains without Uniswap (e.g. Optimism Sepolia) skip revnet phases 08-09,
+        // so fewer projects are created (only CPN project from Croptop phase).
+        bool hasUniswapStack = address(buybackRegistry) != address(0);
+
+        if (hasUniswapStack) {
+            // Full deploy: expect at least 4 projects (NANA, CPN, REV, BAN).
+            _check(totalProjects >= 4, "Project count >= 4 (full Uniswap stack)", true);
+        } else {
+            // Reduced deploy: expect at least 2 projects (NANA + CPN created, but not configured as revnets).
+            _check(totalProjects >= 2, "Project count >= 2 (no Uniswap stack)", true);
+        }
 
         // Verify project 1 (NANA/FEE) has an owner (ERC-721 ownerOf does not revert).
         _checkProjectHasOwner(_FEE_PROJECT_ID, "Project 1 (NANA) exists with owner");
@@ -282,11 +292,17 @@ contract Verify is Script {
         // Verify project 2 (CPN/Croptop) has an owner.
         _checkProjectHasOwner(_CPN_PROJECT_ID, "Project 2 (CPN) exists with owner");
 
-        // Verify project 3 (REV) has an owner.
-        _checkProjectHasOwner(_REV_PROJECT_ID, "Project 3 (REV) exists with owner");
+        if (hasUniswapStack) {
+            // Verify project 3 (REV) has an owner — only on chains with the full Uniswap stack.
+            _checkProjectHasOwner(_REV_PROJECT_ID, "Project 3 (REV) exists with owner");
 
-        // Verify project 4 (BAN/Banny) has an owner.
-        _checkProjectHasOwner(_BAN_PROJECT_ID, "Project 4 (BAN) exists with owner");
+            // Verify project 4 (BAN/Banny) has an owner — only on chains with the full Uniswap stack.
+            _checkProjectHasOwner(_BAN_PROJECT_ID, "Project 4 (BAN) exists with owner");
+        } else {
+            // Skip project 3 and 4 checks on chains without the Uniswap/buyback stack.
+            _skip("Project 3 (REV) check (no Uniswap stack on this chain)");
+            _skip("Project 4 (BAN) check (no Uniswap stack on this chain)");
+        }
 
         // Log a blank line for readability.
         console.log("");
@@ -311,13 +327,17 @@ contract Verify is Script {
             true
         );
 
-        // For each of the 4 canonical projects, check directory wiring.
+        // Determine how many projects to check based on whether the Uniswap stack was deployed.
+        bool hasUniswapStack = address(buybackRegistry) != address(0);
+        uint256 projectCount = hasUniswapStack ? 4 : 2;
+
+        // For each canonical project, check directory wiring.
         uint256[4] memory projectIds = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
         // Corresponding human-readable labels for logging.
         string[4] memory labels = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
 
         // Iterate through each project to validate its directory entries.
-        for (uint256 i; i < projectIds.length; i++) {
+        for (uint256 i; i < projectCount; i++) {
             // Read the controller set for this project in the directory.
             IERC165 projectController = directory.controllerOf(projectIds[i]);
             // Verify a controller is actually set (non-zero address).
