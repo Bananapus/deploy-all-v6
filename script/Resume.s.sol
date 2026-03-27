@@ -162,6 +162,13 @@ import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHook
 // ── Banny ──
 import {Banny721TokenUriResolver} from "@bannynet/core-v6/src/Banny721TokenUriResolver.sol";
 
+// ── Defifa ──
+import {ITypeface} from "lib/typeface/contracts/interfaces/ITypeface.sol";
+import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
+import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
+import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
+import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title Resume -- Juicebox V6 Deployment Recovery Script
@@ -253,6 +260,9 @@ contract Resume is Script {
     bytes32 private constant BAN_SUCKER_SALT = "_BAN_SUCKERV6_";
     bytes32 private constant BAN_HOOK_SALT = "_BAN_HOOKV6_";
     bytes32 private constant BAN_RESOLVER_SALT = "_BAN_RESOLVERV6_";
+
+    // ── Defifa salt ──
+    bytes32 private constant DEFIFA_SALT = "_DEFIFA_SALTV6_";
 
     // ── Project IDs — determined by sequential creation order ──
     uint256 private constant _FEE_PROJECT_ID = 1;
@@ -353,6 +363,12 @@ contract Resume is Script {
     REVLoans private _revLoans;
     REVDeployer private _revDeployer;
 
+    // Defifa references.
+    DefifaHook private _defifaHook;
+    DefifaTokenUriResolver private _defifaTokenUriResolver;
+    DefifaGovernor private _defifaGovernor;
+    DefifaDeployer private _defifaDeployer;
+
     // Project IDs (populated during resume).
     uint256 private _cpnProjectId;
     uint256 private _revProjectId;
@@ -362,6 +378,7 @@ contract Resume is Script {
     address private _v3Factory;
     address private _poolManager;
     address private _positionManager;
+    address private _typeface;
 
     // Deployer address — the msg.sender that originally ran Deploy.s.sol.
     address private _deployer;
@@ -437,6 +454,9 @@ contract Resume is Script {
         // ── Phase 09: Banny ──
         _resumeBanny();
 
+        // ── Phase 10: Defifa ──
+        _resumeDefifa();
+
         // Stop broadcasting.
         vm.stopBroadcast();
 
@@ -461,6 +481,7 @@ contract Resume is Script {
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
+            _typeface = 0xA77b7D93E79f1E6B4f77FaB29d9ef85733A3D44A;
         }
         // Ethereum Sepolia.
         else if (block.chainid == 11_155_111) {
@@ -468,6 +489,7 @@ contract Resume is Script {
             _v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
             _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
             _positionManager = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
+            _typeface = 0x8C420d3388C882F40d263714d7A6e2c8DB93905F;
         }
         // Optimism.
         else if (block.chainid == 10) {
@@ -475,6 +497,7 @@ contract Resume is Script {
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
             _positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
+            _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
         }
         // Optimism Sepolia — no PositionManager, Uniswap stack skipped.
         else if (block.chainid == 11_155_420) {
@@ -482,6 +505,7 @@ contract Resume is Script {
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = address(0); // No PositionManager on OP Sepolia.
+            _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
         }
         // Base.
         else if (block.chainid == 8453) {
@@ -489,6 +513,7 @@ contract Resume is Script {
             _v3Factory = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
             _poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
             _positionManager = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
+            _typeface = 0x3DE45A14ea0fe24037D6363Ae71Ef18F336D1C27;
         }
         // Base Sepolia.
         else if (block.chainid == 84_532) {
@@ -496,6 +521,7 @@ contract Resume is Script {
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
             _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
             _positionManager = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
+            _typeface = 0xEb269d9F0850CEf5e3aB0F9718fb79c466720784;
         }
         // Arbitrum.
         else if (block.chainid == 42_161) {
@@ -503,6 +529,7 @@ contract Resume is Script {
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
             _positionManager = 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
+            _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
         }
         // Arbitrum Sepolia.
         else if (block.chainid == 421_614) {
@@ -510,6 +537,7 @@ contract Resume is Script {
             _v3Factory = 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
             _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
             _positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
+            _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
         } else {
             revert("Unsupported chain"); // Fail fast for unknown chains.
         }
@@ -2032,15 +2060,172 @@ contract Resume is Script {
             return;
         }
 
-        // If we reach here, CPN needs to be configured. This is a complex operation
-        // that mirrors Deploy.s.sol._deployCpnRevnet(). For safety, log and proceed.
+        // CPN needs to be configured — mirrors Deploy.s.sol._deployCpnRevnet().
         console2.log("[Phase 08a] CPN Revnet: EXECUTING configuration...");
-        _phasesExecuted++;
 
-        // Approve and deploy — identical to Deploy.s.sol._deployCpnRevnet().
-        // (Full implementation omitted for brevity — operator should verify manually)
-        console2.log("[Phase 08a] WARNING: CPN revnet configuration requires manual review.");
-        console2.log("[Phase 08a] Run the full Deploy.s.sol to configure CPN if needed.");
+        address operator = 0x240dc2085caEF779F428dcd103CFD2fB510EdE82;
+
+        JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
+        accountingContexts[0] =
+            JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
+
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
+        terminalConfigs[1] = JBTerminalConfig({
+            terminal: IJBTerminal(address(_routerTerminalRegistry)),
+            accountingContextsToAccept: new JBAccountingContext[](0)
+        });
+
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            percent: JBConstants.SPLITS_TOTAL_PERCENT,
+            projectId: 0,
+            beneficiary: payable(operator),
+            preferAddToBalance: false,
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
+
+        REVStageConfig[] memory stages = new REVStageConfig[](3);
+
+        {
+            REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
+            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: CPN_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[1] = REVAutoIssuance({chainId: 10, count: CPN_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[2] = REVAutoIssuance({chainId: 8453, count: CPN_BASE_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: CPN_ARB_AUTO_ISSUANCE, beneficiary: operator});
+
+            stages[0] = REVStageConfig({
+                startsAtOrAfter: CPN_START_TIME,
+                autoIssuances: autoIssuances,
+                splitPercent: 3800,
+                splits: splits,
+                initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
+                issuanceCutFrequency: 120 days,
+                issuanceCutPercent: 380_000_000,
+                cashOutTaxRate: 1000,
+                extraMetadata: 4
+            });
+        }
+
+        stages[1] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[0].startsAtOrAfter + 720 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 3800,
+            splits: splits,
+            initialIssuance: 1,
+            issuanceCutFrequency: 30 days,
+            issuanceCutPercent: 70_000_000,
+            cashOutTaxRate: 1000,
+            extraMetadata: 4
+        });
+
+        stages[2] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[1].startsAtOrAfter + 3800 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 3800,
+            splits: splits,
+            initialIssuance: 0,
+            issuanceCutFrequency: 0,
+            issuanceCutPercent: 0,
+            cashOutTaxRate: 1000,
+            extraMetadata: 4
+        });
+
+        REVConfig memory cpnConfig = REVConfig({
+            description: REVDescription({
+                name: "Croptop Publishing Network",
+                ticker: "CPN",
+                uri: "ipfs://QmUAFevoMn1iqSEQR8LogQYRxm39TNxQTPYnuLuq5BmfEi",
+                salt: CPN_ERC20_SALT
+            }),
+            baseCurrency: ETH_CURRENCY,
+            splitOperator: operator,
+            stageConfigurations: stages
+        });
+
+        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(CPN_SUCKER_SALT);
+
+        REVDeploy721TiersHookConfig memory hookConfig = REVDeploy721TiersHookConfig({
+            baseline721HookConfiguration: REVBaseline721HookConfig({
+                name: "Croptop Publishing Network",
+                symbol: "CPN",
+                baseUri: "ipfs://",
+                tokenUriResolver: IJB721TokenUriResolver(address(0)),
+                contractUri: "",
+                tiersConfig: JB721InitTiersConfig({
+                    tiers: new JB721TierConfig[](0), currency: ETH_CURRENCY, decimals: DECIMALS
+                }),
+                reserveBeneficiary: address(0),
+                flags: REV721TiersHookFlags({
+                    noNewTiersWithReserves: false,
+                    noNewTiersWithVotes: true,
+                    noNewTiersWithOwnerMinting: true,
+                    preventOverspending: false
+                })
+            }),
+            salt: CPN_HOOK_SALT,
+            preventSplitOperatorAdjustingTiers: false,
+            preventSplitOperatorUpdatingMetadata: false,
+            preventSplitOperatorMinting: false,
+            preventSplitOperatorIncreasingDiscountPercent: false
+        });
+
+        REVCroptopAllowedPost[] memory allowedPosts = new REVCroptopAllowedPost[](5);
+        allowedPosts[0] = REVCroptopAllowedPost({
+            category: 0,
+            minimumPrice: uint104(10 ** (DECIMALS - 5)),
+            minimumTotalSupply: 10_000,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+        allowedPosts[1] = REVCroptopAllowedPost({
+            category: 1,
+            minimumPrice: uint104(10 ** (DECIMALS - 3)),
+            minimumTotalSupply: 10_000,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+        allowedPosts[2] = REVCroptopAllowedPost({
+            category: 2,
+            minimumPrice: uint104(10 ** (DECIMALS - 1)),
+            minimumTotalSupply: 100,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+        allowedPosts[3] = REVCroptopAllowedPost({
+            category: 3,
+            minimumPrice: uint104(10 ** DECIMALS),
+            minimumTotalSupply: 10,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+        allowedPosts[4] = REVCroptopAllowedPost({
+            category: 4,
+            minimumPrice: uint104(10 ** (DECIMALS + 2)),
+            minimumTotalSupply: 10,
+            maximumTotalSupply: 999_999_999,
+            maximumSplitPercent: 0,
+            allowedAddresses: new address[](0)
+        });
+
+        // Approve the REV deployer to configure CPN (project 2).
+        _projects.approve(address(_revDeployer), _cpnProjectId);
+
+        _revDeployer.deployFor({
+            revnetId: _cpnProjectId,
+            configuration: cpnConfig,
+            terminalConfigurations: terminalConfigs,
+            suckerDeploymentConfiguration: suckerConfig,
+            tiered721HookConfiguration: hookConfig,
+            allowedPosts: allowedPosts
+        });
+
+        _phasesExecuted++;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2062,12 +2247,77 @@ contract Resume is Script {
             return;
         }
 
-        // If we reach here, NANA needs to be configured.
+        // NANA needs to be configured — mirrors Deploy.s.sol._deployNanaRevnet().
         console2.log("[Phase 08b] NANA Revnet: EXECUTING configuration...");
-        _phasesExecuted++;
 
-        console2.log("[Phase 08b] WARNING: NANA revnet configuration requires manual review.");
-        console2.log("[Phase 08b] Run the full Deploy.s.sol to configure NANA if needed.");
+        uint256 feeProjectId = _FEE_PROJECT_ID;
+        address operator = 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5;
+
+        JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
+        accountingContexts[0] =
+            JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
+
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
+        terminalConfigs[1] = JBTerminalConfig({
+            terminal: IJBTerminal(address(_routerTerminalRegistry)),
+            accountingContextsToAccept: new JBAccountingContext[](0)
+        });
+
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            percent: JBConstants.SPLITS_TOTAL_PERCENT,
+            projectId: 0,
+            beneficiary: payable(operator),
+            preferAddToBalance: false,
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
+
+        REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
+        autoIssuances[0] = REVAutoIssuance({chainId: 1, count: NANA_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
+        autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: NANA_BASE_AUTO_ISSUANCE, beneficiary: operator});
+        autoIssuances[2] = REVAutoIssuance({chainId: 10, count: NANA_OP_AUTO_ISSUANCE, beneficiary: operator});
+        autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: NANA_ARB_AUTO_ISSUANCE, beneficiary: operator});
+
+        REVStageConfig[] memory stages = new REVStageConfig[](1);
+        stages[0] = REVStageConfig({
+            startsAtOrAfter: NANA_START_TIME,
+            autoIssuances: autoIssuances,
+            splitPercent: 6200,
+            splits: splits,
+            initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
+            issuanceCutFrequency: 360 days,
+            issuanceCutPercent: 380_000_000,
+            cashOutTaxRate: 1000,
+            extraMetadata: 4
+        });
+
+        REVConfig memory nanaConfig = REVConfig({
+            description: REVDescription({
+                name: "Bananapus (Juicebox V6)",
+                ticker: "NANA",
+                uri: "ipfs://QmWCgCaryfsJYBu5LczFuBz3UKK5VEU3BZFYp2mHJTLeRQ",
+                salt: NANA_ERC20_SALT
+            }),
+            baseCurrency: ETH_CURRENCY,
+            splitOperator: operator,
+            stageConfigurations: stages
+        });
+
+        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(NANA_SUCKER_SALT);
+
+        // Approve the REV deployer to configure project ID 1.
+        _projects.approve(address(_revDeployer), feeProjectId);
+
+        _revDeployer.deployFor({
+            revnetId: feeProjectId,
+            configuration: nanaConfig,
+            terminalConfigurations: terminalConfigs,
+            suckerDeploymentConfiguration: suckerConfig
+        });
+
+        _phasesExecuted++;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2089,12 +2339,355 @@ contract Resume is Script {
             return;
         }
 
-        // If we reach here, Banny needs to be deployed.
+        // Banny needs to be deployed — mirrors Deploy.s.sol._deployBanny().
         console2.log("[Phase 09] Banny: EXECUTING deployment...");
-        _phasesExecuted++;
 
-        console2.log("[Phase 09] WARNING: Banny deployment requires manual review.");
-        console2.log("[Phase 09] Run the full Deploy.s.sol to deploy Banny if needed.");
+        address operator = 0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450;
+
+        // Deploy the URI resolver.
+        string memory bannyBody =
+            '<g class="a1"><path d="M173 53h4v17h-4z"/></g><g class="a2"><path d="M167 57h3v10h-3z"/><path d="M169 53h4v17h-4z"/></g><g class="a3"><path d="M167 53h3v4h-3z"/><path d="M163 57h4v10h-4z"/><path d="M167 67h3v3h-3z"/></g><g class="b1"><path d="M213 253h-3v-3-3h-3v-7-3h-4v-10h-3v-7-7-3h-3v-73h-4v-10h-3v-10h-3v-7h-4v-7h-3v-3h-3v-3h-4v10h4v10h3v10h3v3h4v7 3 70 3h3v7h3v20h4v7h3v3h3v3h4v4h3v3h3v-3-4z"/><path d="M253 307v-4h-3v-3h-3v-3h-4v-4h-3v-3h-3v-3h-4v-4h-3v-3h-3v-3h-4v-4h-3v-6h-3v-7h-4v17h4v3h3v3h3 4v4h3v3h3v3h4v4h3v3h3v3h4v4h3v3h3v3h4v-6h-4z"/></g><g class="b2"><path d="M250 310v-3h-3v-4h-4v-3h-3v-3h-3v-4h-4v-3h-3v-3h-3v-4h-7v-3h-3v-3h-4v-17h-3v-3h-3v-4h-4v-3h-3v-3h-3v-7h-4v-20h-3v-7h-3v-73-3-7h-4v-3h-3v-10h-3v-10h-4V70h-3v-3l-3 100 3-100v40h-3v10h-4v6h-3v14h-3v3 13h-4v44h4v16h3v14h3v13h4v10h3v7h3v3h4v3h3v4h3v3h4v3h3v4h3v3h4v3h3v7h7v7h6v3h7v3h7v4h13v3h3v3h10v-3h-3zm-103-87v-16h3v-10h-3v6h-4v17h-3v10h3v-7h4z"/><path d="M143 230h4v7h-4zm4 10h3v3h-3zm3 7h3v3h-3zm3 6h4v4h-4z"/><path d="M163 257h-6v3h3v3h3v4h4v-4-3h-4v-3z"/></g><g class="b3"><path d="M143 197v6h4v-6h6v-44h4v-16h3v-14h3v-6h4v-10h3V97h-7v6h-3v4h-3v3h-4v3h-3v4 3h-3v3 4h-4v10h-3v16 4h-3v46h3v-6h3z"/><path d="M140 203h3v17h-3z"/><path d="M137 220h3v10h-3z"/><path d="M153 250h-3v-7h-3v-6h-4v-7h-3v10h3v7h4v6h3v4h3v-7zm-3 10h3v7h-3z"/><path d="M147 257h3v3h-3zm6 0h4v3h-4z"/><path d="M160 263v-3h-3v3 7h6v-7h-3zm-10-56v16h-3v7h3v10h3v7h4v6h6v4h7v-4-3h-3v-10h-4v-13h-3v-14h-3v-16h-4v10h-3z"/><path d="M243 313v-3h-3v-3h-10-3v-4h-7v-3h-7v-3h-6v-7h-7v-7h-3v-3h-4v-3h-3v-4h-3v-3h-4v-3h-3v-4h-3v-3h-4v-3h-3v10h-3v3h-4v3h-3v7h3v7h4v6h3v5h4v3h6v3h3v3h4 3v3h3 4v3h3 3v4h10v3h7 7 3v3h10 3v-3h10v-3h4v-4h-14z"/></g><g class="b4"><path d="M183 130h4v7h-4z"/><path d="M180 127h3v3h-3zm-27-4h4v7h-4z"/><path d="M157 117h3v6h-3z"/><path d="M160 110h3v7h-3z"/><path d="M163 107h4v3h-4zm-3 83h3v7h-3z"/><path d="M163 187h4v3h-4zm20 0h7v3h-7z"/><path d="M180 190h3v3h-3zm10-7h3v4h-3z"/><path d="M193 187h4v6h-4zm-20 53h4v7h-4z"/><path d="M177 247h3v6h-3z"/><path d="M180 253h3v7h-3z"/><path d="M183 260h7v3h-7z"/><path d="M190 263h3v4h-3zm0-20h3v4h-3z"/><path d="M187 240h3v3h-3z"/><path d="M190 237h3v3h-3zm13 23h4v3h-4z"/><path d="M207 263h3v7h-3z"/><path d="M210 270h3v3h-3zm-10 7h3v6h-3z"/><path d="M203 283h4v7h-4z"/><path d="M207 290h6v3h-6z"/></g><g class="o"><path d="M133 157h4v50h-4zm0 63h4v10h-4zm27-163h3v10h-3z"/><path d="M163 53h4v4h-4z"/><path d="M167 50h10v3h-10z"/><path d="M177 53h3v17h-3z"/><path d="M173 70h4v27h-4zm-6 0h3v27h-3z"/><path d="M163 67h4v3h-4zm0 30h4v3h-4z"/><path d="M160 100h3v3h-3z"/><path d="M157 103h3v4h-3z"/><path d="M153 107h4v3h-4z"/><path d="M150 110h3v3h-3z"/><path d="M147 113h3v7h-3z"/><path d="M143 120h4v7h-4z"/><path d="M140 127h3v10h-3z"/><path d="M137 137h3v20h-3zm56-10h4v10h-4z"/><path d="M190 117h3v10h-3z"/><path d="M187 110h3v7h-3z"/><path d="M183 103h4v7h-4z"/><path d="M180 100h3v3h-3z"/><path d="M177 97h3v3h-3zm-40 106h3v17h-3zm0 27h3v10h-3zm10 30h3v7h-3z"/><path d="M150 257v-4h-3v-6h-4v-7h-3v10h3v10h4v-3h3z"/><path d="M150 257h3v3h-3z"/><path d="M163 273v-3h-6v-10h-4v7h-3v3h3v3h4v7h3v-7h3z"/><path d="M163 267h4v3h-4z"/><path d="M170 257h-3-4v3h4v7h3v-10z"/><path d="M157 253h6v4h-6z"/><path d="M153 247h4v6h-4z"/><path d="M150 240h3v7h-3z"/><path d="M147 230h3v10h-3zm13 50h3v7h-3z"/><path d="M143 223h4v7h-4z"/><path d="M147 207h3v16h-3z"/><path d="M150 197h3v10h-3zm-10 0h3v6h-3zm50 113h7v3h-7zm23 10h17v3h-17z"/><path d="M230 323h13v4h-13z"/><path d="M243 320h10v3h-10z"/><path d="M253 317h4v3h-4z"/><path d="M257 307h3v10h-3z"/><path d="M253 303h4v4h-4z"/><path d="M250 300h3v3h-3z"/><path d="M247 297h3v3h-3z"/><path d="M243 293h4v4h-4z"/><path d="M240 290h3v3h-3z"/><path d="M237 287h3v3h-3z"/><path d="M233 283h4v4h-4z"/><path d="M230 280h3v3h-3z"/><path d="M227 277h3v3h-3z"/><path d="M223 273h4v4h-4z"/><path d="M220 267h3v6h-3z"/><path d="M217 260h3v7h-3z"/><path d="M213 253h4v7h-4z"/><path d="M210 247h3v6h-3z"/><path d="M207 237h3v10h-3z"/><path d="M203 227h4v10h-4zm-40 60h4v6h-4zm24 20h3v3h-3z"/><path d="M167 293h3v5h-3zm16 14h4v3h-4z"/><path d="M170 298h4v3h-4zm10 6h3v3h-3z"/><path d="M174 301h6v3h-6zm23 12h6v4h-6z"/><path d="M203 317h10v3h-10zm-2-107v-73h-4v73h3v17h3v-17h-2z"/></g><g class="o"><path d="M187 307v-4h3v-6h-3v-4h-4v-3h-3v-3h-7v-4h-6v4h-4v3h4v27h-4v13h-3v10h-4v7h4v3h3 10 14v-3h-4v-4h-3v-3h-3v-3h-4v-7h4v-10h3v-7h3v-3h7v-3h-3zm16 10v-4h-6v17h-4v10h-3v7h3v3h4 6 4 3 14v-3h-4v-4h-7v-3h-3v-3h-3v-10h3v-7h3v-3h-10z"/></g>';
+        string memory defaultNecklace =
+            '<g class="o"><path d="M190 173h-37v-3h-10v-4h-6v4h3v3h-3v4h6v3h10v4h37v-4h3v-3h-3v-4zm-40 4h-3v-4h3v4zm7 3v-3h3v3h-3zm6 0v-3h4v3h-4zm7 0v-3h3v3h-3zm7 0v-3h3v3h-3zm10 0h-4v-3h4v3z"/><path d="M190 170h3v3h-3z"/><path d="M193 166h4v4h-4zm0 7h4v4h-4z"/></g><g class="w"><path d="M137 170h3v3h-3zm10 3h3v4h-3zm10 4h3v3h-3zm6 0h4v3h-4zm7 0h3v3h-3zm7 0h3v3h-3zm6 0h4v3h-4zm7-4h3v4h-3z"/><path d="M193 170h4v3h-4z"/></g>';
+        string memory defaultMouth =
+            '<g class="o"><path d="M183 160v-4h-20v4h-3v3h3v4h24v-7h-4zm-13 3v-3h10v3h-10z" fill="#ad71c8"/><path d="M170 160h10v3h-10z"/></g>';
+        string memory defaultStandardEyes =
+            '<g class="o"><path d="M177 140v3h6v11h10v-11h4v-3h-20z"/><path d="M153 140v3h7v8 3h7 3v-11h3v-3h-20z"/></g><g class="w"><path d="M153 143h7v4h-7z"/><path d="M157 147h3v3h-3zm20-4h6v4h-6z"/><path d="M180 147h3v3h-3z"/></g>';
+        string memory defaultAlienEyes =
+            '<g class="o"><path d="M190 127h3v3h-3zm3 13h4v3h-4zm-42 0h6v6h-6z"/><path d="M151 133h3v7h-3zm10 0h6v4h-6z"/><path d="M157 137h17v6h-17zm3 13h14v3h-14zm17-13h7v16h-7z"/><path d="M184 137h6v6h-6zm0 10h10v6h-10z"/><path d="M187 143h10v4h-10z"/><path d="M190 140h3v3h-3zm-6-10h3v7h-3z"/><path d="M187 130h6v3h-6zm-36 0h10v3h-10zm16 13h7v7h-7zm-10 0h7v7h-7z"/><path d="M164 147h3v3h-3zm29-20h4v6h-4z"/><path d="M194 133h3v7h-3z"/></g><g class="w"><path d="M154 133h7v4h-7z"/><path d="M154 137h3v3h-3zm10 6h3v4h-3zm20 0h3v4h-3zm3-10h7v4h-7z"/><path d="M190 137h4v3h-4z"/></g>';
+
+        Banny721TokenUriResolver resolver;
+        {
+            bytes memory resolverArgs = abi.encode(
+                bannyBody,
+                defaultNecklace,
+                defaultMouth,
+                defaultStandardEyes,
+                defaultAlienEyes,
+                operator,
+                _trustedForwarder
+            );
+            (address resolverAddress, bool resolverDeployed) =
+                _isDeployed(BAN_RESOLVER_SALT, type(Banny721TokenUriResolver).creationCode, resolverArgs);
+            if (resolverDeployed) {
+                resolver = Banny721TokenUriResolver(resolverAddress);
+            } else {
+                resolver = new Banny721TokenUriResolver{salt: BAN_RESOLVER_SALT}(
+                    bannyBody,
+                    defaultNecklace,
+                    defaultMouth,
+                    defaultStandardEyes,
+                    defaultAlienEyes,
+                    operator,
+                    _trustedForwarder
+                );
+                resolver.setMetadata(
+                    "A piece of Banny Retail.",
+                    "https://retail.banny.eth.shop",
+                    "https://bannyverse.infura-ipfs.io/ipfs/"
+                );
+            }
+        }
+
+        // Build the Banny revnet config.
+        JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
+        accountingContexts[0] =
+            JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
+
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
+        terminalConfigs[1] = JBTerminalConfig({
+            terminal: IJBTerminal(address(_routerTerminalRegistry)),
+            accountingContextsToAccept: new JBAccountingContext[](0)
+        });
+
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            percent: JBConstants.SPLITS_TOTAL_PERCENT,
+            projectId: 0,
+            beneficiary: payable(operator),
+            preferAddToBalance: false,
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
+
+        REVStageConfig[] memory stages = new REVStageConfig[](3);
+
+        {
+            REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
+            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: BAN_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: BAN_BASE_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: BAN_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: BAN_ARB_AUTO_ISSUANCE, beneficiary: operator});
+
+            stages[0] = REVStageConfig({
+                startsAtOrAfter: BAN_START_TIME,
+                autoIssuances: autoIssuances,
+                splitPercent: 3800,
+                splits: splits,
+                initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
+                issuanceCutFrequency: 60 days,
+                issuanceCutPercent: 380_000_000,
+                cashOutTaxRate: 1000,
+                extraMetadata: 4
+            });
+        }
+
+        {
+            REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: PREMINT_CHAIN_ID, count: uint104(1_000_000 * DECIMAL_MULTIPLIER), beneficiary: operator
+            });
+
+            stages[1] = REVStageConfig({
+                startsAtOrAfter: uint40(stages[0].startsAtOrAfter + 360 days),
+                autoIssuances: autoIssuances,
+                splitPercent: 3800,
+                splits: splits,
+                initialIssuance: 1,
+                issuanceCutFrequency: 21 days,
+                issuanceCutPercent: 70_000_000,
+                cashOutTaxRate: 1000,
+                extraMetadata: 4
+            });
+        }
+
+        stages[2] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[1].startsAtOrAfter + 1200 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 0,
+            splits: splits,
+            initialIssuance: 0,
+            issuanceCutFrequency: 0,
+            issuanceCutPercent: 0,
+            cashOutTaxRate: 1000,
+            extraMetadata: 4
+        });
+
+        REVConfig memory banConfig = REVConfig({
+            description: REVDescription(
+                "Banny Network", "BAN", "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp", BAN_ERC20_SALT
+            ),
+            baseCurrency: ETH_CURRENCY,
+            splitOperator: operator,
+            stageConfigurations: stages
+        });
+
+        // Build 721 tiers.
+        JB721TierConfig[] memory tiers = new JB721TierConfig[](4);
+        uint24 bannyBodyCategory = 0;
+
+        tiers[0] = JB721TierConfig({
+            price: uint104(1 * (10 ** DECIMALS)),
+            initialSupply: 100,
+            votingUnits: 0,
+            reserveFrequency: 0,
+            reserveBeneficiary: address(0),
+            encodedIPFSUri: bytes32(""),
+            category: bannyBodyCategory,
+            discountPercent: 0,
+            cannotIncreaseDiscountPercent: true,
+            allowOwnerMint: false,
+            useReserveBeneficiaryAsDefault: false,
+            transfersPausable: false,
+            useVotingUnits: false,
+            cannotBeRemoved: true,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
+        });
+        tiers[1] = JB721TierConfig({
+            price: uint104(1 * (10 ** (DECIMALS - 1))),
+            initialSupply: 1000,
+            votingUnits: 0,
+            reserveFrequency: 0,
+            reserveBeneficiary: address(0),
+            encodedIPFSUri: bytes32(""),
+            category: bannyBodyCategory,
+            discountPercent: 0,
+            cannotIncreaseDiscountPercent: true,
+            allowOwnerMint: false,
+            useReserveBeneficiaryAsDefault: false,
+            transfersPausable: false,
+            useVotingUnits: false,
+            cannotBeRemoved: true,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
+        });
+        tiers[2] = JB721TierConfig({
+            price: uint104(1 * (10 ** (DECIMALS - 2))),
+            initialSupply: 10_000,
+            votingUnits: 0,
+            reserveFrequency: 0,
+            reserveBeneficiary: address(0),
+            encodedIPFSUri: bytes32(""),
+            category: bannyBodyCategory,
+            discountPercent: 0,
+            cannotIncreaseDiscountPercent: true,
+            allowOwnerMint: false,
+            useReserveBeneficiaryAsDefault: false,
+            transfersPausable: false,
+            useVotingUnits: false,
+            cannotBeRemoved: true,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
+        });
+        tiers[3] = JB721TierConfig({
+            price: uint104(1 * (10 ** (DECIMALS - 4))),
+            initialSupply: 999_999_999,
+            votingUnits: 0,
+            reserveFrequency: 0,
+            reserveBeneficiary: address(0),
+            encodedIPFSUri: bytes32(""),
+            category: bannyBodyCategory,
+            discountPercent: 0,
+            cannotIncreaseDiscountPercent: true,
+            allowOwnerMint: false,
+            useReserveBeneficiaryAsDefault: false,
+            transfersPausable: false,
+            useVotingUnits: false,
+            cannotBeRemoved: true,
+            splitPercent: 0,
+            splits: new JBSplit[](0)
+        });
+
+        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(BAN_SUCKER_SALT);
+
+        REVDeploy721TiersHookConfig memory hookConfig = REVDeploy721TiersHookConfig({
+            baseline721HookConfiguration: REVBaseline721HookConfig({
+                name: "Banny Retail",
+                symbol: "BANNY",
+                baseUri: "ipfs://",
+                tokenUriResolver: IJB721TokenUriResolver(address(resolver)),
+                contractUri: "https://jbm.infura-ipfs.io/ipfs/Qmd2hgb1E4caEB51VvoC3GvonhwkCoVyXjJ3zqsCxHPTKK",
+                tiersConfig: JB721InitTiersConfig({tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS}),
+                reserveBeneficiary: address(0),
+                flags: REV721TiersHookFlags({
+                    noNewTiersWithReserves: false,
+                    noNewTiersWithVotes: false,
+                    noNewTiersWithOwnerMinting: false,
+                    preventOverspending: false
+                })
+            }),
+            salt: BAN_HOOK_SALT,
+            preventSplitOperatorAdjustingTiers: false,
+            preventSplitOperatorUpdatingMetadata: false,
+            preventSplitOperatorMinting: false,
+            preventSplitOperatorIncreasingDiscountPercent: false
+        });
+
+        // Deploy the $BAN revnet with 721 tiers (revnetId: 0 creates new project).
+        (uint256 banProjectId,) = _revDeployer.deployFor({
+            revnetId: 0,
+            configuration: banConfig,
+            terminalConfigurations: terminalConfigs,
+            suckerDeploymentConfiguration: suckerConfig,
+            tiered721HookConfiguration: hookConfig,
+            allowedPosts: new REVCroptopAllowedPost[](0)
+        });
+        if (banProjectId != _BAN_PROJECT_ID) revert Resume_ProjectIdMismatch(_BAN_PROJECT_ID, banProjectId);
+
+        _phasesExecuted++;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Phase 10: Defifa — deploys game infrastructure (hook, resolver, governor, deployer)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev Deploys the Defifa game infrastructure — identical to Deploy.s.sol._deployDefifa().
+    ///      Each sub-contract uses CREATE2 with DEFIFA_SALT, so already-deployed contracts are detected.
+    function _resumeDefifa() internal {
+        // Resolve the ERC-20 token for the Defifa fee project (REV, project 3).
+        IERC20 defifaToken = IERC20(address(_tokens.tokenOf(_REV_PROJECT_ID)));
+
+        // Resolve the ERC-20 token for the base protocol fee project (NANA, project 1).
+        IERC20 baseProtocolToken = IERC20(address(_tokens.tokenOf(_FEE_PROJECT_ID)));
+
+        // Skip deployment if either project token is not yet deployed on this chain.
+        if (address(defifaToken) == address(0) || address(baseProtocolToken) == address(0)) {
+            console2.log("[Phase 10] Defifa: SKIPPED (project tokens not deployed)");
+            _phasesSkipped++;
+            return;
+        }
+
+        bool allDeployed = true;
+
+        // ── DefifaHook (code origin for clone-based game deployment) ──
+        {
+            bytes memory hookArgs = abi.encode(_directory, defifaToken, baseProtocolToken);
+            (address hookAddr, bool hookDeployed) = _isDeployed(DEFIFA_SALT, type(DefifaHook).creationCode, hookArgs);
+
+            if (hookDeployed) {
+                _defifaHook = DefifaHook(hookAddr);
+            } else {
+                _defifaHook = new DefifaHook{salt: DEFIFA_SALT}({
+                    _directory: _directory, _defifaToken: defifaToken, _baseProtocolToken: baseProtocolToken
+                });
+                allDeployed = false;
+            }
+        }
+
+        // ── DefifaTokenUriResolver (on-chain SVG renderer for game NFTs) ──
+        {
+            bytes memory resolverArgs = abi.encode(_typeface);
+            (address resolverAddr, bool resolverDeployed) =
+                _isDeployed(DEFIFA_SALT, type(DefifaTokenUriResolver).creationCode, resolverArgs);
+
+            if (resolverDeployed) {
+                _defifaTokenUriResolver = DefifaTokenUriResolver(resolverAddr);
+            } else {
+                _defifaTokenUriResolver = new DefifaTokenUriResolver{salt: DEFIFA_SALT}(ITypeface(_typeface));
+                allDeployed = false;
+            }
+        }
+
+        // ── DefifaGovernor (scorecard attestation and ratification) ──
+        {
+            bytes memory governorArgs = abi.encode(_controller, _deployer);
+            (address governorAddr, bool governorDeployed) =
+                _isDeployed(DEFIFA_SALT, type(DefifaGovernor).creationCode, governorArgs);
+
+            if (governorDeployed) {
+                _defifaGovernor = DefifaGovernor(governorAddr);
+            } else {
+                _defifaGovernor = new DefifaGovernor{salt: DEFIFA_SALT}({controller: _controller, owner: _deployer});
+                allDeployed = false;
+            }
+        }
+
+        // ── DefifaDeployer (factory that creates new Defifa games) ──
+        {
+            bytes memory deployerArgs = abi.encode(
+                address(_defifaHook),
+                _defifaTokenUriResolver,
+                _defifaGovernor,
+                _controller,
+                _addressRegistry,
+                _REV_PROJECT_ID,
+                _FEE_PROJECT_ID
+            );
+            (address deployerAddr, bool deployerDeployed) =
+                _isDeployed(DEFIFA_SALT, type(DefifaDeployer).creationCode, deployerArgs);
+
+            if (deployerDeployed) {
+                _defifaDeployer = DefifaDeployer(deployerAddr);
+            } else {
+                _defifaDeployer = new DefifaDeployer{salt: DEFIFA_SALT}({
+                    _hookCodeOrigin: address(_defifaHook),
+                    _tokenUriResolver: _defifaTokenUriResolver,
+                    _governor: _defifaGovernor,
+                    _controller: _controller,
+                    _registry: _addressRegistry,
+                    _defifaProjectId: _REV_PROJECT_ID,
+                    _baseProtocolProjectId: _FEE_PROJECT_ID
+                });
+
+                // Transfer governor ownership to the deployer so it can initialize games.
+                _defifaGovernor.transferOwnership(address(_defifaDeployer));
+                allDeployed = false;
+            }
+        }
+
+        _logPhase("10", "Defifa", allDeployed);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
