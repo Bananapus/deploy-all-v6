@@ -159,6 +159,14 @@ For integrators that consume deployment manifests rather than source code, the m
 - On chains without the Uniswap stack (e.g. Optimism Sepolia), the project count threshold is lowered to 2 and project 3 (REV) and 4 (BAN) checks are skipped.
 - `_verifyDirectoryWiring()` iterates only over deployed projects (2 on non-Uniswap chains, 4 on full chains).
 
-## 7. Not Yet Deployed
+## 7. Enable Revnets on Chains Without Uniswap V4
+
+### Buyback registry deployment split from hook deployment
+- `_deployBuybackRegistry()` extracted from `_deployBuybackHook()` and called unconditionally (outside the `_shouldDeployUniswapStack()` gate).
+- `_deployBuybackHook()` now only deploys the `JBBuybackHook` and sets it as the default — still gated behind `_shouldDeployUniswapStack()`.
+- Revnet deploy functions (`_deployRevnet`, `_deployCpnRevnet`, `_deployNanaRevnet`, `_deployBanny`) no longer early-return when `_buybackRegistry` is set — they deploy on all chains.
+- Terminal configs conditionally include the router terminal only when `_routerTerminalRegistry` is deployed. On chains without Uniswap V4, revnets deploy with only the primary terminal.
+
+## 8. Not Yet Deployed
 
 - `JBOwnable` (v6 exists but is not included in the canonical deploy phases)

@@ -370,11 +370,15 @@ contract Deploy is Script, Sphinx {
         // Phase 03a: 721 Tier Hook
         _deploy721Hook();
 
+        // Phase 03c (registry only): Buyback Hook Registry — deployed unconditionally so revnets work on
+        // chains without Uniswap V4. The registry passes through gracefully when no hook is configured.
+        _deployBuybackRegistry();
+
         if (_shouldDeployUniswapStack()) {
             // Phase 03b: Uniswap V4 Router Hook
             _deployUniswapV4Hook();
 
-            // Phase 03c: Buyback Hook
+            // Phase 03c (hook): Buyback Hook — requires Uniswap V4 PoolManager
             _deployBuybackHook();
 
             // Phase 03d: Router Terminal
@@ -708,10 +712,12 @@ contract Deploy is Script, Sphinx {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Phase 03c: Buyback Hook
+    //  Phase 03c (registry): Buyback Hook Registry
+    //  Deployed unconditionally — the registry passes through gracefully
+    //  when no hook is configured, so projects work without buyback.
     // ════════════════════════════════════════════════════════════════════
 
-    function _deployBuybackHook() internal {
+    function _deployBuybackRegistry() internal {
         (address registry, bool registryDeployed) = _isDeployed({
             salt: BUYBACK_HOOK_SALT,
             creationCode: type(JBBuybackHookRegistry).creationCode,
@@ -725,7 +731,13 @@ contract Deploy is Script, Sphinx {
                 owner: safeAddress(),
                 trustedForwarder: _trustedForwarder
             });
+    }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  Phase 03c (hook): Buyback Hook — requires Uniswap V4 PoolManager
+    // ════════════════════════════════════════════════════════════════════
+
+    function _deployBuybackHook() internal {
         (address hook, bool hookDeployed) = _isDeployed(
             BUYBACK_HOOK_SALT,
             type(JBBuybackHook).creationCode,
@@ -1713,12 +1725,6 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployRevnet() internal {
-        // Skip revnet deployment when the Uniswap stack was not deployed — revnets require buyback + router
-        // registries.
-        if (address(_buybackRegistry) == address(0)) {
-            return;
-        }
-
         _revProjectId = _ensureProjectExists(_REV_PROJECT_ID);
 
         // Deploy REVLoans.
@@ -1775,12 +1781,15 @@ contract Deploy is Script, Sphinx {
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
 
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
         terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        terminalConfigs[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(_routerTerminalRegistry)),
-            accountingContextsToAccept: new JBAccountingContext[](0)
-        });
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -1869,21 +1878,21 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployCpnRevnet() internal {
-        // Skip when the Uniswap stack was not deployed — CPN revnet requires buyback + router registries.
-        if (address(_buybackRegistry) == address(0)) return;
-
         address operator = 0x240dc2085caEF779F428dcd103CFD2fB510EdE82;
 
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
 
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
         terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        terminalConfigs[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(_routerTerminalRegistry)),
-            accountingContextsToAccept: new JBAccountingContext[](0)
-        });
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -2042,9 +2051,6 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployNanaRevnet() internal {
-        // Skip when the Uniswap stack was not deployed — NANA revnet requires buyback + router registries.
-        if (address(_buybackRegistry) == address(0)) return;
-
         uint256 feeProjectId = _FEE_PROJECT_ID;
         address operator = 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5;
 
@@ -2052,12 +2058,15 @@ contract Deploy is Script, Sphinx {
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
 
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
         terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        terminalConfigs[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(_routerTerminalRegistry)),
-            accountingContextsToAccept: new JBAccountingContext[](0)
-        });
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -2120,9 +2129,6 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployBanny() internal {
-        // Skip when the Uniswap stack was not deployed — Banny revnet requires buyback + router registries.
-        if (address(_buybackRegistry) == address(0)) return;
-
         if (_projects.count() >= _BAN_PROJECT_ID && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)) {
             return;
         }
@@ -2179,12 +2185,15 @@ contract Deploy is Script, Sphinx {
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
 
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
         terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        terminalConfigs[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(_routerTerminalRegistry)),
-            accountingContextsToAccept: new JBAccountingContext[](0)
-        });
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
