@@ -2649,8 +2649,7 @@ contract Resume is Script {
             if (governorDeployed) {
                 _defifaGovernor = DefifaGovernor(governorAddr);
             } else {
-                _defifaGovernor =
-                    new DefifaGovernor{salt: DEFIFA_SALT}({controller: _controller, owner: _deployer});
+                _defifaGovernor = new DefifaGovernor{salt: DEFIFA_SALT}({controller: _controller, owner: _deployer});
                 allDeployed = false;
             }
         }
