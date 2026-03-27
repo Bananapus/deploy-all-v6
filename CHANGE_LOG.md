@@ -170,8 +170,8 @@ For integrators that consume deployment manifests rather than source code, the m
 ## 8. Audit Fixes (2026-03-27)
 
 ### RPT-H-3: `DEFIFA_SALT` aligned between Deploy and Resume
-- `Resume.s.sol` previously used the literal string `"_DEFIFA_SALTV6_"` as the Defifa CREATE2 salt, while `Deploy.s.sol` used `bytes32(keccak256("0.0.2"))`. This mismatch meant the resume script would compute different addresses and fail to detect already-deployed Defifa contracts.
-- `DEFIFA_SALT` in `Resume.s.sol` is now `bytes32(keccak256("0.0.2"))`, matching `Deploy.s.sol`.
+- `Deploy.s.sol` previously used `bytes32(keccak256("0.0.2"))` as the Defifa CREATE2 salt, inconsistent with every other salt which uses string literals.
+- Both `Deploy.s.sol` and `Resume.s.sol` now use `"_DEFIFA_SALTV6_"`, matching the convention of all other salts.
 
 ### NEW-M-3: Resume script now reverts on price feed mismatch
 - `Resume.s.sol`'s `_ensureDefaultPriceFeed()` previously silently accepted a mismatched price feed when one was already registered for a currency pair.

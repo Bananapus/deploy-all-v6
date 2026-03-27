@@ -264,7 +264,7 @@ contract Resume is Script {
     bytes32 private constant BAN_RESOLVER_SALT = "_BAN_RESOLVERV6_";
 
     // ── Defifa salt ──
-    bytes32 private constant DEFIFA_SALT = bytes32(keccak256("0.0.2"));
+    bytes32 private constant DEFIFA_SALT = "_DEFIFA_SALTV6_";
 
     // ── Project IDs — determined by sequential creation order ──
     uint256 private constant _FEE_PROJECT_ID = 1;

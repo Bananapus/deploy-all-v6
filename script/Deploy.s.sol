@@ -221,7 +221,7 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant BAN_RESOLVER_SALT = "_BAN_RESOLVERV6_";
 
     // ── Defifa salt ──
-    bytes32 private constant DEFIFA_SALT = bytes32(keccak256("0.0.2"));
+    bytes32 private constant DEFIFA_SALT = "_DEFIFA_SALTV6_";
 
     // ── Defifa Revnet salts ──
     bytes32 private constant DEFIFA_REV_ERC20_SALT = "_DEFIFA_ERC20V6_";

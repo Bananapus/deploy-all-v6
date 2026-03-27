@@ -175,4 +175,4 @@ If wiring state is partially set and mismatches expectations, the script will re
 - **Fork tests require multiple RPCs** -- The test suite needs `RPC_ETHEREUM_MAINNET`, `RPC_OPTIMISM_MAINNET`, `RPC_BASE_MAINNET`, and `RPC_ARBITRUM_MAINNET` for comprehensive coverage.
 - **Feeless router terminal** -- The router terminal is automatically marked feeless via `_feeless.setFeelessAddress()`. Payments through it do not incur protocol fees.
 - **Defifa is deployed in Phase 10** -- `_deployDefifa()` deploys DefifaHook, DefifaTokenUriResolver, DefifaGovernor, and DefifaDeployer. Uses the REV project (ID 3) as the fee project.
-- **`DEFIFA_SALT` is `bytes32(keccak256("0.0.2"))`** -- Both `Deploy.s.sol` and `Resume.s.sol` now use the same salt value. An earlier version of `Resume.s.sol` used the literal `"_DEFIFA_SALTV6_"`, which would produce different CREATE2 addresses and fail to detect already-deployed Defifa contracts.
+- **`DEFIFA_SALT` is `"_DEFIFA_SALTV6_"`** -- Both `Deploy.s.sol` and `Resume.s.sol` use the same string literal salt, consistent with all other salts in the deploy scripts.
