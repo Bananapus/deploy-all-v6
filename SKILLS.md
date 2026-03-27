@@ -74,6 +74,7 @@ One-shot Foundry deployment script that deploys the entire Juicebox V6 ecosystem
 | `Deploy_ExistingAddressMismatch(expected, actual)` | On a rerun, an already-deployed contract does not match the expected address. Happens when `JBBuybackHookRegistry.defaultHook()` or `JBRouterTerminalRegistry.defaultTerminal()` returns a different address. |
 | `Deploy_ProjectIdMismatch(expected, actual)` | `JBProjects.createFor()` returned a different ID than expected (projects were created out of order). |
 | `Deploy_PriceFeedMismatch(projectId, pricingCurrency, unitCurrency)` | A price feed already exists for the given currency pair but does not match the expected feed address. |
+| `Resume_PriceFeedMismatch(projectId, pricingCurrency, unitCurrency)` | Same check in `Resume.s.sol`: a registered price feed does not match the expected feed. The resume script now reverts on mismatch instead of silently accepting the wrong feed. |
 | `revert("Unsupported chain")` | `_setupChainAddresses()` called on a chain not in the supported list. |
 | `revert("Unsupported chain for ETH/USD feed")` | No Chainlink ETH/USD aggregator is configured for the current chain. |
 | `revert("Unsupported chain for USDC feed")` | No Chainlink USDC/USD aggregator is configured for the current chain. |
@@ -174,3 +175,4 @@ If wiring state is partially set and mismatches expectations, the script will re
 - **Fork tests require multiple RPCs** -- The test suite needs `RPC_ETHEREUM_MAINNET`, `RPC_OPTIMISM_MAINNET`, `RPC_BASE_MAINNET`, and `RPC_ARBITRUM_MAINNET` for comprehensive coverage.
 - **Feeless router terminal** -- The router terminal is automatically marked feeless via `_feeless.setFeelessAddress()`. Payments through it do not incur protocol fees.
 - **Defifa is deployed in Phase 10** -- `_deployDefifa()` deploys DefifaHook, DefifaTokenUriResolver, DefifaGovernor, and DefifaDeployer. Uses the REV project (ID 3) as the fee project.
+- **`DEFIFA_SALT` is `bytes32(keccak256("0.0.2"))`** -- Both `Deploy.s.sol` and `Resume.s.sol` now use the same salt value. An earlier version of `Resume.s.sol` used the literal `"_DEFIFA_SALTV6_"`, which would produce different CREATE2 addresses and fail to detect already-deployed Defifa contracts.

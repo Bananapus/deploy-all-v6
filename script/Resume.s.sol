@@ -188,6 +188,8 @@ contract Resume is Script {
     error Resume_ProjectIdMismatch(uint256 expected, uint256 actual);
     /// @notice Reverts when the deployer does not own a project it should.
     error Resume_ProjectNotOwned(uint256 projectId);
+    /// @notice Reverts when a registered price feed does not match the expected feed.
+    error Resume_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Constants — must be identical to Deploy.s.sol
@@ -262,7 +264,7 @@ contract Resume is Script {
     bytes32 private constant BAN_RESOLVER_SALT = "_BAN_RESOLVERV6_";
 
     // ── Defifa salt ──
-    bytes32 private constant DEFIFA_SALT = "_DEFIFA_SALTV6_";
+    bytes32 private constant DEFIFA_SALT = bytes32(keccak256("0.0.2"));
 
     // ── Project IDs — determined by sequential creation order ──
     uint256 private constant _FEE_PROJECT_ID = 1;
@@ -2741,8 +2743,11 @@ contract Resume is Script {
         if (address(existing) == address(0)) {
             // No feed registered — add the expected one.
             _prices.addPriceFeedFor(projectId, pricingCurrency, unitCurrency, expectedFeed);
+        } else if (address(existing) != address(expectedFeed)) {
+            // A wrong feed is already registered. Since default feeds are immutable in JBPrices, this
+            // misconfiguration cannot be corrected — halt so the operator can investigate.
+            revert Resume_PriceFeedMismatch(projectId, pricingCurrency, unitCurrency);
         }
-        // If a feed exists, leave it as-is (do not revert — resume should be forgiving).
     }
 
     /// @dev Creates a project if it does not exist yet. Returns the project ID.

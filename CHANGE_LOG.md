@@ -167,6 +167,21 @@ For integrators that consume deployment manifests rather than source code, the m
 - Revnet deploy functions (`_deployRevnet`, `_deployCpnRevnet`, `_deployNanaRevnet`, `_deployBanny`) no longer early-return when `_buybackRegistry` is set — they deploy on all chains.
 - Terminal configs conditionally include the router terminal only when `_routerTerminalRegistry` is deployed. On chains without Uniswap V4, revnets deploy with only the primary terminal.
 
-## 8. Not Yet Deployed
+## 8. Audit Fixes (2026-03-27)
+
+### RPT-H-3: `DEFIFA_SALT` aligned between Deploy and Resume
+- `Resume.s.sol` previously used the literal string `"_DEFIFA_SALTV6_"` as the Defifa CREATE2 salt, while `Deploy.s.sol` used `bytes32(keccak256("0.0.2"))`. This mismatch meant the resume script would compute different addresses and fail to detect already-deployed Defifa contracts.
+- `DEFIFA_SALT` in `Resume.s.sol` is now `bytes32(keccak256("0.0.2"))`, matching `Deploy.s.sol`.
+
+### NEW-M-3: Resume script now reverts on price feed mismatch
+- `Resume.s.sol`'s `_ensureDefaultPriceFeed()` previously silently accepted a mismatched price feed when one was already registered for a currency pair.
+- It now reverts with `Resume_PriceFeedMismatch(projectId, pricingCurrency, unitCurrency)` when the registered feed does not match the expected feed, preventing silent misconfiguration. Since default feeds are immutable in `JBPrices`, a mismatch cannot be corrected and requires operator investigation.
+
+### LOW-6: USDC/USD price feed verification added to Verify.s.sol
+- `Verify.s.sol` now checks that the USDC/USD price feed is registered and returns a valid (non-zero) price.
+- Covers Ethereum mainnet, Sepolia, Optimism, Base, and Arbitrum with per-chain USDC token addresses.
+- Includes a liveness check via `currentUnitPrice(18)` to confirm the feed responds.
+
+## 9. Not Yet Deployed
 
 - `JBOwnable` (v6 exists but is not included in the canonical deploy phases)
