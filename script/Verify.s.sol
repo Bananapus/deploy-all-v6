@@ -681,6 +681,36 @@ contract Verify is Script {
         // Verify the USD/ETH feed is configured (this is the same feed as ETH/USD, just different key).
         _check(address(usdNativeFeed) != address(0), "USD/ETH price feed is configured", false);
 
+        // Check the USDC/USD price feed — registered during deployment but not previously verified.
+        address usdc;
+        if (block.chainid == 1) usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        else if (block.chainid == 11_155_111) usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
+        else if (block.chainid == 10) usdc = 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
+        else if (block.chainid == 11_155_420) usdc = 0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
+        else if (block.chainid == 8453) usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+        else if (block.chainid == 84_532) usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+        else if (block.chainid == 42_161) usdc = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+        else if (block.chainid == 421_614) usdc = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
+
+        if (usdc != address(0)) {
+            // forge-lint: disable-next-line(unsafe-typecast)
+            IJBPriceFeed usdcUsdFeed = prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(usdc)));
+            _check(address(usdcUsdFeed) != address(0), "USDC/USD price feed is configured", true);
+
+            if (address(usdcUsdFeed) != address(0)) {
+                try usdcUsdFeed.currentUnitPrice(18) returns (uint256 usdcPrice) {
+                    // USDC should be ~$1 (between $0.90 and $1.10).
+                    bool aboveMin = usdcPrice > 0.9e18;
+                    bool belowMax = usdcPrice < 1.1e18;
+                    console.log("  USDC/USD price (18 dec)", usdcPrice);
+                    _check(aboveMin, "USDC/USD price > $0.90", true);
+                    _check(belowMax, "USDC/USD price < $1.10", true);
+                } catch {
+                    _check(false, "USDC/USD feed.currentUnitPrice() did not revert", true);
+                }
+            }
+        }
+
         // Log a blank line for readability.
         console.log("");
     }
