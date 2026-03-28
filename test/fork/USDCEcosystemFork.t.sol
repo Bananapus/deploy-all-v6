@@ -428,7 +428,6 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
                 tiersConfig: JB721InitTiersConfig({
                     tiers: tiers, currency: uint32(uint160(address(usdc))), decimals: 6
                 }),
-                reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,
                     noNewTiersWithVotes: false,

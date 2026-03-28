@@ -550,7 +550,6 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
                     currency: USD, // Abstract USD pricing for cross-currency normalization
                     decimals: 18 // Abstract USD uses 18 decimals
                 }),
-                reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,
                     noNewTiersWithVotes: false,

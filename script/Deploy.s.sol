@@ -1974,7 +1974,6 @@ contract Deploy is Script, Sphinx {
                 tiersConfig: JB721InitTiersConfig({
                     tiers: new JB721TierConfig[](0), currency: ETH_CURRENCY, decimals: DECIMALS
                 }),
-                reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,
                     noNewTiersWithVotes: true,
@@ -2354,7 +2353,6 @@ contract Deploy is Script, Sphinx {
                 tokenUriResolver: IJB721TokenUriResolver(address(resolver)),
                 contractUri: "https://jbm.infura-ipfs.io/ipfs/Qmd2hgb1E4caEB51VvoC3GvonhwkCoVyXjJ3zqsCxHPTKK",
                 tiersConfig: JB721InitTiersConfig({tiers: tiers, currency: ETH_CURRENCY, decimals: DECIMALS}),
-                reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,
                     noNewTiersWithVotes: false,
