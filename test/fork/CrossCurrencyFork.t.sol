@@ -450,7 +450,6 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                     currency: USD, // Abstract USD
                     decimals: 18
                 }),
-                reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,
                     noNewTiersWithVotes: false,
@@ -501,7 +500,6 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                     currency: ETH_ID, // Abstract ETH
                     decimals: 18
                 }),
-                reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,
                     noNewTiersWithVotes: false,
@@ -903,7 +901,6 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
                 tokenUriResolver: IJB721TokenUriResolver(address(0)),
                 contractUri: "ipfs://contract",
                 tiersConfig: JB721InitTiersConfig({tiers: tierConfigs, currency: USD, decimals: 18}),
-                reserveBeneficiary: address(0),
                 flags: REV721TiersHookFlags({
                     noNewTiersWithReserves: false,
                     noNewTiersWithVotes: false,

@@ -599,7 +599,6 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
                 currency: nativeCurrency, // priced in ETH
                 decimals: 18 // 18 decimals
             }),
-            reserveBeneficiary: address(0), // no default reserve beneficiary
             flags: JB721TiersHookFlags({
                 noNewTiersWithReserves: false, // allow new tiers with reserves
                 noNewTiersWithVotes: false, // allow new tiers with votes
