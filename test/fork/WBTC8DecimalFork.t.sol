@@ -49,6 +49,7 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 // Revnet
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
+import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
@@ -241,6 +242,7 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
     JBBuybackHook BUYBACK_HOOK; // Buyback hook that compares AMM swap vs mint
     JBBuybackHookRegistry BUYBACK_REGISTRY; // Registry that maps projects to buyback hooks
     IREVLoans LOANS_CONTRACT; // Revnet loans contract for borrow/repay
+    REVOwner REV_OWNER; // Runtime data hook for pay and cash out callbacks
     REVDeployer REV_DEPLOYER; // Revnet deployer that orchestrates project creation
 
     // -- Currency ID derived from the WBTC token address (uint32 truncation of uint160)
@@ -318,6 +320,15 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
             trustedForwarder: TRUSTED_FORWARDER
         });
 
+        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
+        REV_OWNER = new REVOwner(
+            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
+            jbDirectory(),
+            FEE_PROJECT_ID,
+            SUCKER_REGISTRY,
+            address(LOANS_CONTRACT)
+        );
+
         // Deploy the REVDeployer with a unique salt to avoid address collisions.
         REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_WBTC"}(
             jbController(),
@@ -327,7 +338,8 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
             PUBLISHER,
             IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
             address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER
+            TRUSTED_FORWARDER,
+            address(REV_OWNER)
         );
 
         // Approve the REV_DEPLOYER to transfer the fee project NFT.

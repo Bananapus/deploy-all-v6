@@ -40,6 +40,7 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 // Revnet imports for deploying a revnet on the Base fork.
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
+import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
@@ -135,6 +136,9 @@ contract BaseChainForkTest is TestBaseWorkflow {
     // Loans contract (required by REVDeployer).
     IREVLoans LOANS_CONTRACT;
 
+    // REVOwner — the runtime data hook for pay and cash out callbacks.
+    REVOwner REV_OWNER;
+
     // REVDeployer orchestrates revnet deployment.
     REVDeployer REV_DEPLOYER;
 
@@ -215,6 +219,15 @@ contract BaseChainForkTest is TestBaseWorkflow {
             trustedForwarder: TRUSTED_FORWARDER
         });
 
+        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
+        REV_OWNER = new REVOwner(
+            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
+            jbDirectory(),
+            FEE_PROJECT_ID,
+            SUCKER_REGISTRY,
+            address(LOANS_CONTRACT)
+        );
+
         // Deploy the REVDeployer that orchestrates revnet creation.
         REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_Base"}(
             jbController(),
@@ -224,7 +237,8 @@ contract BaseChainForkTest is TestBaseWorkflow {
             PUBLISHER,
             IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
             address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER
+            TRUSTED_FORWARDER,
+            address(REV_OWNER)
         );
 
         // Approve REVDeployer to manage the fee project NFT (needed for deployFor).
