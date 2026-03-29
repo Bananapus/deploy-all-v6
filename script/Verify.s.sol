@@ -621,11 +621,7 @@ contract Verify is Script {
             if (address(revOwner) != address(0)) {
                 _check(revDeployer.OWNER() == address(revOwner), "REVDeployer.OWNER == REVOwner", true);
                 // Verify the REV owner's DEPLOYER points back to the REV deployer.
-                _check(
-                    address(revOwner.DEPLOYER()) == address(revDeployer),
-                    "REVOwner.DEPLOYER == REVDeployer",
-                    true
-                );
+                _check(address(revOwner.DEPLOYER()) == address(revDeployer), "REVOwner.DEPLOYER == REVDeployer", true);
             }
         } else {
             // Skip revnet checks when not deployed.
