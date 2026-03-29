@@ -117,6 +117,8 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 
 // ── Revnet ──
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
+import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
+import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
 import {REVLoans, IREVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVAutoIssuance.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
@@ -203,6 +205,7 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant REV_ERC20_SALT = "_REV_ERC20_SALT_V6_";
     bytes32 private constant REV_SUCKER_SALT = "_REV_SUCKER_SALT_V6_";
     bytes32 private constant REV_DEPLOYER_SALT = "_REV_DEPLOYER_SALT_V6_";
+    bytes32 private constant REV_OWNER_SALT = "_REV_OWNER_SALT_V6_";
     bytes32 private constant REV_LOANS_SALT = "_REV_LOANS_SALT_V6_";
 
     // ── NANA Fee Project salts ──
@@ -318,6 +321,7 @@ contract Deploy is Script, Sphinx {
 
     // Revnet
     REVLoans private _revLoans;
+    REVOwner private _revOwner;
     REVDeployer private _revDeployer;
 
     // Defifa
@@ -1739,6 +1743,28 @@ contract Deploy is Script, Sphinx {
                 _controller, _projects, _revProjectId, safeAddress(), _PERMIT2, _trustedForwarder
             );
 
+        // Deploy REVOwner — the runtime data hook that handles pay and cash out callbacks.
+        (address revOwner, bool revOwnerDeployed) = _isDeployed(
+            REV_OWNER_SALT,
+            type(REVOwner).creationCode,
+            abi.encode(
+                IJBBuybackHookRegistry(address(_buybackRegistry)),
+                _directory,
+                _revProjectId,
+                _suckerRegistry,
+                address(_revLoans)
+            )
+        );
+        _revOwner = revOwnerDeployed
+            ? REVOwner(revOwner)
+            : new REVOwner{salt: REV_OWNER_SALT}(
+                IJBBuybackHookRegistry(address(_buybackRegistry)),
+                _directory,
+                _revProjectId,
+                _suckerRegistry,
+                address(_revLoans)
+            );
+
         // Deploy REVDeployer.
         (address revDeployer, bool revDeployerDeployed) = _isDeployed(
             REV_DEPLOYER_SALT,
@@ -1751,7 +1777,8 @@ contract Deploy is Script, Sphinx {
                 _ctPublisher,
                 IJBBuybackHookRegistry(address(_buybackRegistry)),
                 address(_revLoans),
-                _trustedForwarder
+                _trustedForwarder,
+                address(_revOwner)
             )
         );
         _revDeployer = revDeployerDeployed
@@ -1764,7 +1791,8 @@ contract Deploy is Script, Sphinx {
                 _ctPublisher,
                 IJBBuybackHookRegistry(address(_buybackRegistry)),
                 address(_revLoans),
-                _trustedForwarder
+                _trustedForwarder,
+                address(_revOwner)
             );
 
         // Approve the deployer to configure the $REV project.

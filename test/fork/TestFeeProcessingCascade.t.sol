@@ -49,6 +49,7 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 // Revnet
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
+import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
@@ -94,6 +95,7 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
     JBBuybackHook BUYBACK_HOOK;
     JBBuybackHookRegistry BUYBACK_REGISTRY;
     IREVLoans LOANS_CONTRACT;
+    REVOwner REV_OWNER;
     REVDeployer REV_DEPLOYER;
 
     receive() external payable {}
@@ -144,6 +146,15 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
             trustedForwarder: TRUSTED_FORWARDER
         });
 
+        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
+        REV_OWNER = new REVOwner(
+            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
+            jbDirectory(),
+            FEE_PROJECT_ID,
+            SUCKER_REGISTRY,
+            address(LOANS_CONTRACT)
+        );
+
         REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_Fee"}(
             jbController(),
             SUCKER_REGISTRY,
@@ -152,7 +163,8 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
             PUBLISHER,
             IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
             address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER
+            TRUSTED_FORWARDER,
+            address(REV_OWNER)
         );
 
         vm.prank(multisig());

@@ -53,6 +53,7 @@ import {CTProjectOwner} from "@croptop/core-v6/src/CTProjectOwner.sol";
 // ── Revnet ──
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
+import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 
 /// @title Verify — Post-Deployment Verification for Juicebox V6
 /// @notice Read-only Forge Script that validates all deployed contracts are correctly wired together.
@@ -136,6 +137,8 @@ contract Verify is Script {
     // -- Revnet --
     // The REV deployer contract.
     REVDeployer public revDeployer;
+    // The REV owner (runtime data hook) contract.
+    REVOwner public revOwner;
     // The REV loans contract.
     REVLoans public revLoans;
 
@@ -257,6 +260,8 @@ contract Verify is Script {
 
         // Read the REV deployer address from env (address(0) if not deployed on this chain).
         revDeployer = REVDeployer(vm.envOr("VERIFY_REV_DEPLOYER", address(0)));
+        // Read the REV owner address from env (address(0) if not deployed on this chain).
+        revOwner = REVOwner(vm.envOr("VERIFY_REV_OWNER", address(0)));
         // Read the REV loans address from env (address(0) if not deployed on this chain).
         revLoans = REVLoans(payable(vm.envOr("VERIFY_REV_LOANS", address(0))));
     }
@@ -610,6 +615,13 @@ contract Verify is Script {
             if (address(revLoans) != address(0)) {
                 // Compare the LOANS() address against the expected REVLoans contract.
                 _check(revDeployer.LOANS() == address(revLoans), "REVDeployer.LOANS == REVLoans", true);
+            }
+
+            // Verify the REV deployer's OWNER points to the REV owner contract.
+            if (address(revOwner) != address(0)) {
+                _check(revDeployer.OWNER() == address(revOwner), "REVDeployer.OWNER == REVOwner", true);
+                // Verify the REV owner's DEPLOYER points back to the REV deployer.
+                _check(address(revOwner.DEPLOYER()) == address(revDeployer), "REVOwner.DEPLOYER == REVDeployer", true);
             }
         } else {
             // Skip revnet checks when not deployed.

@@ -26,7 +26,7 @@
         "@bananapus/ownable-v6": "^0.0.15",
         "@bananapus/univ4-lp-split-hook-v6": "^0.0.16",
         "@bananapus/univ4-router-v6": "^0.0.14",
-        "@rev-net/core-v6": "^0.0.18",
+        "@rev-net/core-v6": "^0.0.20",
         "@croptop/core-v6": "^0.0.23",
         "@bannynet/core-v6": "^0.0.14",
         "@ballkidz/defifa": "^0.0.13",

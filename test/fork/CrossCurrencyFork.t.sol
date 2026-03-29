@@ -58,6 +58,7 @@ import {JuiceboxSwapRouter} from "@bananapus/univ4-router-v6/test/utils/Juicebox
 // Revnet
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
+import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
@@ -221,6 +222,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
     JBBuybackHook BUYBACK_HOOK;
     JBBuybackHookRegistry BUYBACK_REGISTRY;
     IREVLoans LOANS_CONTRACT;
+    REVOwner REV_OWNER;
     REVDeployer REV_DEPLOYER;
 
     // LP-split hook
@@ -281,6 +283,15 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
             trustedForwarder: TRUSTED_FORWARDER
         });
 
+        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
+        REV_OWNER = new REVOwner(
+            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
+            jbDirectory(),
+            FEE_PROJECT_ID,
+            SUCKER_REGISTRY,
+            address(LOANS_CONTRACT)
+        );
+
         REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_CC"}(
             jbController(),
             SUCKER_REGISTRY,
@@ -289,7 +300,8 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
             PUBLISHER,
             IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
             address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER
+            TRUSTED_FORWARDER,
+            address(REV_OWNER)
         );
 
         vm.prank(multisig());

@@ -48,6 +48,7 @@ import {JBOmnichainDeployer} from "@bananapus/omnichain-deployers-v6/src/JBOmnic
 // Revnet.
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
+import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
@@ -98,6 +99,7 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
     // ═══════════════════════════════════════════════════════════════════════
 
     // The three singletons that receive wildcard permissions.
+    REVOwner REV_OWNER;
     REVDeployer REV_DEPLOYER;
     CTDeployer CT_DEPLOYER;
     JBOmnichainDeployer OMNICHAIN_DEPLOYER;
@@ -172,6 +174,15 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
             trustedForwarder: TRUSTED_FORWARDER
         });
 
+        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
+        REV_OWNER = new REVOwner(
+            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
+            jbDirectory(),
+            FEE_PROJECT_ID,
+            SUCKER_REGISTRY,
+            address(LOANS_CONTRACT)
+        );
+
         // Deploy REVDeployer — this grants wildcard permissions to SUCKER_REGISTRY, LOANS, BUYBACK_HOOK.
         REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_KillChain"}(
             jbController(),
@@ -181,7 +192,8 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
             PUBLISHER,
             IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
             address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER
+            TRUSTED_FORWARDER,
+            address(REV_OWNER)
         );
 
         // Approve REVDeployer to receive the fee project NFT.
