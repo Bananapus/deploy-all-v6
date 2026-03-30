@@ -164,7 +164,6 @@ contract ResumeDeployHarness is IERC721Receiver {
             abi.encode(
                 directory,
                 permissions,
-                projects,
                 tokens,
                 _PERMIT2,
                 address(this),
@@ -437,7 +436,6 @@ contract ResumeDeployHarness is IERC721Receiver {
             abi.encode(
                 directory,
                 permissions,
-                projects,
                 tokens,
                 _PERMIT2,
                 address(this),
@@ -452,7 +450,6 @@ contract ResumeDeployHarness is IERC721Receiver {
             : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}({
                 directory: directory,
                 permissions: permissions,
-                projects: projects,
                 tokens: tokens,
                 permit2: _PERMIT2,
                 owner: address(this),

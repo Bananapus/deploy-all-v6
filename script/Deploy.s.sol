@@ -802,7 +802,6 @@ contract Deploy is Script, Sphinx {
             abi.encode(
                 _directory,
                 _permissions,
-                _projects,
                 _tokens,
                 _PERMIT2,
                 safeAddress(),
@@ -817,7 +816,6 @@ contract Deploy is Script, Sphinx {
             : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}({
                 directory: _directory,
                 permissions: _permissions,
-                projects: _projects,
                 tokens: _tokens,
                 permit2: _PERMIT2,
                 owner: safeAddress(),
