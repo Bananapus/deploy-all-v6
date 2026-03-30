@@ -401,7 +401,6 @@ contract DeployFullStackTest is Test {
         _routerTerminal = new JBRouterTerminal(
             _directory,
             _permissions,
-            _projects,
             _tokens,
             _PERMIT2,
             _deployer,

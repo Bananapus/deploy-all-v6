@@ -902,7 +902,6 @@ contract Resume is Script {
             abi.encode(
                 _directory,
                 _permissions,
-                _projects,
                 _tokens,
                 _PERMIT2,
                 _deployer,
@@ -917,7 +916,6 @@ contract Resume is Script {
             : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}({
                 directory: _directory,
                 permissions: _permissions,
-                projects: _projects,
                 tokens: _tokens,
                 permit2: _PERMIT2,
                 owner: _deployer,
