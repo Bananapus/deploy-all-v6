@@ -182,6 +182,12 @@ For integrators that consume deployment manifests rather than source code, the m
 - Covers Ethereum mainnet, Sepolia, Optimism, Base, and Arbitrum with per-chain USDC token addresses.
 - Includes a liveness check via `currentUnitPrice(18)` to confirm the feed responds.
 
-## 9. Not Yet Deployed
+## 9. Audit Fixes (2026-03-30)
+
+### _ensureProjectExists backward-search loop removed
+- `Deploy.s.sol._ensureProjectExists()` previously contained a backward-search loop that scanned for any blank project (no controller set) owned by `safeAddress()`, which could incorrectly reuse the fee project (ID 1) when a later phase expected a different project ID.
+- The loop has been removed. `_ensureProjectExists()` now only checks if the exact `expectedProjectId` already exists (via `_projects.count()`), and if not, creates a new project and verifies the returned ID matches exactly. This prevents project ID confusion during interrupted deployments.
+
+## 10. Not Yet Deployed
 
 - `JBOwnable` (v6 exists but is not included in the canonical deploy phases)
