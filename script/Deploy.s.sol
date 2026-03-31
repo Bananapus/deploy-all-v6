@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
+import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script, stdJson, VmSafe} from "forge-std/Script.sol";
 import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 
@@ -2305,12 +2305,12 @@ contract Deploy is Script, Sphinx {
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
-            cannotIncreaseDiscountPercent: true,
+            cantIncreaseDiscountPercent: true,
             allowOwnerMint: false,
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true,
+            cantBeRemoved: true,
             cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
@@ -2324,12 +2324,12 @@ contract Deploy is Script, Sphinx {
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
-            cannotIncreaseDiscountPercent: true,
+            cantIncreaseDiscountPercent: true,
             allowOwnerMint: false,
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true,
+            cantBeRemoved: true,
             cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
@@ -2343,12 +2343,12 @@ contract Deploy is Script, Sphinx {
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
-            cannotIncreaseDiscountPercent: true,
+            cantIncreaseDiscountPercent: true,
             allowOwnerMint: false,
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true,
+            cantBeRemoved: true,
             cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
@@ -2362,12 +2362,12 @@ contract Deploy is Script, Sphinx {
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
-            cannotIncreaseDiscountPercent: true,
+            cantIncreaseDiscountPercent: true,
             allowOwnerMint: false,
             useReserveBeneficiaryAsDefault: false,
             transfersPausable: false,
             useVotingUnits: false,
-            cannotBeRemoved: true,
+            cantBeRemoved: true,
             cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
