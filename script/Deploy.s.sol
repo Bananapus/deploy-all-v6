@@ -2575,15 +2575,6 @@ contract Deploy is Script, Sphinx {
             return expectedProjectId;
         }
 
-        // Check if safeAddress() already owns a blank project (from a previous interrupted run).
-        for (uint256 i = count; i >= 1; i--) {
-            if (_projects.ownerOf(i) == safeAddress()) {
-                if (address(_directory.controllerOf(i)) == address(0)) {
-                    return i;
-                }
-            }
-        }
-
         uint256 created = _projects.createFor(safeAddress());
         if (created != expectedProjectId) revert Deploy_ProjectIdMismatch(expectedProjectId, created);
         return created;
