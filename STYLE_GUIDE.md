@@ -21,7 +21,7 @@ One contract/interface/struct/enum per file. Name the file after the type it con
 
 ```solidity
 // Contracts — pin to exact version
-pragma solidity ^0.8.28;
+pragma solidity 0.8.28;
 
 // Interfaces, structs, enums — caret for forward compatibility
 pragma solidity ^0.8.0;
@@ -109,11 +109,23 @@ contract JBExample is JBPermissioned, IJBExample {
     //*********************************************************************//
 
     //*********************************************************************//
+    // -------------------- private stored properties -------------------- //
+    //*********************************************************************//
+
+    //*********************************************************************//
+    // ------------------- transient stored properties ------------------- //
+    //*********************************************************************//
+
+    //*********************************************************************//
     // -------------------------- constructor ---------------------------- //
     //*********************************************************************//
 
     //*********************************************************************//
     // ---------------------------- modifiers ---------------------------- //
+    //*********************************************************************//
+
+    //*********************************************************************//
+    // ------------------------- receive / fallback ---------------------- //
     //*********************************************************************//
 
     //*********************************************************************//
@@ -130,6 +142,10 @@ contract JBExample is JBPermissioned, IJBExample {
 
     //*********************************************************************//
     // ----------------------- public transactions ----------------------- //
+    //*********************************************************************//
+
+    //*********************************************************************//
+    // ---------------------- internal transactions ---------------------- //
     //*********************************************************************//
 
     //*********************************************************************//
@@ -155,15 +171,23 @@ contract JBExample is JBPermissioned, IJBExample {
 6. Internal immutable stored properties
 7. Public stored properties
 8. Internal stored properties
-9. Constructor
-10. Modifiers
-11. External transactions
-12. External views
-13. Public views
-14. Public transactions
-15. Internal helpers
-16. Internal views
-17. Private helpers
+9. Private stored properties
+10. Transient stored properties
+11. Constructor
+12. Modifiers
+13. Receive / fallback
+14. External transactions
+15. External views
+16. Public views
+17. Public transactions
+18. Internal transactions
+19. Internal helpers
+20. Internal views
+21. Private helpers
+
+Use these additional section labels where they better match the contents of the block:
+- `internal functions` is accepted as equivalent to `internal helpers`
+- `events` and `structs` are acceptable in specialized contracts that define them explicitly
 
 Functions are alphabetized within each section.
 
@@ -216,7 +240,7 @@ interface IJBExample is IJBBase {
 | Public/external function | `camelCase` | `cashOutTokensOf` |
 | Internal/private function | `_camelCase` | `_processFee` |
 | Internal storage | `_camelCase` | `_accountingContextForTokenOf` |
-| Function parameter | `camelCase` | `projectId`, `cashOutCount` |
+| Function parameter | `camelCase` (no underscores) | `projectId`, `cashOutCount` |
 
 ## NatSpec
 
@@ -272,9 +296,12 @@ uint256 public constant MAX_RESERVED_PERCENT = 10_000;
 
 ## Function Calls
 
-Use named parameters for readability when calling functions with 3+ arguments:
+Use named arguments for all function calls with 2 or more arguments — in both `src/` and `script/`:
 
 ```solidity
+// Good — named arguments
+token.mint({account: beneficiary, amount: count});
+_transferOwnership({newOwner: address(0), projectId: 0});
 PERMISSIONS.hasPermission({
     operator: sender,
     account: account,
@@ -283,7 +310,17 @@ PERMISSIONS.hasPermission({
     includeRoot: true,
     includeWildcardProjectId: true
 });
+
+// Bad — positional arguments with 2+ args
+token.mint(beneficiary, count);
+_transferOwnership(address(0), 0);
 ```
+
+Single-argument calls use positional style: `_burn(amount)`.
+
+This also applies to constructor calls, struct literals, and inherited/library calls (e.g., OZ `_mint`, `_safeMint`, `safeTransfer`, `allowance`, `Clones.cloneDeterministic`).
+
+Named argument keys must use **camelCase** — never underscores. If a function's parameter names use underscores, rename them to camelCase first.
 
 ## Multiline Signatures
 
@@ -571,10 +608,3 @@ CI checks formatting via `forge fmt --check`.
 ### Contract Size Checks
 
 CI runs `forge build --sizes` to catch contracts approaching the 24KB limit. When the repo's default `optimizer_runs` differs from what you want for size checking, use `FOUNDRY_PROFILE=ci_sizes forge build --sizes` with a `[profile.ci_sizes]` section in `foundry.toml`.
-
-## Repo-Specific Deviations
-
-- **`optimizer = false`** — integration test orchestrator, no deployment artifacts
-- **Symlinked npm packages** — all `@bananapus/`, `@rev-net/`, `@croptop/`, `@bannynet/`, `@ballkidz/` packages are npm workspace symlinks requiring explicit remappings
-- **Nested transitive deps** — `@chainlink/contracts-ccip/` and `@arbitrum/nitro-contracts/` are resolved from within `@bananapus/suckers-v6/node_modules/`
-- **`lib/` path remappings** — `lib/base64/`, `lib/typeface/`, `lib/capsules/` resolve transitive dependencies from `@ballkidz/defifa`
