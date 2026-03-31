@@ -389,6 +389,7 @@ contract FullStackForkTest is TestBaseWorkflow {
             useVotingUnits: false,
             cannotBeRemoved: false,
             cannotIncreaseDiscountPercent: false,
+            cantBuyWithCredits: false,
             splitPercent: SPLIT_PERCENT,
             splits: tierSplits
         });

@@ -405,6 +405,7 @@ contract EcosystemForkTest is TestBaseWorkflow {
             useVotingUnits: false,
             cannotBeRemoved: false,
             cannotIncreaseDiscountPercent: false,
+            cantBuyWithCredits: false,
             splitPercent: 300_000_000, // 30% of tier payment → split beneficiary
             splits: tierSplits
         });

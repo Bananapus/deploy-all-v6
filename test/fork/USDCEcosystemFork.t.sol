@@ -426,6 +426,7 @@ contract USDCEcosystemForkTest is TestBaseWorkflow {
             useVotingUnits: false,
             cannotBeRemoved: false,
             cannotIncreaseDiscountPercent: false,
+            cantBuyWithCredits: false,
             splitPercent: 300_000_000,
             splits: splits
         });

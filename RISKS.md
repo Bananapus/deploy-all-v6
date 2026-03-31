@@ -1,14 +1,27 @@
-# deploy-all-v6 -- Risks
+# Deploy All Risk Register
 
-Deployment-specific vulnerability vectors for auditors. This repo deploys the current canonical Juicebox V6 rollout
-via a single Sphinx-orchestrated script (`script/Deploy.s.sol`, ~2,200 lines). It has no runtime contracts of its own
--- all risk lives in the deployment configuration itself.
+This file focuses on the operational risks in the canonical Juicebox V6 rollout: deployment ordering, multi-chain parity, recovery, and post-deploy verification. This repo has no runtime contracts of its own, so the main failure modes live in the deployment configuration and operator process.
 
 For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
 
-## Trust Assumptions
+## How to use this file
 
-1. **Sphinx Platform** -- Deployment is orchestrated via Sphinx proposals. Sphinx controls execution order, gas management, and atomicity per chain. The Sphinx Safe (`safeAddress()`) receives ownership of every deployed contract.
+- Read `Priority risks` first; these are the deployment mistakes that can invalidate otherwise-correct contracts.
+- Use the detailed sections as an operator runbook for proposal, execution, verification, and recovery.
+- Treat the verification checklist as mandatory, not optional documentation.
+
+## Priority risks
+
+| Priority | Risk | Why it matters | Primary controls |
+|----------|------|----------------|------------------|
+| P0 | Wrong-chain or wrong-order deployment | Project IDs, singleton wiring, and inter-repo assumptions depend on exact deployment sequence. | Fixed phase ordering, chain-specific config review, and post-deploy parity checks. |
+| P0 | Unsafe replay after partial execution | Re-running a proposal after partial CREATE2 success can collide with already-deployed contracts and leave wiring inconsistent. | `Resume.s.sol`, explicit recovery procedures, and operator discipline not to replay blindly. |
+| P0 | Resume-path ownership drift | `Resume.s.sol` can leave newly deployed ownables owned by the resume broadcaster instead of the Sphinx Safe, changing the governance boundary after recovery. | Restrict resume operators, verify ownership after recovery, and transfer ownership where needed before treating the deployment as canonical. |
+| P1 | Configuration drift across supported chains | Oracle, bridge, and dependency differences can silently invalidate omnichain assumptions or leave certain features unavailable. | Chain-specific config review, skipped-phase documentation, and post-deploy smoke tests on each chain. |
+
+## 1. Trust Assumptions
+
+1. **Sphinx Platform and resume operator** -- Deployment is orchestrated via Sphinx proposals. Sphinx controls execution order, gas management, and atomicity per chain, and `Deploy.s.sol` assigns ownership to the Sphinx Safe (`safeAddress()`). Recovery via `script/Resume.s.sol` is a different trust path: any contract that still needs to be deployed during resume is instantiated from the broadcasting address and, in the current script, is generally owned by that broadcaster (`msg.sender`), not automatically by `safeAddress()`.
 2. **Hardcoded Addresses** -- External contract addresses (Uniswap V4 PoolManager, Uniswap V3 Factory, WETH, Chainlink feeds, bridge contracts, CCIP routers, Permit2) are hardcoded per chain in the script. A wrong address means the deployed contract is permanently misconfigured.
 3. **Constructor Parameters** -- All initialization values (salts, prices, revnet stages, auto-issuance amounts, tier configs) are baked into the script. Many parameters are immutable after deployment -- constructor errors cannot be patched.
 4. **Deployment Ordering** -- Contracts deploy in dependency order within a single `deploy()` call. Between Sphinx proposal submission and execution, no intermediate state is exploitable because contracts are not usable until the full wiring phase completes. If a proposal is partially executed, `script/Resume.s.sol` can resume from the first incomplete phase.
@@ -16,35 +29,39 @@ For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
 
 ---
 
-## 1. Deployment Ordering Risks
+## 2. Deployment Ordering Risks
 
-The script executes 9 phases in strict sequence. Each phase depends on state produced by prior phases. All phases run inside a single Sphinx `deploy()` call per chain.
+The script executes 10 top-level phases in strict sequence. Phase `03` is split into subphases (`03a` through `03f`), and Phase `08` is split into `08a` and `08b`. Each phase depends on state produced by prior phases. All phases run inside a single Sphinx `deploy()` call per chain.
 
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
-| Partial deployment | HIGH | If Sphinx execution halts mid-proposal (gas, revert, platform failure), core contracts may exist without wiring. Example: `JBDirectory` deployed but `setIsAllowedToSetFirstController` never called -- no projects can launch. | Do not re-propose the full script with the same salts. Use `script/Resume.s.sol` to resume from the first incomplete phase, then run `script/Verify.s.sol` to validate state. Alternatively, redeploy from fresh salts. |
+| Partial deployment | HIGH | If Sphinx execution halts mid-proposal (gas, revert, platform failure), core contracts may exist without wiring. Example: `JBDirectory` deployed but `setIsAllowedToSetFirstController` never called -- no projects can launch. | Do not re-propose the full script with the same salts. Use `script/Resume.s.sol` to resume from the first incomplete phase, then run `script/Verify.s.sol` to validate state and separately verify ownership/admin addresses. Alternatively, redeploy from fresh salts. |
+| Resume ownership mismatch | HIGH | `Resume.s.sol` uses the broadcasting address as `_deployer` and passes that address into many constructors and project creations. If resume is run by an EOA or hot wallet rather than the intended Safe-controlled identity, newly deployed ownables, fee-project ownership, or newly created project NFTs can end up under the wrong operator boundary. | Treat resume as a privileged recovery path, run it only from the intended operator identity, and add an explicit post-resume ownership transfer/verification step for any contracts or projects created during recovery. |
 | Controller deploys after omnichain deployer | MEDIUM | `JBController` constructor takes `omnichainRulesetOperator: address(_omnichainDeployer)`. If the omnichain deployer address changes between phases, the controller is permanently misconfigured. | Single-proposal atomicity ensures deterministic ordering. Verify the `_omnichainDeployer` address in the controller's constructor after deployment. |
 | Sucker deployers before registry | LOW | All sucker deployers (OP, Base, Arb, CCIP) are deployed before `JBSuckerRegistry`. Deployers are pushed to `_preApprovedSuckerDeployers[]`, then batch-approved on registry creation. If any deployer creation reverts, the array is incomplete. | The `if (_preApprovedSuckerDeployers.length != 0)` guard prevents empty-array revert but means a silently missing deployer is possible. |
 | Project ID determinism | HIGH | Project IDs are determined by deployment order: project 1 (fee project, auto-created), project 2 (CPN), project 3 (REV), project 4 (BAN, created by `deployFor` with `revnetId: 0`). If any `createFor` call is reordered or another project is inserted, all subsequent project IDs shift. Every revnet configuration, sucker config, and cross-reference hardcodes these IDs. | Verify project IDs match expected values after deployment. `REVLoans` constructor takes `revId: _revProjectId` -- if this ID is wrong, the loans contract references a non-existent or wrong project. |
-| Omnichain deployer needs hooks + registry | MEDIUM | Phase 04 deploys `JBOmnichainDeployer` which takes `_hookDeployer` and `_suckerRegistry` as constructor args. Both must be deployed in Phase 03. If Phase 03a or 03d reverts, the omnichain deployer gets `address(0)` references. | Sphinx reverts the entire chain's deployment on any constructor failure. No partial recovery path. |
+| Omnichain deployer needs hooks + registry | MEDIUM | Phase 04 deploys `JBOmnichainDeployer` which takes `_hookDeployer` and `_suckerRegistry` as constructor args. Both must be deployed earlier in Phase 03. If Phase `03a` or `03f` fails, the omnichain deployer cannot be wired correctly. | Sphinx reverts the entire chain's deployment on any constructor failure. No partial recovery path. |
 | NANA revnet after REV revnet | LOW | Phase 08b configures the fee project (ID 1) as a revnet. If Phase 07 ($REV) fails, `_revDeployer` is undeployed and the `_projects.approve` call in Phase 08b reverts. This blocks NANA configuration but does not leave the fee project in a dangerous state -- it just has no revnet rules. | Resume from the failed phase boundary or redeploy from fresh salts. The fee project without revnet rules still collects fees but has no issuance or cashout mechanics. |
 
 ### Dependency Graph
 
 ```
-Phase 01: Core (no deps)
-Phase 02: Address Registry (no deps)
-Phase 03a: 721 Hook (Core)
-Phase 03b: Buyback Hook (Core)
-Phase 03c: Router Terminal (Core)
-Phase 03d: Suckers (Core)
-Phase 04: Omnichain Deployer (Core + 721 Hook + Suckers)
-Phase 05: Periphery/Controller (Core + Omnichain Deployer)
-Phase 06: Croptop (Core + 721 Hook + Suckers + Controller)
-Phase 07: Revnet (Core + Controller + Croptop + Buyback)
-Phase 08: CPN/NANA config (Revnet deployer)
-Phase 09: Banny (Revnet deployer + 721 Hook)
-Phase 10: Defifa (721 Hook + Controller + Tokens)
+Phase 01: Core protocol (no deps)
+Phase 02: Address registry (no deps)
+Phase 03a: 721 hook (Core)
+Phase 03b: Uniswap V4 router hook (Core, optional on supported chains)
+Phase 03c: Buyback hook registry + buyback hook (Core, router hook required for the hook)
+Phase 03d: Router terminal (Core, optional with Uniswap stack)
+Phase 03e: LP split hook (Core, optional with Uniswap stack)
+Phase 03f: Suckers (Core)
+Phase 04: Omnichain deployer (Core + 721 hook + suckers)
+Phase 05: Periphery/controller (Core + omnichain deployer)
+Phase 06: Croptop (Core + 721 hook + suckers + controller)
+Phase 07: Revnet (Core + controller + Croptop + buyback stack)
+Phase 08a: CPN revnet config
+Phase 08b: NANA revnet config
+Phase 09: Banny (revnet deployer + 721 hook)
+Phase 10: Defifa (721 hook + controller + tokens)
 ```
 
 If deployment is interrupted at any phase boundary, all contracts from completed phases exist on-chain but are inert --
@@ -55,7 +72,7 @@ phase, then run `script/Verify.s.sol` to validate post-deployment state.
 
 ---
 
-## 2. Oracle / Price Feed Risks
+## 3. Oracle / Price Feed Risks
 
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
@@ -69,7 +86,7 @@ phase, then run `script/Verify.s.sol` to validate post-deployment state.
 
 ---
 
-## 3. Cross-Chain Consistency Risks
+## 4. Cross-Chain Consistency Risks
 
 The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency between chains is critical for sucker (bridge) operations.
 
@@ -86,7 +103,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 ---
 
-## 4. Configuration Risks
+## 5. Configuration Risks
 
 ### Hardcoded Address Risks
 
@@ -159,7 +176,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 ---
 
-## 5. Post-Deployment Verification Checklist
+## 6. Post-Deployment Verification Checklist
 
 ### Contract Existence
 
@@ -209,7 +226,7 @@ For each of the 8 target chains, verify every expected contract is deployed at t
 - [ ] `JBFeelessAddresses` has no unexpected entries
 - [ ] `JBDirectory` has exactly one allowed controller
 
-## 6. Recovery Procedures
+## 7. Recovery Procedures
 
 ### Partial Deployment Recovery
 
@@ -218,8 +235,9 @@ If a Sphinx proposal fails mid-execution on a chain:
 1. **Identify the failure boundary.** Check which contracts exist on-chain (have code) vs. which are missing.
 2. **Do NOT re-propose the full script with the same salts.** CREATE2 with identical `(deployer, salt, initCodeHash)` reverts if the contract already exists.
 3. **Run `script/Resume.s.sol`**, which skips already-deployed contracts (checks `extcodesize`) and performs only the remaining deployments and wiring.
-4. **Run `script/Verify.s.sol`** to validate post-deployment state.
-5. **Verify project IDs match** across all chains before enabling sucker operations. A single mismatched project ID can route bridged tokens to the wrong treasury.
+4. **Verify ownership/admin drift introduced by resume.** The current resume script uses the broadcasting address as `_deployer`, so any contract or project created during recovery may be owned by that broadcaster rather than the Sphinx Safe.
+5. **Run `script/Verify.s.sol`** to validate post-deployment state.
+6. **Verify project IDs match** across all chains before enabling sucker operations. A single mismatched project ID can route bridged tokens to the wrong treasury.
 
 ### Wrong Address Recovery
 

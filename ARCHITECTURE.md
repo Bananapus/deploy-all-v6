@@ -1,171 +1,63 @@
-# deploy-all-v6 -- Architecture
+# Architecture
 
 ## Purpose
 
-Master deployment script for the current canonical Juicebox V6 rollout. This repo exists to describe what
-`script/Deploy.s.sol` actually deploys today, not every sibling package that exists in the workspace.
+`deploy-all-v6` is the canonical deployment orchestrator for the V6 ecosystem. Its job is not to introduce new runtime behavior. Its job is to deploy the right contracts, in the right order, with the right cross-repo wiring, across the supported chains, and to provide a recovery path when an execution partially succeeds.
 
-## Directory Map
+## Boundaries
 
-```
-script/
-├── Deploy.s.sol  — Sphinx deployment script
-├── Resume.s.sol  — Resumable recovery script (skips already-deployed contracts)
-└── Verify.s.sol  — Post-deployment verification script
-```
+- Runtime protocol logic lives in sibling repos.
+- This repo owns deployment sequencing, chain-specific constants, canonical address selection, and recovery assumptions.
+- `Resume.s.sol` is part of the architecture, not a convenience script. The rollout is intentionally designed around resumable deployment.
 
-There is no `src/` directory. This repo exists solely to orchestrate ecosystem deployment.
+## Main Components
 
-## What It Deploys
+| Component | Responsibility |
+| --- | --- |
+| `script/Deploy.s.sol` | Canonical phased rollout via Sphinx |
+| `script/Resume.s.sol` | Recovery path for partially completed executions |
+| deployment constants and helpers | Per-chain addresses, flags, and dependency wiring |
 
-The script deploys the following production-scoped stack in dependency order:
+## Deployment Model
 
-### Core Protocol
-- `JBPermissions`
-- `JBProjects`
-- `JBPrices`
-- `JBRulesets`
-- `JBDirectory`
-- `JBERC20`
-- `JBTokens`
-- `JBSplits`
-- `JBFeelessAddresses`
-- `JBFundAccessLimits`
-- `JBController`
-- `JBTerminalStore`
-- `JBMultiTerminal`
-- `ERC2771Forwarder`
+The deployment runs in dependency order:
 
-### Periphery
-- `JBDeadline` variants (3h, 1d, 3d, 7d)
-- `JBChainlinkV3PriceFeed` / `JBChainlinkV3SequencerPriceFeed`
-- `JBMatchingPriceFeed`
-- `JBAddressRegistry`
+1. Core protocol
+2. Address registry
+3. Hook and periphery stack
+4. Cross-chain infrastructure
+5. Omnichain deployer
+6. Product repos and fee-bearing projects
 
-### Hooks & Extensions
-- `JB721TiersHook` + `JB721TiersHookStore` + deployers
-- `JBUniswapV4Hook`
-- `JBBuybackHook` + `JBBuybackHookRegistry`
-- `JBUniswapV4LPSplitHook` + `JBUniswapV4LPSplitHookDeployer`
-- `JBRouterTerminal` + `JBRouterTerminalRegistry`
+That order is the main invariant. Many later phases assume earlier addresses are final and immediately usable.
 
-### Cross-Chain
-- `JBSuckerRegistry`
-- `JBOptimismSuckerDeployer`
-- `JBBaseSuckerDeployer`
-- `JBArbitrumSuckerDeployer`
-- `JBCCIPSuckerDeployer`
-- `JBOmnichainDeployer`
+## Why Recovery Is Separate
 
-### Applications
-- `REVDeployer`
-- `REVLoans`
-- `CTPublisher`
-- `CTDeployer`
-- `CTProjectOwner`
-- `Banny721TokenUriResolver`
-- `DefifaHook`
-- `DefifaTokenUriResolver`
-- `DefifaGovernor`
-- `DefifaDeployer`
+CREATE2 makes re-running a partially completed deployment unsafe. If some contracts already exist at their deterministic addresses, replaying the original script will collide with deployed bytecode. `Resume.s.sol` therefore checks what already exists and only performs the remaining steps.
 
-## What It Does Not Deploy
+## Critical Invariants
 
-The current script does not instantiate:
+- Canonical addresses must stay aligned with the expectations baked into sibling deployment repos and tests.
+- Phase ordering is a real dependency graph, not an organizational preference.
+- Testnet support is intentionally narrower than mainnet support for certain Uniswap-dependent phases; scripts should preserve those skips rather than pretending the matrix is symmetric.
+- Recovery logic must be kept current with deployment logic. A stale recovery script is a broken architecture.
 
-- `JBOwnable`
+## Where Complexity Lives
 
-## Sphinx Proposal Flow
-
-The script inherits from `Sphinx` and uses the `sphinx` modifier on `deploy()`. At a high level:
-
-1. **Configure** -- `configureSphinx()` registers the project name (`juicebox-v6`) and target chains.
-2. **Propose** -- A developer runs `forge script script/Deploy.s.sol` through the Sphinx CLI, which simulates the deployment, computes deterministic CREATE2 addresses, and submits the proposal to the Sphinx platform.
-3. **Approve** -- The multisig (`safeAddress()`) reviews the proposal on the Sphinx dashboard and signs it. Sphinx requires the configured Gnosis Safe owners to reach the signing threshold before execution proceeds.
-4. **Execute** -- Once approved, Sphinx relays the signed transactions to each target chain. All contract deployments use CREATE2 through the Safe so that addresses are deterministic and identical across chains.
-
-Ownership of deployed contracts (JBProjects, JBDirectory, JBFeelessAddresses, etc.) is assigned to `safeAddress()`, giving the multisig administrative control post-deployment.
-
-## Deployment Order
-
-```
-Sphinx proposal → Deploy.deploy()
-  Phase 01: Core protocol
-  Phase 02: Address registry
-  Phase 03a: 721 hook stack
-  Phase 03b: Uniswap V4 router hook
-  Phase 03c: Buyback hook stack
-  Phase 03d: Router terminal stack
-  Phase 03e: LP split hook stack
-  Phase 03f: Cross-chain suckers
-  Phase 04: Omnichain deployer
-  Phase 05: Periphery and controller wiring
-  Phase 06: Croptop
-  Phase 07: REV revnet
-  Phase 08: Existing project configuration
-  Phase 09: Banny
-  Phase 10: Defifa
-```
-
-## Deployment Transport Limits
-
-Each chain executes one Sphinx-managed `deploy()` call. If execution halts after some CREATE2 deployments succeed,
-`script/Resume.s.sol` can resume from the first incomplete phase -- it detects already-deployed contracts via
-`extcodesize` checks and performs only the remaining deployments and wiring. `script/Verify.s.sol` validates
-post-deployment state. Re-proposing the full script with the same salts is not a safe recovery path.
-
-## Target Chains
-
-- Mainnets: Ethereum, Optimism, Base, Arbitrum
-- Testnets: Ethereum Sepolia, Optimism Sepolia, Base Sepolia, Arbitrum Sepolia
-
-Configured addresses exist for the supported chains, but the testnet path is not equally production-ready. On
-Optimism Sepolia the canonical core/periphery rollout still deploys, but the Uniswap-dependent phases are skipped
-because there is no published Uniswap V4 `PositionManager`.
+- Cross-repo constructor and initializer expectations all converge here.
+- The recovery path has to model partial success precisely, which is often harder than the happy path.
+- Chain-specific feature gaps make the rollout matrix asymmetric by design.
 
 ## Dependencies
 
-### Juicebox V6 Ecosystem
+- Every `*-v6` sibling repo that contributes deployed contracts
+- Sphinx for multi-chain orchestration
+- Chain-specific Uniswap, Chainlink, and bridge addresses
 
-| Package | Role |
-|---|---|
-| `@bananapus/core-v6` | Core protocol contracts (JBController, JBMultiTerminal, etc.) |
-| `@bananapus/permission-ids-v6` | Permission ID constants |
-| `@bananapus/address-registry-v6` | JBAddressRegistry |
-| `@bananapus/721-hook-v6` | ERC-721 tiered NFT hook |
-| `@bananapus/buyback-hook-v6` | Buyback hook and registry |
-| `@bananapus/univ4-router-v6` | JBUniswapV4Hook |
-| `@bananapus/univ4-lp-split-hook-v6` | LP split hook and deployer |
-| `@bananapus/router-terminal-v6` | JBRouterTerminal and registry |
-| `@bananapus/suckers-v6` | Cross-chain suckers (OP, Base, Arbitrum, CCIP) |
-| `@bananapus/omnichain-deployers-v6` | JBOmnichainDeployer |
-| `@bananapus/ownable-v6` | Ownable extension |
-| `@rev-net/core-v6` | REVDeployer, REVLoans |
-| `@croptop/core-v6` | CTPublisher, CTDeployer, CTProjectOwner |
-| `@bannynet/core-v6` | Banny 721 token URI resolver |
-| `@ballkidz/defifa` | Defifa game infrastructure (Phase 10) |
+## Safe Change Guide
 
-### Third-Party
-
-| Package | Role |
-|---|---|
-| `@openzeppelin/contracts` | ERC2771Forwarder, standard utilities |
-| `@openzeppelin/uniswap-hooks` | OpenZeppelin Uniswap hook base |
-| `@chainlink/contracts` | AggregatorV3Interface for price feeds |
-| `@chainlink/contracts-ccip` | CCIP router interfaces for cross-chain suckers |
-| `@uniswap/v4-core` | PoolManager interfaces |
-| `@uniswap/v4-periphery` | PositionManager, HookMiner |
-| `@uniswap/v3-core` | V3 factory interface (router terminal) |
-| `@uniswap/v3-periphery` | V3 periphery interfaces |
-| `@uniswap/permit2` | Permit2 integration |
-| `@prb/math` | Fixed-point math |
-| `solady` | Gas-optimized utilities |
-| `solmate` | Solmate utilities |
-| `@arbitrum/nitro-contracts` | Arbitrum Inbox interface for suckers |
-| `base64-sol` | Base64 encoding (transitive dependency) |
-
-### Dev / Tooling
-
-| Package | Role |
-|---|---|
-| `@sphinx-labs/plugins` | Sphinx deployment framework (proposal, multisig approval, CREATE2 execution) |
+- If you add a dependency in a product repo, update the deployment phase model here at the same time.
+- If you change a constructor argument or deployment salt downstream, verify both `Deploy.s.sol` and `Resume.s.sol`.
+- Deployment changes need fork or dry-run validation against the actual target chains they affect.
+- Avoid "helpful" implicit discovery in deployment scripts when determinism matters. Be explicit.
+- Assume reviewers will care more about recovery correctness than deployment convenience.

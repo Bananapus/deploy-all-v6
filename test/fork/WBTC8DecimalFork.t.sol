@@ -545,6 +545,7 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
             useVotingUnits: false,
             cannotBeRemoved: false,
             cannotIncreaseDiscountPercent: false,
+            cantBuyWithCredits: false,
             splitPercent: splitPercent,
             splits: tierSplits
         });
