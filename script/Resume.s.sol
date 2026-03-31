@@ -2519,6 +2519,7 @@ contract Resume is Script {
             transfersPausable: false,
             useVotingUnits: false,
             cannotBeRemoved: true,
+            cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -2537,6 +2538,7 @@ contract Resume is Script {
             transfersPausable: false,
             useVotingUnits: false,
             cannotBeRemoved: true,
+            cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -2555,6 +2557,7 @@ contract Resume is Script {
             transfersPausable: false,
             useVotingUnits: false,
             cannotBeRemoved: true,
+            cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -2573,6 +2576,7 @@ contract Resume is Script {
             transfersPausable: false,
             useVotingUnits: false,
             cannotBeRemoved: true,
+            cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });

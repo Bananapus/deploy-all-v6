@@ -603,6 +603,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
             useVotingUnits: false, // don't use voting units
             cannotBeRemoved: false, // tier can be removed
             cannotIncreaseDiscountPercent: false, // discount can be increased
+            cantBuyWithCredits: false, // can buy with credits
             splitPercent: TIER_SPLIT_PERCENT, // 20% of tier payment to splits
             splits: tierSplits // tier splits
         });

@@ -2311,6 +2311,7 @@ contract Deploy is Script, Sphinx {
             transfersPausable: false,
             useVotingUnits: false,
             cannotBeRemoved: true,
+            cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -2329,6 +2330,7 @@ contract Deploy is Script, Sphinx {
             transfersPausable: false,
             useVotingUnits: false,
             cannotBeRemoved: true,
+            cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -2347,6 +2349,7 @@ contract Deploy is Script, Sphinx {
             transfersPausable: false,
             useVotingUnits: false,
             cannotBeRemoved: true,
+            cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -2365,6 +2368,7 @@ contract Deploy is Script, Sphinx {
             transfersPausable: false,
             useVotingUnits: false,
             cannotBeRemoved: true,
+            cantBuyWithCredits: false,
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
