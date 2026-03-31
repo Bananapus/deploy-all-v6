@@ -2,48 +2,58 @@
 
 ## Who This Repo Serves
 
-- protocol maintainers deploying the full V6 stack
-- operators rehearsing recovery or resume paths before production rollout
-- auditors reviewing the real operational sequence rather than isolated repo deployments
+- operators rehearsing the full Juicebox V6 ecosystem before a live rollout
+- engineers executing multi-package deployments across chains
+- responders recovering from an interrupted deployment sequence
+- reviewers verifying that the composed stack still works after upstream changes
 
-## Journey 1: Rehearse A Full Ecosystem Deployment
+## Journey 1: Rehearse A Full Ecosystem Deployment On Forks
 
-**Starting state:** sibling V6 repos are checked out together and their artifacts are expected to agree.
+**Starting state:** the team wants to prove the current sibling repos still deploy and compose correctly before touching a live chain.
 
-**Success:** you have a realistic fork-based rehearsal of the production deployment path.
+**Success:** fork tests cover the deployment sequence plus the important multi-repo feature interactions.
 
 **Flow**
-1. Install dependencies for the orchestration repo and sibling packages it expects.
-2. Run the build and test suite to catch artifact drift and integration mismatches.
-3. Use the fork-heavy rehearsals to validate that the composed stack still deploys and wires together correctly.
-4. Treat failures here as deployment blockers, not as "just test" noise.
+1. Run the fork-heavy suite in this repo rather than testing only isolated packages.
+2. Exercise end-to-end deployment, fee-project setup, router and buyback composition, sucker flows, and long-horizon lifecycle scenarios.
+3. Treat failures here as a deployment-shape problem until proven otherwise.
 
 ## Journey 2: Execute A Phased Main Deployment
 
-**Starting state:** chain credentials, Sphinx configuration, and dependency artifacts are ready.
+**Starting state:** the ecosystem is ready for live rollout and artifact drift has already been checked.
 
-**Success:** the complete V6 ecosystem is deployed in the intended order.
+**Success:** `script/Deploy.s.sol` executes the intended sequencing so dependencies exist before downstream packages reference them.
 
 **Flow**
-1. Run `script/Deploy.s.sol` through the intended deployment pipeline.
-2. Progress phase by phase instead of reasoning about the stack as one opaque transaction.
-3. Confirm critical dependencies such as the fee project, core protocol addresses, hooks, and cross-chain infrastructure at each boundary.
-4. Record phase outputs because later resume and verify steps depend on them.
+1. Feed the deployment script the chain-specific config and sibling-package artifacts it expects.
+2. Let the script deploy the core dependencies first and the composed packages after their prerequisites exist.
+3. Record outputs carefully because later verification and resume flows depend on them being consistent.
 
 ## Journey 3: Recover From An Interrupted Deployment
 
-**Starting state:** a previous deployment sequence stopped mid-flight or produced partial state.
+**Starting state:** the deployment stopped mid-flight and the team needs to continue without duplicating or corrupting prior work.
 
-**Success:** you can resume safely without duplicating or corrupting ecosystem state.
+**Success:** the resume path picks up from the last known-good state instead of pretending the deployment is atomic.
 
 **Flow**
-1. Inspect what was already deployed and what phase failed.
-2. Use `script/Resume.s.sol` to continue from the last valid checkpoint.
-3. Use `script/Verify.s.sol` after completion to confirm the resulting addresses and relationships.
-4. Compare outputs against the intended per-repo deployments before treating the rollout as final.
+1. Inspect the partial artifacts and outputs from the interrupted run.
+2. Use `script/Resume.s.sol` to continue from that state.
+3. Verify that resumed addresses still match the expectations of the packages that have not deployed yet.
 
-**Main risk:** this repo amplifies mistakes because it composes many packages at once. Recovery logic is part of the production surface.
+**Failure cases that matter:** stale artifacts, manually patched outputs that no longer match chain state, and assuming a resume flow is only ops tooling when tests explicitly treat it as production-critical behavior.
+
+## Journey 4: Verify The Deployment Before Calling It Live
+
+**Starting state:** contracts are deployed but the team still needs confidence that the resulting stack is the one it intended.
+
+**Success:** verification catches address, artifact, or composition drift before users rely on the system.
+
+**Flow**
+1. Run `script/Verify.s.sol` and the verification-oriented fork tests.
+2. Compare deployed addresses, hook composition, and cross-package assumptions against the expected outputs.
+3. Treat verification as part of the deploy path, not a cosmetic last step.
 
 ## Hand-Offs
 
-- Use the repo-level `USER_JOURNEYS.md` files in sibling packages to validate whether an upstream subsystem is behaving correctly before resuming.
+- Use the individual package repos to understand subsystem behavior; this repo only proves that the combined system still deploys and composes correctly.
+- Use [nana-fee-project-deployer-v6](../nana-fee-project-deployer-v6/USER_JOURNEYS.md) when the operational question is specifically about project `#1` rather than the whole ecosystem rollout.
