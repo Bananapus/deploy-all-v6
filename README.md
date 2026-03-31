@@ -1,157 +1,64 @@
-# Juicebox Deploy All
+# Deploy All V6
 
-Single Foundry script that deploys the current canonical Juicebox V6 rollout via [Sphinx](https://github.com/sphinx-labs/sphinx) across the configured chains.
+`deploy-all-v6` is the orchestration repo for the full Juicebox V6 stack. It is the package you use when you want to deploy or rehearse the entire ecosystem together instead of deploying individual repos one by one.
 
-## Chains
+Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-**Mainnets:** Ethereum, Optimism, Base, Arbitrum
-**Testnets:** Ethereum Sepolia, Optimism Sepolia, Base Sepolia, Arbitrum Sepolia
+## Overview
 
-The script contains chain-specific addresses for the supported chains, but the testnet matrix is not equally mature.
-Optimism Sepolia remains supported for the non-Uniswap rollout. Its Uniswap-dependent phases are skipped because
-Uniswap V4 does not publish a `PositionManager` there.
+This repo does not define a protocol surface of its own. Its job is to stitch together deployment artifacts, cross-package addresses, and multi-chain sequencing for the broader V6 ecosystem.
 
-## Deployment Phases
+It is responsible for:
 
-The script deploys contracts in dependency order within one Sphinx proposal:
+- full-stack deployment orchestration
+- deployment resume and recovery flows
+- verification passes after deployment
+- fork-based rehearsals of cross-feature compositions
 
-| Phase | What's deployed | Key contracts |
-|-------|----------------|---------------|
-| 01 | Core protocol | ERC2771Forwarder, JBPermissions, JBProjects, JBDirectory, JBSplits, JBRulesets, JBPrices, JBTokens, JBERC20, JBFundAccessLimits, JBFeelessAddresses, JBTerminalStore, JBMultiTerminal |
-| 02 | Address registry | JBAddressRegistry |
-| 03a | 721 tier hook | JB721TiersHook, JB721TiersHookDeployer, JB721TiersHookProjectDeployer, JB721TiersHookStore |
-| 03b | Uniswap V4 router hook | JBUniswapV4Hook |
-| 03c | Buyback hook | JBBuybackHook, JBBuybackHookRegistry |
-| 03d | Router terminal | JBRouterTerminal, JBRouterTerminalRegistry |
-| 03e | LP split hook | JBUniswapV4LPSplitHook, JBUniswapV4LPSplitHookDeployer |
-| 03f | Cross-chain suckers | JBOptimismSucker, JBBaseSucker, JBArbitrumSucker, JBCCIPSucker, JBSuckerRegistry + deployers |
-| 04 | Omnichain deployer | JBOmnichainDeployer |
-| 05 | Periphery | JBController, price feeds (Chainlink V3 + sequencer), deadlines (3h, 1d, 3d, 7d) |
-| 06 | Croptop | CPN project (ID 2), CTDeployer, CTPublisher |
-| 07 | Revnet | REV project (ID 3), REVLoans, REVDeployer |
-| 08 | CPN + NANA revnets | Configure project 2 and project 1 as revnets |
-| 09 | Banny | BAN project (ID 4) |
-| 10 | Defifa | DefifaHook, DefifaTokenUriResolver, DefifaGovernor, DefifaDeployer |
+Use this repo when the question is "does the full ecosystem deploy and compose correctly?" Do not use it as the primary place to understand subsystem behavior; that lives in the individual package repos.
 
-The current script does **not** deploy `JBOwnable`. It does deploy the canonical Uniswap V4 stack:
-`JBUniswapV4Hook`, `JBBuybackHook` wired to that router hook as its oracle, and
-`JBUniswapV4LPSplitHook` plus `JBUniswapV4LPSplitHookDeployer`.
+If you are debugging runtime behavior before deployment shape is even known to be correct, this is usually the wrong repo to start in.
 
-## Recovery Model
+## Key Scripts
 
-`script/Resume.s.sol` is a resumable recovery script. If a live Sphinx execution stops after some CREATE2
-deployments succeed, re-proposing the full script with the same salts is not a safe recovery path: those
-deployments will collide with contracts that already exist. Instead, use `Resume.s.sol`, which detects
-already-deployed contracts via `extcodesize` checks and performs only the remaining deployments and wiring.
+| Script | Role |
+| --- | --- |
+| `script/Deploy.s.sol` | Main end-to-end deployment entrypoint for the full V6 ecosystem. |
+| `script/Resume.s.sol` | Resume and recovery tooling for interrupted deployment sequences. |
+| `script/Verify.s.sol` | Verification-oriented deployment follow-up. |
 
-See `DEPLOY.md` for the full operator runbook, including recovery procedures.
+## Mental Model
 
-## Prerequisites
+This repo owns sequencing, not business logic. It is the place where "all the pieces together" is exercised under deployment conditions.
 
-- [Foundry](https://getfoundry.sh)
-- Node.js >= 20
-- All sibling V6 repos cloned as siblings (this repo uses `file:` dependencies)
-
-## Setup
+## Development
 
 ```bash
 npm install
 forge build
+forge test
 ```
 
-## Deployment Commands
+The test suite is fork-heavy and exercises realistic multi-repo compositions rather than isolated local mocks.
 
-| Command | Description |
-|---------|-------------|
-| `npx sphinx propose script/Deploy.s.sol --networks testnets` | Propose testnet deployment via Sphinx |
-| `npx sphinx propose script/Deploy.s.sol --networks mainnets` | Propose mainnet deployment via Sphinx |
-| `forge test --match-path "test/fork/*" -vvv --fork-url $RPC_ETHEREUM_MAINNET` | Run fork tests against mainnet state |
+## Deployment Notes
 
-Set `SPHINX_ORG_ID` in `.env` before proposing. See `.env.example` for the required variables.
-
-## Deployment Verification
-
-After Sphinx executes an approved proposal, verify the deployment:
-
-1. **Sphinx dashboard** -- confirm all transactions landed on every target chain. Each chain should show a completed execution with no skipped or failed steps.
-2. **Contract existence** -- for each deployed address, run `cast code <address> --rpc-url <chain_rpc>` and confirm non-empty bytecode.
-3. **Etherscan verification** -- Sphinx auto-verifies source on supported explorers. Spot-check a few contracts (e.g. `JBController`, `JBMultiTerminal`) on the relevant block explorer to confirm verified source is visible.
-4. **Wiring checks** -- validate critical post-deployment state:
-   - `JBDirectory.isAllowedToSetFirstController(controller)` returns `true`.
-   - `JBPrices.pricePerUnitOf(...)` returns a live ETH/USD price.
-   - `JBBuybackHookRegistry.defaultHook()` returns the buyback hook address.
-   - `JBSuckerRegistry.isSuckerDeployerAllowed(deployer)` returns `true` for each deployer.
-   - Projects 1-4 exist via `JBProjects.ownerOf(projectId)`.
-5. **Smoke test** -- send a small payment to project 1 and confirm tokens are minted and the terminal balance increases.
-
-## Dependencies
-
-All V6 dependencies are installed from npm:
-
-| Package | Repo |
-|---------|------|
-| `@bananapus/core-v6` | nana-core-v6 |
-| `@bananapus/permission-ids-v6` | nana-permission-ids-v6 |
-| `@bananapus/address-registry-v6` | nana-address-registry-v6 |
-| `@bananapus/721-hook-v6` | nana-721-hook-v6 |
-| `@bananapus/buyback-hook-v6` | nana-buyback-hook-v6 |
-| `@bananapus/router-terminal-v6` | nana-router-terminal-v6 |
-| `@bananapus/suckers-v6` | nana-suckers-v6 |
-| `@bananapus/omnichain-deployers-v6` | nana-omnichain-deployers-v6 |
-| `@bananapus/ownable-v6` | nana-ownable-v6 |
-| `@bananapus/univ4-router-v6` | univ4-router-v6 |
-| `@bananapus/univ4-lp-split-hook-v6` | univ4-lp-split-hook-v6 |
-| `@rev-net/core-v6` | revnet-core-v6 |
-| `@croptop/core-v6` | croptop-core-v6 |
-| `@bannynet/core-v6` | banny-retail-v6 |
-| `@ballkidz/defifa` | defifa-collection-deployer-v6 |
-
-## Build Configuration
-
-- Solidity ^0.8.28, Cancun EVM
-- `via_ir = true` (required for stack depth)
-- Optimizer disabled (stack-too-deep with optimization enabled)
-- Sphinx plugin for multi-chain atomic deployment
+This repo assumes the sibling V6 packages are available and their deployment artifacts remain internally consistent. Treat it as the last mile of deployment orchestration, not the source of truth for subsystem behavior.
 
 ## Repository Layout
 
-```
-deploy-all-v6/
-├── script/
-│   ├── Deploy.s.sol        # Single Sphinx deployment script (all 10 phases)
-│   ├── Resume.s.sol        # Resumable recovery script (skips already-deployed contracts)
-│   └── Verify.s.sol        # Post-deployment verification script
-├── src/                     # Empty -- no application contracts (deployment-only repo)
-├── test/
-│   └── fork/                # Fork tests that replay the deployment against live mainnet state
-│       ├── ApprovalHookFork.t.sol
-│       ├── BuybackRouterFork.t.sol
-│       ├── CrossCurrencyFork.t.sol
-│       ├── DeployFork.t.sol
-│       ├── DeployFullStack.t.sol
-│       ├── DeployScriptVerification.t.sol
-│       ├── EcosystemFork.t.sol
-│       ├── FullStackFork.t.sol
-│       ├── HookCompositionFork.t.sol
-│       ├── LPBuybackInteropFork.t.sol
-│       ├── PayoutReentrancyFork.t.sol
-│       ├── PriceFeedFailureFork.t.sol
-│       ├── ReservedInflationFork.t.sol
-│       ├── ResumeDeployFork.t.sol
-│       ├── SuckerBuybackFork.t.sol
-│       ├── SuckerEndToEndFork.t.sol
-│       ├── TestFeeProcessingCascade.t.sol
-│       ├── TestMultiCurrencyPayout.t.sol
-│       ├── TestTerminalMigration.t.sol
-│       ├── USDCEcosystemFork.t.sol
-│       └── USDCRevnetFork.t.sol
-├── lib/
-│   └── forge-std/           # Foundry standard library
-├── foundry.toml             # Forge config (via_ir, Cancun, optimizer off)
-├── package.json             # npm dependencies linking all sibling V6 repos
-└── remappings.txt           # Solidity import remappings
+```text
+script/
+  Deploy.s.sol
+  Resume.s.sol
+  Verify.s.sol
+test/fork/
+  full-stack, recovery, cross-feature, and long-horizon deployment rehearsals
 ```
 
-## License
+## Risks And Notes
 
-MIT
+- this repo amplifies configuration mistakes because it composes many packages at once
+- deployment recovery paths are part of the intended surface and should be treated as production code
+- fork rehearsals reduce deployment risk, but they do not remove chain-specific operational risk
+- artifact drift across sibling packages is one of the main failure modes

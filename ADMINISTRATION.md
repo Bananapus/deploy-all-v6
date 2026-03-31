@@ -2,6 +2,33 @@
 
 Admin privileges and their scope in deploy-all-v6.
 
+## At A Glance
+
+| Item | Details |
+|------|---------|
+| Scope | Canonical full-stack deployment orchestration for the V6 ecosystem. This repo does not create runtime admin roles of its own; it assigns them during deployment. |
+| Operators | The Sphinx Safe that receives protocol ownership, revnet-specific operator addresses hardcoded into the deployment config, and maintainers rehearsing or updating deployment logic. |
+| Highest-risk actions | Changing constructor ownership targets, deployment ordering, revnet operator addresses, immutable stage parameters, or one-time post-deploy wiring calls. |
+| Recovery posture | Most deployment mistakes are recovered by redeploying affected layers or running a corrected rollout, not by editing live immutable contracts. |
+
+## Routine Operations
+
+- Rehearse the full deployment flow before touching production config, especially after changing ownership targets, post-deploy wiring, or cross-package constructor arguments.
+- Keep the Sphinx Safe assumptions explicit and verify that every protocol-owned contract still receives `safeAddress()` where expected.
+- Treat revnet operator addresses, fee project setup, and cross-chain deployer configuration as environment configuration, not incidental script details.
+- After every rollout, verify the protocol-level admin contracts were wired exactly once and to the intended addresses.
+
+## One-Way Or High-Risk Actions
+
+- Immutable constructor mistakes propagate widely because later layers depend on addresses from earlier layers.
+- Price-feed setup, one-time sucker deployer configuration, and revnet stage definitions cannot be patched in place after deployment.
+- The deployment script is the canonical source for who receives protocol-level power; a small config drift here can change the ecosystem control model materially.
+
+## Recovery Notes
+
+- If a deployment transaction fails atomically, fix the script or config and rerun; there is no partial state to salvage from that failed execution.
+- If a live rollout succeeds with bad immutable configuration, recover by redeploying the affected contracts or, where possible, migrating projects to replacement infrastructure created by a corrected deployment.
+
 ## Overview
 
 This repo is a single Foundry/Sphinx deployment script (`script/Deploy.s.sol`, ~1,600 lines) that deploys the current
@@ -75,7 +102,7 @@ After deployment completes, the Sphinx Safe retains admin capabilities over the 
 
 ### JBFeelessAddresses
 
-- `setAddress(address, bool)` -- The safe can mark addresses as fee-exempt, meaning payments to/from those addresses skip the 2.5% protocol fee.
+- `setFeelessAddress(address, bool)` -- The safe can mark addresses as fee-exempt, meaning payments to/from those addresses skip the 2.5% protocol fee.
 
 ### JBSuckerRegistry
 
