@@ -63,6 +63,7 @@ import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
 import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721InitTiersConfig.sol";
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
+import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
 
 // ── Buyback Hook ──
@@ -2305,13 +2306,15 @@ contract Deploy is Script, Sphinx {
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
-            cantIncreaseDiscountPercent: true,
-            allowOwnerMint: false,
-            useReserveBeneficiaryAsDefault: false,
-            transfersPausable: false,
-            useVotingUnits: false,
-            cantBeRemoved: true,
-            cantBuyWithCredits: false,
+            flags: JB721TierConfigFlags({
+                allowOwnerMint: false,
+                useReserveBeneficiaryAsDefault: false,
+                transfersPausable: false,
+                useVotingUnits: false,
+                cantBeRemoved: true,
+                cantIncreaseDiscountPercent: true,
+                cantBuyWithCredits: false
+            }),
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -2324,13 +2327,15 @@ contract Deploy is Script, Sphinx {
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
-            cantIncreaseDiscountPercent: true,
-            allowOwnerMint: false,
-            useReserveBeneficiaryAsDefault: false,
-            transfersPausable: false,
-            useVotingUnits: false,
-            cantBeRemoved: true,
-            cantBuyWithCredits: false,
+            flags: JB721TierConfigFlags({
+                allowOwnerMint: false,
+                useReserveBeneficiaryAsDefault: false,
+                transfersPausable: false,
+                useVotingUnits: false,
+                cantBeRemoved: true,
+                cantIncreaseDiscountPercent: true,
+                cantBuyWithCredits: false
+            }),
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -2343,13 +2348,15 @@ contract Deploy is Script, Sphinx {
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
-            cantIncreaseDiscountPercent: true,
-            allowOwnerMint: false,
-            useReserveBeneficiaryAsDefault: false,
-            transfersPausable: false,
-            useVotingUnits: false,
-            cantBeRemoved: true,
-            cantBuyWithCredits: false,
+            flags: JB721TierConfigFlags({
+                allowOwnerMint: false,
+                useReserveBeneficiaryAsDefault: false,
+                transfersPausable: false,
+                useVotingUnits: false,
+                cantBeRemoved: true,
+                cantIncreaseDiscountPercent: true,
+                cantBuyWithCredits: false
+            }),
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
@@ -2362,13 +2369,15 @@ contract Deploy is Script, Sphinx {
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
-            cantIncreaseDiscountPercent: true,
-            allowOwnerMint: false,
-            useReserveBeneficiaryAsDefault: false,
-            transfersPausable: false,
-            useVotingUnits: false,
-            cantBeRemoved: true,
-            cantBuyWithCredits: false,
+            flags: JB721TierConfigFlags({
+                allowOwnerMint: false,
+                useReserveBeneficiaryAsDefault: false,
+                transfersPausable: false,
+                useVotingUnits: false,
+                cantBeRemoved: true,
+                cantIncreaseDiscountPercent: true,
+                cantBuyWithCredits: false
+            }),
             splitPercent: 0,
             splits: new JBSplit[](0)
         });

@@ -2,28 +2,11 @@
 solc = '0.8.28'
 evm_version = 'cancun'
 via_ir = true
-optimizer_runs = 200
-
-# Custom Yul optimizer config to fix stack-too-deep when compiling with via_ir.
-# The JB721Tier struct (17 fields + dynamic string) in JB721TiersHookStore exceeds
-# the default Yul codegen stack limit. These optimizer steps aggressively reduce
-# stack pressure so the 17-field struct can be encoded without overflow.
-# The 721-hook repo compiles fine without via_ir, but deploy-all's via_ir setting
-# applies to all dependencies in the compilation unit.
-[profile.default.optimizer_details]
-yul = true
-
-[profile.default.optimizer_details.yul_details]
-stack_allocation = true
-optimizer_steps = "dhfoDgvulfnTUtnIf[xa]rrscLMcCTUtTOntnfDIulLculVcul[j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTFOtfDnca[r]Iulc]jmul[jul]VcTOcul jmul"
+optimizer = false
 libs = ["node_modules", "lib"]
 fs_permissions = [{ access = "read-write", path = "./"}]
 memory_limit = 67108864
 gas_limit = 9223372036854775807
-
-[profile.ci_sizes]
-optimizer = true
-optimizer_runs = 200
 
 [fuzz]
 runs = 4096
