@@ -30,6 +30,7 @@ import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB
 import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
+import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721InitTiersConfig.sol";
 import {JB721TiersHookFlags} from "@bananapus/721-hook-v6/src/structs/JB721TiersHookFlags.sol";
 import {JBDeploy721TiersHookConfig} from "@bananapus/721-hook-v6/src/structs/JBDeploy721TiersHookConfig.sol";
@@ -577,13 +578,15 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
             encodedIPFSUri: bytes32("lifecycleTier1"), // tier metadata URI
             category: 1, // category 1 (must be sorted ascending)
             discountPercent: 0, // no discount
-            allowOwnerMint: false, // owner can't mint
-            useReserveBeneficiaryAsDefault: false, // don't default to reserve beneficiary
-            transfersPausable: false, // transfers allowed
-            useVotingUnits: false, // don't use voting units
-            cannotBeRemoved: false, // tier can be removed
-            cannotIncreaseDiscountPercent: false, // discount can be increased
-            cantBuyWithCredits: false, // can buy with credits
+            flags: JB721TierConfigFlags({
+                allowOwnerMint: false, // owner can't mint
+                useReserveBeneficiaryAsDefault: false, // don't default to reserve beneficiary
+                transfersPausable: false, // transfers allowed
+                useVotingUnits: false, // don't use voting units
+                cantBeRemoved: false, // tier can be removed
+                cantIncreaseDiscountPercent: false, // discount can be increased
+                cantBuyWithCredits: false // can buy with credits
+            }),
             splitPercent: TIER_SPLIT_PERCENT, // 30% of tier payment to splits
             splits: tierSplits // tier splits
         });

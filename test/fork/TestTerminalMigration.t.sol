@@ -334,7 +334,7 @@ contract TestTerminalMigration is TestBaseWorkflow {
         // USE_ALLOWANCE: so it can pull loan funds from the terminal's surplus.
         uint8[] memory loanPermissionIds = new uint8[](2);
         loanPermissionIds[0] = 10; // MINT_TOKENS
-        loanPermissionIds[1] = 17; // USE_ALLOWANCE
+        loanPermissionIds[1] = 18; // USE_ALLOWANCE
         jbPermissions()
             .setPermissionsFor(
                 address(this),
@@ -401,10 +401,12 @@ contract TestTerminalMigration is TestBaseWorkflow {
             0,
             "terminal 1 should have 0 balance after migration"
         );
+        // Migration to a non-feeless terminal incurs a 2.5% fee.
+        uint256 feeAmount = balanceBefore * 25 / 1000;
         assertEq(
             _terminalBalance(address(jbMultiTerminal2()), projectId, JBConstants.NATIVE_TOKEN),
-            balanceBefore,
-            "terminal 2 should have full balance after migration"
+            balanceBefore - feeAmount,
+            "terminal 2 should have balance minus 2.5% migration fee"
         );
     }
 
@@ -507,8 +509,13 @@ contract TestTerminalMigration is TestBaseWorkflow {
         assertGt(newTokens, 0, "should receive tokens when paying into new terminal");
         assertGt(jbTokens().totalBalanceOf(PAYER, projectId), payerTokensBefore, "payer token balance should increase");
 
-        // Terminal 2 balance should reflect both migration and new payment.
+        // Terminal 2 balance should reflect migration (minus 2.5% fee) and new payment.
+        uint256 feeOnMigration = 10 ether * 25 / 1000;
         uint256 t2Balance = _terminalBalance(address(jbMultiTerminal2()), projectId, JBConstants.NATIVE_TOKEN);
-        assertEq(t2Balance, 15 ether, "terminal 2 should have 15 ETH (10 migrated + 5 new)");
+        assertEq(
+            t2Balance,
+            10 ether - feeOnMigration + 5 ether,
+            "terminal 2 should have 14.75 ETH (10 migrated minus fee + 5 new)"
+        );
     }
 }

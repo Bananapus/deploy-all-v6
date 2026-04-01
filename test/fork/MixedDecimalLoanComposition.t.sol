@@ -783,9 +783,10 @@ contract MixedDecimalLoanCompositionTest is TestBaseWorkflow {
         // Verify the migration transferred the expected USDC balance.
         assertGt(migratedAmount, 0, "migrated amount should be non-zero");
 
-        // Verify the new terminal received the migrated USDC.
+        // Verify the new terminal received the migrated USDC minus the 2.5% migration fee.
+        uint256 migrationFee = migratedAmount * 25 / 1000;
         uint256 newTermBal = _terminalBalance(address(jbMultiTerminal2()), revnetId, address(usdc));
-        assertEq(newTermBal, migratedAmount, "new terminal should hold the migrated balance");
+        assertEq(newTermBal, migratedAmount - migrationFee, "new terminal should hold the migrated balance minus fee");
 
         // ──────────────── Step 7: Repay the loan
         // ────────────────
@@ -837,9 +838,9 @@ contract MixedDecimalLoanCompositionTest is TestBaseWorkflow {
         uint256 oldTermBalAfterRepay = _terminalBalance(address(jbMultiTerminal()), revnetId, address(usdc));
         assertGt(oldTermBalAfterRepay, 0, "old terminal should have balance from loan repayment");
 
-        // 8f: New terminal still holds the migrated balance.
+        // 8f: New terminal still holds the migrated balance (minus the 2.5% migration fee).
         uint256 newTermBalFinal = _terminalBalance(address(jbMultiTerminal2()), revnetId, address(usdc));
-        assertEq(newTermBalFinal, migratedAmount, "new terminal balance should be unchanged after repay");
+        assertEq(newTermBalFinal, migratedAmount - migrationFee, "new terminal balance should be unchanged after repay");
 
         // 8g: Total USDC across both terminals is consistent.
         // The sum should equal: original deposits + buyback payment + loan repayment - loan payout.
