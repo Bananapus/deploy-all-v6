@@ -181,6 +181,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @dev This script does NOT use Sphinx. It is meant to be run directly with `forge script --broadcast`.
 ///      The deployer address (msg.sender) MUST match the Sphinx safe address used in the original deploy.
 contract Resume is Script {
+    error Resume_UnauthorizedResumer(address caller, address expected);
     // ═══════════════════════════════════════════════════════════════════════
     //  Errors — revert with context when resume encounters inconsistent state
     // ═══════════════════════════════════════════════════════════════════════
@@ -389,6 +390,7 @@ contract Resume is Script {
 
     // Deployer address — the msg.sender that originally ran Deploy.s.sol.
     address private _deployer;
+    address private _expectedSafe;
 
     // Phase tracking counters for the final summary log.
     uint256 private _phasesSkipped;
@@ -400,8 +402,11 @@ contract Resume is Script {
 
     /// @notice Main entry point. Sets up chain addresses and runs all phases.
     function run() public {
-        // Store the deployer address — used as CREATE2 deployer for address computation.
-        _deployer = msg.sender;
+        // Resume must use the same Safe identity as the canonical deployment path so CREATE2 address
+        // derivation and project ownership cannot drift during partial recovery.
+        _expectedSafe = vm.envAddress("RESUME_SAFE");
+        if (msg.sender != _expectedSafe) revert Resume_UnauthorizedResumer(msg.sender, _expectedSafe);
+        _deployer = _expectedSafe;
 
         // Resolve chain-specific external contract addresses.
         _setupChainAddresses();
@@ -424,22 +429,25 @@ contract Resume is Script {
         // ── Phase 03a: 721 Tier Hook ──
         _resume721Hook();
 
+        // ── Phase 03b: Buyback Registry ──
+        _resumeBuybackRegistry();
+
         // Uniswap-dependent phases are skipped on chains without a PositionManager.
         if (_shouldDeployUniswapStack()) {
-            // ── Phase 03b: Uniswap V4 Router Hook ──
+            // ── Phase 03c: Uniswap V4 Router Hook ──
             _resumeUniswapV4Hook();
 
-            // ── Phase 03c: Buyback Hook ──
+            // ── Phase 03d: Buyback Hook ──
             _resumeBuybackHook();
 
-            // ── Phase 03d: Router Terminal ──
+            // ── Phase 03e: Router Terminal ──
             _resumeRouterTerminal();
 
-            // ── Phase 03e: Uniswap V4 LP Split Hook ──
+            // ── Phase 03f: Uniswap V4 LP Split Hook ──
             _resumeLpSplitHook();
         }
 
-        // ── Phase 03f: Cross-Chain Suckers ──
+        // ── Phase 03g: Cross-Chain Suckers ──
         _resumeSuckers();
 
         // ── Phase 04: Omnichain Deployer ──
@@ -822,11 +830,10 @@ contract Resume is Script {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  Phase 03c: Buyback Hook
+    //  Phase 03c: Buyback Registry
     // ═══════════════════════════════════════════════════════════════════════
 
-    function _resumeBuybackHook() internal {
-        // Deploy or resolve the buyback registry.
+    function _resumeBuybackRegistry() internal {
         (address registry, bool registryDeployed) = _isDeployed({
             salt: BUYBACK_HOOK_SALT,
             creationCode: type(JBBuybackHookRegistry).creationCode,
@@ -837,6 +844,18 @@ contract Resume is Script {
             : new JBBuybackHookRegistry{salt: BUYBACK_HOOK_SALT}({
                 permissions: _permissions, projects: _projects, owner: _deployer, trustedForwarder: _trustedForwarder
             });
+
+        _logPhase("03c", "Buyback Registry", registryDeployed);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Phase 03d: Buyback Hook
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function _resumeBuybackHook() internal {
+        if (address(_buybackRegistry) == address(0)) {
+            _resumeBuybackRegistry();
+        }
 
         // Deploy or resolve the buyback hook.
         (address hook, bool hookDeployed) = _isDeployed(
@@ -869,10 +888,14 @@ contract Resume is Script {
         // Idempotent: set default hook only if not already set.
         if (address(_buybackRegistry.defaultHook()) == address(0)) {
             _buybackRegistry.setDefaultHook({hook: _buybackHook}); // Wire default buyback hook.
+        } else if (address(_buybackRegistry.defaultHook()) != address(_buybackHook)) {
+            revert Resume_AddressMismatch(
+                "BuybackRegistry.defaultHook", address(_buybackHook), address(_buybackRegistry.defaultHook())
+            );
         }
 
         // Log the result.
-        _logPhase("03c", "Buyback Hook", registryDeployed && hookDeployed);
+        _logPhase("03d", "Buyback Hook", hookDeployed);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -929,6 +952,12 @@ contract Resume is Script {
         // Idempotent: set default terminal only if not already set.
         if (address(_routerTerminalRegistry.defaultTerminal()) == address(0)) {
             _routerTerminalRegistry.setDefaultTerminal({terminal: _routerTerminal}); // Wire default.
+        } else if (address(_routerTerminalRegistry.defaultTerminal()) != address(_routerTerminal)) {
+            revert Resume_AddressMismatch(
+                "RouterTerminalRegistry.defaultTerminal",
+                address(_routerTerminal),
+                address(_routerTerminalRegistry.defaultTerminal())
+            );
         }
 
         // Idempotent: mark router terminal as feeless only if not already.
@@ -1937,6 +1966,9 @@ contract Resume is Script {
                 address(_revOwner)
             )
         );
+        if (address(_revOwner.DEPLOYER()) == address(0)) {
+            _revOwner.setDeployer(IREVDeployer(revDeployer));
+        }
         _revDeployer = revDeployerDeployed
             ? REVDeployer(revDeployer)
             : new REVDeployer{salt: REV_DEPLOYER_SALT}(
@@ -1972,13 +2004,15 @@ contract Resume is Script {
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
 
-        // Build terminal configs: main terminal + router terminal.
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
         terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        terminalConfigs[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(_routerTerminalRegistry)),
-            accountingContextsToAccept: new JBAccountingContext[](0)
-        });
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
 
         // Build splits: 100% to operator.
         JBSplit[] memory splits = new JBSplit[](1);
@@ -2098,12 +2132,15 @@ contract Resume is Script {
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
 
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
         terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        terminalConfigs[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(_routerTerminalRegistry)),
-            accountingContextsToAccept: new JBAccountingContext[](0)
-        });
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -2285,12 +2322,15 @@ contract Resume is Script {
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
 
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
         terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        terminalConfigs[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(_routerTerminalRegistry)),
-            accountingContextsToAccept: new JBAccountingContext[](0)
-        });
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -2422,12 +2462,15 @@ contract Resume is Script {
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
 
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](2);
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
         terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        terminalConfigs[1] = JBTerminalConfig({
-            terminal: IJBTerminal(address(_routerTerminalRegistry)),
-            accountingContextsToAccept: new JBAccountingContext[](0)
-        });
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -2721,6 +2764,13 @@ contract Resume is Script {
                 });
 
                 // Transfer governor ownership to the deployer so it can initialize games.
+                _defifaGovernor.transferOwnership(address(_defifaDeployer));
+                allDeployed = false;
+            }
+
+            // Interrupted deployments can leave the governor still owned by the safe even after the deployer exists.
+            // Repair the handoff idempotently so resume converges to the same final ownership as a clean deploy.
+            if (_defifaGovernor.owner() == _deployer && _defifaGovernor.owner() != address(_defifaDeployer)) {
                 _defifaGovernor.transferOwnership(address(_defifaDeployer));
                 allDeployed = false;
             }
