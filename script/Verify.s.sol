@@ -141,6 +141,8 @@ contract Verify is Script {
     REVOwner public revOwner;
     // The REV loans contract.
     REVLoans public revLoans;
+    // Optional canonical Safe owner to assert during verification.
+    address public expectedSafe;
 
     // ════════════════════════════════════════════════════════════════════
     //  Counters — track pass/fail for summary
@@ -264,6 +266,8 @@ contract Verify is Script {
         revOwner = REVOwner(vm.envOr("VERIFY_REV_OWNER", address(0)));
         // Read the REV loans address from env (address(0) if not deployed on this chain).
         revLoans = REVLoans(payable(vm.envOr("VERIFY_REV_LOANS", address(0))));
+        // Read the canonical Safe owner if provided.
+        expectedSafe = vm.envOr("VERIFY_SAFE", address(0));
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -281,7 +285,7 @@ contract Verify is Script {
         // Determine whether the Uniswap stack was deployed on this chain.
         // Chains without Uniswap (e.g. Optimism Sepolia) skip revnet phases 08-09,
         // so fewer projects are created (only CPN project from Croptop phase).
-        bool hasUniswapStack = address(buybackRegistry) != address(0);
+        bool hasUniswapStack = address(routerTerminal) != address(0);
 
         if (hasUniswapStack) {
             // Full deploy: expect at least 4 projects (NANA, CPN, REV, BAN).
@@ -499,6 +503,13 @@ contract Verify is Script {
         if (uniswapStackDeployed) {
             // Read the default hook from the buyback registry.
             _check(address(buybackRegistry.defaultHook()) != address(0), "BuybackRegistry has default hook set", true);
+            if (address(buybackHook) != address(0)) {
+                _check(
+                    address(buybackRegistry.defaultHook()) == address(buybackHook),
+                    "BuybackRegistry.defaultHook == JBBuybackHook",
+                    true
+                );
+            }
 
             // Verify the buyback registry's PROJECTS points to JBProjects.
             _check(
@@ -739,6 +750,9 @@ contract Verify is Script {
         try projects.ownerOf(projectId) returns (address owner) {
             // Verify the owner is not the zero address (burned token).
             _check(owner != address(0), label, true);
+            if (expectedSafe != address(0)) {
+                _check(owner == expectedSafe, string.concat(label, " and is canonically safe-owned"), true);
+            }
         } catch {
             // ownerOf reverted, meaning the project does not exist.
             _check(false, label, true);

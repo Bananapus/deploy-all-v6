@@ -1780,6 +1780,9 @@ contract Deploy is Script, Sphinx {
                 address(_revOwner)
             )
         );
+        if (address(_revOwner.DEPLOYER()) == address(0)) {
+            _revOwner.setDeployer(IREVDeployer(revDeployer));
+        }
         _revDeployer = revDeployerDeployed
             ? REVDeployer(revDeployer)
             : new REVDeployer{salt: REV_DEPLOYER_SALT}(
