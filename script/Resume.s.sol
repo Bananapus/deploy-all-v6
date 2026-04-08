@@ -1082,6 +1082,9 @@ contract Resume is Script {
             );
             if (address(opDeployer.opMessenger()) == address(0)) {
                 opDeployer.setChainSpecificConstants(messenger, bridge); // Wire OP bridge.
+            } else {
+                require(address(opDeployer.opMessenger()) == address(messenger), "Resume: stale opMessenger");
+                require(address(opDeployer.opBridge()) == address(bridge), "Resume: stale opBridge");
             }
 
             // Deploy or resolve OP sucker singleton.
@@ -1116,11 +1119,13 @@ contract Resume is Script {
                 );
 
             // Set L2 predeploy addresses if not already set.
+            IOPMessenger l2OpMessenger = IOPMessenger(0x4200000000000000000000000000000000000007);
+            IOPStandardBridge l2OpBridge = IOPStandardBridge(0x4200000000000000000000000000000000000010);
             if (address(opDeployer.opMessenger()) == address(0)) {
-                opDeployer.setChainSpecificConstants(
-                    IOPMessenger(0x4200000000000000000000000000000000000007),
-                    IOPStandardBridge(0x4200000000000000000000000000000000000010)
-                );
+                opDeployer.setChainSpecificConstants(l2OpMessenger, l2OpBridge);
+            } else {
+                require(address(opDeployer.opMessenger()) == address(l2OpMessenger), "Resume: stale opMessenger");
+                require(address(opDeployer.opBridge()) == address(l2OpBridge), "Resume: stale opBridge");
             }
 
             // Deploy or resolve OP sucker singleton on L2.
@@ -1168,6 +1173,9 @@ contract Resume is Script {
             );
             if (address(baseDeployer.opMessenger()) == address(0)) {
                 baseDeployer.setChainSpecificConstants(messenger, bridge); // Wire Base bridge.
+            } else {
+                require(address(baseDeployer.opMessenger()) == address(messenger), "Resume: stale opMessenger");
+                require(address(baseDeployer.opBridge()) == address(bridge), "Resume: stale opBridge");
             }
 
             // Deploy or resolve Base sucker singleton.
@@ -1201,11 +1209,13 @@ contract Resume is Script {
                 );
 
             // Set L2 predeploy addresses.
+            IOPMessenger l2BaseMessenger = IOPMessenger(0x4200000000000000000000000000000000000007);
+            IOPStandardBridge l2BaseBridge = IOPStandardBridge(0x4200000000000000000000000000000000000010);
             if (address(baseDeployer.opMessenger()) == address(0)) {
-                baseDeployer.setChainSpecificConstants(
-                    IOPMessenger(0x4200000000000000000000000000000000000007),
-                    IOPStandardBridge(0x4200000000000000000000000000000000000010)
-                );
+                baseDeployer.setChainSpecificConstants(l2BaseMessenger, l2BaseBridge);
+            } else {
+                require(address(baseDeployer.opMessenger()) == address(l2BaseMessenger), "Resume: stale opMessenger");
+                require(address(baseDeployer.opBridge()) == address(l2BaseBridge), "Resume: stale opBridge");
             }
 
             // Deploy or resolve Base sucker singleton on L2.
@@ -1241,14 +1251,20 @@ contract Resume is Script {
                 );
 
             // Set Arbitrum-specific constants (inbox + gateway).
+            IInbox expectedInbox = IInbox(block.chainid == 1 ? ARBAddresses.L1_ETH_INBOX : ARBAddresses.L1_SEP_INBOX);
+            IArbGatewayRouter expectedGatewayRouter = IArbGatewayRouter(
+                block.chainid == 1 ? ARBAddresses.L1_GATEWAY_ROUTER : ARBAddresses.L1_SEP_GATEWAY_ROUTER
+            );
             if (address(arbDeployer.arbGatewayRouter()) == address(0)) {
                 arbDeployer.setChainSpecificConstants({
-                    layer: JBLayer.L1,
-                    inbox: IInbox(block.chainid == 1 ? ARBAddresses.L1_ETH_INBOX : ARBAddresses.L1_SEP_INBOX),
-                    gatewayRouter: IArbGatewayRouter(
-                        block.chainid == 1 ? ARBAddresses.L1_GATEWAY_ROUTER : ARBAddresses.L1_SEP_GATEWAY_ROUTER
-                    )
+                    layer: JBLayer.L1, inbox: expectedInbox, gatewayRouter: expectedGatewayRouter
                 });
+            } else {
+                require(
+                    address(arbDeployer.arbGatewayRouter()) == address(expectedGatewayRouter),
+                    "Resume: stale arbGatewayRouter"
+                );
+                require(address(arbDeployer.arbInbox()) == address(expectedInbox), "Resume: stale arbInbox");
             }
 
             // Deploy or resolve Arbitrum sucker singleton.
@@ -1282,14 +1298,20 @@ contract Resume is Script {
                 );
 
             // inbox=address(0) is correct on L2 — Arbitrum inbox is only used on L1.
+            IArbGatewayRouter expectedL2GatewayRouter = IArbGatewayRouter(
+                block.chainid == 42_161 ? ARBAddresses.L2_GATEWAY_ROUTER : ARBAddresses.L2_SEP_GATEWAY_ROUTER
+            );
             if (address(arbDeployer.arbGatewayRouter()) == address(0)) {
                 arbDeployer.setChainSpecificConstants({
                     layer: JBLayer.L2,
                     inbox: IInbox(address(0)), // No inbox needed on L2.
-                    gatewayRouter: IArbGatewayRouter(
-                        block.chainid == 42_161 ? ARBAddresses.L2_GATEWAY_ROUTER : ARBAddresses.L2_SEP_GATEWAY_ROUTER
-                    )
+                    gatewayRouter: expectedL2GatewayRouter
                 });
+            } else {
+                require(
+                    address(arbDeployer.arbGatewayRouter()) == address(expectedL2GatewayRouter),
+                    "Resume: stale arbGatewayRouter"
+                );
             }
 
             // Deploy or resolve Arbitrum sucker singleton on L2.
@@ -1401,12 +1423,14 @@ contract Resume is Script {
             : new JBCCIPSuckerDeployer{salt: salt}(_directory, _permissions, _tokens, _deployer, _trustedForwarder);
 
         // Set chain-specific CCIP constants if not already set.
+        uint64 expectedSelector = CCIPHelper.selectorOfChain(remoteChainId);
+        ICCIPRouter expectedRouter = ICCIPRouter(CCIPHelper.routerOfChain(block.chainid));
         if (address(deployer.ccipRouter()) == address(0)) {
-            deployer.setChainSpecificConstants(
-                remoteChainId,
-                CCIPHelper.selectorOfChain(remoteChainId),
-                ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
-            );
+            deployer.setChainSpecificConstants(remoteChainId, expectedSelector, expectedRouter);
+        } else {
+            require(address(deployer.ccipRouter()) == address(expectedRouter), "Resume: stale ccipRouter");
+            require(deployer.ccipRemoteChainId() == remoteChainId, "Resume: stale ccipRemoteChainId");
+            require(deployer.ccipRemoteChainSelector() == expectedSelector, "Resume: stale ccipRemoteChainSelector");
         }
 
         // Deploy or resolve the CCIP sucker singleton.

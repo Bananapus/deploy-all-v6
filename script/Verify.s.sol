@@ -144,6 +144,12 @@ contract Verify is Script {
     // Optional canonical Safe owner to assert during verification.
     address public expectedSafe;
 
+    // -- Address Registry & Defifa (optional) --
+    // The address registry contract (optional, not deployed on all chains).
+    address public addressRegistry;
+    // The Defifa deployer contract (optional, not deployed on all chains).
+    address public defifaDeployer;
+
     // ════════════════════════════════════════════════════════════════════
     //  Counters — track pass/fail for summary
     // ════════════════════════════════════════════════════════════════════
@@ -194,6 +200,7 @@ contract Verify is Script {
         _verifyTerminalWiring();
         _verifyHookRegistries();
         _verifyOmnichain();
+        _verifyAddressRegistryAndDefifa();
         _verifyPriceFeeds();
 
         // Print final summary of results.
@@ -268,6 +275,31 @@ contract Verify is Script {
         revLoans = REVLoans(payable(vm.envOr("VERIFY_REV_LOANS", address(0))));
         // Read the canonical Safe owner if provided.
         expectedSafe = vm.envOr("VERIFY_SAFE", address(0));
+
+        // Read the address registry address from env (address(0) if not deployed on this chain).
+        addressRegistry = vm.envOr("VERIFY_ADDRESS_REGISTRY", address(0));
+        // Read the Defifa deployer address from env (address(0) if not deployed on this chain).
+        defifaDeployer = vm.envOr("VERIFY_DEFIFA_DEPLOYER", address(0));
+
+        // On production chains, require the full deployment stack.
+        // Testnets may omit optional components, but mainnet and major L2s must fail-closed.
+        bool isProductionChain =
+            (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+        if (isProductionChain) {
+            require(
+                address(routerTerminal) != address(0), "Verify: VERIFY_ROUTER_TERMINAL required on production chain"
+            );
+            require(
+                address(buybackRegistry) != address(0), "Verify: VERIFY_BUYBACK_REGISTRY required on production chain"
+            );
+            require(
+                address(routerTerminalRegistry) != address(0),
+                "Verify: VERIFY_ROUTER_TERMINAL_REGISTRY required on production chain"
+            );
+            require(address(revDeployer) != address(0), "Verify: VERIFY_REV_DEPLOYER required on production chain");
+            require(address(revOwner) != address(0), "Verify: VERIFY_REV_OWNER required on production chain");
+            require(address(revLoans) != address(0), "Verify: VERIFY_REV_LOANS required on production chain");
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -644,13 +676,42 @@ contract Verify is Script {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 7: Price Feeds
+    //  Category 7: Address Registry & Defifa
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @dev Validates that the address registry and Defifa deployer are deployed (if configured).
+    function _verifyAddressRegistryAndDefifa() internal {
+        // Log the section header.
+        console.log("--- Category 7: Address Registry & Defifa ---");
+
+        // If the address registry is not set, skip these checks.
+        if (addressRegistry == address(0)) {
+            _skip("AddressRegistry not deployed (VERIFY_ADDRESS_REGISTRY not set)");
+        } else {
+            // Verify the registry is deployed (has code).
+            _check(addressRegistry.code.length > 0, "AddressRegistry has code", true);
+        }
+
+        // If the Defifa deployer is not set, skip these checks.
+        if (defifaDeployer == address(0)) {
+            _skip("DefifaDeployer not deployed (VERIFY_DEFIFA_DEPLOYER not set)");
+        } else {
+            // Verify the Defifa deployer is deployed (has code).
+            _check(defifaDeployer.code.length > 0, "DefifaDeployer has code", true);
+        }
+
+        // Log a blank line for readability.
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 8: Price Feeds
     // ════════════════════════════════════════════════════════════════════
 
     /// @dev Validates that price feeds are configured and return sane values.
     function _verifyPriceFeeds() internal {
         // Log the section header.
-        console.log("--- Category 7: Price Feeds ---");
+        console.log("--- Category 8: Price Feeds ---");
 
         // Check the ETH/USD price feed (pricingCurrency=USD, unitCurrency=NATIVE_TOKEN).
         IJBPriceFeed ethUsdFeed = prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)));
@@ -731,6 +792,31 @@ contract Verify is Script {
                 } catch {
                     _check(false, "USDC/USD feed.currentUnitPrice() did not revert", true);
                 }
+            }
+        }
+
+        // Verify oracle provenance — ensure the protocol is using the expected Chainlink feeds.
+        // Only check mainnet ETH/USD as a starting point; expand to other chains as needed.
+        if (block.chainid == 1) {
+            // Mainnet ETH/USD Chainlink aggregator.
+            address expectedEthUsdFeed = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
+            // Look up the feed the protocol is actually using.
+            try prices.priceFeedFor({
+                projectId: 0,
+                pricingCurrency: JBCurrencyIds.USD,
+                unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+            }) returns (
+                IJBPriceFeed feed
+            ) {
+                // Verify the feed address matches the canonical Chainlink ETH/USD aggregator.
+                _check(
+                    address(feed) == expectedEthUsdFeed,
+                    "ETH/USD feed matches expected Chainlink aggregator (mainnet)",
+                    false
+                );
+            } catch {
+                // priceFeedFor reverted — already covered by earlier checks, skip provenance.
+                _skip("ETH/USD oracle provenance (feed lookup reverted)");
             }
         }
 
