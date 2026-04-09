@@ -151,6 +151,7 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
+import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 import {REVLoans, IREVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVAutoIssuance.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
@@ -251,6 +252,7 @@ contract Resume is Script {
     bytes32 private constant REV_SUCKER_SALT = "_REV_SUCKER_SALT_V6_";
     bytes32 private constant REV_DEPLOYER_SALT = "_REV_DEPLOYER_SALT_V6_";
     bytes32 private constant REV_LOANS_SALT = "_REV_LOANS_SALT_V6_";
+    bytes32 private constant REV_HIDDEN_TOKENS_SALT = "_REV_HIDDEN_TOKENS_SALT_V6_";
     bytes32 private constant REV_OWNER_SALT = "_REV_OWNER_SALT_V6_";
 
     // ── NANA Fee Project salts ──
@@ -367,6 +369,7 @@ contract Resume is Script {
     CTProjectOwner private _ctProjectOwner;
 
     // Revnet references.
+    REVHiddenTokens private _revHiddenTokens;
     REVLoans private _revLoans;
     REVOwner private _revOwner;
     REVDeployer private _revDeployer;
@@ -1944,13 +1947,19 @@ contract Resume is Script {
         (address revLoans, bool revLoansDeployed) = _isDeployed(
             REV_LOANS_SALT,
             type(REVLoans).creationCode,
-            abi.encode(_controller, _projects, _revProjectId, _deployer, _PERMIT2, _trustedForwarder)
+            abi.encode(_controller, _revProjectId, _deployer, _PERMIT2, _trustedForwarder)
         );
         _revLoans = revLoansDeployed
             ? REVLoans(payable(revLoans))
-            : new REVLoans{salt: REV_LOANS_SALT}(
-                _controller, _projects, _revProjectId, _deployer, _PERMIT2, _trustedForwarder
-            );
+            : new REVLoans{salt: REV_LOANS_SALT}(_controller, _revProjectId, _deployer, _PERMIT2, _trustedForwarder);
+
+        // Deploy or resolve REVHiddenTokens.
+        (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed(
+            REV_HIDDEN_TOKENS_SALT, type(REVHiddenTokens).creationCode, abi.encode(_controller, _trustedForwarder)
+        );
+        _revHiddenTokens = revHiddenTokensDeployed
+            ? REVHiddenTokens(revHiddenTokens)
+            : new REVHiddenTokens{salt: REV_HIDDEN_TOKENS_SALT}(_controller, _trustedForwarder);
 
         // Deploy or resolve REVOwner — the runtime data hook for pay and cash out callbacks.
         (address revOwner, bool revOwnerDeployed) = _isDeployed(
@@ -1961,7 +1970,8 @@ contract Resume is Script {
                 _directory,
                 _revProjectId,
                 _suckerRegistry,
-                address(_revLoans)
+                address(_revLoans),
+                address(_revHiddenTokens)
             )
         );
         _revOwner = revOwnerDeployed
@@ -1971,7 +1981,8 @@ contract Resume is Script {
                 _directory,
                 _revProjectId,
                 _suckerRegistry,
-                address(_revLoans)
+                address(_revLoans),
+                address(_revHiddenTokens)
             );
 
         // Deploy or resolve REVDeployer.
