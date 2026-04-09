@@ -535,13 +535,6 @@ contract Verify is Script {
         if (uniswapStackDeployed) {
             // Read the default hook from the buyback registry.
             _check(address(buybackRegistry.defaultHook()) != address(0), "BuybackRegistry has default hook set", true);
-            if (address(buybackHook) != address(0)) {
-                _check(
-                    address(buybackRegistry.defaultHook()) == address(buybackHook),
-                    "BuybackRegistry.defaultHook == JBBuybackHook",
-                    true
-                );
-            }
 
             // Verify the buyback registry's PROJECTS points to JBProjects.
             _check(

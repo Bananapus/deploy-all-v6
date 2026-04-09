@@ -82,7 +82,7 @@ import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/
 // ── Router Terminal ──
 import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
 import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRouterTerminalRegistry.sol";
-import {IWETH9 as IRouterWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
+import {IWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 // ── Suckers ──
@@ -802,13 +802,13 @@ contract Deploy is Script, Sphinx {
             type(JBRouterTerminal).creationCode,
             abi.encode(
                 _directory,
-                _permissions,
                 _tokens,
                 _PERMIT2,
-                safeAddress(),
-                IRouterWETH9(_weth),
+                IWETH9(_weth),
                 IUniswapV3Factory(_v3Factory),
                 IPoolManager(_poolManager),
+                address(_buybackHook),
+                address(_uniswapV4Hook),
                 _trustedForwarder
             )
         );
@@ -816,13 +816,13 @@ contract Deploy is Script, Sphinx {
             ? JBRouterTerminal(payable(terminal))
             : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}({
                 directory: _directory,
-                permissions: _permissions,
                 tokens: _tokens,
                 permit2: _PERMIT2,
-                owner: safeAddress(),
-                weth: IRouterWETH9(_weth),
+                weth: IWETH9(_weth),
                 factory: IUniswapV3Factory(_v3Factory),
                 poolManager: IPoolManager(_poolManager),
+                buybackHook: address(_buybackHook),
+                univ4Hook: address(_uniswapV4Hook),
                 trustedForwarder: _trustedForwarder
             });
 
