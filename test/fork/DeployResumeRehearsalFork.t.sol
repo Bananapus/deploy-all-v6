@@ -93,7 +93,7 @@ import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/
 // ── Router Terminal ──
 import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
 import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRouterTerminalRegistry.sol";
-import {IWETH9 as IRouterWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
+import {IWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 // ── Suckers ──
@@ -470,13 +470,13 @@ contract InstrumentedDeployer is IERC721Receiver {
             type(JBRouterTerminal).creationCode,
             abi.encode(
                 directory,
-                permissions,
                 tokens,
                 _PERMIT2,
-                address(this),
-                IRouterWETH9(WETH),
+                IWETH9(WETH),
                 IUniswapV3Factory(V3_FACTORY),
                 IPoolManager(POOL_MANAGER),
+                address(buybackHook),
+                address(uniswapV4Hook),
                 trustedForwarder
             )
         );
@@ -484,13 +484,13 @@ contract InstrumentedDeployer is IERC721Receiver {
             ? JBRouterTerminal(payable(t))
             : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}({
                 directory: directory,
-                permissions: permissions,
                 tokens: tokens,
                 permit2: _PERMIT2,
-                owner: address(this),
-                weth: IRouterWETH9(WETH),
+                weth: IWETH9(WETH),
                 factory: IUniswapV3Factory(V3_FACTORY),
                 poolManager: IPoolManager(POOL_MANAGER),
+                buybackHook: address(buybackHook),
+                univ4Hook: address(uniswapV4Hook),
                 trustedForwarder: trustedForwarder
             });
 

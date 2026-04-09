@@ -17,6 +17,7 @@ deployments/
 .claude/
 
 # Audit/nemesis output
+assets/
 .audit/
 .audit-logs/
 AUDIT_FINDINGS.md

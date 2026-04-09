@@ -68,7 +68,7 @@ import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/
 // ── Router Terminal ──
 import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
 import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRouterTerminalRegistry.sol";
-import {IWETH9 as IRouterWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
+import {IWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 // ── Suckers ──
@@ -400,13 +400,13 @@ contract DeployFullStackTest is Test {
             new JBRouterTerminalRegistry(_permissions, _projects, _PERMIT2, _deployer, _trustedForwarder);
         _routerTerminal = new JBRouterTerminal(
             _directory,
-            _permissions,
             _tokens,
             _PERMIT2,
-            _deployer,
-            IRouterWETH9(cfg.weth),
+            IWETH9(cfg.weth),
             IUniswapV3Factory(cfg.v3Factory),
             IPoolManager(cfg.poolManager),
+            address(_buybackHook),
+            address(_uniswapV4Hook),
             _trustedForwarder
         );
         _routerTerminalRegistry.setDefaultTerminal(_routerTerminal);
