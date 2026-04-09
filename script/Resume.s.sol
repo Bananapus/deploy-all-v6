@@ -1955,9 +1955,7 @@ contract Resume is Script {
 
         // Deploy or resolve REVHiddenTokens.
         (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed(
-            REV_HIDDEN_TOKENS_SALT,
-            type(REVHiddenTokens).creationCode,
-            abi.encode(_controller, _trustedForwarder)
+            REV_HIDDEN_TOKENS_SALT, type(REVHiddenTokens).creationCode, abi.encode(_controller, _trustedForwarder)
         );
         _revHiddenTokens = revHiddenTokensDeployed
             ? REVHiddenTokens(revHiddenTokens)
