@@ -40,6 +40,7 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 // Revnet contracts for deploying and managing revnets.
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
+import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
@@ -263,12 +264,14 @@ contract MixedDecimalLoanCompositionTest is TestBaseWorkflow {
         // Deploy the loans contract that manages revnet collateralized loans.
         LOANS_CONTRACT = new REVLoans({
             controller: jbController(),
-            projects: jbProjects(),
             revId: FEE_PROJECT_ID,
             owner: address(this),
             permit2: permit2(),
             trustedForwarder: TRUSTED_FORWARDER
         });
+
+        // Deploy REVHiddenTokens.
+        REVHiddenTokens revHiddenTokens = new REVHiddenTokens(jbController(), TRUSTED_FORWARDER);
 
         // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
         REV_OWNER = new REVOwner(
@@ -276,7 +279,8 @@ contract MixedDecimalLoanCompositionTest is TestBaseWorkflow {
             jbDirectory(),
             FEE_PROJECT_ID,
             SUCKER_REGISTRY,
-            address(LOANS_CONTRACT)
+            address(LOANS_CONTRACT),
+            address(revHiddenTokens)
         );
 
         // Deploy the REV deployer that creates revnets with all hooks wired up.
@@ -682,7 +686,8 @@ contract MixedDecimalLoanCompositionTest is TestBaseWorkflow {
             minBorrowAmount: 0, // Accept any amount for testing.
             collateralCount: borrowerTokens, // Use all tokens as collateral.
             beneficiary: payable(BORROWER), // Borrower receives USDC proceeds.
-            prepaidFeePercent: LOANS_CONTRACT.MIN_PREPAID_FEE_PERCENT() // Minimum prepaid fee.
+            prepaidFeePercent: LOANS_CONTRACT.MIN_PREPAID_FEE_PERCENT(), // Minimum prepaid fee.
+            holder: BORROWER
         });
         vm.stopPrank();
 
