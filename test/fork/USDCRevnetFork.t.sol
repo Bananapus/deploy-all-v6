@@ -54,6 +54,7 @@ import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
+import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
@@ -299,6 +300,7 @@ contract USDCRevnetForkTest is TestBaseWorkflow {
             TRUSTED_FORWARDER,
             address(REV_OWNER)
         );
+        REV_OWNER.setDeployer(IREVDeployer(address(REV_DEPLOYER)));
 
         vm.prank(multisig());
         jbProjects().approve(address(REV_DEPLOYER), FEE_PROJECT_ID);
