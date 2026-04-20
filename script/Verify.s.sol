@@ -314,18 +314,9 @@ contract Verify is Script {
         // Read the current total project count from the registry.
         uint256 totalProjects = projects.count();
 
-        // Determine whether the Uniswap stack was deployed on this chain.
-        // Chains without Uniswap (e.g. Optimism Sepolia) skip revnet phases 08-09,
-        // so fewer projects are created (only CPN project from Croptop phase).
-        bool hasUniswapStack = address(routerTerminal) != address(0);
-
-        if (hasUniswapStack) {
-            // Full deploy: expect at least 4 projects (NANA, CPN, REV, BAN).
-            _check(totalProjects >= 4, "Project count >= 4 (full Uniswap stack)", true);
-        } else {
-            // Reduced deploy: expect at least 2 projects (NANA + CPN created, but not configured as revnets).
-            _check(totalProjects >= 2, "Project count >= 2 (no Uniswap stack)", true);
-        }
+        // Deploy.s.sol always creates 4 projects (NANA, CPN, REV, BAN) regardless of whether the
+        // Uniswap stack is present. The router terminal is optional but does not gate project creation.
+        _check(totalProjects >= 4, "Project count >= 4", true);
 
         // Verify project 1 (NANA/FEE) has an owner (ERC-721 ownerOf does not revert).
         _checkProjectHasOwner(_FEE_PROJECT_ID, "Project 1 (NANA) exists with owner");
@@ -333,17 +324,11 @@ contract Verify is Script {
         // Verify project 2 (CPN/Croptop) has an owner.
         _checkProjectHasOwner(_CPN_PROJECT_ID, "Project 2 (CPN) exists with owner");
 
-        if (hasUniswapStack) {
-            // Verify project 3 (REV) has an owner — only on chains with the full Uniswap stack.
-            _checkProjectHasOwner(_REV_PROJECT_ID, "Project 3 (REV) exists with owner");
+        // Verify project 3 (REV) has an owner.
+        _checkProjectHasOwner(_REV_PROJECT_ID, "Project 3 (REV) exists with owner");
 
-            // Verify project 4 (BAN/Banny) has an owner — only on chains with the full Uniswap stack.
-            _checkProjectHasOwner(_BAN_PROJECT_ID, "Project 4 (BAN) exists with owner");
-        } else {
-            // Skip project 3 and 4 checks on chains without the Uniswap/buyback stack.
-            _skip("Project 3 (REV) check (no Uniswap stack on this chain)");
-            _skip("Project 4 (BAN) check (no Uniswap stack on this chain)");
-        }
+        // Verify project 4 (BAN/Banny) has an owner.
+        _checkProjectHasOwner(_BAN_PROJECT_ID, "Project 4 (BAN) exists with owner");
 
         // Log a blank line for readability.
         console.log("");
@@ -368,9 +353,9 @@ contract Verify is Script {
             true
         );
 
-        // Determine how many projects to check based on whether the Uniswap stack was deployed.
-        bool hasUniswapStack = address(buybackRegistry) != address(0);
-        uint256 projectCount = hasUniswapStack ? 4 : 2;
+        // Deploy.s.sol always creates and configures all 4 canonical projects regardless of
+        // whether the Uniswap stack is present. Check directory wiring for all of them.
+        uint256 projectCount = 4;
 
         // For each canonical project, check directory wiring.
         uint256[4] memory projectIds = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
@@ -528,21 +513,27 @@ contract Verify is Script {
             true
         );
 
-        // Check if the Uniswap-dependent stack was deployed (buyback + router).
-        bool uniswapStackDeployed = address(buybackRegistry) != address(0);
+        // The buyback registry is always deployed, but the default hook requires the Uniswap stack.
+        // Use the router terminal presence to determine if the full Uniswap-dependent stack was deployed.
+        bool uniswapStackDeployed = address(routerTerminal) != address(0);
 
-        // Verify buyback hook registry has a non-zero default hook set (only if deployed).
-        if (uniswapStackDeployed) {
-            // Read the default hook from the buyback registry.
-            _check(address(buybackRegistry.defaultHook()) != address(0), "BuybackRegistry has default hook set", true);
-
+        if (address(buybackRegistry) != address(0)) {
             // Verify the buyback registry's PROJECTS points to JBProjects.
             _check(
                 address(buybackRegistry.PROJECTS()) == address(projects), "BuybackRegistry.PROJECTS == JBProjects", true
             );
+
+            // The default hook is only set on chains with the full Uniswap stack.
+            if (uniswapStackDeployed) {
+                _check(
+                    address(buybackRegistry.defaultHook()) != address(0), "BuybackRegistry has default hook set", true
+                );
+            } else {
+                _skip("BuybackRegistry default hook check (Uniswap stack not deployed)");
+            }
         } else {
-            // Skip buyback checks when not deployed (e.g. OP Sepolia).
-            _skip("BuybackRegistry checks (Uniswap stack not deployed)");
+            // Skip buyback checks when the registry itself is not deployed.
+            _skip("BuybackRegistry checks (not deployed on this chain)");
         }
 
         // Verify router terminal registry has a non-zero default terminal (only if deployed).

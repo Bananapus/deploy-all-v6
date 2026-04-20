@@ -1653,33 +1653,12 @@ contract Deploy is Script, Sphinx {
         // Tempo Mainnet — L1, no sequencer needed.
         // TODO: Replace with actual Chainlink ETH/USD feed address on Tempo once available.
         else if (block.chainid == 4217) {
-            bytes memory args = abi.encode(AggregatorV3Interface(address(0)), 3600 seconds);
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
-            feed = feedDeployed
-                ? IJBPriceFeed(feedAddress)
-                : IJBPriceFeed(
-                    address(
-                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(address(0)), 3600 seconds
-                        )
-                    )
-                );
+            revert("Tempo ETH/USD feed not configured");
         }
         // Tempo Moderato (testnet)
+        // TODO: Replace with actual Chainlink ETH/USD feed address on Tempo Moderato once available.
         else if (block.chainid == 42_431) {
-            bytes memory args = abi.encode(AggregatorV3Interface(address(0)), 3600 seconds);
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
-            feed = feedDeployed
-                ? IJBPriceFeed(feedAddress)
-                : IJBPriceFeed(
-                    address(
-                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(address(0)), 3600 seconds
-                        )
-                    )
-                );
+            revert("Tempo Moderato ETH/USD feed not configured");
         } else {
             revert("Unsupported chain for ETH/USD feed");
         }
@@ -1839,8 +1818,8 @@ contract Deploy is Script, Sphinx {
         }
         // Tempo Moderato (testnet)
         else if (block.chainid == 42_431) {
-            usdc = address(0); // TBD: testnet USDC.e
-            usdcFeed = IJBPriceFeed(address(new JBMatchingPriceFeed()));
+            // TBD: testnet USDC.e — skip USDC feed registration until address is available.
+            return;
         } else {
             revert("Unsupported chain for USDC feed");
         }
@@ -2623,6 +2602,10 @@ contract Deploy is Script, Sphinx {
     /// @dev Uses the REV project (ID 3) as the Defifa fee project and the NANA fee project (ID 1) as the base
     /// protocol project. These will be updated when a dedicated Defifa revnet is created.
     function _deployDefifa() internal {
+        // Skip deployment on chains without a typeface (e.g. Tempo) — DefifaTokenUriResolver
+        // requires a valid ITypeface and would cause tokenURI() to revert if deployed with address(0).
+        if (_typeface == address(0)) return;
+
         // Resolve the ERC-20 token for the Defifa fee project (REV, project 3).
         IERC20 defifaToken = IERC20(address(_tokens.tokenOf(_REV_PROJECT_ID)));
 
