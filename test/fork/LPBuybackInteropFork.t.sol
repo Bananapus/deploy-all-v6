@@ -528,7 +528,7 @@ contract LPBuybackInteropForkTest is TestBaseWorkflow {
         address projectOwner = jbProjects().ownerOf(projectId);
         mockExpect(
             address(jbPermissions()),
-            abi.encodeCall(IJBPermissions.hasPermission, (operator, projectOwner, projectId, 28, true, true)),
+            abi.encodeCall(IJBPermissions.hasPermission, (operator, projectOwner, projectId, 29, true, true)),
             abi.encode(true)
         );
     }
