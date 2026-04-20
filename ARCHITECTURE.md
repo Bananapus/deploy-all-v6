@@ -2,62 +2,88 @@
 
 ## Purpose
 
-`deploy-all-v6` is the canonical deployment orchestrator for the V6 ecosystem. Its job is not to introduce new runtime behavior. Its job is to deploy the right contracts, in the right order, with the right cross-repo wiring, across the supported chains, and to provide a recovery path when an execution partially succeeds.
+`deploy-all-v6` is the canonical deployment orchestrator for the V6 ecosystem. It does not introduce runtime protocol behavior. It owns sequencing, chain-specific wiring, canonical address selection, verification follow-up, and recovery from partial deployment.
 
-## Boundaries
+## System Overview
 
-- Runtime protocol logic lives in sibling repos.
-- This repo owns deployment sequencing, chain-specific constants, canonical address selection, and recovery assumptions.
-- `Resume.s.sol` is part of the architecture, not a convenience script. The rollout is intentionally designed around resumable deployment.
+The repo exists because the V6 stack is intentionally multi-repo and cross-chain. `Deploy.s.sol` performs the main phased rollout. `Resume.s.sol` is not a convenience script; it is the deterministic recovery path for partially completed deployments. `Verify.s.sol` closes the loop by checking that the deployed stack matches the expected shape.
 
-## Main Components
+## Core Invariants
 
-| Component | Responsibility |
-| --- | --- |
-| `script/Deploy.s.sol` | Canonical phased rollout via Sphinx |
-| `script/Resume.s.sol` | Recovery path for partially completed executions |
-| deployment constants and helpers | Per-chain addresses, flags, and dependency wiring |
+- Deployment order is a dependency graph, not a presentation choice.
+- Canonical addresses must stay aligned with the expectations embedded in sibling repos and fork tests.
+- Recovery logic must remain current with main deployment logic.
+- Verification is part of the deployment contract, not an optional afterthought. `Verify.s.sol` encodes assumptions that should stay synchronized with both deploy and resume paths.
+- Testnet support is intentionally narrower than mainnet support for some phases; asymmetry is expected and should stay explicit.
 
-## Deployment Model
+## Modules
 
-The deployment runs in dependency order:
+| Module | Responsibility | Notes |
+| --- | --- | --- |
+| `script/Deploy.s.sol` | Main phased rollout via Sphinx | Happy-path deployment |
+| `script/Resume.s.sol` | Partial-execution recovery | Deterministic continuation path |
+| `script/Verify.s.sol` | Deployment verification follow-up | Sanity and consistency checks |
 
-1. Core protocol
-2. Address registry
-3. Hook and periphery stack
-4. Cross-chain infrastructure
-5. Omnichain deployer
-6. Product repos and fee-bearing projects
+## Trust Boundaries
 
-That order is the main invariant. Many later phases assume earlier addresses are final and immediately usable.
+- Runtime semantics live in sibling repos.
+- This repo is trusted for deployment ordering, parameter selection, and chain-specific dependency wiring.
+- Deterministic deployment assumptions depend on downstream salts, constructor args, and registry expectations remaining synchronized.
 
-## Why Recovery Is Separate
+## Critical Flows
 
-CREATE2 makes re-running a partially completed deployment unsafe. If some contracts already exist at their deterministic addresses, replaying the original script will collide with deployed bytecode. `Resume.s.sol` therefore checks what already exists and only performs the remaining steps.
+### Full Deployment
 
-## Critical Invariants
+```text
+operator
+  -> runs Deploy.s.sol
+  -> repo deploys the core stack first
+  -> deploys registries, hooks, cross-chain infrastructure, and product repos in dependency order
+  -> records canonical addresses for later phases
+```
 
-- Canonical addresses must stay aligned with the expectations baked into sibling deployment repos and tests.
-- Phase ordering is a real dependency graph, not an organizational preference.
-- Testnet support is intentionally narrower than mainnet support for certain Uniswap-dependent phases; scripts should preserve those skips rather than pretending the matrix is symmetric.
-- Recovery logic must be kept current with deployment logic. A stale recovery script is a broken architecture.
+### Resume
 
-## Where Complexity Lives
+```text
+operator
+  -> runs Resume.s.sol after partial success
+  -> script checks which deterministic addresses already contain code
+  -> deploys only the missing remainder
+  -> preserves the original rollout assumptions
+```
 
-- Cross-repo constructor and initializer expectations all converge here.
-- The recovery path has to model partial success precisely, which is often harder than the happy path.
-- Chain-specific feature gaps make the rollout matrix asymmetric by design.
+## Accounting Model
 
-## Dependencies
+This repo does not own protocol accounting. Its economic risk is indirect: a bad deployment order or wrong constructor argument can instantiate the wrong accounting system downstream.
 
-- Every `*-v6` sibling repo that contributes deployed contracts
-- Sphinx for multi-chain orchestration
-- Chain-specific Uniswap, Chainlink, and bridge addresses
+## Security Model
+
+- CREATE2 makes naive replay unsafe after partial success.
+- A stale recovery script is a broken production path.
+- Cross-repo drift is the main hazard: constructor args, salts, and deployment assumptions move in sibling repos before this repo is updated.
+- Verification drift is also hazardous. A script that still deploys correctly but verifies the wrong invariants gives false confidence about production state.
 
 ## Safe Change Guide
 
-- If you add a dependency in a product repo, update the deployment phase model here at the same time.
-- If you change a constructor argument or deployment salt downstream, verify both `Deploy.s.sol` and `Resume.s.sol`.
-- Deployment changes need fork or dry-run validation against the actual target chains they affect.
-- Avoid "helpful" implicit discovery in deployment scripts when determinism matters. Be explicit.
-- Assume reviewers will care more about recovery correctness than deployment convenience.
+- If a sibling repo changes a constructor, salt, or required dependency, update `Deploy.s.sol` and `Resume.s.sol` together.
+- If a deployment assumption changes, update `Verify.s.sol` in the same change set or document why the old check still holds.
+- Validate deployment changes with the target chain matrix they affect.
+- Prefer explicit wiring over inferred discovery when determinism matters.
+
+## Canonical Checks
+
+- deploy/resume continuity:
+  `test/fork/DeployResumeRehearsalFork.t.sol`
+- post-deploy verification assumptions:
+  `test/fork/DeployScriptVerification.t.sol`
+- full-stack rollout coherence:
+  `test/fork/FullStackFork.t.sol`
+
+## Source Map
+
+- `script/Deploy.s.sol`
+- `script/Resume.s.sol`
+- `script/Verify.s.sol`
+- `test/fork/DeployResumeRehearsalFork.t.sol`
+- `test/fork/DeployScriptVerification.t.sol`
+- `test/fork/FullStackFork.t.sol`
