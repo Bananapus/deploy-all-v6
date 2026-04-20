@@ -1,57 +1,118 @@
 # User Journeys
 
-## Who This Repo Serves
+## Repo Purpose
 
-- operators rehearsing the full Juicebox V6 ecosystem before a live rollout
+This repo orchestrates deployment of the full V6 ecosystem.
+It owns sequencing, recovery, and verification for the composed stack. It does not own subsystem business logic; it
+proves that sibling packages still deploy and compose together.
+
+## Primary Actors
+
+- operators rehearsing the full ecosystem before a live rollout
 - engineers executing multi-package deployments across chains
-- responders recovering from an interrupted deployment sequence
-- reviewers verifying that the composed stack still works after upstream changes
+- responders recovering from interrupted deployments
+- reviewers validating cross-package composition after upstream changes
+
+## Key Surfaces
+
+- `script/Deploy.s.sol`: full deployment entrypoint
+- `script/Resume.s.sol`: recovery path for interrupted deployments
+- `script/Verify.s.sol`: verification and drift-check path
+- fork-heavy tests in `test/`: composition and deployment-shape regression coverage
 
 ## Journey 1: Rehearse A Full Ecosystem Deployment On Forks
 
-**Starting state:** the team wants to prove the current sibling repos still deploy and compose correctly before touching a live chain.
+**Actor:** release engineer or reviewer.
 
-**Success:** fork tests cover the deployment sequence plus the important multi-repo feature interactions.
+**Intent:** prove the current sibling repos still deploy and compose correctly.
 
-**Flow**
-1. Run the fork-heavy suite in this repo rather than testing only isolated packages.
-2. Exercise end-to-end deployment, fee-project setup, router and buyback composition, sucker flows, and long-horizon lifecycle scenarios.
-3. Treat failures here as a deployment-shape problem until proven otherwise.
+**Preconditions**
+- sibling repos and artifacts are present and current
+- the team wants deployment-shape confidence, not just isolated unit coverage
+
+**Main Flow**
+1. Run the fork-heavy suite in this repo.
+2. Exercise end-to-end deployment plus high-value cross-feature interactions.
+3. Treat failures here as composition or deployment-shape problems until proven otherwise.
+
+**Failure Modes**
+- teams rely on isolated package tests and miss cross-package breakage
+- stale artifacts make a healthy codebase look broken, or vice versa
+
+**Postconditions**
+- the team either has cross-package deployment confidence or a concrete composition failure to investigate
 
 ## Journey 2: Execute A Phased Main Deployment
 
-**Starting state:** the ecosystem is ready for live rollout and artifact drift has already been checked.
+**Actor:** deployment operator.
 
-**Success:** `script/Deploy.s.sol` executes the intended sequencing so dependencies exist before downstream packages reference them.
+**Intent:** deploy the ecosystem in dependency order.
 
-**Flow**
-1. Feed the deployment script the chain-specific config and sibling-package artifacts it expects.
-2. Let the script deploy the core dependencies first and the composed packages after their prerequisites exist.
-3. Record outputs carefully because later verification and resume flows depend on them being consistent.
+**Preconditions**
+- artifact drift has already been checked
+- chain-specific config and credentials are ready
+
+**Main Flow**
+1. Feed `script/Deploy.s.sol` the chain config and sibling-package artifacts it expects.
+2. Deploy core dependencies before downstream packages that reference them.
+3. Record outputs carefully because later resume and verify paths depend on them.
+
+**Failure Modes**
+- outputs are incomplete or manually edited mid-flight
+- the operator deploys packages out of order or with mismatched artifacts
+
+**Postconditions**
+- deployment outputs exist in dependency order and can be consumed by resume and verify paths
 
 ## Journey 3: Recover From An Interrupted Deployment
 
-**Starting state:** the deployment stopped mid-flight and the team needs to continue without duplicating or corrupting prior work.
+**Actor:** deployment responder.
 
-**Success:** the resume path picks up from the last known-good state instead of pretending the deployment is atomic.
+**Intent:** continue from the last known-good state without double-deploying or corrupting outputs.
 
-**Flow**
-1. Inspect the partial artifacts and outputs from the interrupted run.
+**Preconditions**
+- the interrupted run left artifacts or recorded outputs behind
+- responders know which phase completed and which did not
+
+**Main Flow**
+1. Inspect the partial outputs from the interrupted run.
 2. Use `script/Resume.s.sol` to continue from that state.
-3. Verify that resumed addresses still match the expectations of the packages that have not deployed yet.
+3. Re-check downstream expectations against the resumed addresses before moving forward.
 
-**Failure cases that matter:** stale artifacts, manually patched outputs that no longer match chain state, and assuming a resume flow is only ops tooling when tests explicitly treat it as production-critical behavior.
+**Failure Modes**
+- stale artifacts or manually patched outputs no longer match chain state
+- responders treat resume as ad hoc ops glue instead of a production-critical path
+
+**Postconditions**
+- the deployment either resumes from a coherent checkpoint or is blocked before further drift is introduced
 
 ## Journey 4: Verify The Deployment Before Calling It Live
 
-**Starting state:** contracts are deployed but the team still needs confidence that the resulting stack is the one it intended.
+**Actor:** reviewer or deployment lead.
 
-**Success:** verification catches address, artifact, or composition drift before users rely on the system.
+**Intent:** prove the resulting deployment matches the intended ecosystem shape.
 
-**Flow**
-1. Run `script/Verify.s.sol` and the verification-oriented fork tests.
-2. Compare deployed addresses, hook composition, and cross-package assumptions against the expected outputs.
-3. Treat verification as part of the deploy path, not a cosmetic last step.
+**Preconditions**
+- contracts are already deployed
+- expected addresses and composition assumptions are available for comparison
+
+**Main Flow**
+1. Run `script/Verify.s.sol` and the verification-focused fork coverage.
+2. Compare deployed addresses, hook composition, and imported assumptions against expected outputs.
+3. Treat verification as part of deployment, not as a cosmetic afterthought.
+
+**Failure Modes**
+- deploy scripts succeed but the deployed graph is still wrong
+- operators skip verification because the chain shows contracts at the expected addresses
+
+**Postconditions**
+- the team either accepts the deployment as live-ready or has a concrete mismatch to fix before rollout continues
+
+## Trust Boundaries
+
+- this repo trusts sibling packages and their artifacts to represent the intended code
+- operators trust resume and verification state to reflect the real deployment accurately
+- live-chain correctness still depends on chain-specific conditions this repo cannot abstract away
 
 ## Hand-Offs
 

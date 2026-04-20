@@ -2,7 +2,7 @@
 
 This repo is the full-stack deployment orchestrator. Treat it as production code: wrong wiring here can make correct runtime contracts unsafe.
 
-## Objective
+## Audit Objective
 
 Find issues that:
 - deploy the wrong contract, implementation, hook, registry, or price feed
@@ -18,12 +18,17 @@ In scope:
 - `script/Resume.s.sol`
 - `script/Verify.s.sol`
 - any helper logic under `script/`
-- fork-heavy tests under `test/fork/`
 
 Out of scope:
 - re-auditing the internal logic of every deployed dependency in `node_modules`
 
-## System Model
+## Start Here
+
+1. `script/Deploy.s.sol`
+2. `script/Resume.s.sol`
+3. `script/Verify.s.sol`
+
+## Security Model
 
 This repo does not introduce a new treasury or hook. It assembles the ecosystem:
 - deploys or references shared singletons
@@ -37,6 +42,21 @@ The key audit mindset here is that many runtime trust assumptions are born durin
 - which registry is authoritative
 - which project ID receives fees
 - which deployers are approved to create privileged bridge peers
+
+## Roles And Privileges
+
+| Role | Powers | How constrained |
+|------|--------|-----------------|
+| Deployment script caller | Execute the full rollout | Must not retain post-deploy authority |
+| Resume flow | Continue partially completed deployment | Must converge to the same final state as a clean run |
+| Verify flow | Certify deployment correctness | Must fail on real drift, not just missing contracts |
+
+## Integration Assumptions
+
+| Dependency | Assumption | What breaks if wrong |
+|------------|------------|----------------------|
+| Per-chain constants | Match canonical addresses and chain intent | Deployment succeeds but wires the wrong system |
+| Downstream deployers and registries | Expose expected ownership and pairing behavior | Privileged peers and fee sinks misconfigure silently |
 
 ## Critical Invariants
 
@@ -58,22 +78,7 @@ Project ordering, bridge deployer sets, and per-chain constants must remain cons
 6. Verification actually proves the deployed state
 `Verify`-style checks must fail when addresses, ownership, or critical configuration drift, not just when contracts are missing.
 
-## Threat Model
-
-Prioritize:
-- stale hardcoded addresses
-- omitted initialization calls
-- missing registry registration
-- misordered ownership transfer or permission grants
-- deployment branches that only run on some chains
-- resume or verify logic that silently accepts partial drift
-
-Common high-value failure modes here are:
-- the deployment succeeds but wires a correct contract to the wrong singleton
-- a partial resume skips a one-time transfer or approval that the clean path performs
-- per-chain constants are individually plausible but ecosystem-inconsistent
-
-## Hotspots
+## Attack Surfaces
 
 - any chain-specific constant selection
 - hook-mining or deterministic-address assumptions
@@ -82,24 +87,18 @@ Common high-value failure modes here are:
 - address registry writes
 - verification passes that can report success despite mismatched state
 
-## Sequences Worth Replaying
+Replay these sequences:
+1. clean deployment versus resumed deployment from mid-phase
+2. deployment on two chains with different chain-specific branches
+3. project creation ordering and the assumptions later repos make about those IDs
+4. ownership transfer and approval steps immediately before first use
 
-1. Clean deployment versus resumed deployment from mid-phase.
-2. Deployment on two different chains with chain-specific branches enabled.
-3. Project creation ordering and the assumptions other repos make about those IDs afterward.
-4. Approval and ownership transfer steps that happen immediately before a dependent contract is first used.
+## Accepted Risks Or Behaviors
 
-## Build And Verification
+- This repo intentionally centralizes authority during deployment and is only safe if that authority is fully relinquished.
 
-Standard workflow:
+## Verification
+
 - `npm install`
 - `forge build`
 - `forge test`
-
-This repo’s tests are mostly fork and composition rehearsals. Use them to validate:
-- full-stack deployment ordering
-- resume paths
-- cross-feature interoperability
-- chain-specific constant selection
-
-Strong findings here usually show a concrete deployment state that looks successful but leaves a production system miswired, over-privileged, or economically incorrect.
