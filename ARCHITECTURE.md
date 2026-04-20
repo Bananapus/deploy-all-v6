@@ -2,19 +2,19 @@
 
 ## Purpose
 
-`deploy-all-v6` is the canonical deployment orchestrator for the V6 ecosystem. It does not introduce runtime protocol behavior. It owns sequencing, chain-specific wiring, canonical address selection, verification follow-up, and recovery from partial deployment.
+`deploy-all-v6` is the canonical deployment orchestrator for the V6 ecosystem. It does not add runtime protocol behavior. It owns sequencing, chain-specific wiring, canonical address selection, verification follow-up, and recovery from partial deployment.
 
 ## System Overview
 
-The repo exists because the V6 stack is intentionally multi-repo and cross-chain. `Deploy.s.sol` performs the main phased rollout. `Resume.s.sol` is not a convenience script; it is the deterministic recovery path for partially completed deployments. `Verify.s.sol` closes the loop by checking that the deployed stack matches the expected shape.
+The V6 stack is intentionally multi-repo and cross-chain. `Deploy.s.sol` performs the main phased rollout. `Resume.s.sol` is the deterministic recovery path for partial deployments. `Verify.s.sol` checks that the deployed stack matches the expected shape.
 
 ## Core Invariants
 
 - Deployment order is a dependency graph, not a presentation choice.
-- Canonical addresses must stay aligned with the expectations embedded in sibling repos and fork tests.
-- Recovery logic must remain current with main deployment logic.
-- Verification is part of the deployment contract, not an optional afterthought. `Verify.s.sol` encodes assumptions that should stay synchronized with both deploy and resume paths.
-- Testnet support is intentionally narrower than mainnet support for some phases; asymmetry is expected and should stay explicit.
+- Canonical addresses must stay aligned with the expectations baked into sibling repos and fork tests.
+- Recovery logic must stay in sync with main deployment logic.
+- Verification is part of the deployment contract, not an optional afterthought.
+- Testnet support is intentionally narrower than mainnet support for some phases; that asymmetry should stay explicit.
 
 ## Modules
 
@@ -27,8 +27,8 @@ The repo exists because the V6 stack is intentionally multi-repo and cross-chain
 ## Trust Boundaries
 
 - Runtime semantics live in sibling repos.
-- This repo is trusted for deployment ordering, parameter selection, and chain-specific dependency wiring.
-- Deterministic deployment assumptions depend on downstream salts, constructor args, and registry expectations remaining synchronized.
+- This repo is trusted for deployment order, parameter selection, and chain-specific dependency wiring.
+- Deterministic deployment assumptions depend on downstream salts, constructor args, and registry expectations staying synchronized.
 
 ## Critical Flows
 
@@ -54,20 +54,20 @@ operator
 
 ## Accounting Model
 
-This repo does not own protocol accounting. Its economic risk is indirect: a bad deployment order or wrong constructor argument can instantiate the wrong accounting system downstream.
+This repo does not own protocol accounting. Its economic risk is indirect: bad deployment order or wrong constructor args can instantiate the wrong accounting system downstream.
 
 ## Security Model
 
 - CREATE2 makes naive replay unsafe after partial success.
 - A stale recovery script is a broken production path.
-- Cross-repo drift is the main hazard: constructor args, salts, and deployment assumptions move in sibling repos before this repo is updated.
-- Verification drift is also hazardous. A script that still deploys correctly but verifies the wrong invariants gives false confidence about production state.
+- Cross-repo drift is the main hazard: constructors, salts, and deployment assumptions can move in sibling repos before this repo is updated.
+- Verification drift is also dangerous. A script that deploys correctly but verifies the wrong invariants gives false confidence.
 
 ## Safe Change Guide
 
 - If a sibling repo changes a constructor, salt, or required dependency, update `Deploy.s.sol` and `Resume.s.sol` together.
 - If a deployment assumption changes, update `Verify.s.sol` in the same change set or document why the old check still holds.
-- Validate deployment changes with the target chain matrix they affect.
+- Validate deployment changes against the chain matrix they affect.
 - Prefer explicit wiring over inferred discovery when determinism matters.
 
 ## Canonical Checks
