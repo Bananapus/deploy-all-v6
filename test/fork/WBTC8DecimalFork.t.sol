@@ -20,6 +20,7 @@ import {IJBPriceFeed} from "@bananapus/core-v6/src/interfaces/IJBPriceFeed.sol";
 import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
+import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
 import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
 import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
@@ -52,6 +53,7 @@ import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
+import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
@@ -284,9 +286,17 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         // Deploy the 721 tier hook store.
         HOOK_STORE = new JB721TiersHookStore();
+        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
         // Deploy the 721 tier hook implementation for cloning.
         EXAMPLE_HOOK = new JB721TiersHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), HOOK_STORE, jbSplits(), multisig()
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbRulesets(),
+            HOOK_STORE,
+            jbSplits(),
+            checkpointsDeployer,
+            multisig()
         );
         // Deploy the address registry for contract lookups.
         ADDRESS_REGISTRY = new JBAddressRegistry();
@@ -315,6 +325,7 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         // Deploy the revnet loans contract for borrow/repay functionality.
         LOANS_CONTRACT = new REVLoans({
             controller: jbController(),
+            suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
             revId: FEE_PROJECT_ID,
             owner: address(this),
             permit2: permit2(),
@@ -346,6 +357,7 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
             TRUSTED_FORWARDER,
             address(REV_OWNER)
         );
+        REV_OWNER.setDeployer(IREVDeployer(address(REV_DEPLOYER)));
 
         // Approve the REV_DEPLOYER to transfer the fee project NFT.
         vm.prank(multisig());

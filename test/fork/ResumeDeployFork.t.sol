@@ -43,6 +43,8 @@ import {JB721TiersHookProjectDeployer} from "@bananapus/721-hook-v6/src/JB721Tie
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
+import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
+import {IJB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721CheckpointsDeployer.sol";
 
 import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
@@ -78,6 +80,7 @@ contract ResumeDeployHarness is IERC721Receiver {
     bytes32 private constant HOOK_721_SALT = "JB721TiersHookV6_";
     bytes32 private constant HOOK_721_DEPLOYER_SALT = "JB721TiersHookDeployerV6_";
     bytes32 private constant HOOK_721_PROJECT_DEPLOYER_SALT = "JB721TiersHookProjectDeployerV6";
+    bytes32 private constant HOOK_721_CHECKPOINTS_DEPLOYER_SALT = "JB721CheckpointsDeployerV6";
     bytes32 private constant BUYBACK_HOOK_SALT = "JBBuybackHookV6";
     bytes32 private constant ROUTER_TERMINAL_SALT = "JBRouterTerminalV6";
     bytes32 private constant ROUTER_TERMINAL_REGISTRY_SALT = "JBRouterTerminalRegistryV6";
@@ -108,6 +111,7 @@ contract ResumeDeployHarness is IERC721Receiver {
 
     JBAddressRegistry public addressRegistry;
     JB721TiersHookStore public hookStore;
+    JB721CheckpointsDeployer public checkpointsDeployer;
     JB721TiersHook public hook721;
     JB721TiersHookDeployer public hookDeployer;
     JB721TiersHookProjectDeployer public hookProjectDeployer;
@@ -251,8 +255,9 @@ contract ResumeDeployHarness is IERC721Receiver {
                 trustedForwarder: trustedForwarder
             });
 
-        (address erc20Address, bool erc20Deployed) = _isDeployed(coreSalt, type(JBERC20).creationCode, "");
-        JBERC20 erc20 = erc20Deployed ? JBERC20(erc20Address) : new JBERC20{salt: coreSalt}();
+        (address erc20Address, bool erc20Deployed) =
+            _isDeployed(coreSalt, type(JBERC20).creationCode, abi.encode(permissions, projects));
+        JBERC20 erc20 = erc20Deployed ? JBERC20(erc20Address) : new JBERC20{salt: coreSalt}(permissions, projects);
 
         (address tokensAddress, bool tokensDeployed) =
             _isDeployed(coreSalt, type(JBTokens).creationCode, abi.encode(directory, erc20));
@@ -311,10 +316,18 @@ contract ResumeDeployHarness is IERC721Receiver {
             ? JB721TiersHookStore(hookStoreAddress)
             : new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
+        (address checkpointsDeployerAddress, bool checkpointsDeployerDeployed) =
+            _isDeployed(HOOK_721_CHECKPOINTS_DEPLOYER_SALT, type(JB721CheckpointsDeployer).creationCode, "");
+        checkpointsDeployer = checkpointsDeployerDeployed
+            ? JB721CheckpointsDeployer(checkpointsDeployerAddress)
+            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}();
+
         (address hook721Address, bool hook721Deployed) = _isDeployed(
             HOOK_721_SALT,
             type(JB721TiersHook).creationCode,
-            abi.encode(directory, permissions, prices, rulesets, hookStore, splits, trustedForwarder)
+            abi.encode(
+                directory, permissions, prices, rulesets, hookStore, splits, checkpointsDeployer, trustedForwarder
+            )
         );
         hook721 = hook721Deployed
             ? JB721TiersHook(hook721Address)
@@ -325,6 +338,7 @@ contract ResumeDeployHarness is IERC721Receiver {
                 rulesets: rulesets,
                 store: hookStore,
                 splits: splits,
+                checkpointsDeployer: IJB721CheckpointsDeployer(checkpointsDeployer),
                 trustedForwarder: trustedForwarder
             });
 

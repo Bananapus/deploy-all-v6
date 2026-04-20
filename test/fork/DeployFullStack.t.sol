@@ -51,6 +51,7 @@ import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookD
 import {JB721TiersHookProjectDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookProjectDeployer.sol";
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
+import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
 
 // ── Buyback Hook ──
@@ -330,7 +331,7 @@ contract DeployFullStackTest is Test {
         _splits = new JBSplits(_directory);
         _rulesets = new JBRulesets(_directory);
         _prices = new JBPrices(_directory, _permissions, _projects, _deployer, _trustedForwarder);
-        _tokens = new JBTokens(_directory, new JBERC20());
+        _tokens = new JBTokens(_directory, new JBERC20(_permissions, _projects));
         _fundAccess = new JBFundAccessLimits(_directory);
         _feeless = new JBFeelessAddresses(_deployer);
         _terminalStore = new JBTerminalStore({directory: _directory, rulesets: _rulesets, prices: _prices});
@@ -354,8 +355,10 @@ contract DeployFullStackTest is Test {
     /// @dev Phase 03a: 721 Hook. Mirrors Deploy._deploy721Hook().
     function _deploy721Hook() internal {
         _hookStore = new JB721TiersHookStore();
-        _hook721 =
-            new JB721TiersHook(_directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder);
+        JB721CheckpointsDeployer _checkpointsDeployer = new JB721CheckpointsDeployer();
+        _hook721 = new JB721TiersHook(
+            _directory, _permissions, _prices, _rulesets, _hookStore, _splits, _checkpointsDeployer, _trustedForwarder
+        );
         _hookDeployer = new JB721TiersHookDeployer(
             _hook721, _hookStore, IJBAddressRegistry(address(_addressRegistry)), _trustedForwarder
         );
