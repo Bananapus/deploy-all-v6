@@ -97,6 +97,8 @@ import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721Init
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
 import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
+import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
+import {IJB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721CheckpointsDeployer.sol";
 
 // ── Buyback Hook ──
 import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
@@ -138,6 +140,7 @@ import {CCIPHelper} from "@bananapus/suckers-v6/src/libraries/CCIPHelper.sol";
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.sol";
 import {IJBSuckerDeployer} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerDeployer.sol";
+import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
 
 // ── Omnichain Deployer ──
 import {JBOmnichainDeployer} from "@bananapus/omnichain-deployers-v6/src/JBOmnichainDeployer.sol";
@@ -220,6 +223,7 @@ contract Resume is Script {
     bytes32 private constant HOOK_721_SALT = "JB721TiersHookV6_";
     bytes32 private constant HOOK_721_DEPLOYER_SALT = "JB721TiersHookDeployerV6_";
     bytes32 private constant HOOK_721_PROJECT_DEPLOYER_SALT = "JB721TiersHookProjectDeployerV6";
+    bytes32 private constant HOOK_721_CHECKPOINTS_DEPLOYER_SALT = "JB721CheckpointsDeployerV6";
 
     // ── Uniswap V4 Hook + Buyback Hook salts ──
     bytes32 private constant BUYBACK_HOOK_SALT = "JBBuybackHookV6";
@@ -338,6 +342,7 @@ contract Resume is Script {
 
     // 721 Hook references.
     JB721TiersHookStore private _hookStore;
+    JB721CheckpointsDeployer private _checkpointsDeployer;
     JB721TiersHook private _hook721;
     JB721TiersHookDeployer private _hookDeployer;
     JB721TiersHookProjectDeployer private _hookProjectDeployer;
@@ -641,8 +646,9 @@ contract Resume is Script {
             });
 
         // Deploy or resolve ERC20 implementation.
-        (address erc20, bool erc20Deployed) = _isDeployed(coreSalt, type(JBERC20).creationCode, "");
-        JBERC20 token = erc20Deployed ? JBERC20(erc20) : new JBERC20{salt: coreSalt}();
+        (address erc20, bool erc20Deployed) =
+            _isDeployed(coreSalt, type(JBERC20).creationCode, abi.encode(_permissions, _projects));
+        JBERC20 token = erc20Deployed ? JBERC20(erc20) : new JBERC20{salt: coreSalt}(_permissions, _projects);
 
         // Deploy or resolve tokens.
         (address tokens, bool tokensDeployed) = _isDeployed({
@@ -739,11 +745,30 @@ contract Resume is Script {
         _hookStore =
             hookStoreDeployed ? JB721TiersHookStore(hookStore) : new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
+        // Deploy or resolve checkpoints deployer.
+        (address checkpointsDeployer, bool checkpointsDeployerDeployed) = _isDeployed({
+            salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT,
+            creationCode: type(JB721CheckpointsDeployer).creationCode,
+            arguments: ""
+        });
+        _checkpointsDeployer = checkpointsDeployerDeployed
+            ? JB721CheckpointsDeployer(checkpointsDeployer)
+            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}();
+
         // Deploy or resolve 721 hook implementation.
         (address hook721, bool hook721Deployed) = _isDeployed({
             salt: HOOK_721_SALT,
             creationCode: type(JB721TiersHook).creationCode,
-            arguments: abi.encode(_directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder)
+            arguments: abi.encode(
+                _directory,
+                _permissions,
+                _prices,
+                _rulesets,
+                _hookStore,
+                _splits,
+                _checkpointsDeployer,
+                _trustedForwarder
+            )
         });
         _hook721 = hook721Deployed
             ? JB721TiersHook(hook721)
@@ -754,6 +779,7 @@ contract Resume is Script {
                 rulesets: _rulesets,
                 store: _hookStore,
                 splits: _splits,
+                checkpointsDeployer: IJB721CheckpointsDeployer(_checkpointsDeployer),
                 trustedForwarder: _trustedForwarder
             });
 
@@ -1947,11 +1973,25 @@ contract Resume is Script {
         (address revLoans, bool revLoansDeployed) = _isDeployed(
             REV_LOANS_SALT,
             type(REVLoans).creationCode,
-            abi.encode(_controller, _revProjectId, _deployer, _PERMIT2, _trustedForwarder)
+            abi.encode(
+                _controller,
+                IJBSuckerRegistry(address(_suckerRegistry)),
+                _revProjectId,
+                _deployer,
+                _PERMIT2,
+                _trustedForwarder
+            )
         );
         _revLoans = revLoansDeployed
             ? REVLoans(payable(revLoans))
-            : new REVLoans{salt: REV_LOANS_SALT}(_controller, _revProjectId, _deployer, _PERMIT2, _trustedForwarder);
+            : new REVLoans{salt: REV_LOANS_SALT}(
+                _controller,
+                IJBSuckerRegistry(address(_suckerRegistry)),
+                _revProjectId,
+                _deployer,
+                _PERMIT2,
+                _trustedForwarder
+            );
 
         // Deploy or resolve REVHiddenTokens.
         (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed(

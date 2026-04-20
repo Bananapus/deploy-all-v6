@@ -21,6 +21,7 @@ import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDa
 // 721 Hook.
 import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
+import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
 import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
@@ -36,6 +37,7 @@ import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/
 
 // Suckers.
 import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
+import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 
 // Croptop.
@@ -140,8 +142,16 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
 
         // Deploy 721 hook infrastructure.
         JB721TiersHookStore hookStore = new JB721TiersHookStore();
+        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
         JB721TiersHook exampleHook = new JB721TiersHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), hookStore, jbSplits(), multisig()
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbRulesets(),
+            hookStore,
+            jbSplits(),
+            checkpointsDeployer,
+            multisig()
         );
         IJBAddressRegistry addressRegistry = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(exampleHook, hookStore, addressRegistry, multisig());
@@ -168,6 +178,7 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Deploy REVLoans contract.
         LOANS_CONTRACT = new REVLoans({
             controller: jbController(),
+            suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
             revId: FEE_PROJECT_ID,
             owner: address(this),
             permit2: permit2(),

@@ -65,6 +65,8 @@ import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721Init
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
 import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
+import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
+import {IJB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721CheckpointsDeployer.sol";
 
 // ── Buyback Hook ──
 import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
@@ -107,6 +109,7 @@ import {CCIPHelper} from "@bananapus/suckers-v6/src/libraries/CCIPHelper.sol";
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.sol";
 import {IJBSuckerDeployer} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerDeployer.sol";
+import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
 
 // ── Omnichain Deployer ──
 import {JBOmnichainDeployer} from "@bananapus/omnichain-deployers-v6/src/JBOmnichainDeployer.sol";
@@ -163,6 +166,14 @@ contract Deploy is Script, Sphinx {
     string private constant TRUSTED_FORWARDER_NAME = "Juicebox";
     uint256 private constant CORE_DEPLOYMENT_NONCE = 6;
 
+    // ── Tempo chain constants (until CCIPHelper is published with these) ──
+    uint256 private constant TEMPO_CHAIN_ID = 4217;
+    uint256 private constant TEMPO_MOD_CHAIN_ID = 42_431;
+    uint64 private constant TEMPO_CCIP_SEL = 7_281_642_695_469_137_430;
+    uint64 private constant TEMPO_MOD_CCIP_SEL = 8_457_817_439_310_187_923;
+    address private constant TEMPO_CCIP_ROUTER = 0xa132F089492CcE5f1D79483a9e4552f37266ed01;
+    address private constant TEMPO_MOD_CCIP_ROUTER = 0xD3e53cCEE3688aAEE5C9118ef5Fe24EB423aa56F;
+
     // ── Core salts ──
     bytes32 private constant DEADLINES_SALT = keccak256("_JBDeadlinesV6_");
     bytes32 private constant USD_NATIVE_FEED_SALT = keccak256("USD_FEEDV6");
@@ -176,6 +187,7 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant HOOK_721_SALT = "JB721TiersHookV6_";
     bytes32 private constant HOOK_721_DEPLOYER_SALT = "JB721TiersHookDeployerV6_";
     bytes32 private constant HOOK_721_PROJECT_DEPLOYER_SALT = "JB721TiersHookProjectDeployerV6";
+    bytes32 private constant HOOK_721_CHECKPOINTS_DEPLOYER_SALT = "JB721CheckpointsDeployerV6";
 
     // ── Uniswap V4 Hook + Buyback Hook salts ──
     bytes32 private constant BUYBACK_HOOK_SALT = "JBBuybackHookV6";
@@ -193,6 +205,7 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant ARB_BASE_SALT = "_SUCKER_ARB_BASE_V6_";
     bytes32 private constant ARB_OP_SALT = "_SUCKER_ARB_OP_V6_";
     bytes32 private constant OP_BASE_SALT = "_SUCKER_OP_BASE_V6_";
+    bytes32 private constant TEMPO_SALT = "_SUCKER_ETH_TEMPO_V6_";
     bytes32 private constant SUCKER_REGISTRY_SALT = "REGISTRYV6";
 
     // ── Omnichain Deployer salt ──
@@ -292,6 +305,7 @@ contract Deploy is Script, Sphinx {
 
     // 721 Hook
     JB721TiersHookStore private _hookStore;
+    JB721CheckpointsDeployer private _checkpointsDeployer;
     JB721TiersHook private _hook721;
     JB721TiersHookDeployer private _hookDeployer;
     JB721TiersHookProjectDeployer private _hookProjectDeployer;
@@ -313,6 +327,7 @@ contract Deploy is Script, Sphinx {
     IJBSuckerDeployer private _optimismSuckerDeployer;
     IJBSuckerDeployer private _baseSuckerDeployer;
     IJBSuckerDeployer private _arbitrumSuckerDeployer;
+    IJBSuckerDeployer private _tempoCcipDeployer;
 
     // Omnichain Deployer
     JBOmnichainDeployer private _omnichainDeployer;
@@ -355,8 +370,9 @@ contract Deploy is Script, Sphinx {
 
     function configureSphinx() public override {
         sphinxConfig.projectName = "juicebox-v6";
-        sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
-        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
+        sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum", "tempo"];
+        sphinxConfig.testnets =
+            ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia", "tempo_moderato"];
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -492,13 +508,30 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
             _positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
             _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
+        }
+        // Tempo Mainnet — native gas = USD, no WETH, no Uniswap
+        else if (block.chainid == 4217) {
+            _weth = 0x20C000000000000000000000b9537d11c60E8b50; // USDC.e on Tempo (treasury token)
+            _v3Factory = address(0);
+            _poolManager = address(0);
+            _positionManager = address(0);
+            _typeface = address(0);
+        }
+        // Tempo Moderato (testnet)
+        else if (block.chainid == 42_431) {
+            _weth = address(0); // TBD: testnet USDC.e
+            _v3Factory = address(0);
+            _poolManager = address(0);
+            _positionManager = address(0);
+            _typeface = address(0);
         } else {
             revert("Unsupported chain");
         }
     }
 
     function _shouldDeployUniswapStack() internal view returns (bool) {
-        return block.chainid != 11_155_420;
+        // Skip on chains without Uniswap V4: OP Sepolia (no PositionManager), Tempo (no Uniswap).
+        return block.chainid != 11_155_420 && block.chainid != 4217 && block.chainid != 42_431;
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -563,8 +596,9 @@ contract Deploy is Script, Sphinx {
                 trustedForwarder: _trustedForwarder
             });
 
-        (address erc20, bool erc20Deployed) = _isDeployed(coreSalt, type(JBERC20).creationCode, "");
-        JBERC20 token = erc20Deployed ? JBERC20(erc20) : new JBERC20{salt: coreSalt}();
+        (address erc20, bool erc20Deployed) =
+            _isDeployed(coreSalt, type(JBERC20).creationCode, abi.encode(_permissions, _projects));
+        JBERC20 token = erc20Deployed ? JBERC20(erc20) : new JBERC20{salt: coreSalt}(_permissions, _projects);
 
         (address tokens, bool tokensDeployed) = _isDeployed({
             salt: coreSalt, creationCode: type(JBTokens).creationCode, arguments: abi.encode(_directory, token)
@@ -638,10 +672,28 @@ contract Deploy is Script, Sphinx {
         _hookStore =
             hookStoreDeployed ? JB721TiersHookStore(hookStore) : new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
+        (address checkpointsDeployer, bool checkpointsDeployerDeployed) = _isDeployed({
+            salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT,
+            creationCode: type(JB721CheckpointsDeployer).creationCode,
+            arguments: ""
+        });
+        _checkpointsDeployer = checkpointsDeployerDeployed
+            ? JB721CheckpointsDeployer(checkpointsDeployer)
+            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}();
+
         (address hook721, bool hook721Deployed) = _isDeployed({
             salt: HOOK_721_SALT,
             creationCode: type(JB721TiersHook).creationCode,
-            arguments: abi.encode(_directory, _permissions, _prices, _rulesets, _hookStore, _splits, _trustedForwarder)
+            arguments: abi.encode(
+                _directory,
+                _permissions,
+                _prices,
+                _rulesets,
+                _hookStore,
+                _splits,
+                _checkpointsDeployer,
+                _trustedForwarder
+            )
         });
         _hook721 = hook721Deployed
             ? JB721TiersHook(hook721)
@@ -652,6 +704,7 @@ contract Deploy is Script, Sphinx {
                 rulesets: _rulesets,
                 store: _hookStore,
                 splits: _splits,
+                checkpointsDeployer: IJB721CheckpointsDeployer(_checkpointsDeployer),
                 trustedForwarder: _trustedForwarder
             });
 
@@ -1170,6 +1223,17 @@ contract Deploy is Script, Sphinx {
             _preApprovedSuckerDeployers.push(
                 address(_deployCCIPSuckerFor(ARB_SALT, block.chainid == 1 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID))
             );
+            // Tempo — uses local constants since CCIPHelper npm package doesn't have Tempo yet.
+            {
+                JBCCIPSuckerDeployer tempoDeployer = _deployCCIPSuckerForTempo(
+                    TEMPO_SALT,
+                    block.chainid == 1 ? TEMPO_CHAIN_ID : TEMPO_MOD_CHAIN_ID,
+                    block.chainid == 1 ? TEMPO_CCIP_SEL : TEMPO_MOD_CCIP_SEL,
+                    ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
+                );
+                _preApprovedSuckerDeployers.push(address(tempoDeployer));
+                _tempoCcipDeployer = IJBSuckerDeployer(address(tempoDeployer));
+            }
         }
 
         // Arbitrum / Arbitrum Sepolia
@@ -1230,6 +1294,21 @@ contract Deploy is Script, Sphinx {
                 )
             );
         }
+
+        // Tempo / Tempo Moderato
+        if (block.chainid == 4217 || block.chainid == 42_431) {
+            // Tempo -> ETH — uses local constants for Tempo router.
+            JBCCIPSuckerDeployer tempoDeployer = _deployCCIPSuckerForTempo(
+                TEMPO_SALT,
+                block.chainid == 4217 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID,
+                block.chainid == 4217
+                    ? CCIPHelper.selectorOfChain(CCIPHelper.ETH_ID)
+                    : CCIPHelper.selectorOfChain(CCIPHelper.ETH_SEP_ID),
+                ICCIPRouter(block.chainid == 4217 ? TEMPO_CCIP_ROUTER : TEMPO_MOD_CCIP_ROUTER)
+            );
+            _preApprovedSuckerDeployers.push(address(tempoDeployer));
+            _tempoCcipDeployer = IJBSuckerDeployer(address(tempoDeployer));
+        }
     }
 
     function _deployCCIPSuckerFor(bytes32 salt, uint256 remoteChainId)
@@ -1251,6 +1330,43 @@ contract Deploy is Script, Sphinx {
                 CCIPHelper.selectorOfChain(remoteChainId),
                 ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
             );
+        }
+
+        (address singletonAddress, bool singletonDeployed) = _isDeployed(
+            salt,
+            type(JBCCIPSucker).creationCode,
+            abi.encode(deployer, _directory, _tokens, _permissions, 1, _suckerRegistry, _trustedForwarder)
+        );
+        JBCCIPSucker singleton = singletonDeployed
+            ? JBCCIPSucker(payable(singletonAddress))
+            : new JBCCIPSucker{salt: salt}(
+                deployer, _directory, _tokens, _permissions, 1, _suckerRegistry, _trustedForwarder
+            );
+        if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
+    }
+
+    /// @notice Deploy a CCIP sucker for Tempo, using explicit chain constants instead of CCIPHelper lookups
+    /// (since the CCIPHelper npm package doesn't include Tempo yet).
+    function _deployCCIPSuckerForTempo(
+        bytes32 salt,
+        uint256 remoteChainId,
+        uint64 remoteChainSelector,
+        ICCIPRouter router
+    )
+        internal
+        returns (JBCCIPSuckerDeployer deployer)
+    {
+        (address deployerAddress, bool deployerDeployed) = _isDeployed(
+            salt,
+            type(JBCCIPSuckerDeployer).creationCode,
+            abi.encode(_directory, _permissions, _tokens, safeAddress(), _trustedForwarder)
+        );
+        deployer = deployerDeployed
+            ? JBCCIPSuckerDeployer(deployerAddress)
+            : new JBCCIPSuckerDeployer{salt: salt}(_directory, _permissions, _tokens, safeAddress(), _trustedForwarder);
+
+        if (address(deployer.ccipRouter()) == address(0)) {
+            deployer.setChainSpecificConstants(remoteChainId, remoteChainSelector, router);
         }
 
         (address singletonAddress, bool singletonDeployed) = _isDeployed(
@@ -1304,9 +1420,20 @@ contract Deploy is Script, Sphinx {
             _prices.priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)));
         if (address(matchingFeed) == address(0)) matchingFeed = IJBPriceFeed(address(new JBMatchingPriceFeed()));
 
-        _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)), ethUsdFeed);
-        _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, JBCurrencyIds.ETH, ethUsdFeed);
-        _ensureDefaultPriceFeed(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)), matchingFeed);
+        if (block.chainid == 4217 || block.chainid == 42_431) {
+            // Tempo: native gas = USD. NATIVE_TOKEN is USD-denominated.
+            // USD ↔ NATIVE_TOKEN is 1:1 (native IS USD on Tempo).
+            _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)), matchingFeed);
+            // USD ↔ ETH uses the standard ETH/USD feed.
+            _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, JBCurrencyIds.ETH, ethUsdFeed);
+            // NATIVE_TOKEN ↔ ETH = ethUsdFeed (since NATIVE_TOKEN is USD on Tempo).
+            _ensureDefaultPriceFeed(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)), ethUsdFeed);
+        } else {
+            // All other chains: native = ETH.
+            _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)), ethUsdFeed);
+            _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, JBCurrencyIds.ETH, ethUsdFeed);
+            _ensureDefaultPriceFeed(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)), matchingFeed);
+        }
 
         // Deploy USDC/USD feed.
         _deployUsdcFeed();
@@ -1522,6 +1649,37 @@ contract Deploy is Script, Sphinx {
                         )
                     )
                 );
+        }
+        // Tempo Mainnet — L1, no sequencer needed.
+        // TODO: Replace with actual Chainlink ETH/USD feed address on Tempo once available.
+        else if (block.chainid == 4217) {
+            bytes memory args = abi.encode(AggregatorV3Interface(address(0)), 3600 seconds);
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(address(0)), 3600 seconds
+                        )
+                    )
+                );
+        }
+        // Tempo Moderato (testnet)
+        else if (block.chainid == 42_431) {
+            bytes memory args = abi.encode(AggregatorV3Interface(address(0)), 3600 seconds);
+            (feedAddress, feedDeployed) =
+                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            feed = feedDeployed
+                ? IJBPriceFeed(feedAddress)
+                : IJBPriceFeed(
+                    address(
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
+                            AggregatorV3Interface(address(0)), 3600 seconds
+                        )
+                    )
+                );
         } else {
             revert("Unsupported chain for ETH/USD feed");
         }
@@ -1672,6 +1830,17 @@ contract Deploy is Script, Sphinx {
                         )
                     )
                 );
+        }
+        // Tempo Mainnet — USDC.e is the primary treasury token.
+        // On Tempo, USDC.e ≈ 1 USD, so we use a matching (1:1) feed.
+        else if (block.chainid == 4217) {
+            usdc = 0x20C000000000000000000000b9537d11c60E8b50; // USDC.e on Tempo
+            usdcFeed = IJBPriceFeed(address(new JBMatchingPriceFeed()));
+        }
+        // Tempo Moderato (testnet)
+        else if (block.chainid == 42_431) {
+            usdc = address(0); // TBD: testnet USDC.e
+            usdcFeed = IJBPriceFeed(address(new JBMatchingPriceFeed()));
         } else {
             revert("Unsupported chain for USDC feed");
         }
@@ -1737,11 +1906,25 @@ contract Deploy is Script, Sphinx {
         (address revLoans, bool revLoansDeployed) = _isDeployed(
             REV_LOANS_SALT,
             type(REVLoans).creationCode,
-            abi.encode(_controller, _revProjectId, safeAddress(), _PERMIT2, _trustedForwarder)
+            abi.encode(
+                _controller,
+                IJBSuckerRegistry(address(_suckerRegistry)),
+                _revProjectId,
+                safeAddress(),
+                _PERMIT2,
+                _trustedForwarder
+            )
         );
         _revLoans = revLoansDeployed
             ? REVLoans(payable(revLoans))
-            : new REVLoans{salt: REV_LOANS_SALT}(_controller, _revProjectId, safeAddress(), _PERMIT2, _trustedForwarder);
+            : new REVLoans{salt: REV_LOANS_SALT}(
+                _controller,
+                IJBSuckerRegistry(address(_suckerRegistry)),
+                _revProjectId,
+                safeAddress(),
+                _PERMIT2,
+                _trustedForwarder
+            );
 
         // Deploy REVHiddenTokens.
         (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed(
@@ -2557,12 +2740,19 @@ contract Deploy is Script, Sphinx {
 
         JBSuckerDeployerConfig[] memory suckerDeployerConfigs;
         if (block.chainid == 1 || block.chainid == 11_155_111) {
+            // L1: deploy suckers to OP, Base, Arb. Tempo CCIP sucker is registered but without active
+            // token mappings until Phase 2 (JBSwapCCIPSucker) enables cross-currency bridging.
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
             suckerDeployerConfigs[0] =
                 JBSuckerDeployerConfig({deployer: _optimismSuckerDeployer, mappings: tokenMappings});
             suckerDeployerConfigs[1] = JBSuckerDeployerConfig({deployer: _baseSuckerDeployer, mappings: tokenMappings});
             suckerDeployerConfigs[2] =
                 JBSuckerDeployerConfig({deployer: _arbitrumSuckerDeployer, mappings: tokenMappings});
+        } else if (block.chainid == 4217 || block.chainid == 42_431) {
+            // Tempo: CCIP sucker targeting Ethereum. No active token mappings until Phase 2.
+            suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
+            suckerDeployerConfigs[0] =
+                JBSuckerDeployerConfig({deployer: _tempoCcipDeployer, mappings: new JBTokenMapping[](0)});
         } else {
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
             // L2 -> L1: pick whichever deployer is non-zero for this chain.

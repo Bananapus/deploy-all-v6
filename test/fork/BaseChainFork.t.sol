@@ -20,6 +20,7 @@ import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/inte
 import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
+import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
 import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
 import {JBAddressRegistry} from "@bananapus/address-registry-v6/src/JBAddressRegistry.sol";
@@ -171,8 +172,16 @@ contract BaseChainForkTest is TestBaseWorkflow {
 
         // Deploy 721 hook infrastructure (store + example hook + deployer).
         JB721TiersHookStore hookStore = new JB721TiersHookStore();
+        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
         JB721TiersHook exampleHook = new JB721TiersHook(
-            jbDirectory(), jbPermissions(), jbPrices(), jbRulesets(), hookStore, jbSplits(), multisig()
+            jbDirectory(),
+            jbPermissions(),
+            jbPrices(),
+            jbRulesets(),
+            hookStore,
+            jbSplits(),
+            checkpointsDeployer,
+            multisig()
         );
         ADDRESS_REGISTRY = new JBAddressRegistry();
         HOOK_DEPLOYER = new JB721TiersHookDeployer(exampleHook, hookStore, ADDRESS_REGISTRY, multisig());
@@ -213,6 +222,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
         // Deploy loans contract (required by REVDeployer).
         LOANS_CONTRACT = new REVLoans({
             controller: jbController(),
+            suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
             revId: FEE_PROJECT_ID,
             owner: address(this),
             permit2: permit2(),
