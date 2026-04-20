@@ -2,8 +2,8 @@
 
 ## Use This File For
 
-- Use this file when the task is about orchestrating multi-chain deployment, resuming a partial rollout, verifying artifacts, or understanding phase ordering across the ecosystem.
-- Start here for deployment sequencing, then decide whether the failure is ordering, stale artifact input, resume-safety, or downstream package drift. This repo mainly amplifies those problems.
+- Use this file when the task is about multi-chain deployment, partial-rollout recovery, artifact verification, or dependency ordering across the ecosystem.
+- Start here for deployment sequencing, then decide whether the failure is bad ordering, stale artifact input, resume drift, or downstream package drift.
 
 ## Read This Next
 
@@ -27,16 +27,16 @@
 
 ## Purpose
 
-Deployment orchestration repo for the full Juicebox V6 ecosystem. It does not define new runtime protocol behavior; it coordinates deployment order, resume flows, and verification across many sibling packages.
+Deployment orchestration repo for the full Juicebox V6 ecosystem. It does not define new runtime behavior. It coordinates deployment order, resume flows, and verification across many sibling packages.
 
 ## Reference Files
 
-- Open [`references/runtime.md`](./references/runtime.md) when you need the deployment phases, dependency ordering, or the main invariants around resume-safe orchestration.
-- Open [`references/operations.md`](./references/operations.md) when you need operator guidance, recovery and verification breadcrumbs, or the common stale-data traps caused by cross-repo artifact drift.
+- Open [`references/runtime.md`](./references/runtime.md) for deployment phases, dependency ordering, and the main invariants around resume-safe orchestration.
+- Open [`references/operations.md`](./references/operations.md) for operator guidance, recovery breadcrumbs, and common stale-data traps caused by cross-repo artifact drift.
 
 ## Working Rules
 
-- Start in [`script/Deploy.s.sol`](./script/Deploy.s.sol) for phase ordering. This repo is sequencing, not subsystem business logic.
+- Start in [`script/Deploy.s.sol`](./script/Deploy.s.sol) for phase ordering.
 - Treat recovery and verification paths as production paths, not optional extras.
-- Most “bugs” here are wrong assumptions imported from sibling repos. Prove the inputs are current before editing orchestration logic.
-- When debugging a failure, separate bad script orchestration from stale addresses or assumptions imported from sibling repos.
+- Many bugs here are wrong assumptions imported from sibling repos. Prove the inputs are current before editing orchestration logic.
+- When debugging a failure, separate bad script logic from stale addresses or assumptions imported from sibling repos.
