@@ -147,6 +147,16 @@ import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
 import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
 import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
 
+// ── Project Handles ──
+import {JBProjectHandles} from "@bananapus/project-handles-v6/src/JBProjectHandles.sol";
+
+// ── Distributor ──
+import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.sol";
+import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
+
+// ── Project Payer ──
+import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectPayerDeployer.sol";
+
 /// @title Deploy — Juicebox V6 Ecosystem
 /// @notice One-shot deployment of the entire Juicebox V6 ecosystem.
 /// @dev Based on each source repo's Deploy.s.sol. Deploys everything in dependency order within a single Sphinx
@@ -246,6 +256,16 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant DEFIFA_REV_ERC20_SALT = "_DEFIFA_ERC20V6_";
     bytes32 private constant DEFIFA_REV_SUCKER_SALT = "_DEFIFA_SUCKERV6_";
 
+    // ── Project Handles salt ──
+    bytes32 private constant PROJECT_HANDLES_SALT = "JBProjectHandlesV6";
+
+    // ── Distributor salts ──
+    bytes32 private constant DISTRIBUTOR_721_SALT = "JB721DistributorV6";
+    bytes32 private constant DISTRIBUTOR_TOKEN_SALT = "JBTokenDistributorV6";
+
+    // ── Project Payer salt ──
+    bytes32 private constant PROJECT_PAYER_DEPLOYER_SALT = "JBProjectPayerDeployerV6";
+
     // ── REV constants ──
     uint48 private constant REV_START_TIME = 1_740_089_444;
     uint104 private constant REV_MAINNET_AUTO_ISSUANCE = 1_050_482_341_387_116_262_330_122;
@@ -273,6 +293,9 @@ contract Deploy is Script, Sphinx {
     uint104 private constant BAN_BASE_AUTO_ISSUANCE = 10_097_684_379_816_492_953_872;
     uint104 private constant BAN_OP_AUTO_ISSUANCE = 328_366_065_858_064_488_000;
     uint104 private constant BAN_ARB_AUTO_ISSUANCE = 2_825_980_000_000_000_000_000;
+
+    // ── Distributor constants ──
+    uint256 private constant VESTING_ROUNDS = 52;
 
     // ── Common ──
     uint32 private constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
@@ -348,6 +371,17 @@ contract Deploy is Script, Sphinx {
     DefifaTokenUriResolver private _defifaTokenUriResolver;
     DefifaGovernor private _defifaGovernor;
     DefifaDeployer private _defifaDeployer;
+
+    // Project Handles
+    JBProjectHandles private _projectHandles;
+
+    // Distributor
+    JB721Distributor private _721Distributor;
+    JBTokenDistributor private _tokenDistributor;
+    uint256 private _roundDuration;
+
+    // Project Payer
+    JBProjectPayerDeployer private _projectPayerDeployer;
 
     // Project IDs (determined by deploy order)
     uint256 private _cpnProjectId; // project 2
@@ -437,6 +471,11 @@ contract Deploy is Script, Sphinx {
 
         // Phase 10: Defifa — deploys the Defifa game infrastructure (hook, resolver, governor, deployer).
         _deployDefifa();
+
+        // Phase 11: Periphery Extensions (Project Handles, Distributor, Project Payer)
+        _deployProjectHandles();
+        _deployDistributors();
+        _deployProjectPayerDeployer();
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -451,6 +490,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
             _typeface = 0xA77b7D93E79f1E6B4f77FaB29d9ef85733A3D44A;
+            _roundDuration = 50_400; // ~1 week at 12s/block
         }
         // Ethereum Sepolia
         else if (block.chainid == 11_155_111) {
@@ -459,6 +499,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
             _positionManager = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
             _typeface = 0x8C420d3388C882F40d263714d7A6e2c8DB93905F;
+            _roundDuration = 50_400; // ~1 week at 12s/block
         }
         // Optimism
         else if (block.chainid == 10) {
@@ -467,6 +508,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
             _positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
             _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
+            _roundDuration = 302_400; // ~1 week at 2s/block
         }
         // Optimism Sepolia
         // Keep deploy-all supported here, but skip the Uniswap-dependent stack since no PositionManager is published.
@@ -476,6 +518,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = address(0);
             _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
+            _roundDuration = 302_400; // ~1 week at 2s/block
         }
         // Base
         else if (block.chainid == 8453) {
@@ -484,6 +527,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
             _positionManager = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
             _typeface = 0x3DE45A14ea0fe24037D6363Ae71Ef18F336D1C27;
+            _roundDuration = 302_400; // ~1 week at 2s/block
         }
         // Base Sepolia
         else if (block.chainid == 84_532) {
@@ -492,6 +536,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
             _positionManager = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
             _typeface = 0xEb269d9F0850CEf5e3aB0F9718fb79c466720784;
+            _roundDuration = 302_400; // ~1 week at 2s/block
         }
         // Arbitrum
         else if (block.chainid == 42_161) {
@@ -500,6 +545,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
             _positionManager = 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
             _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
+            _roundDuration = 2_419_200; // ~1 week at ~0.25s/block
         }
         // Arbitrum Sepolia
         else if (block.chainid == 421_614) {
@@ -508,6 +554,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
             _positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
             _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
+            _roundDuration = 2_419_200; // ~1 week at ~0.25s/block
         }
         // Tempo Mainnet — native gas = USD, no WETH, no Uniswap
         else if (block.chainid == 4217) {
@@ -516,6 +563,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = address(0);
             _positionManager = address(0);
             _typeface = address(0);
+            _roundDuration = 302_400; // ~1 week at 2s/block (OP-stack)
         }
         // Tempo Moderato (testnet)
         else if (block.chainid == 42_431) {
@@ -524,6 +572,7 @@ contract Deploy is Script, Sphinx {
             _poolManager = address(0);
             _positionManager = address(0);
             _typeface = address(0);
+            _roundDuration = 302_400; // ~1 week at 2s/block (OP-stack)
         } else {
             revert("Unsupported chain");
         }
@@ -2706,6 +2755,61 @@ contract Deploy is Script, Sphinx {
                 _defifaGovernor.transferOwnership(address(_defifaDeployer));
             }
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Phase 11: Periphery Extensions
+    // ════════════════════════════════════════════════════════════════════
+
+    function _deployProjectHandles() internal {
+        (address addr, bool deployed) = _isDeployed({
+            salt: PROJECT_HANDLES_SALT,
+            creationCode: type(JBProjectHandles).creationCode,
+            arguments: abi.encode(_trustedForwarder)
+        });
+        _projectHandles =
+            deployed ? JBProjectHandles(addr) : new JBProjectHandles{salt: PROJECT_HANDLES_SALT}(_trustedForwarder);
+    }
+
+    function _deployDistributors() internal {
+        // JB721Distributor
+        {
+            (address addr, bool deployed) = _isDeployed({
+                salt: DISTRIBUTOR_721_SALT,
+                creationCode: type(JB721Distributor).creationCode,
+                arguments: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
+            });
+            _721Distributor = deployed
+                ? JB721Distributor(payable(addr))
+                : new JB721Distributor{salt: DISTRIBUTOR_721_SALT}(
+                    IJBDirectory(address(_directory)), _roundDuration, VESTING_ROUNDS
+                );
+        }
+
+        // JBTokenDistributor
+        {
+            (address addr, bool deployed) = _isDeployed({
+                salt: DISTRIBUTOR_TOKEN_SALT,
+                creationCode: type(JBTokenDistributor).creationCode,
+                arguments: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
+            });
+            _tokenDistributor = deployed
+                ? JBTokenDistributor(payable(addr))
+                : new JBTokenDistributor{salt: DISTRIBUTOR_TOKEN_SALT}(
+                    IJBDirectory(address(_directory)), _roundDuration, VESTING_ROUNDS
+                );
+        }
+    }
+
+    function _deployProjectPayerDeployer() internal {
+        (address addr, bool deployed) = _isDeployed({
+            salt: PROJECT_PAYER_DEPLOYER_SALT,
+            creationCode: type(JBProjectPayerDeployer).creationCode,
+            arguments: abi.encode(_directory)
+        });
+        _projectPayerDeployer = deployed
+            ? JBProjectPayerDeployer(addr)
+            : new JBProjectPayerDeployer{salt: PROJECT_PAYER_DEPLOYER_SALT}(IJBDirectory(address(_directory)));
     }
 
     // ════════════════════════════════════════════════════════════════════
