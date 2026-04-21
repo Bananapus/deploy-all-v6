@@ -23,6 +23,8 @@ import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol"
 
 // ── Core Interfaces ──
 import {IJBPriceFeed} from "@bananapus/core-v6/src/interfaces/IJBPriceFeed.sol";
+import {JBChainlinkV3PriceFeed} from "@bananapus/core-v6/src/JBChainlinkV3PriceFeed.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -792,12 +794,16 @@ contract Verify is Script {
             }) returns (
                 IJBPriceFeed feed
             ) {
-                // Verify the feed address matches the canonical Chainlink ETH/USD aggregator.
-                _check(
-                    address(feed) == expectedEthUsdFeed,
-                    "ETH/USD feed matches expected Chainlink aggregator (mainnet)",
-                    false
-                );
+                // Dereference through the wrapper to compare the inner aggregator, not the wrapper address.
+                try JBChainlinkV3PriceFeed(address(feed)).FEED() returns (AggregatorV3Interface innerFeed) {
+                    _check(
+                        address(innerFeed) == expectedEthUsdFeed,
+                        "ETH/USD inner aggregator matches expected Chainlink feed (mainnet)",
+                        false
+                    );
+                } catch {
+                    _skip("ETH/USD oracle provenance (feed wrapper does not expose FEED)");
+                }
             } catch {
                 // priceFeedFor reverted — already covered by earlier checks, skip provenance.
                 _skip("ETH/USD oracle provenance (feed lookup reverted)");

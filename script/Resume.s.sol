@@ -2514,6 +2514,14 @@ contract Resume is Script {
                 _isDeployed(BAN_RESOLVER_SALT, type(Banny721TokenUriResolver).creationCode, resolverArgs);
             if (resolverDeployed) {
                 resolver = Banny721TokenUriResolver(resolverAddress);
+                // Re-initialize metadata if resolver was deployed but setMetadata was interrupted.
+                if (bytes(resolver.svgDescription()).length == 0) {
+                    resolver.setMetadata(
+                        "A piece of Banny Retail.",
+                        "https://retail.banny.eth.shop",
+                        "https://bannyverse.infura-ipfs.io/ipfs/"
+                    );
+                }
             } else {
                 resolver = new Banny721TokenUriResolver{salt: BAN_RESOLVER_SALT}(
                     bannyBody,
