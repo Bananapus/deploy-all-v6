@@ -19,13 +19,13 @@ Chains without a PositionManager skip the Uniswap-dependent stack (buyback hook,
 
 ## Deployment Phases
 
-The deploy script (`script/Deploy.s.sol`) executes 10 phases in strict order:
+The deploy script (`script/Deploy.s.sol`) executes 11 phases in strict order:
 
 | Phase | What | Creates |
 |---|---|---|
 | 01 | Core Protocol | Permissions, Projects, Prices, Rulesets, Directory, JBERC20, Tokens, Splits, Feeless, FundAccessLimits, TerminalStore, MultiTerminal, ERC2771Forwarder |
 | 02 | Address Registry | JBAddressRegistry |
-| 03a | 721 Tier Hook | HookStore, HookDeployer, HookProjectDeployer |
+| 03a | 721 Tier Hook | HookStore, CheckpointsDeployer, TiersHook, HookDeployer, HookProjectDeployer |
 | 03b | Uniswap V4 Router Hook | JBUniswapV4Hook (requires PoolManager) |
 | 03c | Buyback Hook | JBBuybackHookRegistry (requires V3Factory) |
 | 03d | Router Terminal | JBRouterTerminal, JBRouterTerminalRegistry |
@@ -38,6 +38,7 @@ The deploy script (`script/Deploy.s.sol`) executes 10 phases in strict order:
 | 08 | Revnet Config | Configures CPN (project 2) and NANA (project 1) as revnets |
 | 09 | Banny | Banny721TokenUriResolver; creates BAN project (ID 4) |
 | 10 | Defifa | DefifaHook, DefifaTokenUriResolver, DefifaGovernor, DefifaDeployer |
+| 11 | Periphery Extensions | JBProjectHandles, JBDistributor, JBProjectPayerDeployer |
 
 All contracts use CREATE2 with deterministic salts. Addresses are identical across chains for the same salt + initcode.
 
@@ -210,7 +211,7 @@ This is the complete sequence for deploying to a new chain:
 ### 2. Dry Run
 
 - [ ] `forge script script/Deploy.s.sol --rpc-url <RPC_URL> -vvvv` completes without revert
-- [ ] All 10 phases logged as completed
+- [ ] All 11 phases logged as completed
 - [ ] Gas usage is within budget
 
 ### 3. Deploy
@@ -222,7 +223,7 @@ This is the complete sequence for deploying to a new chain:
 ### 4. Resume (if needed)
 
 - [ ] `forge script script/Resume.s.sol:Resume --rpc-url <RPC_URL> --broadcast --sender <ADDR> -vvvv`
-- [ ] Confirm output shows `Phases skipped` + `Phases executed` totaling 10
+- [ ] Confirm output shows `Phases skipped` + `Phases executed` totaling 11
 - [ ] Check for any `WARNING` messages requiring manual review
 - [ ] If Phases 08/09 show warnings: manually verify revnet configuration and Banny project via Etherscan or direct contract queries
 
