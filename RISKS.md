@@ -31,7 +31,7 @@ For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
 
 ## 2. Deployment Ordering Risks
 
-The script executes 10 top-level phases in strict sequence. Phase `03` is split into subphases (`03a` through `03f`), and Phase `08` is split into `08a` and `08b`. Each phase depends on state produced by prior phases. All phases run inside a single Sphinx `deploy()` call per chain.
+The script executes 11 top-level phases in strict sequence. Phase `03` is split into subphases (`03a` through `03f`), and Phase `08` is split into `08a` and `08b`. Each phase depends on state produced by prior phases. All phases run inside a single Sphinx `deploy()` call per chain.
 
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
@@ -63,6 +63,7 @@ Phase 08a: CPN revnet config
 Phase 08b: NANA revnet config
 Phase 09: Banny (revnet deployer + 721 hook)
 Phase 10: Defifa (721 hook + controller + tokens)
+Phase 11: Periphery Extensions (Core + controller)
 ```
 
 If deployment is interrupted at any phase boundary, all contracts from completed phases exist on-chain but are inert --
