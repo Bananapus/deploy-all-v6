@@ -41,12 +41,7 @@ contract CashOutReentrySplitHook is IJBSplitHook {
     bool public reentrySucceeded;
     uint256 public reclaimedAmount;
 
-    constructor(
-        IJBMultiTerminal _terminal,
-        uint256 _projectId,
-        address _token,
-        address _victimHolder
-    ) {
+    constructor(IJBMultiTerminal _terminal, uint256 _projectId, address _token, address _victimHolder) {
         terminal = _terminal;
         targetProjectId = _projectId;
         token = _token;
@@ -70,7 +65,9 @@ contract CashOutReentrySplitHook is IJBSplitHook {
                 minTokensReclaimed: 0,
                 beneficiary: payable(address(this)),
                 metadata: ""
-            }) returns (uint256 reclaimed) {
+            }) returns (
+                uint256 reclaimed
+            ) {
                 reentrySucceeded = true;
                 reclaimedAmount = reclaimed;
             } catch {
@@ -160,13 +157,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        projectId = jbController().launchProjectFor({
-            owner: owner,
-            projectUri: "ipfs://adversarial",
-            rulesetConfigurations: rulesetConfigs,
-            terminalConfigurations: tc,
-            memo: ""
-        });
+        projectId = jbController()
+            .launchProjectFor({
+                owner: owner,
+                projectUri: "ipfs://adversarial",
+                rulesetConfigurations: rulesetConfigs,
+                terminalConfigurations: tc,
+                memo: ""
+            });
     }
 
     /// @notice Launch a raw JB project with a split hook receiving a percentage of payouts.
@@ -252,13 +250,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             fundAccessLimitGroups: fundAccessLimitGroups
         });
 
-        projectId = jbController().launchProjectFor({
-            owner: owner,
-            projectUri: "ipfs://adversarial-split",
-            rulesetConfigurations: rulesetConfigs,
-            terminalConfigurations: tc,
-            memo: ""
-        });
+        projectId = jbController()
+            .launchProjectFor({
+                owner: owner,
+                projectUri: "ipfs://adversarial-split",
+                rulesetConfigurations: rulesetConfigs,
+                terminalConfigurations: tc,
+                memo: ""
+            });
     }
 
     /// @notice Build a two-stage revnet config with custom splitPercent for reserved token testing.
@@ -431,20 +430,23 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         emit log_named_uint("Surplus before cashout", surplusBefore);
 
         vm.prank(ACCOMPLICE);
-        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
-            holder: ACCOMPLICE,
-            projectId: projectId,
-            cashOutCount: accompliceTokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(ACCOMPLICE),
-            metadata: ""
-        });
+        uint256 reclaimed = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: ACCOMPLICE,
+                projectId: projectId,
+                cashOutCount: accompliceTokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(ACCOMPLICE),
+                metadata: ""
+            });
 
         uint256 accompliceEthReceived = ACCOMPLICE.balance - accompliceEthBefore;
         emit log_named_uint("ACCOMPLICE reclaimed (return value)", reclaimed);
         emit log_named_uint("ACCOMPLICE ETH received", accompliceEthReceived);
-        emit log_named_uint("ACCOMPLICE ETH profit", accompliceEthReceived > 1 ether ? accompliceEthReceived - 1 ether : 0);
+        emit log_named_uint(
+            "ACCOMPLICE ETH profit", accompliceEthReceived > 1 ether ? accompliceEthReceived - 1 ether : 0
+        );
 
         // The rug vector: ACCOMPLICE paid 1 ETH but should be able to extract a pro-rata share
         // of the 11 ETH surplus proportional to their massive token holding.
@@ -531,13 +533,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         emit log_named_uint("Terminal balance before payout", terminalBalBefore);
 
         // Step 6: Trigger payouts -- the hook will receive its share and try to cashOut PAYER2's tokens.
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 3 ether,
-            currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: 3 ether,
+                currency: NATIVE_CURRENCY,
+                minTokensPaidOut: 0
+            });
 
         // Step 7: Check results.
         emit log_named_uint("Re-entry called", reentryHook.reentryCalled() ? 1 : 0);
@@ -608,15 +611,16 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 payer2EthBefore = PAYER2.balance;
 
         vm.prank(PAYER2);
-        uint256 reclaimScenarioA = jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER2,
-            projectId: revnetId,
-            cashOutCount: payer2Tokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER2),
-            metadata: ""
-        });
+        uint256 reclaimScenarioA = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER2,
+                projectId: revnetId,
+                cashOutCount: payer2Tokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER2),
+                metadata: ""
+            });
 
         uint256 ethReceivedA = PAYER2.balance - payer2EthBefore;
         emit log_named_uint("Scenario A: PAYER2 cashout reclaim (return)", reclaimScenarioA);
@@ -633,15 +637,16 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        uint256 payerReclaim = jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: payerTokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        uint256 payerReclaim = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: payerTokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         uint256 payerEthReceived = PAYER.balance - payerEthBefore;
         emit log_named_uint("Scenario B: PAYER cashout first, ETH received", payerEthReceived);
@@ -653,22 +658,26 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         payer2EthBefore = PAYER2.balance;
 
         vm.prank(PAYER2);
-        uint256 reclaimScenarioB = jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER2,
-            projectId: revnetId,
-            cashOutCount: payer2Tokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER2),
-            metadata: ""
-        });
+        uint256 reclaimScenarioB = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER2,
+                projectId: revnetId,
+                cashOutCount: payer2Tokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER2),
+                metadata: ""
+            });
 
         uint256 ethReceivedB = PAYER2.balance - payer2EthBefore;
         emit log_named_uint("Scenario B: PAYER2 cashout after PAYER, ETH received", ethReceivedB);
 
         // Key comparison: the amounts should differ because the surplus changed.
         // When PAYER cashes out first, the surplus is reduced, so PAYER2 gets a different amount.
-        emit log_named_uint("Difference in PAYER2 reclaim (A - B)", ethReceivedA > ethReceivedB ? ethReceivedA - ethReceivedB : ethReceivedB - ethReceivedA);
+        emit log_named_uint(
+            "Difference in PAYER2 reclaim (A - B)",
+            ethReceivedA > ethReceivedB ? ethReceivedA - ethReceivedB : ethReceivedB - ethReceivedA
+        );
 
         // With a 50% tax rate, the second casher-out should receive LESS because:
         // - After PAYER's cashout, there are fewer tokens AND less surplus.
@@ -737,8 +746,18 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         // Analysis: Compare token counts.
         // The token count itself reflects the issuance weight (which is the same for both stages in our config).
         // The difference shows up in the cashOutTaxRate, not in minting. So let's also check cashout values.
-        emit log_named_uint("Exact boundary vs stage1 difference", tokensAtExactBoundary > tokensStage1 ? tokensAtExactBoundary - tokensStage1 : tokensStage1 - tokensAtExactBoundary);
-        emit log_named_uint("After boundary vs exact boundary difference", tokensAfterBoundary > tokensAtExactBoundary ? tokensAfterBoundary - tokensAtExactBoundary : tokensAtExactBoundary - tokensAfterBoundary);
+        emit log_named_uint(
+            "Exact boundary vs stage1 difference",
+            tokensAtExactBoundary > tokensStage1
+                ? tokensAtExactBoundary - tokensStage1
+                : tokensStage1 - tokensAtExactBoundary
+        );
+        emit log_named_uint(
+            "After boundary vs exact boundary difference",
+            tokensAfterBoundary > tokensAtExactBoundary
+                ? tokensAfterBoundary - tokensAtExactBoundary
+                : tokensAtExactBoundary - tokensAfterBoundary
+        );
 
         // If exact boundary == after boundary, stage 2 starts AT the boundary (inclusive).
         // If exact boundary == stage 1, stage 2 starts AFTER the boundary (exclusive).
@@ -756,15 +775,16 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 latePayerEthBefore = latePayer.balance;
 
         vm.prank(latePayer);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: latePayer,
-            projectId: revnetId,
-            cashOutCount: latePayerTokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(latePayer),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: latePayer,
+                projectId: revnetId,
+                cashOutCount: latePayerTokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(latePayer),
+                metadata: ""
+            });
 
         uint256 latePayerEthReceived = latePayer.balance - latePayerEthBefore;
         emit log_named_uint("Late payer (+1s) cashout ETH received", latePayerEthReceived);
@@ -774,15 +794,16 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 exactPayerEthBefore = exactPayer.balance;
 
         vm.prank(exactPayer);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: exactPayer,
-            projectId: revnetId,
-            cashOutCount: exactPayerTokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(exactPayer),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: exactPayer,
+                projectId: revnetId,
+                cashOutCount: exactPayerTokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(exactPayer),
+                metadata: ""
+            });
 
         uint256 exactPayerEthReceived = exactPayer.balance - exactPayerEthBefore;
         emit log_named_uint("Exact boundary payer cashout ETH received", exactPayerEthReceived);
@@ -827,15 +848,16 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 feePayerEthBefore = feePayer.balance;
 
         vm.prank(feePayer);
-        uint256 normalReclaim = jbMultiTerminal().cashOutTokensOf({
-            holder: feePayer,
-            projectId: revnetId,
-            cashOutCount: halfTokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(feePayer),
-            metadata: ""
-        });
+        uint256 normalReclaim = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: feePayer,
+                projectId: revnetId,
+                cashOutCount: halfTokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(feePayer),
+                metadata: ""
+            });
 
         uint256 normalEthReceived = feePayer.balance - feePayerEthBefore;
         uint256 feeProjectBalAfterNormal = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
@@ -853,9 +875,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         // catch block in _processFee forgives the fee back to the originating project.
         vm.mockCallRevert(
             address(jbMultiTerminal()),
-            abi.encodeWithSelector(
-                bytes4(keccak256("executeProcessFee(uint256,address,uint256,address,address)"))
-            ),
+            abi.encodeWithSelector(bytes4(keccak256("executeProcessFee(uint256,address,uint256,address,address)"))),
             "FEE_PAY_REVERTED"
         );
 
@@ -870,15 +890,16 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         emit log_named_uint("Fee project balance before mocked cashout", feeProjectBalBeforeMocked);
 
         vm.prank(feePayer);
-        uint256 mockedReclaim = jbMultiTerminal().cashOutTokensOf({
-            holder: feePayer,
-            projectId: revnetId,
-            cashOutCount: remainingTokens,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(feePayer),
-            metadata: ""
-        });
+        uint256 mockedReclaim = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: feePayer,
+                projectId: revnetId,
+                cashOutCount: remainingTokens,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(feePayer),
+                metadata: ""
+            });
 
         uint256 mockedEthReceived = feePayer.balance - feePayerEthBefore;
         emit log_named_uint("Mocked cashout ETH received", mockedEthReceived);
@@ -1021,10 +1042,20 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             emit log("RESULT: Reserved distribution is identical across boundary -- no anomaly.");
         } else if (distributedBefore == distributedExact && distributedExact != distributedAfter) {
             emit log("RESULT: Stage transition affects distribution AFTER boundary (exclusive transition).");
-            emit log_named_uint("  Difference (exact vs after)", distributedExact > distributedAfter ? distributedExact - distributedAfter : distributedAfter - distributedExact);
+            emit log_named_uint(
+                "  Difference (exact vs after)",
+                distributedExact > distributedAfter
+                    ? distributedExact - distributedAfter
+                    : distributedAfter - distributedExact
+            );
         } else if (distributedBefore != distributedExact && distributedExact == distributedAfter) {
             emit log("RESULT: Stage transition affects distribution AT boundary (inclusive transition).");
-            emit log_named_uint("  Difference (before vs exact)", distributedBefore > distributedExact ? distributedBefore - distributedExact : distributedExact - distributedBefore);
+            emit log_named_uint(
+                "  Difference (before vs exact)",
+                distributedBefore > distributedExact
+                    ? distributedBefore - distributedExact
+                    : distributedExact - distributedBefore
+            );
         } else {
             emit log("RESULT: All three differ -- possible interpolation or rounding at boundary.");
         }

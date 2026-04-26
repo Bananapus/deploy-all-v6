@@ -233,13 +233,14 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: limits
         });
 
-        uint256 projectId = jbController().launchProjectFor({
-            owner: PROJECT_OWNER,
-            projectUri: "ipfs://holdFees-test",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: _nativeTerminalConfigs(),
-            memo: ""
-        });
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: PROJECT_OWNER,
+                projectUri: "ipfs://holdFees-test",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: _nativeTerminalConfigs(),
+                memo: ""
+            });
 
         // Pay 20 ETH into the project.
         vm.deal(PAYER, 100 ether);
@@ -258,13 +259,14 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         uint256 feeProjectBalanceBefore = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
 
         // Execute sendPayoutsOf (5 ETH payout limit). Fees should be HELD, not processed.
-        jbMultiTerminal().sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 5 ether,
-            currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
-        });
+        jbMultiTerminal()
+            .sendPayoutsOf({
+                projectId: projectId,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: 5 ether,
+                currency: NATIVE_CURRENCY,
+                minTokensPaidOut: 0
+            });
 
         // Fee project balance should NOT change with holdFees=true.
         uint256 feeProjectBalanceAfterPayout = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
@@ -299,9 +301,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         // Fee project should now have received the fees.
         uint256 feeProjectBalanceAfterProcess = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
         assertGt(
-            feeProjectBalanceAfterProcess,
-            feeProjectBalanceBefore,
-            "fee project should receive fees after processing"
+            feeProjectBalanceAfterProcess, feeProjectBalanceBefore, "fee project should receive fees after processing"
         );
 
         // The fee amount sent to the fee project should be feeAmountFrom(5 ETH, 2.5%) = 0.125 ETH.
@@ -340,12 +340,13 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
 
         // Register it as the default ETH/USD feed: USD -> NATIVE_TOKEN.
         vm.prank(multisig());
-        jbPrices().addPriceFeedFor({
-            projectId: 0,
-            pricingCurrency: USD,
-            unitCurrency: NATIVE_CURRENCY,
-            feed: IJBPriceFeed(address(zeroPriceFeed))
-        });
+        jbPrices()
+            .addPriceFeedFor({
+                projectId: 0,
+                pricingCurrency: USD,
+                unitCurrency: NATIVE_CURRENCY,
+                feed: IJBPriceFeed(address(zeroPriceFeed))
+            });
 
         // Launch a project with baseCurrency = USD, terminal accepts ETH.
         JBRulesetConfig[] memory rulesets = new JBRulesetConfig[](1);
@@ -360,13 +361,14 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController().launchProjectFor({
-            owner: PROJECT_OWNER,
-            projectUri: "ipfs://zero-feed",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: _nativeTerminalConfigs(),
-            memo: ""
-        });
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: PROJECT_OWNER,
+                projectUri: "ipfs://zero-feed",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: _nativeTerminalConfigs(),
+                memo: ""
+            });
 
         // Pay with ETH — the price conversion should use the zero feed.
         // This should revert due to division by zero in the price conversion (mulDiv with 0 denominator).
@@ -406,12 +408,13 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
 
         // Register as default feed: USD -> NATIVE_TOKEN.
         vm.prank(multisig());
-        jbPrices().addPriceFeedFor({
-            projectId: 0,
-            pricingCurrency: USD,
-            unitCurrency: NATIVE_CURRENCY,
-            feed: IJBPriceFeed(address(priceFeed))
-        });
+        jbPrices()
+            .addPriceFeedFor({
+                projectId: 0,
+                pricingCurrency: USD,
+                unitCurrency: NATIVE_CURRENCY,
+                feed: IJBPriceFeed(address(priceFeed))
+            });
 
         // Launch project: baseCurrency=USD, 0% cashOutTaxRate, terminal accepts ETH.
         JBRulesetConfig[] memory rulesets = new JBRulesetConfig[](1);
@@ -426,13 +429,14 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController().launchProjectFor({
-            owner: PROJECT_OWNER,
-            projectUri: "ipfs://cross-currency-roundtrip",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: _nativeTerminalConfigs(),
-            memo: ""
-        });
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: PROJECT_OWNER,
+                projectUri: "ipfs://cross-currency-roundtrip",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: _nativeTerminalConfigs(),
+                memo: ""
+            });
 
         // PAYER pays 1 ETH. At $2000/ETH and 1000 tokens/$1, expect ~2,000,000 tokens.
         vm.deal(PAYER, 10 ether);
@@ -456,15 +460,16 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        uint256 reclaimAmount = jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: projectId,
-            cashOutCount: tokensReceived,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        uint256 reclaimAmount = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: projectId,
+                cashOutCount: tokensReceived,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         uint256 ethReceived = PAYER.balance - payerEthBefore;
 
@@ -503,13 +508,14 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController().launchProjectFor({
-            owner: PROJECT_OWNER,
-            projectUri: "ipfs://dust-rounding",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: _nativeTerminalConfigs(),
-            memo: ""
-        });
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: PROJECT_OWNER,
+                projectUri: "ipfs://dust-rounding",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: _nativeTerminalConfigs(),
+                memo: ""
+            });
 
         // Fund actors.
         vm.deal(ATTACKER, 1 ether);
@@ -569,15 +575,16 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             uint256 attackerEthBefore = ATTACKER.balance;
 
             vm.prank(ATTACKER);
-            jbMultiTerminal().cashOutTokensOf({
-                holder: ATTACKER,
-                projectId: projectId,
-                cashOutCount: attackerTotalTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(ATTACKER),
-                metadata: ""
-            });
+            jbMultiTerminal()
+                .cashOutTokensOf({
+                    holder: ATTACKER,
+                    projectId: projectId,
+                    cashOutCount: attackerTotalTokens,
+                    tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                    minTokensReclaimed: 0,
+                    beneficiary: payable(ATTACKER),
+                    metadata: ""
+                });
 
             uint256 attackerReclaimed = ATTACKER.balance - attackerEthBefore;
 
@@ -593,15 +600,16 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             uint256 honestEthBefore = HONEST_PAYER.balance;
 
             vm.prank(HONEST_PAYER);
-            jbMultiTerminal().cashOutTokensOf({
-                holder: HONEST_PAYER,
-                projectId: projectId,
-                cashOutCount: honestTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(HONEST_PAYER),
-                metadata: ""
-            });
+            jbMultiTerminal()
+                .cashOutTokensOf({
+                    holder: HONEST_PAYER,
+                    projectId: projectId,
+                    cashOutCount: honestTokens,
+                    tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                    minTokensReclaimed: 0,
+                    beneficiary: payable(HONEST_PAYER),
+                    metadata: ""
+                });
 
             uint256 honestReclaimed = HONEST_PAYER.balance - honestEthBefore;
 
@@ -632,18 +640,14 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
 
         // Preview pay for 1 ETH.
         vm.deal(PAYER, 100 ether);
-        (
-            , // JBRuleset memory previewRuleset
+        (, // JBRuleset memory previewRuleset
             uint256 previewBeneficiaryTokens,
             uint256 previewReservedTokens,
             // JBPayHookSpecification[] memory previewPayHooks
-        ) = jbMultiTerminal().previewPayFor({
-            projectId: revnetId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 1 ether,
-            beneficiary: PAYER,
-            metadata: ""
-        });
+        ) = jbMultiTerminal()
+            .previewPayFor({
+                projectId: revnetId, token: JBConstants.NATIVE_TOKEN, amount: 1 ether, beneficiary: PAYER, metadata: ""
+            });
 
         // Actually pay 1 ETH.
         vm.prank(PAYER);
@@ -658,11 +662,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         });
 
         // Compare preview vs actual token count. They should match exactly.
-        assertEq(
-            actualPayTokens,
-            previewBeneficiaryTokens,
-            "PAY: preview beneficiary token count should match actual"
-        );
+        assertEq(actualPayTokens, previewBeneficiaryTokens, "PAY: preview beneficiary token count should match actual");
 
         emit log_named_uint("Preview pay tokens (beneficiary)", previewBeneficiaryTokens);
         emit log_named_uint("Actual pay tokens", actualPayTokens);
@@ -674,31 +674,31 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         uint256 cashOutCount = payerTokens / 2;
 
         // Preview cashout.
-        (
-            , // JBRuleset memory cashOutRuleset
-            uint256 previewReclaim,
-            , // uint256 previewCashOutTaxRate
+        (, // JBRuleset memory cashOutRuleset
+            uint256 previewReclaim,, // uint256 previewCashOutTaxRate
             // JBCashOutHookSpecification[] memory previewCashOutHooks
-        ) = jbMultiTerminal().previewCashOutFrom({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        ) = jbMultiTerminal()
+            .previewCashOutFrom({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         // Actually cashout.
         vm.prank(PAYER);
-        uint256 actualReclaim = jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: revnetId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        uint256 actualReclaim = jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: revnetId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         // The preview reclaimAmount is the bonding curve output BEFORE the terminal's 2.5% fee.
         // The actual reclaim returned by cashOutTokensOf is AFTER the fee deduction.
@@ -707,9 +707,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         uint256 expectedActualReclaim = previewReclaim - terminalFee;
 
         assertEq(
-            actualReclaim,
-            expectedActualReclaim,
-            "CASHOUT: actual reclaim should equal preview minus 2.5% terminal fee"
+            actualReclaim, expectedActualReclaim, "CASHOUT: actual reclaim should equal preview minus 2.5% terminal fee"
         );
 
         emit log_named_uint("Preview cashout reclaim (before fee)", previewReclaim);
@@ -736,9 +734,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
         // Use the ERC20's address as its currency (same pattern as NATIVE_TOKEN).
         acc[1] = JBAccountingContext({
-            token: address(mockToken),
-            decimals: 18,
-            currency: uint32(uint160(address(mockToken)))
+            token: address(mockToken), decimals: 18, currency: uint32(uint160(address(mockToken)))
         });
 
         JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
@@ -756,25 +752,27 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController().launchProjectFor({
-            owner: PROJECT_OWNER,
-            projectUri: "ipfs://multi-terminal-surplus",
-            rulesetConfigurations: rulesets,
-            terminalConfigurations: tc,
-            memo: ""
-        });
+        uint256 projectId = jbController()
+            .launchProjectFor({
+                owner: PROJECT_OWNER,
+                projectUri: "ipfs://multi-terminal-surplus",
+                rulesetConfigurations: rulesets,
+                terminalConfigurations: tc,
+                memo: ""
+            });
 
         // Add a 1:1 price feed so the terminal can convert the mock token's currency to native
         // currency when aggregating total surplus across tokens.
         uint32 mockTokenCurrency = uint32(uint160(address(mockToken)));
         MockPriceFeed oneToOneFeed = new MockPriceFeed(1e18, 18);
         vm.prank(multisig());
-        jbPrices().addPriceFeedFor({
-            projectId: 0,
-            pricingCurrency: mockTokenCurrency,
-            unitCurrency: NATIVE_CURRENCY,
-            feed: IJBPriceFeed(address(oneToOneFeed))
-        });
+        jbPrices()
+            .addPriceFeedFor({
+                projectId: 0,
+                pricingCurrency: mockTokenCurrency,
+                unitCurrency: NATIVE_CURRENCY,
+                feed: IJBPriceFeed(address(oneToOneFeed))
+            });
 
         // Pay 10 ETH into the terminal (native token side).
         vm.deal(PAYER, 100 ether);
@@ -811,7 +809,8 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         assertGt(erc20PayTokens, 0, "should receive tokens from ERC20 payment");
 
         // Verify terminal balances.
-        uint256 ethBalance = jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, JBConstants.NATIVE_TOKEN);
+        uint256 ethBalance =
+            jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, JBConstants.NATIVE_TOKEN);
         uint256 erc20Balance = jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, address(mockToken));
         assertEq(ethBalance, 10 ether, "ETH balance should be 10 ETH");
         assertEq(erc20Balance, erc20Amount, "ERC20 balance should be the deposited amount");
@@ -830,15 +829,16 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
-            holder: PAYER,
-            projectId: projectId,
-            cashOutCount: cashOutCount,
-            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-            minTokensReclaimed: 0,
-            beneficiary: payable(PAYER),
-            metadata: ""
-        });
+        jbMultiTerminal()
+            .cashOutTokensOf({
+                holder: PAYER,
+                projectId: projectId,
+                cashOutCount: cashOutCount,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(PAYER),
+                metadata: ""
+            });
 
         uint256 ethReceived = PAYER.balance - payerEthBefore;
         assertGt(ethReceived, 0, "should receive ETH from cashout with total surplus");
@@ -852,15 +852,10 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         // tokens without a price feed.
 
         // Verify: reclaim is still capped at Terminal A's local ETH balance.
-        uint256 ethBalanceAfter = jbTerminalStore().balanceOf(
-            address(jbMultiTerminal()), projectId, JBConstants.NATIVE_TOKEN
-        );
+        uint256 ethBalanceAfter =
+            jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, JBConstants.NATIVE_TOKEN);
         assertGe(ethBalance - ethBalanceAfter, ethReceived, "ETH balance decrease >= ETH received");
-        assertLe(
-            ethReceived,
-            ethBalance,
-            "reclaim should not exceed the terminal's local ETH balance"
-        );
+        assertLe(ethReceived, ethBalance, "reclaim should not exceed the terminal's local ETH balance");
 
         // Document the reclaim amounts for analysis.
         emit log_named_uint("ETH terminal balance before cashout", ethBalance);
