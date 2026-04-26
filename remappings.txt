@@ -1,3 +1,2 @@
 forge-std/=lib/forge-std/src/
 lib/base64/=node_modules/base64-sol/
-src/=node_modules/@bananapus/core-v6/src/
