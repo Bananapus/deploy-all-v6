@@ -204,6 +204,8 @@ contract Verify is Script {
         _verifyOmnichain();
         _verifyAddressRegistryAndDefifa();
         _verifyPriceFeeds();
+        _verifyAllowlists();
+        _verifyRoutes();
 
         // Print final summary of results.
         _printSummary();
@@ -811,6 +813,88 @@ contract Verify is Script {
         }
 
         // Log a blank line for readability.
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 9: Allowlists
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @dev Validates that sucker deployers are allowed in the registry and feeless addresses are set.
+    function _verifyAllowlists() internal {
+        console.log("--- Category 9: Allowlists ---");
+
+        // Verify sucker deployers are allowed.
+        // Read optional comma-separated list of deployer addresses from env.
+        string memory deployersCsv = vm.envOr("VERIFY_SUCKER_DEPLOYERS", string(""));
+        if (bytes(deployersCsv).length > 0) {
+            // Parse the CSV into addresses and check each.
+            string[] memory parts = vm.split(deployersCsv, ",");
+            for (uint256 i; i < parts.length; i++) {
+                address deployer = vm.parseAddress(parts[i]);
+                if (deployer != address(0)) {
+                    bool allowed = suckerRegistry.suckerDeployerIsAllowed(deployer);
+                    _check(allowed, string.concat("Sucker deployer ", vm.toString(deployer), " is allowed"), true);
+                }
+            }
+        } else {
+            _skip("Sucker deployer allowlist (VERIFY_SUCKER_DEPLOYERS not set)");
+        }
+
+        // Verify feeless addresses — router terminal is already checked in Category 5.
+        // Add any additional feeless addresses from env.
+        string memory feelessCsv = vm.envOr("VERIFY_FEELESS_ADDRESSES", string(""));
+        if (bytes(feelessCsv).length > 0) {
+            string[] memory parts = vm.split(feelessCsv, ",");
+            for (uint256 i; i < parts.length; i++) {
+                address feeless = vm.parseAddress(parts[i]);
+                if (feeless != address(0)) {
+                    bool isFeeless = feelessAddresses.isFeeless(feeless);
+                    _check(isFeeless, string.concat(vm.toString(feeless), " is feeless"), true);
+                }
+            }
+        } else {
+            _skip("Extra feeless addresses (VERIFY_FEELESS_ADDRESSES not set)");
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 10: Routes
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @dev Validates that the router terminal is included in every canonical project's terminal list.
+    function _verifyRoutes() internal {
+        console.log("--- Category 10: Routes ---");
+
+        // Check that the router terminal (if deployed) is in each project's terminal list.
+        if (address(routerTerminal) != address(0)) {
+            uint256[4] memory projectIds = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
+            string[4] memory labels = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
+
+            for (uint256 i; i < projectIds.length; i++) {
+                IJBTerminal[] memory terminals = directory.terminalsOf(projectIds[i]);
+                bool found = false;
+                for (uint256 j; j < terminals.length; j++) {
+                    if (address(terminals[j]) == address(routerTerminal)) {
+                        found = true;
+                        break;
+                    }
+                }
+                _check(found, string.concat(labels[i], " terminal list includes RouterTerminal"), false);
+            }
+
+            // Verify the router terminal's primary terminal for native token is the JBMultiTerminal.
+            _check(
+                address(directory.primaryTerminalOf(_FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN)) == address(terminal),
+                "NANA(1) primary native terminal is JBMultiTerminal",
+                true
+            );
+        } else {
+            _skip("Router terminal route checks (not deployed on this chain)");
+        }
+
         console.log("");
     }
 

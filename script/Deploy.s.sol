@@ -370,6 +370,7 @@ contract Deploy is Script, Sphinx {
     DefifaHook private _defifaHook;
     DefifaTokenUriResolver private _defifaTokenUriResolver;
     DefifaGovernor private _defifaGovernor;
+    JB721TiersHookStore private _defifaHookStore;
     DefifaDeployer private _defifaDeployer;
 
     // Project Handles
@@ -2719,6 +2720,14 @@ contract Deploy is Script, Sphinx {
             }
         }
 
+        // ── DefifaHookStore (dedicated store for Defifa game NFT tiers) ──
+        {
+            (address storeAddr, bool storeDeployed) =
+                _isDeployed(DEFIFA_SALT, type(JB721TiersHookStore).creationCode, "");
+            _defifaHookStore =
+                storeDeployed ? JB721TiersHookStore(storeAddr) : new JB721TiersHookStore{salt: DEFIFA_SALT}();
+        }
+
         // ── DefifaDeployer (factory that creates new Defifa games) ──
         {
             // Encode the constructor arguments for the deployer.
@@ -2729,7 +2738,8 @@ contract Deploy is Script, Sphinx {
                 _controller,
                 _addressRegistry,
                 _REV_PROJECT_ID,
-                _FEE_PROJECT_ID
+                _FEE_PROJECT_ID,
+                _defifaHookStore
             );
 
             // Predict the CREATE2 address for the deployer.
@@ -2748,7 +2758,8 @@ contract Deploy is Script, Sphinx {
                     _controller: _controller,
                     _registry: _addressRegistry,
                     _defifaProjectId: _REV_PROJECT_ID,
-                    _baseProtocolProjectId: _FEE_PROJECT_ID
+                    _baseProtocolProjectId: _FEE_PROJECT_ID,
+                    _hookStore: _defifaHookStore
                 });
 
                 // Transfer governor ownership to the deployer so it can initialize games.

@@ -176,6 +176,13 @@ import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
 import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
 import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
 
+// ── Periphery Extensions ──
+import {JBProjectHandles} from "@bananapus/project-handles-v6/src/JBProjectHandles.sol";
+import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.sol";
+import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
+import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectPayerDeployer.sol";
+import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title Resume -- Juicebox V6 Deployment Recovery Script
@@ -276,6 +283,13 @@ contract Resume is Script {
 
     // ── Defifa salt ──
     bytes32 private constant DEFIFA_SALT = "_DEFIFA_SALTV6_";
+
+    // ── Periphery Extension salts (must match Deploy.s.sol) ──
+    bytes32 private constant PROJECT_HANDLES_SALT = "JBProjectHandlesV6";
+    bytes32 private constant DISTRIBUTOR_721_SALT = "JB721DistributorV6";
+    bytes32 private constant DISTRIBUTOR_TOKEN_SALT = "JBTokenDistributorV6";
+    bytes32 private constant PROJECT_PAYER_DEPLOYER_SALT = "JBProjectPayerDeployerV6";
+    uint256 private constant VESTING_ROUNDS = 52;
 
     // ── Project IDs — determined by sequential creation order ──
     uint256 private constant _FEE_PROJECT_ID = 1;
@@ -383,6 +397,7 @@ contract Resume is Script {
     DefifaHook private _defifaHook;
     DefifaTokenUriResolver private _defifaTokenUriResolver;
     DefifaGovernor private _defifaGovernor;
+    JB721TiersHookStore private _defifaHookStore;
     DefifaDeployer private _defifaDeployer;
 
     // Project IDs (populated during resume).
@@ -395,6 +410,13 @@ contract Resume is Script {
     address private _poolManager;
     address private _positionManager;
     address private _typeface;
+
+    // Periphery extension references.
+    JBProjectHandles private _projectHandles;
+    JB721Distributor private _721Distributor;
+    JBTokenDistributor private _tokenDistributor;
+    JBProjectPayerDeployer private _projectPayerDeployer;
+    uint256 private _roundDuration;
 
     // Deployer address — the msg.sender that originally ran Deploy.s.sol.
     address private _deployer;
@@ -480,6 +502,9 @@ contract Resume is Script {
         // ── Phase 10: Defifa ──
         _resumeDefifa();
 
+        // ── Phase 11: Periphery Extensions (Project Handles, Distributors, Project Payer) ──
+        _resumePeripheryExtensions();
+
         // Stop broadcasting.
         vm.stopBroadcast();
 
@@ -505,6 +530,7 @@ contract Resume is Script {
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
             _typeface = 0xA77b7D93E79f1E6B4f77FaB29d9ef85733A3D44A;
+            _roundDuration = 50_400;
         }
         // Ethereum Sepolia.
         else if (block.chainid == 11_155_111) {
@@ -513,6 +539,7 @@ contract Resume is Script {
             _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
             _positionManager = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
             _typeface = 0x8C420d3388C882F40d263714d7A6e2c8DB93905F;
+            _roundDuration = 50_400;
         }
         // Optimism.
         else if (block.chainid == 10) {
@@ -521,6 +548,7 @@ contract Resume is Script {
             _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
             _positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
             _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
+            _roundDuration = 302_400;
         }
         // Optimism Sepolia — no PositionManager, Uniswap stack skipped.
         else if (block.chainid == 11_155_420) {
@@ -529,6 +557,7 @@ contract Resume is Script {
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = address(0); // No PositionManager on OP Sepolia.
             _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
+            _roundDuration = 302_400;
         }
         // Base.
         else if (block.chainid == 8453) {
@@ -537,6 +566,7 @@ contract Resume is Script {
             _poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
             _positionManager = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
             _typeface = 0x3DE45A14ea0fe24037D6363Ae71Ef18F336D1C27;
+            _roundDuration = 302_400;
         }
         // Base Sepolia.
         else if (block.chainid == 84_532) {
@@ -545,6 +575,7 @@ contract Resume is Script {
             _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
             _positionManager = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
             _typeface = 0xEb269d9F0850CEf5e3aB0F9718fb79c466720784;
+            _roundDuration = 302_400;
         }
         // Arbitrum.
         else if (block.chainid == 42_161) {
@@ -553,6 +584,7 @@ contract Resume is Script {
             _poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
             _positionManager = 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
             _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
+            _roundDuration = 2_419_200;
         }
         // Arbitrum Sepolia.
         else if (block.chainid == 421_614) {
@@ -561,6 +593,7 @@ contract Resume is Script {
             _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
             _positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
             _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
+            _roundDuration = 2_419_200;
         } else {
             revert("Unsupported chain"); // Fail fast for unknown chains.
         }
@@ -2819,6 +2852,15 @@ contract Resume is Script {
             }
         }
 
+        // ── DefifaHookStore (dedicated store for Defifa game NFT tiers) ──
+        {
+            (address storeAddr, bool storeDeployed) =
+                _isDeployed(DEFIFA_SALT, type(JB721TiersHookStore).creationCode, "");
+            _defifaHookStore =
+                storeDeployed ? JB721TiersHookStore(storeAddr) : new JB721TiersHookStore{salt: DEFIFA_SALT}();
+            if (!storeDeployed) allDeployed = false;
+        }
+
         // ── DefifaDeployer (factory that creates new Defifa games) ──
         {
             bytes memory deployerArgs = abi.encode(
@@ -2828,7 +2870,8 @@ contract Resume is Script {
                 _controller,
                 _addressRegistry,
                 _REV_PROJECT_ID,
-                _FEE_PROJECT_ID
+                _FEE_PROJECT_ID,
+                _defifaHookStore
             );
             (address deployerAddr, bool deployerDeployed) =
                 _isDeployed(DEFIFA_SALT, type(DefifaDeployer).creationCode, deployerArgs);
@@ -2843,7 +2886,8 @@ contract Resume is Script {
                     _controller: _controller,
                     _registry: _addressRegistry,
                     _defifaProjectId: _REV_PROJECT_ID,
-                    _baseProtocolProjectId: _FEE_PROJECT_ID
+                    _baseProtocolProjectId: _FEE_PROJECT_ID,
+                    _hookStore: _defifaHookStore
                 });
 
                 // Transfer governor ownership to the deployer so it can initialize games.
@@ -2860,6 +2904,82 @@ contract Resume is Script {
         }
 
         _logPhase("10", "Defifa", allDeployed);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Phase 11: Periphery Extensions (handles, distributors, project payer)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev Deploys periphery extension contracts — identical to Deploy.s.sol Phase 11.
+    function _resumePeripheryExtensions() internal {
+        bool allDeployed = true;
+
+        // ── Project Handles ──
+        {
+            (address addr, bool deployed) = _isDeployed({
+                salt: PROJECT_HANDLES_SALT,
+                creationCode: type(JBProjectHandles).creationCode,
+                arguments: abi.encode(_trustedForwarder)
+            });
+            if (deployed) {
+                _projectHandles = JBProjectHandles(addr);
+            } else {
+                _projectHandles = new JBProjectHandles{salt: PROJECT_HANDLES_SALT}(_trustedForwarder);
+                allDeployed = false;
+            }
+        }
+
+        // ── JB721Distributor ──
+        {
+            (address addr, bool deployed) = _isDeployed({
+                salt: DISTRIBUTOR_721_SALT,
+                creationCode: type(JB721Distributor).creationCode,
+                arguments: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
+            });
+            if (deployed) {
+                _721Distributor = JB721Distributor(payable(addr));
+            } else {
+                _721Distributor = new JB721Distributor{salt: DISTRIBUTOR_721_SALT}(
+                    IJBDirectory(address(_directory)), _roundDuration, VESTING_ROUNDS
+                );
+                allDeployed = false;
+            }
+        }
+
+        // ── JBTokenDistributor ──
+        {
+            (address addr, bool deployed) = _isDeployed({
+                salt: DISTRIBUTOR_TOKEN_SALT,
+                creationCode: type(JBTokenDistributor).creationCode,
+                arguments: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
+            });
+            if (deployed) {
+                _tokenDistributor = JBTokenDistributor(payable(addr));
+            } else {
+                _tokenDistributor = new JBTokenDistributor{salt: DISTRIBUTOR_TOKEN_SALT}(
+                    IJBDirectory(address(_directory)), _roundDuration, VESTING_ROUNDS
+                );
+                allDeployed = false;
+            }
+        }
+
+        // ── Project Payer Deployer ──
+        {
+            (address addr, bool deployed) = _isDeployed({
+                salt: PROJECT_PAYER_DEPLOYER_SALT,
+                creationCode: type(JBProjectPayerDeployer).creationCode,
+                arguments: abi.encode(_directory)
+            });
+            if (deployed) {
+                _projectPayerDeployer = JBProjectPayerDeployer(addr);
+            } else {
+                _projectPayerDeployer =
+                    new JBProjectPayerDeployer{salt: PROJECT_PAYER_DEPLOYER_SALT}(IJBDirectory(address(_directory)));
+                allDeployed = false;
+            }
+        }
+
+        _logPhase("11", "Periphery Extensions", allDeployed);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2924,7 +3044,12 @@ contract Resume is Script {
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {
         uint256 count = _projects.count(); // Read current project count.
         if (count >= expectedProjectId) {
-            // Project already exists — verify ownership.
+            // If a controller is already set, the project is fully configured — skip ownership check.
+            // This handles resumed deployments where the NFT may have been transferred to a Safe.
+            if (address(_directory.controllerOf(expectedProjectId)) != address(0)) {
+                return expectedProjectId;
+            }
+            // Project exists but not yet configured — verify ownership so we can configure it.
             if (_projects.ownerOf(expectedProjectId) != _deployer) {
                 revert Resume_ProjectNotOwned(expectedProjectId); // Safety check.
             }
