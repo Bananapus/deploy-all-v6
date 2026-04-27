@@ -594,13 +594,14 @@ contract Deploy is Script, Sphinx {
             _isDeployed(coreSalt, type(ERC2771Forwarder).creationCode, abi.encode(TRUSTED_FORWARDER_NAME));
         _trustedForwarder = trustedForwarderDeployed
             ? trustedForwarder
-            : address(new ERC2771Forwarder{salt: coreSalt}(TRUSTED_FORWARDER_NAME));
+            : address(new ERC2771Forwarder{salt: coreSalt}({name: TRUSTED_FORWARDER_NAME}));
 
         (address permissions, bool permissionsDeployed) = _isDeployed({
             salt: coreSalt, creationCode: type(JBPermissions).creationCode, arguments: abi.encode(_trustedForwarder)
         });
-        _permissions =
-            permissionsDeployed ? JBPermissions(permissions) : new JBPermissions{salt: coreSalt}(_trustedForwarder);
+        _permissions = permissionsDeployed
+            ? JBPermissions(permissions)
+            : new JBPermissions{salt: coreSalt}({trustedForwarder: _trustedForwarder});
 
         (address projects, bool projectsDeployed) = _isDeployed({
             salt: coreSalt,
@@ -648,7 +649,9 @@ contract Deploy is Script, Sphinx {
 
         (address erc20, bool erc20Deployed) =
             _isDeployed(coreSalt, type(JBERC20).creationCode, abi.encode(_permissions, _projects));
-        JBERC20 token = erc20Deployed ? JBERC20(erc20) : new JBERC20{salt: coreSalt}(_permissions, _projects);
+        JBERC20 token = erc20Deployed
+            ? JBERC20(erc20)
+            : new JBERC20{salt: coreSalt}({permissions: _permissions, projects: _projects});
 
         (address tokens, bool tokensDeployed) = _isDeployed({
             salt: coreSalt, creationCode: type(JBTokens).creationCode, arguments: abi.encode(_directory, token)
@@ -965,15 +968,15 @@ contract Deploy is Script, Sphinx {
         );
         _lpSplitHook = hookDeployed
             ? JBUniswapV4LPSplitHook(payable(hook))
-            : new JBUniswapV4LPSplitHook{salt: LP_SPLIT_HOOK_SALT}(
-                address(_directory),
-                _permissions,
-                address(_tokens),
-                IPoolManager(_poolManager),
-                IPositionManager(_positionManager),
-                IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(_uniswapV4Hook))
-            );
+            : new JBUniswapV4LPSplitHook{salt: LP_SPLIT_HOOK_SALT}({
+                directory: address(_directory),
+                permissions: _permissions,
+                tokens: address(_tokens),
+                poolManager: IPoolManager(_poolManager),
+                positionManager: IPositionManager(_positionManager),
+                permit2: IAllowanceTransfer(address(_PERMIT2)),
+                oracleHook: IHooks(address(_uniswapV4Hook))
+            });
 
         (address deployer, bool deployerDeployed) = _isDeployed(
             LP_SPLIT_HOOK_DEPLOYER_SALT,
@@ -982,9 +985,9 @@ contract Deploy is Script, Sphinx {
         );
         _lpSplitHookDeployer = deployerDeployed
             ? JBUniswapV4LPSplitHookDeployer(deployer)
-            : new JBUniswapV4LPSplitHookDeployer{salt: LP_SPLIT_HOOK_DEPLOYER_SALT}(
-                _lpSplitHook, IJBAddressRegistry(address(_addressRegistry))
-            );
+            : new JBUniswapV4LPSplitHookDeployer{salt: LP_SPLIT_HOOK_DEPLOYER_SALT}({
+                hook: _lpSplitHook, addressRegistry: IJBAddressRegistry(address(_addressRegistry))
+            });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1000,9 +1003,12 @@ contract Deploy is Script, Sphinx {
         );
         _suckerRegistry = registryDeployed
             ? JBSuckerRegistry(registry)
-            : new JBSuckerRegistry{salt: SUCKER_REGISTRY_SALT}(
-                _directory, _permissions, safeAddress(), _trustedForwarder
-            );
+            : new JBSuckerRegistry{salt: SUCKER_REGISTRY_SALT}({
+                directory: _directory,
+                permissions: _permissions,
+                initialOwner: safeAddress(),
+                trustedForwarder: _trustedForwarder
+            });
 
         // Deploy singleton implementations and deployers (they reference _suckerRegistry).
         _deploySuckersOptimism();
@@ -1030,9 +1036,13 @@ contract Deploy is Script, Sphinx {
             );
             JBOptimismSuckerDeployer opDeployer = opDeployerDeployed
                 ? JBOptimismSuckerDeployer(opDeployerAddress)
-                : new JBOptimismSuckerDeployer{salt: OP_SALT}(
-                    _directory, _permissions, _tokens, safeAddress(), _trustedForwarder
-                );
+                : new JBOptimismSuckerDeployer{salt: OP_SALT}({
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    configurator: safeAddress(),
+                    trustedForwarder: _trustedForwarder
+                });
 
             IOPMessenger messenger = IOPMessenger(
                 block.chainid == 1
@@ -1055,9 +1065,15 @@ contract Deploy is Script, Sphinx {
             );
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
-                : new JBOptimismSucker{salt: OP_SALT}(
-                    opDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
-                );
+                : new JBOptimismSucker{salt: OP_SALT}({
+                    deployer: opDeployer,
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    feeProjectId: 1,
+                    registry: _suckerRegistry,
+                    trustedForwarder: _trustedForwarder
+                });
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
             _optimismSuckerDeployer = IJBSuckerDeployer(address(opDeployer));
@@ -1072,9 +1088,13 @@ contract Deploy is Script, Sphinx {
             );
             JBOptimismSuckerDeployer opDeployer = opDeployerDeployed
                 ? JBOptimismSuckerDeployer(opDeployerAddress)
-                : new JBOptimismSuckerDeployer{salt: OP_SALT}(
-                    _directory, _permissions, _tokens, safeAddress(), _trustedForwarder
-                );
+                : new JBOptimismSuckerDeployer{salt: OP_SALT}({
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    configurator: safeAddress(),
+                    trustedForwarder: _trustedForwarder
+                });
 
             if (address(opDeployer.opMessenger()) == address(0)) {
                 opDeployer.setChainSpecificConstants(
@@ -1090,9 +1110,15 @@ contract Deploy is Script, Sphinx {
             );
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
-                : new JBOptimismSucker{salt: OP_SALT}(
-                    opDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
-                );
+                : new JBOptimismSucker{salt: OP_SALT}({
+                    deployer: opDeployer,
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    feeProjectId: 1,
+                    registry: _suckerRegistry,
+                    trustedForwarder: _trustedForwarder
+                });
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
             _optimismSuckerDeployer = IJBSuckerDeployer(address(opDeployer));
@@ -1109,9 +1135,13 @@ contract Deploy is Script, Sphinx {
             );
             JBBaseSuckerDeployer baseDeployer = baseDeployerDeployed
                 ? JBBaseSuckerDeployer(baseDeployerAddress)
-                : new JBBaseSuckerDeployer{salt: BASE_SALT}(
-                    _directory, _permissions, _tokens, safeAddress(), _trustedForwarder
-                );
+                : new JBBaseSuckerDeployer{salt: BASE_SALT}({
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    configurator: safeAddress(),
+                    trustedForwarder: _trustedForwarder
+                });
 
             IOPMessenger messenger = IOPMessenger(
                 block.chainid == 1
@@ -1134,9 +1164,15 @@ contract Deploy is Script, Sphinx {
             );
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
-                : new JBBaseSucker{salt: BASE_SALT}(
-                    baseDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
-                );
+                : new JBBaseSucker{salt: BASE_SALT}({
+                    deployer: baseDeployer,
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    feeProjectId: 1,
+                    registry: _suckerRegistry,
+                    trustedForwarder: _trustedForwarder
+                });
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
             _baseSuckerDeployer = IJBSuckerDeployer(address(baseDeployer));
@@ -1151,9 +1187,13 @@ contract Deploy is Script, Sphinx {
             );
             JBBaseSuckerDeployer baseDeployer = baseDeployerDeployed
                 ? JBBaseSuckerDeployer(baseDeployerAddress)
-                : new JBBaseSuckerDeployer{salt: BASE_SALT}(
-                    _directory, _permissions, _tokens, safeAddress(), _trustedForwarder
-                );
+                : new JBBaseSuckerDeployer{salt: BASE_SALT}({
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    configurator: safeAddress(),
+                    trustedForwarder: _trustedForwarder
+                });
 
             if (address(baseDeployer.opMessenger()) == address(0)) {
                 baseDeployer.setChainSpecificConstants(
@@ -1169,9 +1209,15 @@ contract Deploy is Script, Sphinx {
             );
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
-                : new JBBaseSucker{salt: BASE_SALT}(
-                    baseDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
-                );
+                : new JBBaseSucker{salt: BASE_SALT}({
+                    deployer: baseDeployer,
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    feeProjectId: 1,
+                    registry: _suckerRegistry,
+                    trustedForwarder: _trustedForwarder
+                });
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
             _baseSuckerDeployer = IJBSuckerDeployer(address(baseDeployer));
@@ -1188,9 +1234,13 @@ contract Deploy is Script, Sphinx {
             );
             JBArbitrumSuckerDeployer arbDeployer = arbDeployerDeployed
                 ? JBArbitrumSuckerDeployer(arbDeployerAddress)
-                : new JBArbitrumSuckerDeployer{salt: ARB_SALT}(
-                    _directory, _permissions, _tokens, safeAddress(), _trustedForwarder
-                );
+                : new JBArbitrumSuckerDeployer{salt: ARB_SALT}({
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    configurator: safeAddress(),
+                    trustedForwarder: _trustedForwarder
+                });
 
             if (address(arbDeployer.arbGatewayRouter()) == address(0)) {
                 arbDeployer.setChainSpecificConstants({
@@ -1209,9 +1259,15 @@ contract Deploy is Script, Sphinx {
             );
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
-                : new JBArbitrumSucker{salt: ARB_SALT}(
-                    arbDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
-                );
+                : new JBArbitrumSucker{salt: ARB_SALT}({
+                    deployer: arbDeployer,
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    feeProjectId: 1,
+                    registry: _suckerRegistry,
+                    trustedForwarder: _trustedForwarder
+                });
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
             _arbitrumSuckerDeployer = IJBSuckerDeployer(address(arbDeployer));
@@ -1226,9 +1282,13 @@ contract Deploy is Script, Sphinx {
             );
             JBArbitrumSuckerDeployer arbDeployer = arbDeployerDeployed
                 ? JBArbitrumSuckerDeployer(arbDeployerAddress)
-                : new JBArbitrumSuckerDeployer{salt: ARB_SALT}(
-                    _directory, _permissions, _tokens, safeAddress(), _trustedForwarder
-                );
+                : new JBArbitrumSuckerDeployer{salt: ARB_SALT}({
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    configurator: safeAddress(),
+                    trustedForwarder: _trustedForwarder
+                });
 
             // inbox=address(0) is correct on L2. The Arbitrum inbox is only used on L1 to send
             // retryable tickets. The deployer's validation in nana-suckers-v6 is layer-aware and
@@ -1250,9 +1310,15 @@ contract Deploy is Script, Sphinx {
             );
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
-                : new JBArbitrumSucker{salt: ARB_SALT}(
-                    arbDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
-                );
+                : new JBArbitrumSucker{salt: ARB_SALT}({
+                    deployer: arbDeployer,
+                    directory: _directory,
+                    permissions: _permissions,
+                    tokens: _tokens,
+                    feeProjectId: 1,
+                    registry: _suckerRegistry,
+                    trustedForwarder: _trustedForwarder
+                });
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
             _arbitrumSuckerDeployer = IJBSuckerDeployer(address(arbDeployer));
@@ -1372,7 +1438,13 @@ contract Deploy is Script, Sphinx {
         );
         deployer = deployerDeployed
             ? JBCCIPSuckerDeployer(deployerAddress)
-            : new JBCCIPSuckerDeployer{salt: salt}(_directory, _permissions, _tokens, safeAddress(), _trustedForwarder);
+            : new JBCCIPSuckerDeployer{salt: salt}({
+                directory: _directory,
+                permissions: _permissions,
+                tokens: _tokens,
+                configurator: safeAddress(),
+                trustedForwarder: _trustedForwarder
+            });
 
         if (address(deployer.ccipRouter()) == address(0)) {
             deployer.setChainSpecificConstants(
@@ -1389,9 +1461,15 @@ contract Deploy is Script, Sphinx {
         );
         JBCCIPSucker singleton = singletonDeployed
             ? JBCCIPSucker(payable(singletonAddress))
-            : new JBCCIPSucker{salt: salt}(
-                deployer, _directory, _tokens, _permissions, 1, _suckerRegistry, _trustedForwarder
-            );
+            : new JBCCIPSucker{salt: salt}({
+                deployer: deployer,
+                directory: _directory,
+                tokens: _tokens,
+                permissions: _permissions,
+                feeProjectId: 1,
+                registry: _suckerRegistry,
+                trustedForwarder: _trustedForwarder
+            });
         if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
     }
 
@@ -1413,7 +1491,13 @@ contract Deploy is Script, Sphinx {
         );
         deployer = deployerDeployed
             ? JBCCIPSuckerDeployer(deployerAddress)
-            : new JBCCIPSuckerDeployer{salt: salt}(_directory, _permissions, _tokens, safeAddress(), _trustedForwarder);
+            : new JBCCIPSuckerDeployer{salt: salt}({
+                directory: _directory,
+                permissions: _permissions,
+                tokens: _tokens,
+                configurator: safeAddress(),
+                trustedForwarder: _trustedForwarder
+            });
 
         if (address(deployer.ccipRouter()) == address(0)) {
             deployer.setChainSpecificConstants(remoteChainId, remoteChainSelector, router);
@@ -1426,9 +1510,15 @@ contract Deploy is Script, Sphinx {
         );
         JBCCIPSucker singleton = singletonDeployed
             ? JBCCIPSucker(payable(singletonAddress))
-            : new JBCCIPSucker{salt: salt}(
-                deployer, _directory, _tokens, _permissions, 1, _suckerRegistry, _trustedForwarder
-            );
+            : new JBCCIPSucker{salt: salt}({
+                deployer: deployer,
+                directory: _directory,
+                tokens: _tokens,
+                permissions: _permissions,
+                feeProjectId: 1,
+                registry: _suckerRegistry,
+                trustedForwarder: _trustedForwarder
+            });
         if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
     }
 
@@ -1450,13 +1540,13 @@ contract Deploy is Script, Sphinx {
         );
         _omnichainDeployer = deployed
             ? JBOmnichainDeployer(deployer)
-            : new JBOmnichainDeployer{salt: OMNICHAIN_DEPLOYER_SALT}(
-                _suckerRegistry,
-                IJB721TiersHookDeployer(address(_hookDeployer)),
-                _permissions,
-                _projects,
-                _trustedForwarder
-            );
+            : new JBOmnichainDeployer{salt: OMNICHAIN_DEPLOYER_SALT}({
+                suckerRegistry: _suckerRegistry,
+                hookDeployer: IJB721TiersHookDeployer(address(_hookDeployer)),
+                permissions: _permissions,
+                projects: _projects,
+                trustedForwarder: _trustedForwarder
+            });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1559,9 +1649,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419), 3600 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419),
+                            threshold: 3600 seconds
+                        })
                     )
                 );
         }
@@ -1575,9 +1666,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306), 3600 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306),
+                            threshold: 3600 seconds
+                        })
                     )
                 );
         }
@@ -1595,12 +1687,12 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(0x13e3Ee699D1909E989722E753853AE30b17e08c5),
-                            3600 seconds,
-                            AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
-                            L2GracePeriod
-                        )
+                        new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x13e3Ee699D1909E989722E753853AE30b17e08c5),
+                            threshold: 3600 seconds,
+                            sequencerFeed: AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
+                            gracePeriod: L2GracePeriod
+                        })
                     )
                 );
         }
@@ -1614,9 +1706,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(0x61Ec26aA57019C486B10502285c5A3D4A4750AD7), 3600 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x61Ec26aA57019C486B10502285c5A3D4A4750AD7),
+                            threshold: 3600 seconds
+                        })
                     )
                 );
         }
@@ -1634,12 +1727,12 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70),
-                            3600 seconds,
-                            AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
-                            L2GracePeriod
-                        )
+                        new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70),
+                            threshold: 3600 seconds,
+                            sequencerFeed: AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
+                            gracePeriod: L2GracePeriod
+                        })
                     )
                 );
         }
@@ -1655,9 +1748,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1), 3600 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1),
+                            threshold: 3600 seconds
+                        })
                     )
                 );
         }
@@ -1675,12 +1769,12 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612),
-                            3600 seconds,
-                            AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
-                            L2GracePeriod
-                        )
+                        new JBChainlinkV3SequencerPriceFeed{salt: USD_NATIVE_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612),
+                            threshold: 3600 seconds,
+                            sequencerFeed: AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
+                            gracePeriod: L2GracePeriod
+                        })
                     )
                 );
         }
@@ -1694,9 +1788,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}(
-                            AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 3600 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USD_NATIVE_FEED_SALT}({
+                            feed: AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165),
+                            threshold: 3600 seconds
+                        })
                     )
                 );
         }
@@ -1730,9 +1825,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
-                            AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6), 86_400 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6),
+                            threshold: 86_400 seconds
+                        })
                     )
                 );
         } else if (block.chainid == 11_155_111) {
@@ -1744,9 +1840,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
-                            AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E), 86_400 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}({
+                            feed: AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E),
+                            threshold: 86_400 seconds
+                        })
                     )
                 );
         } else if (block.chainid == 10) {
@@ -1763,12 +1860,12 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3SequencerPriceFeed{salt: USDC_FEED_SALT}(
-                            AggregatorV3Interface(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3),
-                            86_400 seconds,
-                            AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
-                            L2GracePeriod
-                        )
+                        new JBChainlinkV3SequencerPriceFeed{salt: USDC_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3),
+                            threshold: 86_400 seconds,
+                            sequencerFeed: AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
+                            gracePeriod: L2GracePeriod
+                        })
                     )
                 );
         } else if (block.chainid == 11_155_420) {
@@ -1780,9 +1877,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
-                            AggregatorV3Interface(0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C), 86_400 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C),
+                            threshold: 86_400 seconds
+                        })
                     )
                 );
         } else if (block.chainid == 8453) {
@@ -1799,12 +1897,12 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3SequencerPriceFeed{salt: USDC_FEED_SALT}(
-                            AggregatorV3Interface(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B),
-                            86_400 seconds,
-                            AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
-                            L2GracePeriod
-                        )
+                        new JBChainlinkV3SequencerPriceFeed{salt: USDC_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B),
+                            threshold: 86_400 seconds,
+                            sequencerFeed: AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
+                            gracePeriod: L2GracePeriod
+                        })
                     )
                 );
         } else if (block.chainid == 84_532) {
@@ -1818,9 +1916,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
-                            AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 86_400 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}({
+                            feed: AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165),
+                            threshold: 86_400 seconds
+                        })
                     )
                 );
         } else if (block.chainid == 42_161) {
@@ -1837,12 +1936,12 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3SequencerPriceFeed{salt: USDC_FEED_SALT}(
-                            AggregatorV3Interface(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3),
-                            86_400 seconds,
-                            AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
-                            L2GracePeriod
-                        )
+                        new JBChainlinkV3SequencerPriceFeed{salt: USDC_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3),
+                            threshold: 86_400 seconds,
+                            sequencerFeed: AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
+                            gracePeriod: L2GracePeriod
+                        })
                     )
                 );
         } else if (block.chainid == 421_614) {
@@ -1854,9 +1953,10 @@ contract Deploy is Script, Sphinx {
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
                     address(
-                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}(
-                            AggregatorV3Interface(0x0153002d20B96532C639313c2d54c3dA09109309), 86_400 seconds
-                        )
+                        new JBChainlinkV3PriceFeed{salt: USDC_FEED_SALT}({
+                            feed: AggregatorV3Interface(0x0153002d20B96532C639313c2d54c3dA09109309),
+                            threshold: 86_400 seconds
+                        })
                     )
                 );
         }
@@ -1891,7 +1991,12 @@ contract Deploy is Script, Sphinx {
         );
         _ctPublisher = publisherDeployed
             ? CTPublisher(publisher)
-            : new CTPublisher{salt: CT_PUBLISHER_SALT}(_directory, _permissions, _cpnProjectId, _trustedForwarder);
+            : new CTPublisher{salt: CT_PUBLISHER_SALT}({
+                directory: _directory,
+                permissions: _permissions,
+                feeProjectId: _cpnProjectId,
+                trustedForwarder: _trustedForwarder
+            });
 
         (address deployer, bool deployerDeployed) = _isDeployed(
             CT_DEPLOYER_SALT,
@@ -1907,21 +2012,23 @@ contract Deploy is Script, Sphinx {
         );
         _ctDeployer = deployerDeployed
             ? CTDeployer(deployer)
-            : new CTDeployer{salt: CT_DEPLOYER_SALT}(
-                _permissions,
-                _projects,
-                IJB721TiersHookDeployer(address(_hookDeployer)),
-                _ctPublisher,
-                _suckerRegistry,
-                _trustedForwarder
-            );
+            : new CTDeployer{salt: CT_DEPLOYER_SALT}({
+                permissions: _permissions,
+                projects: _projects,
+                deployer: IJB721TiersHookDeployer(address(_hookDeployer)),
+                publisher: _ctPublisher,
+                suckerRegistry: _suckerRegistry,
+                trustedForwarder: _trustedForwarder
+            });
 
         (address projectOwner, bool ownerDeployed) = _isDeployed(
             CT_PROJECT_OWNER_SALT, type(CTProjectOwner).creationCode, abi.encode(_permissions, _projects, _ctPublisher)
         );
         _ctProjectOwner = ownerDeployed
             ? CTProjectOwner(projectOwner)
-            : new CTProjectOwner{salt: CT_PROJECT_OWNER_SALT}(_permissions, _projects, _ctPublisher);
+            : new CTProjectOwner{salt: CT_PROJECT_OWNER_SALT}({
+                permissions: _permissions, projects: _projects, publisher: _ctPublisher
+            });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1946,14 +2053,14 @@ contract Deploy is Script, Sphinx {
         );
         _revLoans = revLoansDeployed
             ? REVLoans(payable(revLoans))
-            : new REVLoans{salt: REV_LOANS_SALT}(
-                _controller,
-                IJBSuckerRegistry(address(_suckerRegistry)),
-                _revProjectId,
-                safeAddress(),
-                _PERMIT2,
-                _trustedForwarder
-            );
+            : new REVLoans{salt: REV_LOANS_SALT}({
+                controller: _controller,
+                suckerRegistry: IJBSuckerRegistry(address(_suckerRegistry)),
+                revId: _revProjectId,
+                owner: safeAddress(),
+                permit2: _PERMIT2,
+                trustedForwarder: _trustedForwarder
+            });
 
         // Deploy REVHiddenTokens.
         (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed(
@@ -1961,7 +2068,9 @@ contract Deploy is Script, Sphinx {
         );
         _revHiddenTokens = revHiddenTokensDeployed
             ? REVHiddenTokens(revHiddenTokens)
-            : new REVHiddenTokens{salt: REV_HIDDEN_TOKENS_SALT}(_controller, _trustedForwarder);
+            : new REVHiddenTokens{salt: REV_HIDDEN_TOKENS_SALT}({
+                controller: _controller, trustedForwarder: _trustedForwarder
+            });
 
         // Deploy REVOwner — the runtime data hook that handles pay and cash out callbacks.
         (address revOwner, bool revOwnerDeployed) = _isDeployed(
@@ -1978,14 +2087,14 @@ contract Deploy is Script, Sphinx {
         );
         _revOwner = revOwnerDeployed
             ? REVOwner(revOwner)
-            : new REVOwner{salt: REV_OWNER_SALT}(
-                IJBBuybackHookRegistry(address(_buybackRegistry)),
-                _directory,
-                _revProjectId,
-                _suckerRegistry,
-                address(_revLoans),
-                address(_revHiddenTokens)
-            );
+            : new REVOwner{salt: REV_OWNER_SALT}({
+                buybackHook: IJBBuybackHookRegistry(address(_buybackRegistry)),
+                directory: _directory,
+                feeRevnetId: _revProjectId,
+                suckerRegistry: _suckerRegistry,
+                loans: address(_revLoans),
+                hiddenTokens: address(_revHiddenTokens)
+            });
 
         // Deploy REVDeployer.
         (address revDeployer, bool revDeployerDeployed) = _isDeployed(
@@ -2008,17 +2117,17 @@ contract Deploy is Script, Sphinx {
         }
         _revDeployer = revDeployerDeployed
             ? REVDeployer(revDeployer)
-            : new REVDeployer{salt: REV_DEPLOYER_SALT}(
-                _controller,
-                _suckerRegistry,
-                _revProjectId,
-                IJB721TiersHookDeployer(address(_hookDeployer)),
-                _ctPublisher,
-                IJBBuybackHookRegistry(address(_buybackRegistry)),
-                address(_revLoans),
-                _trustedForwarder,
-                address(_revOwner)
-            );
+            : new REVDeployer{salt: REV_DEPLOYER_SALT}({
+                controller: _controller,
+                suckerRegistry: _suckerRegistry,
+                feeRevnetId: _revProjectId,
+                hookDeployer: IJB721TiersHookDeployer(address(_hookDeployer)),
+                publisher: _ctPublisher,
+                buybackHook: IJBBuybackHookRegistry(address(_buybackRegistry)),
+                loans: address(_revLoans),
+                trustedForwarder: _trustedForwarder,
+                owner: address(_revOwner)
+            });
 
         // Approve the deployer to configure the $REV project.
         _projects.approve(address(_revDeployer), _revProjectId);
@@ -2415,15 +2524,15 @@ contract Deploy is Script, Sphinx {
             if (resolverDeployed) {
                 resolver = Banny721TokenUriResolver(resolverAddress);
             } else {
-                resolver = new Banny721TokenUriResolver{salt: BAN_RESOLVER_SALT}(
-                    bannyBody,
-                    defaultNecklace,
-                    defaultMouth,
-                    defaultStandardEyes,
-                    defaultAlienEyes,
-                    operator,
-                    _trustedForwarder
-                );
+                resolver = new Banny721TokenUriResolver{salt: BAN_RESOLVER_SALT}({
+                    bannyBody: bannyBody,
+                    defaultNecklace: defaultNecklace,
+                    defaultMouth: defaultMouth,
+                    defaultStandardEyes: defaultStandardEyes,
+                    defaultAlienEyes: defaultAlienEyes,
+                    owner: operator,
+                    trustedForwarder: _trustedForwarder
+                });
                 resolver.setMetadata(
                     "A piece of Banny Retail.",
                     "https://retail.banny.eth.shop",
@@ -2698,7 +2807,8 @@ contract Deploy is Script, Sphinx {
                 _defifaTokenUriResolver = DefifaTokenUriResolver(resolverAddr);
             } else {
                 // Deploy the on-chain SVG token URI resolver for Defifa games.
-                _defifaTokenUriResolver = new DefifaTokenUriResolver{salt: DEFIFA_SALT}(ITypeface(_typeface));
+                _defifaTokenUriResolver =
+                    new DefifaTokenUriResolver{salt: DEFIFA_SALT}({typeface: ITypeface(_typeface)});
             }
         }
 
@@ -2778,8 +2888,9 @@ contract Deploy is Script, Sphinx {
             creationCode: type(JBProjectHandles).creationCode,
             arguments: abi.encode(_trustedForwarder)
         });
-        _projectHandles =
-            deployed ? JBProjectHandles(addr) : new JBProjectHandles{salt: PROJECT_HANDLES_SALT}(_trustedForwarder);
+        _projectHandles = deployed
+            ? JBProjectHandles(addr)
+            : new JBProjectHandles{salt: PROJECT_HANDLES_SALT}({trustedForwarder: _trustedForwarder});
     }
 
     function _deployDistributors() internal {
@@ -2792,9 +2903,11 @@ contract Deploy is Script, Sphinx {
             });
             _721Distributor = deployed
                 ? JB721Distributor(payable(addr))
-                : new JB721Distributor{salt: DISTRIBUTOR_721_SALT}(
-                    IJBDirectory(address(_directory)), _roundDuration, VESTING_ROUNDS
-                );
+                : new JB721Distributor{salt: DISTRIBUTOR_721_SALT}({
+                    directory: IJBDirectory(address(_directory)),
+                    roundDuration_: _roundDuration,
+                    vestingRounds_: VESTING_ROUNDS
+                });
         }
 
         // JBTokenDistributor
@@ -2806,9 +2919,11 @@ contract Deploy is Script, Sphinx {
             });
             _tokenDistributor = deployed
                 ? JBTokenDistributor(payable(addr))
-                : new JBTokenDistributor{salt: DISTRIBUTOR_TOKEN_SALT}(
-                    IJBDirectory(address(_directory)), _roundDuration, VESTING_ROUNDS
-                );
+                : new JBTokenDistributor{salt: DISTRIBUTOR_TOKEN_SALT}({
+                    directory: IJBDirectory(address(_directory)),
+                    roundDuration_: _roundDuration,
+                    vestingRounds_: VESTING_ROUNDS
+                });
         }
     }
 
@@ -2820,7 +2935,9 @@ contract Deploy is Script, Sphinx {
         });
         _projectPayerDeployer = deployed
             ? JBProjectPayerDeployer(addr)
-            : new JBProjectPayerDeployer{salt: PROJECT_PAYER_DEPLOYER_SALT}(IJBDirectory(address(_directory)));
+            : new JBProjectPayerDeployer{salt: PROJECT_PAYER_DEPLOYER_SALT}({
+                directory: IJBDirectory(address(_directory))
+            });
     }
 
     // ════════════════════════════════════════════════════════════════════
