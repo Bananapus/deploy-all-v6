@@ -405,9 +405,8 @@ contract Deploy is Script, Sphinx {
 
     function configureSphinx() public override {
         sphinxConfig.projectName = "juicebox-v6";
-        sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum", "tempo"];
-        sphinxConfig.testnets =
-            ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia", "tempo_moderato"];
+        sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
+        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -557,31 +556,17 @@ contract Deploy is Script, Sphinx {
             _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
             _roundDuration = 2_419_200; // ~1 week at ~0.25s/block
         }
-        // Tempo Mainnet — native gas = USD, no WETH, no Uniswap
-        else if (block.chainid == 4217) {
-            _weth = 0x20C000000000000000000000b9537d11c60E8b50; // USDC.e on Tempo (treasury token)
-            _v3Factory = address(0);
-            _poolManager = address(0);
-            _positionManager = address(0);
-            _typeface = address(0);
-            _roundDuration = 302_400; // ~1 week at 2s/block (OP-stack)
-        }
-        // Tempo Moderato (testnet)
-        else if (block.chainid == 42_431) {
-            _weth = address(0); // TBD: testnet USDC.e
-            _v3Factory = address(0);
-            _poolManager = address(0);
-            _positionManager = address(0);
-            _typeface = address(0);
-            _roundDuration = 302_400; // ~1 week at 2s/block (OP-stack)
-        } else {
+        // TODO: Tempo support commented out until chain is ready.
+        // else if (block.chainid == 4217) { ... }
+        // else if (block.chainid == 42_431) { ... }
+        else {
             revert("Unsupported chain");
         }
     }
 
     function _shouldDeployUniswapStack() internal view returns (bool) {
-        // Skip on chains without Uniswap V4: OP Sepolia (no PositionManager), Tempo (no Uniswap).
-        return block.chainid != 11_155_420 && block.chainid != 4217 && block.chainid != 42_431;
+        // Skip on chains without Uniswap V4: OP Sepolia (no PositionManager).
+        return block.chainid != 11_155_420;
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1339,17 +1324,7 @@ contract Deploy is Script, Sphinx {
             _preApprovedSuckerDeployers.push(
                 address(_deployCCIPSuckerFor(ARB_SALT, block.chainid == 1 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID))
             );
-            // Tempo — uses local constants since CCIPHelper npm package doesn't have Tempo yet.
-            {
-                JBCCIPSuckerDeployer tempoDeployer = _deployCCIPSuckerForTempo(
-                    TEMPO_SALT,
-                    block.chainid == 1 ? TEMPO_CHAIN_ID : TEMPO_MOD_CHAIN_ID,
-                    block.chainid == 1 ? TEMPO_CCIP_SEL : TEMPO_MOD_CCIP_SEL,
-                    ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
-                );
-                _preApprovedSuckerDeployers.push(address(tempoDeployer));
-                _tempoCcipDeployer = IJBSuckerDeployer(address(tempoDeployer));
-            }
+            // TODO: Tempo CCIP sucker commented out until chain is ready.
         }
 
         // Arbitrum / Arbitrum Sepolia
@@ -1411,20 +1386,7 @@ contract Deploy is Script, Sphinx {
             );
         }
 
-        // Tempo / Tempo Moderato
-        if (block.chainid == 4217 || block.chainid == 42_431) {
-            // Tempo -> ETH — uses local constants for Tempo router.
-            JBCCIPSuckerDeployer tempoDeployer = _deployCCIPSuckerForTempo(
-                TEMPO_SALT,
-                block.chainid == 4217 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID,
-                block.chainid == 4217
-                    ? CCIPHelper.selectorOfChain(CCIPHelper.ETH_ID)
-                    : CCIPHelper.selectorOfChain(CCIPHelper.ETH_SEP_ID),
-                ICCIPRouter(block.chainid == 4217 ? TEMPO_CCIP_ROUTER : TEMPO_MOD_CCIP_ROUTER)
-            );
-            _preApprovedSuckerDeployers.push(address(tempoDeployer));
-            _tempoCcipDeployer = IJBSuckerDeployer(address(tempoDeployer));
-        }
+        // TODO: Tempo / Tempo Moderato CCIP sucker commented out until chain is ready.
     }
 
     function _deployCCIPSuckerFor(bytes32 salt, uint256 remoteChainId)
@@ -1560,20 +1522,10 @@ contract Deploy is Script, Sphinx {
             _prices.priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)));
         if (address(matchingFeed) == address(0)) matchingFeed = IJBPriceFeed(address(new JBMatchingPriceFeed()));
 
-        if (block.chainid == 4217 || block.chainid == 42_431) {
-            // Tempo: native gas = USD. NATIVE_TOKEN is USD-denominated.
-            // USD ↔ NATIVE_TOKEN is 1:1 (native IS USD on Tempo).
-            _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)), matchingFeed);
-            // USD ↔ ETH uses the standard ETH/USD feed.
-            _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, JBCurrencyIds.ETH, ethUsdFeed);
-            // NATIVE_TOKEN ↔ ETH = ethUsdFeed (since NATIVE_TOKEN is USD on Tempo).
-            _ensureDefaultPriceFeed(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)), ethUsdFeed);
-        } else {
-            // All other chains: native = ETH.
-            _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)), ethUsdFeed);
-            _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, JBCurrencyIds.ETH, ethUsdFeed);
-            _ensureDefaultPriceFeed(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)), matchingFeed);
-        }
+        // All chains: native = ETH.
+        _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)), ethUsdFeed);
+        _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, JBCurrencyIds.ETH, ethUsdFeed);
+        _ensureDefaultPriceFeed(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)), matchingFeed);
 
         // Deploy USDC/USD feed.
         _deployUsdcFeed();
@@ -1795,16 +1747,8 @@ contract Deploy is Script, Sphinx {
                     )
                 );
         }
-        // Tempo Mainnet — L1, no sequencer needed.
-        // TODO: Replace with actual Chainlink ETH/USD feed address on Tempo once available.
-        else if (block.chainid == 4217) {
-            revert("Tempo ETH/USD feed not configured");
-        }
-        // Tempo Moderato (testnet)
-        // TODO: Replace with actual Chainlink ETH/USD feed address on Tempo Moderato once available.
-        else if (block.chainid == 42_431) {
-            revert("Tempo Moderato ETH/USD feed not configured");
-        } else {
+        // TODO: Tempo ETH/USD feed commented out until chain is ready.
+        else {
             revert("Unsupported chain for ETH/USD feed");
         }
     }
@@ -1960,17 +1904,8 @@ contract Deploy is Script, Sphinx {
                     )
                 );
         }
-        // Tempo Mainnet — USDC.e is the primary treasury token.
-        // On Tempo, USDC.e ≈ 1 USD, so we use a matching (1:1) feed.
-        else if (block.chainid == 4217) {
-            usdc = 0x20C000000000000000000000b9537d11c60E8b50; // USDC.e on Tempo
-            usdcFeed = IJBPriceFeed(address(new JBMatchingPriceFeed()));
-        }
-        // Tempo Moderato (testnet)
-        else if (block.chainid == 42_431) {
-            // TBD: testnet USDC.e — skip USDC feed registration until address is available.
-            return;
-        } else {
+        // TODO: Tempo USDC feed commented out until chain is ready.
+        else {
             revert("Unsupported chain for USDC feed");
         }
 
@@ -2963,11 +2898,7 @@ contract Deploy is Script, Sphinx {
             suckerDeployerConfigs[1] = JBSuckerDeployerConfig({deployer: _baseSuckerDeployer, mappings: tokenMappings});
             suckerDeployerConfigs[2] =
                 JBSuckerDeployerConfig({deployer: _arbitrumSuckerDeployer, mappings: tokenMappings});
-        } else if (block.chainid == 4217 || block.chainid == 42_431) {
-            // Tempo: CCIP sucker targeting Ethereum. No active token mappings until Phase 2.
-            suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
-            suckerDeployerConfigs[0] =
-                JBSuckerDeployerConfig({deployer: _tempoCcipDeployer, mappings: new JBTokenMapping[](0)});
+            // TODO: Tempo sucker config commented out until chain is ready.
         } else {
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
             // L2 -> L1: pick whichever deployer is non-zero for this chain.
