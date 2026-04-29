@@ -1,60 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "forge-std/Test.sol";
 import /* {*} from */ "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
 
 // Core
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
-import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
-import {JBMetadataResolver} from "@bananapus/core-v6/src/libraries/JBMetadataResolver.sol";
-import {JBFixedPointNumber} from "@bananapus/core-v6/src/libraries/JBFixedPointNumber.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
-import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
-import {IJBPayHook} from "@bananapus/core-v6/src/interfaces/IJBPayHook.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
-import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {IJBPriceFeed} from "@bananapus/core-v6/src/interfaces/IJBPriceFeed.sol";
 
 // 721 Hook
-import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
-import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
-import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
-import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
 import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
-import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
 import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721InitTiersConfig.sol";
 
-// Address Registry
-import {JBAddressRegistry} from "@bananapus/address-registry-v6/src/JBAddressRegistry.sol";
-import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
-
-// Buyback Hook
-import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
-import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
-import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
-import {IJBBuybackHook} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHook.sol";
-import {IGeomeanOracle} from "@bananapus/buyback-hook-v6/src/interfaces/IGeomeanOracle.sol";
-
-// Suckers
-import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
-import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
-import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
-
-// Croptop
-import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
-
 // Revnet
-import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
-import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
-import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
-import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
-import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
 import {REVStageConfig, REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
@@ -63,131 +25,20 @@ import {REVDeploy721TiersHookConfig} from "@rev-net/core-v6/src/structs/REVDeplo
 import {REVBaseline721HookConfig} from "@rev-net/core-v6/src/structs/REVBaseline721HookConfig.sol";
 import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHookFlags.sol";
 import {REVCroptopAllowedPost} from "@rev-net/core-v6/src/structs/REVCroptopAllowedPost.sol";
-import {REVLoanSource} from "@rev-net/core-v6/src/structs/REVLoanSource.sol";
+import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 
 // Uniswap V4
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
-import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-/// @notice Mock WBTC token with 8 decimals (matching real WBTC on mainnet).
-contract MockWBTC is ERC20 {
-    /// @dev Construct the mock with name "Wrapped BTC" and symbol "WBTC".
-    constructor() ERC20("Wrapped BTC", "WBTC") {}
-
-    /// @dev Override decimals to return 8, matching real WBTC.
-    function decimals() public pure override returns (uint8) {
-        return 8;
-    }
-
-    /// @dev Public mint function for test scaffolding.
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
-    }
-}
-
-/// @notice Inline mock price feed that returns a fixed price for WBTC/USD conversion.
-contract WBTCMockPriceFeed is IJBPriceFeed {
-    /// @dev The fixed price value the feed returns, in FEED_DECIMALS precision.
-    uint256 public immutable PRICE;
-
-    /// @dev The number of decimals the stored PRICE uses.
-    uint8 public immutable FEED_DECIMALS;
-
-    /// @dev Store the fixed price and its decimal precision.
-    constructor(uint256 price, uint8 dec) {
-        PRICE = price;
-        FEED_DECIMALS = dec;
-    }
-
-    /// @dev Return the fixed price adjusted to the caller's requested decimal precision.
-    function currentUnitPrice(uint256 decimals) external view override returns (uint256) {
-        return JBFixedPointNumber.adjustDecimals(PRICE, FEED_DECIMALS, decimals);
-    }
-}
-
-/// @notice Adds liquidity to a hookless V4 pool via the unlock/callback pattern.
-/// Supports both native ETH (address(0)) and ERC-20 token settlement.
-contract WBTCLiquidityHelper is IUnlockCallback {
-    /// @dev Reference to the Uniswap V4 PoolManager for liquidity operations.
-    IPoolManager public immutable poolManager;
-
-    /// @dev Store the PoolManager reference for use in liquidity operations.
-    constructor(IPoolManager _poolManager) {
-        poolManager = _poolManager;
-    }
-
-    /// @dev Accept ETH transfers for native token settlement.
-    receive() external payable {}
-
-    /// @notice Add liquidity to a V4 pool by triggering the unlock callback.
-    function addLiquidity(
-        PoolKey memory key,
-        int24 tickLower,
-        int24 tickUpper,
-        int256 liquidityDelta
-    )
-        external
-        payable
-    {
-        // Encode the pool key and liquidity params, then unlock the pool manager to trigger the callback.
-        poolManager.unlock(abi.encode(key, tickLower, tickUpper, liquidityDelta));
-    }
-
-    /// @notice Callback invoked by PoolManager during unlock to actually modify liquidity.
-    function unlockCallback(bytes calldata data) external override returns (bytes memory) {
-        // Decode the pool key and liquidity params from the calldata.
-        (PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta) =
-            abi.decode(data, (PoolKey, int24, int24, int256));
-
-        // Modify the pool's liquidity position and get the resulting balance delta.
-        (BalanceDelta delta,) = poolManager.modifyLiquidity(
-            key,
-            ModifyLiquidityParams({
-                tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
-            }),
-            ""
-        );
-
-        // Read how much of each currency is owed to / owed by the pool.
-        int128 amount0 = delta.amount0();
-        int128 amount1 = delta.amount1();
-
-        // Settle tokens owed to the pool (negative delta means we owe the pool).
-        if (amount0 < 0) _settle(key.currency0, uint128(-amount0));
-        if (amount1 < 0) _settle(key.currency1, uint128(-amount1));
-
-        // Take tokens owed by the pool to this contract (positive delta means pool owes us).
-        if (amount0 > 0) poolManager.take(key.currency0, address(this), uint128(amount0));
-        if (amount1 > 0) poolManager.take(key.currency1, address(this), uint128(amount1));
-
-        return "";
-    }
-
-    /// @dev Settle a single currency with the PoolManager (ETH via value, ERC-20 via transfer).
-    function _settle(Currency currency, uint256 amount) internal {
-        // Native ETH is represented as address(0) in Uniswap V4.
-        if (Currency.unwrap(currency) == address(0)) {
-            // Settle native ETH by sending value to the pool manager.
-            poolManager.settle{value: amount}();
-        } else {
-            // Sync and transfer the ERC-20 token to the pool manager for settlement.
-            poolManager.sync(currency);
-            IERC20(Currency.unwrap(currency)).transfer(address(poolManager), amount);
-            poolManager.settle();
-        }
-    }
-}
+// Shared helpers
+import {RevnetForkBase} from "../helpers/RevnetForkBase.sol";
+import {MockERC20Token} from "../helpers/MockTokens.sol";
+import {MockPriceFeed} from "../helpers/MockPriceFeed.sol";
 
 /// @notice WBTC 8-decimal integration fork test: exercises the full payment, buyback,
 /// and cash-out path using a mock WBTC token (8 decimals) to stress-test non-18-decimal
@@ -201,19 +52,8 @@ contract WBTCLiquidityHelper is IUnlockCallback {
 /// - 721 NFT tier pricing via cross-currency normalization
 ///
 /// Run with: forge test --match-contract WBTC8DecimalForkTest -vvv
-contract WBTC8DecimalForkTest is TestBaseWorkflow {
-    using PoolIdLibrary for PoolKey;
-
-    // -- Mainnet addresses (Uniswap V4 deployed at these deterministic addresses)
-    address constant POOL_MANAGER_ADDR = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-
-    // -- Tick range for full-range liquidity in the hookless buyback pool
-    int24 constant TICK_LOWER = -887_200;
-    int24 constant TICK_UPPER = 887_200;
-
+contract WBTC8DecimalForkTest is RevnetForkBase {
     // -- Test parameters
-    uint112 constant INITIAL_ISSUANCE = uint112(1000e18); // 1000 project tokens per base currency unit
-    uint32 constant STAGE_DURATION = 30 days; // Duration of each revnet stage
     uint104 constant TIER_PRICE_USD = 100e18; // NFT tier price: 100 USD in 18-decimal abstract USD
 
     // -- Currency constants (matching JBCurrencyIds)
@@ -223,145 +63,27 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
     uint256 constant WBTC_USD_PRICE = 60_000e8; // 60,000 USD expressed in 8 decimals
 
     // -- Actors for the test scenarios
-    address PAYER = makeAddr("wbtc_payer"); // Primary payer who pays WBTC into the project
     address PAYER2 = makeAddr("wbtc_payer2"); // Secondary payer for bonding curve effect
-    address SPLIT_BENEFICIARY = makeAddr("wbtc_splitBeneficiary"); // Receives 721 tier split payouts
 
-    // -- ERC-2771 trusted forwarder for meta-transactions
-    address private constant TRUSTED_FORWARDER = 0xB2b5841DBeF766d4b521221732F9B618fCf34A87;
+    // -- WBTC token and currency IDs
+    MockERC20Token wbtc; // The mock WBTC token with 8 decimals
+    uint32 wbtcCurrency; // Currency ID derived from the WBTC token address (uint32 truncation of uint160)
+    uint32 nativeCurrency; // Currency ID derived from the native ETH token sentinel address
 
-    // -- Ecosystem contract references
-    IPoolManager poolManager; // Uniswap V4 PoolManager for buyback pool operations
-    WBTCLiquidityHelper liqHelper; // Helper for adding liquidity to the buyback pool
-
-    MockWBTC wbtc; // The mock WBTC token with 8 decimals
-
-    uint256 FEE_PROJECT_ID; // Project ID for the Juicebox fee project
-    JBSuckerRegistry SUCKER_REGISTRY; // Registry for cross-chain sucker contracts
-    IJB721TiersHookStore HOOK_STORE; // Storage contract for 721 tier hook data
-    JB721TiersHook EXAMPLE_HOOK; // Implementation contract for 721 tier hook cloning
-    IJBAddressRegistry ADDRESS_REGISTRY; // Registry for contract address lookups
-    IJB721TiersHookDeployer HOOK_DEPLOYER; // Deployer for 721 tier hook instances
-    CTPublisher PUBLISHER; // Croptop publisher for post-based minting
-    JBBuybackHook BUYBACK_HOOK; // Buyback hook that compares AMM swap vs mint
-    JBBuybackHookRegistry BUYBACK_REGISTRY; // Registry that maps projects to buyback hooks
-    IREVLoans LOANS_CONTRACT; // Revnet loans contract for borrow/repay
-    REVOwner REV_OWNER; // Runtime data hook for pay and cash out callbacks
-    REVDeployer REV_DEPLOYER; // Revnet deployer that orchestrates project creation
-
-    // -- Currency ID derived from the WBTC token address (uint32 truncation of uint160)
-    uint32 wbtcCurrency;
-
-    // -- Currency ID derived from the native ETH token sentinel address
-    uint32 nativeCurrency;
-
-    /// @dev Accept ETH for fee project deployment and gas funding.
-    receive() external payable {}
+    function _deployerSalt() internal pure override returns (bytes32) {
+        return "REVDeployer_WBTC";
+    }
 
     function setUp() public override {
-        // Fork Ethereum mainnet at a stable block where Uniswap V4 is deployed.
-        vm.createSelectFork("ethereum", 21_700_000);
-        // Verify that the PoolManager contract exists at the expected address.
-        require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed");
-
-        // Deploy the entire Juicebox V6 core stack on the forked mainnet.
+        // Deploy the entire ecosystem via RevnetForkBase (fork, core, deployer, etc.).
         super.setUp();
 
-        // Store a reference to the Uniswap V4 PoolManager.
-        poolManager = IPoolManager(POOL_MANAGER_ADDR);
-        // Deploy the liquidity helper for seeding the buyback pool.
-        liqHelper = new WBTCLiquidityHelper(poolManager);
-
         // Deploy the mock WBTC token with 8 decimals.
-        wbtc = new MockWBTC();
+        wbtc = new MockERC20Token("Wrapped BTC", "WBTC", 8);
         // Derive the currency ID from the WBTC address (uint32 truncation matches JB convention).
         wbtcCurrency = uint32(uint160(address(wbtc)));
         // Derive the currency ID from the native ETH sentinel address.
         nativeCurrency = uint32(uint160(JBConstants.NATIVE_TOKEN));
-
-        // Create the fee project owned by the multisig.
-        FEE_PROJECT_ID = jbProjects().createFor(multisig());
-
-        // Deploy the sucker registry (no trusted forwarder for simplicity).
-        SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
-        // Deploy the 721 tier hook store.
-        HOOK_STORE = new JB721TiersHookStore();
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
-        // Deploy the 721 tier hook implementation for cloning.
-        EXAMPLE_HOOK = new JB721TiersHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbRulesets(),
-            HOOK_STORE,
-            jbSplits(),
-            checkpointsDeployer,
-            multisig()
-        );
-        // Deploy the address registry for contract lookups.
-        ADDRESS_REGISTRY = new JBAddressRegistry();
-        // Deploy the 721 hook deployer that creates hook instances.
-        HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
-        // Deploy the Croptop publisher for post-based minting.
-        PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
-
-        // Deploy the buyback hook with the real PoolManager (hookless pool, no WETH).
-        BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbProjects(),
-            jbTokens(),
-            poolManager,
-            IHooks(address(0)),
-            address(0)
-        );
-
-        // Deploy and configure the buyback hook registry.
-        BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
-        // Set the buyback hook as the default data hook for all projects.
-        BUYBACK_REGISTRY.setDefaultHook(IJBRulesetDataHook(address(BUYBACK_HOOK)));
-
-        // Deploy the revnet loans contract for borrow/repay functionality.
-        LOANS_CONTRACT = new REVLoans({
-            controller: jbController(),
-            suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
-            revId: FEE_PROJECT_ID,
-            owner: address(this),
-            permit2: permit2(),
-            trustedForwarder: TRUSTED_FORWARDER
-        });
-
-        // Deploy REVHiddenTokens.
-        REVHiddenTokens revHiddenTokens = new REVHiddenTokens(jbController(), TRUSTED_FORWARDER);
-
-        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
-        REV_OWNER = new REVOwner(
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            jbDirectory(),
-            FEE_PROJECT_ID,
-            SUCKER_REGISTRY,
-            address(LOANS_CONTRACT),
-            address(revHiddenTokens)
-        );
-
-        // Deploy the REVDeployer with a unique salt to avoid address collisions.
-        REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_WBTC"}(
-            jbController(),
-            SUCKER_REGISTRY,
-            FEE_PROJECT_ID,
-            HOOK_DEPLOYER,
-            PUBLISHER,
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER,
-            address(REV_OWNER)
-        );
-        REV_OWNER.setDeployer(IREVDeployer(address(REV_DEPLOYER)));
-
-        // Approve the REV_DEPLOYER to transfer the fee project NFT.
-        vm.prank(multisig());
-        jbProjects().approve(address(REV_DEPLOYER), FEE_PROJECT_ID);
 
         // Mock the geomean oracle so payments work before a real buyback pool is set up.
         _mockOracle(1, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
@@ -369,13 +91,13 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         // --- Register price feeds for cross-currency conversion ---
 
         // Feed: WBTC/USD -- "1 WBTC costs 60,000 USD" (8-decimal feed matching WBTC decimals).
-        WBTCMockPriceFeed wbtcUsdFeed = new WBTCMockPriceFeed(WBTC_USD_PRICE, 8);
+        MockPriceFeed wbtcUsdFeed = new MockPriceFeed(WBTC_USD_PRICE, 8);
         // Register the WBTC->USD price feed at project ID 0 (global default).
         vm.prank(multisig());
         jbPrices().addPriceFeedFor(0, USD, wbtcCurrency, IJBPriceFeed(address(wbtcUsdFeed)));
 
         // Feed: ETH/USD -- "1 ETH costs 2000 USD" (18-decimal feed for native ETH).
-        WBTCMockPriceFeed ethUsdFeed = new WBTCMockPriceFeed(2000e18, 18);
+        MockPriceFeed ethUsdFeed = new MockPriceFeed(2000e18, 18);
         // Register the ETH->USD price feed at project ID 0 (global default).
         vm.prank(multisig());
         jbPrices().addPriceFeedFor(0, USD, nativeCurrency, IJBPriceFeed(address(ethUsdFeed)));
@@ -385,7 +107,6 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         wbtc.mint(PAYER2, 5e8); // 5 WBTC = $300,000 worth
 
         // Fund actors with ETH for gas.
-        vm.deal(PAYER, 1 ether);
         vm.deal(PAYER2, 1 ether);
     }
 
@@ -598,92 +319,6 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
     }
 
     // ===================================================================
-    //  Pool / Oracle Helpers
-    // ===================================================================
-
-    /// @notice Mock the geomean oracle at address(0) to return a specific tick and liquidity.
-    /// This is needed because the buyback hook queries IGeomeanOracle.observe() on the pool's
-    /// hooks address (address(0) for hookless pools).
-    function _mockOracle(int256 liquidity, int24 tick, uint32 twapWindow) internal {
-        // Etch minimal bytecode at address(0) so mockCall targets a contract.
-        vm.etch(address(0), hex"00");
-
-        // Build tickCumulatives array: [0, tick * twapWindow] so average = tick.
-        int56[] memory tickCumulatives = new int56[](2);
-        tickCumulatives[0] = 0;
-        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow));
-
-        // Build secondsPerLiquidityCumulativeX128s for the TWAP window.
-        uint136[] memory secondsPerLiquidityCumulativeX128s = new uint136[](2);
-        secondsPerLiquidityCumulativeX128s[0] = 0;
-        // Compute cumulative seconds-per-liquidity avoiding division by zero.
-        uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
-        if (liq == 0) liq = 1;
-        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq);
-
-        // Mock the oracle observe() call to return our computed TWAP data.
-        vm.mockCall(
-            address(0),
-            abi.encodeWithSelector(IGeomeanOracle.observe.selector),
-            abi.encode(tickCumulatives, secondsPerLiquidityCumulativeX128s)
-        );
-    }
-
-    // ===================================================================
-    //  Fee Project Helper
-    // ===================================================================
-
-    /// @notice Deploy the fee project (project ID 1) using native ETH.
-    /// This is required before deploying any revnet because fees flow to this project.
-    function _deployFeeProject(uint16 cashOutTaxRate) internal {
-        // Set up accounting context for native ETH with 18 decimals.
-        JBAccountingContext[] memory acc = new JBAccountingContext[](1);
-        acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency});
-
-        // Configure the terminal to accept native ETH.
-        JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
-
-        // Single split sending everything to multisig.
-        JBSplit[] memory splits = new JBSplit[](1);
-        splits[0].beneficiary = payable(multisig());
-        splits[0].percent = 10_000;
-
-        // Single stage with the specified cash-out tax rate.
-        REVStageConfig[] memory stages = new REVStageConfig[](1);
-        stages[0] = REVStageConfig({
-            startsAtOrAfter: uint40(block.timestamp),
-            autoIssuances: new REVAutoIssuance[](0),
-            splitPercent: 0,
-            splits: splits,
-            initialIssuance: INITIAL_ISSUANCE,
-            issuanceCutFrequency: 0,
-            issuanceCutPercent: 0,
-            cashOutTaxRate: cashOutTaxRate,
-            extraMetadata: 0
-        });
-
-        // Fee project uses native ETH as baseCurrency.
-        REVConfig memory cfg = REVConfig({
-            description: REVDescription("Fee", "FEE", "ipfs://fee", "FEE_WBTC"),
-            baseCurrency: nativeCurrency,
-            splitOperator: multisig(),
-            stageConfigurations: stages
-        });
-
-        // No suckers for the fee project.
-        REVSuckerDeploymentConfig memory sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("FEE_WBTC"))
-        });
-
-        // Deploy the fee project from the multisig address.
-        vm.prank(multisig());
-        REV_DEPLOYER.deployFor({
-            revnetId: FEE_PROJECT_ID, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
-        });
-    }
-
-    // ===================================================================
     //  Payment Helpers
     // ===================================================================
 
@@ -698,14 +333,14 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         // Execute the payment and capture the number of project tokens received.
         tokensReceived = jbMultiTerminal()
             .pay({
-                projectId: revnetId,
-                token: address(wbtc),
-                amount: amount,
-                beneficiary: payer,
-                minReturnedTokens: 0,
-                memo: "",
-                metadata: ""
-            });
+            projectId: revnetId,
+            token: address(wbtc),
+            amount: amount,
+            beneficiary: payer,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: ""
+        });
         // Stop impersonating the payer.
         vm.stopPrank();
     }
@@ -714,26 +349,6 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
     function _terminalBalanceWBTC(uint256 projectId) internal view returns (uint256) {
         // Query the terminal store for the project's WBTC balance.
         return jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, address(wbtc));
-    }
-
-    /// @notice Build pay metadata that selects tier 1 for 721 NFT minting.
-    function _buildPayMetadataWithTier(address hookMetadataTarget) internal pure returns (bytes memory) {
-        // Specify that tier ID 1 should be minted.
-        uint16[] memory tierIds = new uint16[](1);
-        tierIds[0] = 1;
-        // Encode the tier selection: (expectMintFromExtraFunds=true, tierIds).
-        bytes memory tierData = abi.encode(true, tierIds);
-        // Derive the metadata ID from the hook's pay context.
-        bytes4 tierMetadataId = JBMetadataResolver.getId("pay", hookMetadataTarget);
-
-        // Pack into the JBMetadataResolver format.
-        bytes4[] memory ids = new bytes4[](1);
-        ids[0] = tierMetadataId;
-        bytes[] memory datas = new bytes[](1);
-        datas[0] = tierData;
-
-        // Create the packed metadata bytes.
-        return JBMetadataResolver.createMetadata(ids, datas);
     }
 
     // ===================================================================
@@ -831,7 +446,7 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         // Get the hook's metadata target for building pay metadata.
         address metadataTarget = hook.METADATA_ID_TARGET();
         // Build metadata that requests minting from tier 1.
-        bytes memory metadata = _buildPayMetadataWithTier(metadataTarget);
+        bytes memory metadata = _buildPayMetadataNoQuote(metadataTarget);
 
         // Pay 0.002 WBTC = $120 (enough to cover the $100 USD tier price).
         wbtc.mint(PAYER, 2e5);
@@ -841,14 +456,14 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         // Pay with tier metadata to trigger NFT minting.
         uint256 tokens = jbMultiTerminal()
             .pay({
-                projectId: revnetId,
-                token: address(wbtc),
-                amount: 2e5, // 0.002 WBTC in 8-decimal
-                beneficiary: PAYER,
-                minReturnedTokens: 0,
-                memo: "",
-                metadata: metadata
-            });
+            projectId: revnetId,
+            token: address(wbtc),
+            amount: 2e5, // 0.002 WBTC in 8-decimal
+            beneficiary: PAYER,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: metadata
+        });
         vm.stopPrank();
 
         // Verify the NFT was minted to the payer via cross-currency normalization.
@@ -888,14 +503,14 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         vm.prank(PAYER);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: address(wbtc),
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: address(wbtc),
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         // Verify the payer received WBTC from the cash-out (8-decimal amount).
         uint256 wbtcReceived = wbtc.balanceOf(PAYER) - payerWBTCBefore;
@@ -1015,7 +630,7 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         // Get the hook's metadata target.
         address metadataTarget = hook.METADATA_ID_TARGET();
         // Build metadata that requests tier 1 minting.
-        bytes memory metadata = _buildPayMetadataWithTier(metadataTarget);
+        bytes memory metadata = _buildPayMetadataNoQuote(metadataTarget);
 
         // Record the split beneficiary's WBTC balance before payment.
         uint256 splitBeneficiaryBefore = wbtc.balanceOf(SPLIT_BENEFICIARY);
@@ -1028,14 +643,14 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         // Pay with tier metadata.
         jbMultiTerminal()
             .pay({
-                projectId: revnetId,
-                token: address(wbtc),
-                amount: 2e5, // 0.002 WBTC
-                beneficiary: PAYER,
-                minReturnedTokens: 0,
-                memo: "",
-                metadata: metadata
-            });
+            projectId: revnetId,
+            token: address(wbtc),
+            amount: 2e5, // 0.002 WBTC
+            beneficiary: PAYER,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: metadata
+        });
         vm.stopPrank();
 
         // Verify the NFT was minted.
@@ -1146,21 +761,21 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
 
         // Step 4: Pay with 721 tier metadata to mint an NFT.
         address metadataTarget = hook.METADATA_ID_TARGET();
-        bytes memory metadata = _buildPayMetadataWithTier(metadataTarget);
+        bytes memory metadata = _buildPayMetadataNoQuote(metadataTarget);
         // Pay 0.002 WBTC with tier metadata.
         wbtc.mint(PAYER, 2e5);
         vm.startPrank(PAYER);
         wbtc.approve(address(jbMultiTerminal()), 2e5);
         uint256 tokensFromNFTPay = jbMultiTerminal()
             .pay({
-                projectId: revnetId,
-                token: address(wbtc),
-                amount: 2e5,
-                beneficiary: PAYER,
-                minReturnedTokens: 0,
-                memo: "",
-                metadata: metadata
-            });
+            projectId: revnetId,
+            token: address(wbtc),
+            amount: 2e5,
+            beneficiary: PAYER,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: metadata
+        });
         vm.stopPrank();
         // Verify NFT was minted.
         assertEq(IERC721(address(hook)).balanceOf(PAYER), 1, "step 4: payer should own 1 NFT");
@@ -1176,14 +791,14 @@ contract WBTC8DecimalForkTest is TestBaseWorkflow {
         vm.prank(PAYER);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: address(wbtc),
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: address(wbtc),
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         // Verify WBTC was received (8-decimal reclaim amount).
         assertGt(wbtc.balanceOf(PAYER), payerWBTCBefore, "step 5: should receive WBTC from cash-out");

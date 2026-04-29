@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import /* {*} from */ "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
+import {REVStageConfig, REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
+import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
+import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
+import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
+import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 import "./EcosystemFork.t.sol";
 
 /// @notice Tests the sucker exemption path in REVDeployer.beforeCashOutRecordedWith when a buyback hook is active.
@@ -109,14 +115,14 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
         vm.prank(MOCK_SUCKER);
         uint256 reclaimAmount = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: MOCK_SUCKER,
-                projectId: revnetId,
-                cashOutCount: suckerTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(MOCK_SUCKER),
-                metadata: ""
-            });
+            holder: MOCK_SUCKER,
+            projectId: revnetId,
+            cashOutCount: suckerTokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(MOCK_SUCKER),
+            metadata: ""
+        });
 
         // Sucker should receive ETH.
         assertGt(reclaimAmount, 0, "sucker should reclaim ETH");
@@ -169,14 +175,14 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
         vm.prank(NON_SUCKER);
         uint256 nonSuckerReclaim = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: NON_SUCKER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(NON_SUCKER),
-                metadata: ""
-            });
+            holder: NON_SUCKER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(NON_SUCKER),
+            metadata: ""
+        });
 
         assertGt(nonSuckerReclaim, 0, "non-sucker should reclaim some ETH");
 
@@ -190,14 +196,14 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
         vm.prank(MOCK_SUCKER);
         uint256 suckerReclaim = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: MOCK_SUCKER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(MOCK_SUCKER),
-                metadata: ""
-            });
+            holder: MOCK_SUCKER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(MOCK_SUCKER),
+            metadata: ""
+        });
 
         assertGt(suckerReclaim, 0, "sucker should reclaim ETH");
 

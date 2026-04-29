@@ -6,65 +6,32 @@ import "forge-std/Test.sol";
 // Pull in TestBaseWorkflow which deploys the full JB core stack.
 import /* {*} from */ "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
 
-// Core contracts and interfaces.
+import {RevnetForkBase} from "../helpers/RevnetForkBase.sol";
+
+// Core contracts and interfaces (only what this test uniquely needs).
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
 import {JBPermissionsData} from "@bananapus/core-v6/src/structs/JBPermissionsData.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {JBRulesetConfig} from "@bananapus/core-v6/src/structs/JBRulesetConfig.sol";
-import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
 import {JBPermissioned} from "@bananapus/core-v6/src/abstract/JBPermissioned.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
-import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
-
-// 721 Hook.
-import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
-import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
-import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
-import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
-import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
-
-// Address Registry.
-import {JBAddressRegistry} from "@bananapus/address-registry-v6/src/JBAddressRegistry.sol";
-import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
-
-// Buyback Hook.
-import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
-import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
-import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
-
-// Suckers.
-import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
-import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
-import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 
 // Croptop.
-import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 import {CTDeployer} from "@croptop/core-v6/src/CTDeployer.sol";
 
 // Omnichain Deployer.
 import {JBOmnichainDeployer} from "@bananapus/omnichain-deployers-v6/src/JBOmnichainDeployer.sol";
 
-// Revnet.
-import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
-import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
-import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
-import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
-import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
+// Suckers.
+import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
+
+// Revnet (only imports not already provided by RevnetForkBase).
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
 import {REVStageConfig, REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
 import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
-
-// Uniswap V4 (needed for buyback hook constructor).
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-
-// Geomean oracle mock interface.
-import {IGeomeanOracle} from "@bananapus/buyback-hook-v6/src/interfaces/IGeomeanOracle.sol";
 
 /// @notice Adversarial test suite proving wildcard-permission singletons (REVDeployer, CTDeployer,
 /// JBOmnichainDeployer) cannot abuse their powers cross-project.
@@ -77,19 +44,9 @@ import {IGeomeanOracle} from "@bananapus/buyback-hook-v6/src/interfaces/IGeomean
 /// not the singleton.
 ///
 /// Run with: forge test --match-contract WildcardPermissionKillChain -vvv
-contract WildcardPermissionKillChain is TestBaseWorkflow {
+contract WildcardPermissionKillChain is RevnetForkBase {
     // ═══════════════════════════════════════════════════════════════════════
-    //  Constants
-    // ═══════════════════════════════════════════════════════════════════════
-
-    // Mainnet PoolManager address (post-V4 deployment).
-    address constant POOL_MANAGER_ADDR = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-
-    // Trusted forwarder for ERC2771 meta-transactions.
-    address private constant TRUSTED_FORWARDER = 0xB2b5841DBeF766d4b521221732F9B618fCf34A87;
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  Actors
+    //  Actors (unique to this test)
     // ═══════════════════════════════════════════════════════════════════════
 
     // An innocent victim who deploys a project independently of any singleton.
@@ -99,131 +56,49 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
     address ATTACKER = makeAddr("attacker");
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  Protocol singletons under test
+    //  Singletons under test (unique to this test)
     // ═══════════════════════════════════════════════════════════════════════
 
-    // The three singletons that receive wildcard permissions.
-    REVOwner REV_OWNER;
-    REVDeployer REV_DEPLOYER;
     CTDeployer CT_DEPLOYER;
     JBOmnichainDeployer OMNICHAIN_DEPLOYER;
 
-    // Supporting infrastructure.
-    JBSuckerRegistry SUCKER_REGISTRY;
-    IJB721TiersHookDeployer HOOK_DEPLOYER;
-    CTPublisher PUBLISHER;
-    JBBuybackHook BUYBACK_HOOK;
-    JBBuybackHookRegistry BUYBACK_REGISTRY;
-    IREVLoans LOANS_CONTRACT;
-
-    // Fee project owned by multisig.
-    uint256 FEE_PROJECT_ID;
-
     // The victim's independently-deployed project.
     uint256 victimProjectId;
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  CREATE2 salt override
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function _deployerSalt() internal pure override returns (bytes32) {
+        return "REVDeployer_Wildcard";
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Setup
     // ═══════════════════════════════════════════════════════════════════════
 
     function setUp() public override {
-        // Fork mainnet at a stable block so Uniswap V4 PoolManager exists.
-        vm.createSelectFork("ethereum", 21_700_000);
-        // Verify the PoolManager is deployed at the expected address.
-        require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed");
-
-        // Deploy the full JB core stack (permissions, projects, directory, controller, terminal, etc.).
+        // RevnetForkBase.setUp() forks mainnet, deploys full JB core stack + ecosystem.
         super.setUp();
 
-        // Create the fee project used by REVDeployer.
-        FEE_PROJECT_ID = jbProjects().createFor(multisig());
-
-        // Deploy sucker registry (needed by all three deployers).
-        SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
-
-        // Deploy 721 hook infrastructure.
-        JB721TiersHookStore hookStore = new JB721TiersHookStore();
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
-        JB721TiersHook exampleHook = new JB721TiersHook(
-            jbDirectory(),
+        // Deploy CTDeployer — grants wildcard MAP_SUCKER_TOKEN to SUCKER_REGISTRY, ADJUST_721_TIERS to PUBLISHER.
+        CT_DEPLOYER = new CTDeployer(
             jbPermissions(),
-            jbPrices(),
-            jbRulesets(),
-            hookStore,
-            jbSplits(),
-            checkpointsDeployer,
-            multisig()
-        );
-        IJBAddressRegistry addressRegistry = new JBAddressRegistry();
-        HOOK_DEPLOYER = new JB721TiersHookDeployer(exampleHook, hookStore, addressRegistry, multisig());
-
-        // Deploy Croptop publisher.
-        PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
-
-        // Deploy buyback hook with real PoolManager.
-        BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
             jbProjects(),
-            jbTokens(),
-            IPoolManager(POOL_MANAGER_ADDR),
-            IHooks(address(0)),
-            address(0)
-        );
-
-        // Deploy buyback hook registry and set the default hook.
-        BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
-        BUYBACK_REGISTRY.setDefaultHook(IJBRulesetDataHook(address(BUYBACK_HOOK)));
-
-        // Deploy REVLoans contract.
-        LOANS_CONTRACT = new REVLoans({
-            controller: jbController(),
-            suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
-            revId: FEE_PROJECT_ID,
-            owner: address(this),
-            permit2: permit2(),
-            trustedForwarder: TRUSTED_FORWARDER
-        });
-
-        // Deploy REVHiddenTokens.
-        REVHiddenTokens revHiddenTokens = new REVHiddenTokens(jbController(), TRUSTED_FORWARDER);
-
-        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
-        REV_OWNER = new REVOwner(
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            jbDirectory(),
-            FEE_PROJECT_ID,
-            SUCKER_REGISTRY,
-            address(LOANS_CONTRACT),
-            address(revHiddenTokens)
-        );
-
-        // Deploy REVDeployer — this grants wildcard permissions to SUCKER_REGISTRY, LOANS, BUYBACK_HOOK.
-        REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_KillChain"}(
-            jbController(),
-            SUCKER_REGISTRY,
-            FEE_PROJECT_ID,
             HOOK_DEPLOYER,
             PUBLISHER,
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER,
-            address(REV_OWNER)
+            SUCKER_REGISTRY,
+            address(0xB2b5841DBeF766d4b521221732F9B618fCf34A87)
         );
-        REV_OWNER.setDeployer(IREVDeployer(address(REV_DEPLOYER)));
-
-        // Approve REVDeployer to receive the fee project NFT.
-        vm.prank(multisig());
-        jbProjects().approve(address(REV_DEPLOYER), FEE_PROJECT_ID);
-
-        // Deploy CTDeployer — grants wildcard MAP_SUCKER_TOKEN to SUCKER_REGISTRY, ADJUST_721_TIERS to PUBLISHER.
-        CT_DEPLOYER =
-            new CTDeployer(jbPermissions(), jbProjects(), HOOK_DEPLOYER, PUBLISHER, SUCKER_REGISTRY, TRUSTED_FORWARDER);
 
         // Deploy JBOmnichainDeployer — grants wildcard MAP_SUCKER_TOKEN to SUCKER_REGISTRY.
-        OMNICHAIN_DEPLOYER =
-            new JBOmnichainDeployer(SUCKER_REGISTRY, HOOK_DEPLOYER, jbPermissions(), jbProjects(), TRUSTED_FORWARDER);
+        OMNICHAIN_DEPLOYER = new JBOmnichainDeployer(
+            SUCKER_REGISTRY,
+            HOOK_DEPLOYER,
+            jbPermissions(),
+            jbProjects(),
+            address(0xB2b5841DBeF766d4b521221732F9B618fCf34A87)
+        );
 
         // Mock the geomean oracle so buyback hook does not revert on observe().
         _mockOracle(1, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
@@ -255,12 +130,12 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Launch the victim's project through the controller.
         victimProjectId = jbController()
             .launchProjectFor({
-                owner: VICTIM_OWNER,
-                projectUri: "ipfs://victim",
-                rulesetConfigurations: rulesetConfigs,
-                terminalConfigurations: termConfigs,
-                memo: "Victim project"
-            });
+            owner: VICTIM_OWNER,
+            projectUri: "ipfs://victim",
+            rulesetConfigurations: rulesetConfigs,
+            terminalConfigurations: termConfigs,
+            memo: "Victim project"
+        });
 
         vm.stopPrank();
 
@@ -277,44 +152,6 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
             metadata: ""
         });
     }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    //  Helper: mock the geomean oracle to avoid buyback hook reverts
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /// @notice Mocks the IGeomeanOracle.observe() call at address(0) so the buyback hook does not revert.
-    function _mockOracle(int256 liquidity, int24 tick, uint32 twapWindow) internal {
-        // Etch minimal bytecode at address(0) so it can receive calls.
-        vm.etch(address(0), hex"00");
-
-        // Build the tick cumulatives array for the oracle response.
-        int56[] memory tickCumulatives = new int56[](2);
-        // First tick cumulative is zero (the starting point).
-        tickCumulatives[0] = 0;
-        // Second tick cumulative encodes the tick over the TWAP window.
-        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow));
-
-        // Build the seconds-per-liquidity array for the oracle response.
-        uint136[] memory secondsPerLiquidityCumulativeX128s = new uint136[](2);
-        // First element is zero (the starting point).
-        secondsPerLiquidityCumulativeX128s[0] = 0;
-        // Compute a safe liquidity value (avoid division by zero).
-        uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
-        // Ensure liquidity is at least 1 to prevent division by zero.
-        if (liq == 0) liq = 1;
-        // Encode the seconds-per-liquidity value.
-        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq);
-
-        // Mock the oracle observe() call to return our crafted data.
-        vm.mockCall(
-            address(0),
-            abi.encodeWithSelector(IGeomeanOracle.observe.selector),
-            abi.encode(tickCumulatives, secondsPerLiquidityCumulativeX128s)
-        );
-    }
-
-    // Allow this contract to receive ETH.
-    receive() external payable {}
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Scenario 1: REVDeployer abuse — cross-project attacks
@@ -343,12 +180,12 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Attempt to mint tokens for the victim's project.
         jbController()
             .mintTokensOf({
-                projectId: victimProjectId,
-                tokenCount: 1_000_000e18,
-                beneficiary: address(REV_DEPLOYER),
-                memo: "steal tokens",
-                useReservedPercent: false
-            });
+            projectId: victimProjectId,
+            tokenCount: 1_000_000e18,
+            beneficiary: address(REV_DEPLOYER),
+            memo: "steal tokens",
+            useReservedPercent: false
+        });
     }
 
     /// @notice A compromised REVDeployer cannot queue malicious rulesets for a project it does not own.
@@ -425,15 +262,15 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Attempt to drain surplus from the victim's project.
         jbMultiTerminal()
             .useAllowanceOf({
-                projectId: victimProjectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 10 ether,
-                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                minTokensPaidOut: 0,
-                beneficiary: payable(address(REV_DEPLOYER)),
-                feeBeneficiary: payable(address(REV_DEPLOYER)), // fee beneficiary for the payout
-                memo: "drain surplus"
-            });
+            projectId: victimProjectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 10 ether,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            minTokensPaidOut: 0,
+            beneficiary: payable(address(REV_DEPLOYER)),
+            feeBeneficiary: payable(address(REV_DEPLOYER)), // fee beneficiary for the payout
+            memo: "drain surplus"
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -491,15 +328,15 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Attempt to access funds from the victim's project.
         jbMultiTerminal()
             .useAllowanceOf({
-                projectId: victimProjectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 5 ether,
-                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                minTokensPaidOut: 0,
-                beneficiary: payable(address(CT_DEPLOYER)),
-                feeBeneficiary: payable(address(CT_DEPLOYER)), // fee beneficiary for the payout
-                memo: "steal funds"
-            });
+            projectId: victimProjectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 5 ether,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            minTokensPaidOut: 0,
+            beneficiary: payable(address(CT_DEPLOYER)),
+            feeBeneficiary: payable(address(CT_DEPLOYER)), // fee beneficiary for the payout
+            memo: "steal funds"
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -553,12 +390,12 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Attempt to mint tokens for the victim's project.
         jbController()
             .mintTokensOf({
-                projectId: victimProjectId,
-                tokenCount: 1_000_000e18,
-                beneficiary: address(OMNICHAIN_DEPLOYER),
-                memo: "steal tokens via omnichain",
-                useReservedPercent: false
-            });
+            projectId: victimProjectId,
+            tokenCount: 1_000_000e18,
+            beneficiary: address(OMNICHAIN_DEPLOYER),
+            memo: "steal tokens via omnichain",
+            useReservedPercent: false
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -580,25 +417,25 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Grant the permission from REVDeployer's account to CTDeployer for all projects (wildcard).
         jbPermissions()
             .setPermissionsFor({
-                account: address(REV_DEPLOYER),
-                permissionsData: JBPermissionsData({
-                    operator: address(CT_DEPLOYER),
-                    projectId: 0, // wildcard: all projects
-                    permissionIds: permissionIds
-                })
-            });
+            account: address(REV_DEPLOYER),
+            permissionsData: JBPermissionsData({
+            operator: address(CT_DEPLOYER),
+            projectId: 0, // wildcard: all projects
+            permissionIds: permissionIds
+        })
+        });
 
         // ── Step 2: Verify CTDeployer now has the wildcard on REVDeployer's account ──
         // This confirms the permission was successfully set.
         bool hasWildcard = jbPermissions()
             .hasPermission({
-                operator: address(CT_DEPLOYER),
-                account: address(REV_DEPLOYER),
-                projectId: 0,
-                permissionId: JBPermissionIds.MINT_TOKENS,
-                includeRoot: false,
-                includeWildcardProjectId: false
-            });
+            operator: address(CT_DEPLOYER),
+            account: address(REV_DEPLOYER),
+            projectId: 0,
+            permissionId: JBPermissionIds.MINT_TOKENS,
+            includeRoot: false,
+            includeWildcardProjectId: false
+        });
         // Assert the wildcard was granted on REVDeployer's account.
         assertTrue(hasWildcard, "CTDeployer should have MINT wildcard on REV_DEPLOYER's account");
 
@@ -619,12 +456,12 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Attempt to mint using the colluded permission — this must fail.
         jbController()
             .mintTokensOf({
-                projectId: victimProjectId,
-                tokenCount: 1_000_000e18,
-                beneficiary: address(CT_DEPLOYER),
-                memo: "collusion attempt",
-                useReservedPercent: false
-            });
+            projectId: victimProjectId,
+            tokenCount: 1_000_000e18,
+            beneficiary: address(CT_DEPLOYER),
+            memo: "collusion attempt",
+            useReservedPercent: false
+        });
     }
 
     /// @notice Prove that even if all three singletons pool their permissions, they cannot
@@ -646,13 +483,13 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Attempt to set ROOT for REVDeployer on the victim's account.
         jbPermissions()
             .setPermissionsFor({
-                account: VICTIM_OWNER,
-                permissionsData: JBPermissionsData({
-                    operator: address(REV_DEPLOYER),
-                    projectId: uint64(victimProjectId), // cast to uint64 for JBPermissionsData
-                    permissionIds: rootPermission
-                })
-            });
+            account: VICTIM_OWNER,
+            permissionsData: JBPermissionsData({
+            operator: address(REV_DEPLOYER),
+            projectId: uint64(victimProjectId), // cast to uint64 for JBPermissionsData
+            permissionIds: rootPermission
+        })
+        });
     }
 
     /// @notice Prove that a singleton cannot set wildcard permissions on the victim's account,
@@ -673,13 +510,13 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Attempt to set wildcard MINT_TOKENS for REVDeployer on the victim's account.
         jbPermissions()
             .setPermissionsFor({
-                account: VICTIM_OWNER,
-                permissionsData: JBPermissionsData({
-                    operator: address(REV_DEPLOYER),
-                    projectId: 0, // wildcard
-                    permissionIds: mintPermission
-                })
-            });
+            account: VICTIM_OWNER,
+            permissionsData: JBPermissionsData({
+            operator: address(REV_DEPLOYER),
+            projectId: 0, // wildcard
+            permissionIds: mintPermission
+        })
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -744,51 +581,51 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // This is a legitimate wildcard permission that should work.
         bool loansHasAllowance = jbPermissions()
             .hasPermission({
-                operator: address(LOANS_CONTRACT),
-                account: address(REV_DEPLOYER),
-                projectId: revnetId,
-                permissionId: JBPermissionIds.USE_ALLOWANCE,
-                includeRoot: false,
-                includeWildcardProjectId: true // check wildcard
-            });
+            operator: address(LOANS_CONTRACT),
+            account: address(REV_DEPLOYER),
+            projectId: revnetId,
+            permissionId: JBPermissionIds.USE_ALLOWANCE,
+            includeRoot: false,
+            includeWildcardProjectId: true // check wildcard
+        });
         // Assert the loans contract has USE_ALLOWANCE via wildcard.
         assertTrue(loansHasAllowance, "LOANS should have USE_ALLOWANCE on REV_DEPLOYER's account via wildcard");
 
         // ── Verify the SUCKER_REGISTRY has MAP_SUCKER_TOKEN wildcard on REVDeployer's account ──
         bool registryHasMapToken = jbPermissions()
             .hasPermission({
-                operator: address(SUCKER_REGISTRY),
-                account: address(REV_DEPLOYER),
-                projectId: revnetId,
-                permissionId: JBPermissionIds.MAP_SUCKER_TOKEN,
-                includeRoot: false,
-                includeWildcardProjectId: true // check wildcard
-            });
+            operator: address(SUCKER_REGISTRY),
+            account: address(REV_DEPLOYER),
+            projectId: revnetId,
+            permissionId: JBPermissionIds.MAP_SUCKER_TOKEN,
+            includeRoot: false,
+            includeWildcardProjectId: true // check wildcard
+        });
         // Assert the sucker registry has MAP_SUCKER_TOKEN via wildcard.
         assertTrue(registryHasMapToken, "SUCKER_REGISTRY should have MAP_SUCKER_TOKEN via wildcard");
 
         // ── Verify NONE of these singletons have permissions on the VICTIM project ──
         bool loansOnVictim = jbPermissions()
             .hasPermission({
-                operator: address(LOANS_CONTRACT),
-                account: VICTIM_OWNER,
-                projectId: victimProjectId,
-                permissionId: JBPermissionIds.USE_ALLOWANCE,
-                includeRoot: true,
-                includeWildcardProjectId: true
-            });
+            operator: address(LOANS_CONTRACT),
+            account: VICTIM_OWNER,
+            projectId: victimProjectId,
+            permissionId: JBPermissionIds.USE_ALLOWANCE,
+            includeRoot: true,
+            includeWildcardProjectId: true
+        });
         // Assert the loans contract has NO permissions on the victim project.
         assertFalse(loansOnVictim, "LOANS should NOT have USE_ALLOWANCE on victim project");
 
         bool revDeployerOnVictim = jbPermissions()
             .hasPermission({
-                operator: address(REV_DEPLOYER),
-                account: VICTIM_OWNER,
-                projectId: victimProjectId,
-                permissionId: JBPermissionIds.MINT_TOKENS,
-                includeRoot: true,
-                includeWildcardProjectId: true
-            });
+            operator: address(REV_DEPLOYER),
+            account: VICTIM_OWNER,
+            projectId: victimProjectId,
+            permissionId: JBPermissionIds.MINT_TOKENS,
+            includeRoot: true,
+            includeWildcardProjectId: true
+        });
         // Assert REVDeployer has NO permissions on the victim project.
         assertFalse(revDeployerOnVictim, "REV_DEPLOYER should NOT have MINT_TOKENS on victim project");
     }
@@ -821,13 +658,13 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // An attacker tries to set ROOT wildcard on REVDeployer's account.
         jbPermissions()
             .setPermissionsFor({
-                account: address(REV_DEPLOYER),
-                permissionsData: JBPermissionsData({
-                    operator: ATTACKER,
-                    projectId: 0, // wildcard
-                    permissionIds: rootPermission
-                })
-            });
+            account: address(REV_DEPLOYER),
+            permissionsData: JBPermissionsData({
+            operator: ATTACKER,
+            projectId: 0, // wildcard
+            permissionIds: rootPermission
+        })
+        });
     }
 
     /// @notice Verify that a third-party attacker cannot set ANY permissions on a singleton's
@@ -849,12 +686,12 @@ contract WildcardPermissionKillChain is TestBaseWorkflow {
         // Attempt to add MINT_TOKENS wildcard on REVDeployer's account from an attacker.
         jbPermissions()
             .setPermissionsFor({
-                account: address(REV_DEPLOYER),
-                permissionsData: JBPermissionsData({
-                    operator: ATTACKER,
-                    projectId: 0, // wildcard
-                    permissionIds: mintPermission
-                })
-            });
+            account: address(REV_DEPLOYER),
+            permissionsData: JBPermissionsData({
+            operator: ATTACKER,
+            projectId: 0, // wildcard
+            permissionIds: mintPermission
+        })
+        });
     }
 }

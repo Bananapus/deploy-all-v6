@@ -15,7 +15,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
 
         // Deploy revnet with 721 + LP split, 70% cashout tax, 20% reserved.
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
+            _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
@@ -41,14 +41,14 @@ contract HookCompositionForkTest is EcosystemForkTest {
         vm.prank(PAYER);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         // Fee project balance should have increased (2.5% fee on cashout).
         uint256 feeBalanceAfter = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
@@ -70,7 +70,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
 
         // Deploy revnet with 70% cashout tax.
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
+            _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
@@ -85,14 +85,14 @@ contract HookCompositionForkTest is EcosystemForkTest {
         vm.prank(BORROWER);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: BORROWER,
-                projectId: revnetId,
-                cashOutCount: borrowerTokens / 4,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(BORROWER),
-                metadata: ""
-            });
+            holder: BORROWER,
+            projectId: revnetId,
+            cashOutCount: borrowerTokens / 4,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(BORROWER),
+            metadata: ""
+        });
         uint256 feeAfterNormalCashout = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
         assertGt(feeAfterNormalCashout, 0, "normal cashout should accrue fees");
 
@@ -114,14 +114,14 @@ contract HookCompositionForkTest is EcosystemForkTest {
         vm.prank(PAYER);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         // Main assertion: cashout succeeded (try-catch worked).
         assertGt(PAYER.balance, payerEthBefore, "payer should receive ETH despite fee terminal revert");
@@ -145,7 +145,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         _deployFeeProject(5000);
 
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
+            _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
@@ -162,7 +162,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
 
         // Now pay WITH tier metadata - 30% split reduces weight.
         address metadataTarget = hook.METADATA_ID_TARGET();
-        bytes memory metadata = _buildPayMetadataWithTier(metadataTarget);
+        bytes memory metadata = _buildPayMetadataNoQuote(metadataTarget);
 
         vm.prank(PAYER);
         uint256 tokensWithTier = jbMultiTerminal().pay{value: 1 ether}({
@@ -197,7 +197,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         _deployFeeProject(5000);
 
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildTwoStageConfigWithLPSplit(7000, 2000, 2000);
+            _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
@@ -226,14 +226,14 @@ contract HookCompositionForkTest is EcosystemForkTest {
         vm.prank(PAYER);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         assertGt(PAYER.balance, payerEthBefore, "inv: payer received ETH from cashout");
 
@@ -256,14 +256,14 @@ contract HookCompositionForkTest is EcosystemForkTest {
             vm.prank(BORROWER);
             jbMultiTerminal()
                 .cashOutTokensOf({
-                    holder: BORROWER,
-                    projectId: revnetId,
-                    cashOutCount: borrowerTokens / 2,
-                    tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                    minTokensReclaimed: 0,
-                    beneficiary: payable(BORROWER),
-                    metadata: ""
-                });
+                holder: BORROWER,
+                projectId: revnetId,
+                cashOutCount: borrowerTokens / 2,
+                tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                minTokensReclaimed: 0,
+                beneficiary: payable(BORROWER),
+                metadata: ""
+            });
             assertGt(BORROWER.balance, borrowerEthBefore, "inv: borrower received ETH");
 
             feeBalanceNow = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
@@ -272,7 +272,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         }
 
         // 5. Set up buyback pool and verify post-AMM pay works.
-        _setupBuybackPool(revnetId, 10_000 ether);
+        _setupNativePool(revnetId, 10_000 ether);
 
         address payer2 = makeAddr("payer2");
         vm.deal(payer2, 10 ether);
@@ -294,7 +294,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
 
         // Deploy revnet with 0% cashout tax (both stages).
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildTwoStageConfigWithLPSplit(0, 0, 2000);
+            _buildTwoStageNativeConfigWithLPSplit(0, 0, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
@@ -315,14 +315,14 @@ contract HookCompositionForkTest is EcosystemForkTest {
         vm.prank(PAYER);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         // Payer should receive ETH (full pro-rata with 0% tax).
         assertGt(PAYER.balance, payerEthBefore, "should receive ETH from 0% tax cashout");

@@ -107,9 +107,6 @@ contract BaseChainForkTest is TestBaseWorkflow {
     // Address that pays into the revnet.
     address PAYER = makeAddr("basePayer");
 
-    // Address that receives payout splits.
-    address SPLIT_BENEFICIARY = makeAddr("baseSplitBeneficiary");
-
     // Trusted forwarder for ERC-2771 meta-transactions (Base mainnet).
     address private constant TRUSTED_FORWARDER = 0xB2b5841DBeF766d4b521221732F9B618fCf34A87;
 
@@ -470,14 +467,14 @@ contract BaseChainForkTest is TestBaseWorkflow {
         vm.prank(PAYER);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER, // The token holder cashing out.
-                projectId: revnetId, // The project to cash out from.
-                cashOutCount: payerTokens, // Cash out all tokens.
-                tokenToReclaim: JBConstants.NATIVE_TOKEN, // Reclaim native ETH.
-                minTokensReclaimed: 0, // Accept any reclaim amount.
-                beneficiary: payable(PAYER), // ETH goes back to PAYER.
-                metadata: "" // No metadata.
-            });
+            holder: PAYER, // The token holder cashing out.
+            projectId: revnetId, // The project to cash out from.
+            cashOutCount: payerTokens, // Cash out all tokens.
+            tokenToReclaim: JBConstants.NATIVE_TOKEN, // Reclaim native ETH.
+            minTokensReclaimed: 0, // Accept any reclaim amount.
+            beneficiary: payable(PAYER), // ETH goes back to PAYER.
+            metadata: "" // No metadata.
+        });
 
         // PAYER should receive some ETH (less than deposited due to tax + fees).
         uint256 ethReceived = PAYER.balance - payerEthBefore;

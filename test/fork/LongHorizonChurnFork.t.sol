@@ -86,8 +86,6 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
 
     // ── Tracking state for invariant checks ──
     uint256 prevFeeProjectBalance; // fee project balance from the previous cycle
-    uint256 totalTokensMintedA; // cumulative tokens minted for Project A (approximate)
-    uint256 totalTokensBurnedA; // cumulative tokens burned from Project A cash-outs
 
     /// @notice Accept ETH returns from cash-outs.
     receive() external payable {}
@@ -165,7 +163,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
             // (a) Pay into Project A with varying amounts.
             uint256 payAmount = 2 ether + (cycle * 0.5 ether); // increase payment each cycle
             vm.prank(PAYER); // pay as PAYER
-            uint256 tokensReceived = jbMultiTerminal().pay{value: payAmount}({
+            jbMultiTerminal().pay{value: payAmount}({
                 projectId: projectA,
                 token: JBConstants.NATIVE_TOKEN,
                 amount: payAmount,
@@ -174,12 +172,11 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
                 memo: "churn pay",
                 metadata: ""
             });
-            totalTokensMintedA += tokensReceived; // track cumulative mints
 
             // Also have PAYER2 pay a smaller amount for bonding curve dynamics.
             uint256 pay2Amount = 1 ether; // constant 1 ETH from second payer
             vm.prank(PAYER2); // pay as PAYER2
-            uint256 tokens2 = jbMultiTerminal().pay{value: pay2Amount}({
+            jbMultiTerminal().pay{value: pay2Amount}({
                 projectId: projectA,
                 token: JBConstants.NATIVE_TOKEN,
                 amount: pay2Amount,
@@ -188,19 +185,18 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
                 memo: "churn pay2",
                 metadata: ""
             });
-            totalTokensMintedA += tokens2; // track cumulative mints
 
             // (b) Execute payouts from A -> B (cross-project split).
             // The payout limit resets each cycle, so we can pay out up to PAYOUT_LIMIT_ETH.
             uint256 projectBBalanceBefore = _terminalBalance(projectB, JBConstants.NATIVE_TOKEN); // record B's balance
             jbMultiTerminal()
                 .sendPayoutsOf({
-                    projectId: projectA,
-                    token: JBConstants.NATIVE_TOKEN,
-                    amount: PAYOUT_LIMIT_ETH,
-                    currency: uint256(nativeCurrency),
-                    minTokensPaidOut: 0
-                }); // send payouts from A
+                projectId: projectA,
+                token: JBConstants.NATIVE_TOKEN,
+                amount: PAYOUT_LIMIT_ETH,
+                currency: uint256(nativeCurrency),
+                minTokensPaidOut: 0
+            }); // send payouts from A
             uint256 projectBBalanceAfter = _terminalBalance(projectB, JBConstants.NATIVE_TOKEN); // check B's balance
             // Verify Project B received funds from the payout (minus fees).
             assertGt(
@@ -225,15 +221,14 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
                     vm.prank(PAYER); // cash out as PAYER
                     jbMultiTerminal()
                         .cashOutTokensOf({
-                            holder: PAYER,
-                            projectId: projectA,
-                            cashOutCount: cashOutCount,
-                            tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                            minTokensReclaimed: 0,
-                            beneficiary: payable(PAYER),
-                            metadata: ""
-                        }); // execute the cash out
-                    totalTokensBurnedA += cashOutCount; // track cumulative burns
+                        holder: PAYER,
+                        projectId: projectA,
+                        cashOutCount: cashOutCount,
+                        tokenToReclaim: JBConstants.NATIVE_TOKEN,
+                        minTokensReclaimed: 0,
+                        beneficiary: payable(PAYER),
+                        metadata: ""
+                    }); // execute the cash out
                 }
             }
 
@@ -443,12 +438,12 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
         // Launch the project.
         id = jbController()
             .launchProjectFor({
-                owner: address(this), // test contract owns the project
-                projectUri: string.concat("ipfs://", name), // project metadata URI
-                rulesetConfigurations: rulesets, // initial rulesets
-                terminalConfigurations: tc, // terminal setup
-                memo: string.concat("launch ", name) // launch memo
-            });
+            owner: address(this), // test contract owns the project
+            projectUri: string.concat("ipfs://", name), // project metadata URI
+            rulesetConfigurations: rulesets, // initial rulesets
+            terminalConfigurations: tc, // terminal setup
+            memo: string.concat("launch ", name) // launch memo
+        });
     }
 
     /// @notice Launches Project A with:
@@ -481,12 +476,12 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
         // Launch the project.
         id = jbController()
             .launchProjectFor({
-                owner: address(this), // test contract owns the project
-                projectUri: "ipfs://projectA", // project metadata URI
-                rulesetConfigurations: rulesets, // initial rulesets
-                terminalConfigurations: tc, // terminal setup
-                memo: "launch Project A" // launch memo
-            });
+            owner: address(this), // test contract owns the project
+            projectUri: "ipfs://projectA", // project metadata URI
+            rulesetConfigurations: rulesets, // initial rulesets
+            terminalConfigurations: tc, // terminal setup
+            memo: "launch Project A" // launch memo
+        });
     }
 
     /// @notice Builds the ruleset config for Project A with all features enabled.
@@ -659,9 +654,9 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
         // Queue the ruleset (it will start after the current ruleset's duration ends).
         jbController()
             .queueRulesetsOf({
-                projectId: _projectId, // for Project A
-                rulesetConfigurations: rulesets, // the new ruleset
-                memo: "queue ruleset with 721 hook" // memo
-            });
+            projectId: _projectId, // for Project A
+            rulesetConfigurations: rulesets, // the new ruleset
+            memo: "queue ruleset with 721 hook" // memo
+        });
     }
 }

@@ -167,12 +167,12 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
 
         return jbController()
             .launchProjectFor({
-                owner: PROJECT_OWNER,
-                projectUri: "test://sucker-e2e",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: tc,
-                memo: ""
-            });
+            owner: PROJECT_OWNER,
+            projectUri: "test://sucker-e2e",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: tc,
+            memo: ""
+        });
     }
 
     function _grantPermission(address from, address operator, uint256 _projectId, uint8 permissionId) internal {
@@ -265,11 +265,11 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         vm.prank(PAYER);
         IJBSucker(suckerAddr)
             .prepare({
-                projectTokenCount: prepareCount,
-                beneficiary: remoteBeneficiary,
-                minTokensReclaimed: 0,
-                token: JBConstants.NATIVE_TOKEN
-            });
+            projectTokenCount: prepareCount,
+            beneficiary: remoteBeneficiary,
+            minTokensReclaimed: 0,
+            token: JBConstants.NATIVE_TOKEN
+        });
 
         // Tokens should have been transferred from payer.
         uint256 payerTokensAfter = IERC20(projectToken).balanceOf(PAYER);
@@ -335,11 +335,11 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         vm.expectRevert(JBSucker.JBSucker_Deprecated.selector);
         IJBSucker(suckerAddr)
             .prepare({
-                projectTokenCount: tokens / 2,
-                beneficiary: bytes32(uint256(uint160(PAYER))),
-                minTokensReclaimed: 0,
-                token: JBConstants.NATIVE_TOKEN
-            });
+            projectTokenCount: tokens / 2,
+            beneficiary: bytes32(uint256(uint160(PAYER))),
+            minTokensReclaimed: 0,
+            token: JBConstants.NATIVE_TOKEN
+        });
     }
 
     /// @notice Emergency hatch enables local exit when bridging is unavailable.
@@ -361,11 +361,11 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         vm.prank(PAYER);
         IJBSucker(suckerAddr)
             .prepare({
-                projectTokenCount: prepareCount,
-                beneficiary: remoteBeneficiary,
-                minTokensReclaimed: 0,
-                token: JBConstants.NATIVE_TOKEN
-            });
+            projectTokenCount: prepareCount,
+            beneficiary: remoteBeneficiary,
+            minTokensReclaimed: 0,
+            token: JBConstants.NATIVE_TOKEN
+        });
 
         // Grant SUCKER_SAFETY permission to project owner.
         _grantPermission(PROJECT_OWNER, PROJECT_OWNER, projectId, JBPermissionIds.SUCKER_SAFETY);
@@ -383,10 +383,10 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         vm.expectRevert();
         IJBSucker(suckerAddr)
             .prepare({
-                projectTokenCount: 1e18,
-                beneficiary: remoteBeneficiary,
-                minTokensReclaimed: 0,
-                token: JBConstants.NATIVE_TOKEN
-            });
+            projectTokenCount: 1e18,
+            beneficiary: remoteBeneficiary,
+            minTokensReclaimed: 0,
+            token: JBConstants.NATIVE_TOKEN
+        });
     }
 }

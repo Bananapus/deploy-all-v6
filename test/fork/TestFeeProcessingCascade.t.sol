@@ -15,56 +15,20 @@ import {JBCurrencyAmount} from "@bananapus/core-v6/src/structs/JBCurrencyAmount.
 import {JBRulesetConfig} from "@bananapus/core-v6/src/structs/JBRulesetConfig.sol";
 import {JBRulesetMetadata} from "@bananapus/core-v6/src/structs/JBRulesetMetadata.sol";
 import {JBSplitGroup} from "@bananapus/core-v6/src/structs/JBSplitGroup.sol";
-import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBRulesetApprovalHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetApprovalHook.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
-import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 import {IJBFeeTerminal} from "@bananapus/core-v6/src/interfaces/IJBFeeTerminal.sol";
 import {JBFees} from "@bananapus/core-v6/src/libraries/JBFees.sol";
 
-// 721 Hook
-import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
-import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
-import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
-import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
-import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
-
-// Address Registry
-import {JBAddressRegistry} from "@bananapus/address-registry-v6/src/JBAddressRegistry.sol";
-import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
-
-// Buyback Hook
-import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
-import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
-import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
-import {IGeomeanOracle} from "@bananapus/buyback-hook-v6/src/interfaces/IGeomeanOracle.sol";
-
-// Suckers
-import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
-import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
-import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
-
-// Croptop
-import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
-
 // Revnet
-import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
-import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
-import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
-import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
-import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
 import {REVStageConfig, REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
 import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
+import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 
-// Uniswap V4
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+// Base
+import {RevnetForkBase} from "../helpers/RevnetForkBase.sol";
 
 /// @notice Fee processing cascade fork test.
 ///
@@ -73,124 +37,26 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// fee processing succeeds and when it encounters edge cases.
 ///
 /// Run with: forge test --match-contract TestFeeProcessingCascade -vvv
-contract TestFeeProcessingCascade is TestBaseWorkflow {
-    // -- Mainnet addresses
-    address constant POOL_MANAGER_ADDR = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-
-    // -- Test parameters
-    uint112 constant INITIAL_ISSUANCE = uint112(1000e18);
-
+contract TestFeeProcessingCascade is RevnetForkBase {
     // -- Actors
-    address PAYER = makeAddr("fee_payer");
     address PAYER2 = makeAddr("fee_payer2");
 
-    address private constant TRUSTED_FORWARDER = 0xB2b5841DBeF766d4b521221732F9B618fCf34A87;
-
-    // -- Ecosystem contracts
-    IPoolManager poolManager;
-
-    uint256 FEE_PROJECT_ID;
-    JBSuckerRegistry SUCKER_REGISTRY;
-    IJB721TiersHookStore HOOK_STORE;
-    JB721TiersHook EXAMPLE_HOOK;
-    IJBAddressRegistry ADDRESS_REGISTRY;
-    IJB721TiersHookDeployer HOOK_DEPLOYER;
-    CTPublisher PUBLISHER;
-    JBBuybackHook BUYBACK_HOOK;
-    JBBuybackHookRegistry BUYBACK_REGISTRY;
-    IREVLoans LOANS_CONTRACT;
-    REVOwner REV_OWNER;
-    REVDeployer REV_DEPLOYER;
-
-    receive() external payable {}
+    function _deployerSalt() internal pure override returns (bytes32) {
+        return "REVDeployer_Fee";
+    }
 
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return this.onERC721Received.selector;
     }
 
     function setUp() public override {
-        vm.createSelectFork("ethereum", 21_700_000);
-        require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed");
-
         super.setUp();
-
-        poolManager = IPoolManager(POOL_MANAGER_ADDR);
-
-        FEE_PROJECT_ID = jbProjects().createFor(multisig());
-
-        SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
-        HOOK_STORE = new JB721TiersHookStore();
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
-        EXAMPLE_HOOK = new JB721TiersHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbRulesets(),
-            HOOK_STORE,
-            jbSplits(),
-            checkpointsDeployer,
-            multisig()
-        );
-        ADDRESS_REGISTRY = new JBAddressRegistry();
-        HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
-        PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
-
-        BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbProjects(),
-            jbTokens(),
-            poolManager,
-            IHooks(address(0)),
-            address(0)
-        );
-
-        BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
-        BUYBACK_REGISTRY.setDefaultHook(IJBRulesetDataHook(address(BUYBACK_HOOK)));
-
-        LOANS_CONTRACT = new REVLoans({
-            controller: jbController(),
-            suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
-            revId: FEE_PROJECT_ID,
-            owner: address(this),
-            permit2: permit2(),
-            trustedForwarder: TRUSTED_FORWARDER
-        });
-
-        // Deploy REVHiddenTokens.
-        REVHiddenTokens revHiddenTokens = new REVHiddenTokens(jbController(), TRUSTED_FORWARDER);
-
-        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
-        REV_OWNER = new REVOwner(
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            jbDirectory(),
-            FEE_PROJECT_ID,
-            SUCKER_REGISTRY,
-            address(LOANS_CONTRACT),
-            address(revHiddenTokens)
-        );
-
-        REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_Fee"}(
-            jbController(),
-            SUCKER_REGISTRY,
-            FEE_PROJECT_ID,
-            HOOK_DEPLOYER,
-            PUBLISHER,
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER,
-            address(REV_OWNER)
-        );
-        REV_OWNER.setDeployer(IREVDeployer(address(REV_DEPLOYER)));
-
-        vm.prank(multisig());
-        jbProjects().approve(address(REV_DEPLOYER), FEE_PROJECT_ID);
 
         // Mock geomean oracle.
         _mockOracle(1, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
 
-        // Fund actors.
+        // Re-assign PAYER with fee-specific label and fund actors.
+        PAYER = makeAddr("fee_payer");
         vm.deal(PAYER, 200 ether);
         vm.deal(PAYER2, 100 ether);
     }
@@ -198,71 +64,6 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
     // ===================================================================
     //  Helpers
     // ===================================================================
-
-    function _mockOracle(int256 liquidity, int24 tick, uint32 twapWindow) internal {
-        vm.etch(address(0), hex"00");
-
-        int56[] memory tickCumulatives = new int56[](2);
-        tickCumulatives[0] = 0;
-        // forge-lint: disable-next-line(unsafe-typecast)
-        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow)); // safe: twapWindow fits int32
-
-        uint136[] memory secondsPerLiquidityCumulativeX128s = new uint136[](2);
-        secondsPerLiquidityCumulativeX128s[0] = 0;
-        uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
-        if (liq == 0) liq = 1;
-        // forge-lint: disable-next-line(unsafe-typecast)
-        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq); // safe: result fits
-        // uint136
-
-        vm.mockCall(
-            address(0),
-            abi.encodeWithSelector(IGeomeanOracle.observe.selector),
-            abi.encode(tickCumulatives, secondsPerLiquidityCumulativeX128s)
-        );
-    }
-
-    function _deployFeeProject(uint16 cashOutTaxRate) internal {
-        JBAccountingContext[] memory acc = new JBAccountingContext[](1);
-        acc[0] = JBAccountingContext({
-            token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
-        });
-        JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
-
-        JBSplit[] memory splits = new JBSplit[](1);
-        splits[0].beneficiary = payable(multisig());
-        splits[0].percent = 10_000;
-
-        REVStageConfig[] memory stages = new REVStageConfig[](1);
-        stages[0] = REVStageConfig({
-            startsAtOrAfter: uint40(block.timestamp),
-            autoIssuances: new REVAutoIssuance[](0),
-            splitPercent: 0,
-            splits: splits,
-            initialIssuance: INITIAL_ISSUANCE,
-            issuanceCutFrequency: 0,
-            issuanceCutPercent: 0,
-            cashOutTaxRate: cashOutTaxRate,
-            extraMetadata: 0
-        });
-
-        REVConfig memory cfg = REVConfig({
-            description: REVDescription("Fee", "FEE", "ipfs://fee", "FEE_FPC"),
-            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            splitOperator: multisig(),
-            stageConfigurations: stages
-        });
-
-        REVSuckerDeploymentConfig memory sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("FEE_FPC"))
-        });
-
-        vm.prank(multisig());
-        REV_DEPLOYER.deployFor({
-            revnetId: FEE_PROJECT_ID, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
-        });
-    }
 
     /// @notice Launch a project with holdFees enabled for testing fee lifecycle.
     function _launchHeldFeeProject() internal returns (uint256 projectId) {
@@ -333,16 +134,12 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
 
         projectId = jbController()
             .launchProjectFor({
-                owner: address(this),
-                projectUri: "ipfs://fee-held",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: tc,
-                memo: ""
-            });
-    }
-
-    function _terminalBalance(uint256 projectId, address token) internal view returns (uint256) {
-        return jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, token);
+            owner: address(this),
+            projectUri: "ipfs://fee-held",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: tc,
+            memo: ""
+        });
     }
 
     // ===================================================================
@@ -372,12 +169,12 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
 
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 5 ether,
-                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 5 ether,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            minTokensPaidOut: 0
+        });
 
         // Fee = 5 ETH * 25/1000 = 0.125 ETH should be held.
         // Since holdFees is true, fee project balance should NOT increase yet.
@@ -501,14 +298,14 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         vm.prank(PAYER);
         uint256 reclaimed = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: payerTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: payerTokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         assertGt(reclaimed, 0, "should reclaim some ETH");
 
@@ -539,12 +336,12 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         // Send payouts of 5 ETH. Fees held (~0.125 ETH).
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 5 ether,
-                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 5 ether,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            minTokensPaidOut: 0
+        });
 
         // Verify held fees exist.
         JBFee[] memory heldFees = jbMultiTerminal().heldFeesOf(projectId, JBConstants.NATIVE_TOKEN, 10);
@@ -646,12 +443,12 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
 
         uint256 projectId = jbController()
             .launchProjectFor({
-                owner: address(this),
-                projectUri: "ipfs://multi-fee",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: tc,
-                memo: ""
-            });
+            owner: address(this),
+            projectUri: "ipfs://multi-fee",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: tc,
+            memo: ""
+        });
 
         // Pay 100 ETH.
         vm.prank(PAYER);
@@ -668,12 +465,12 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         // Send first payout of 5 ETH (creates first held fee).
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 5 ether,
-                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 5 ether,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            minTokensPaidOut: 0
+        });
 
         // Advance time by 1 day.
         vm.warp(block.timestamp + 1 days);
@@ -681,12 +478,12 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
         // Send second payout of 3 ETH (creates second held fee with later unlock).
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 3 ether,
-                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 3 ether,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            minTokensPaidOut: 0
+        });
 
         // Check we have 2 held fees.
         JBFee[] memory heldFees = jbMultiTerminal().heldFeesOf(projectId, JBConstants.NATIVE_TOKEN, 10);
@@ -802,12 +599,12 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
 
         uint256 projectId = jbController()
             .launchProjectFor({
-                owner: address(this),
-                projectUri: "ipfs://fee-revert-test",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: tc,
-                memo: ""
-            });
+            owner: address(this),
+            projectUri: "ipfs://fee-revert-test",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: tc,
+            memo: ""
+        });
 
         // 3. Fund project 2 with 10 ETH.
         vm.prank(PAYER);
@@ -854,12 +651,12 @@ contract TestFeeProcessingCascade is TestBaseWorkflow {
 
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 5 ether,
-                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 5 ether,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            minTokensPaidOut: 0
+        });
 
         // Clear the mock so subsequent calls work normally.
         vm.clearMockedCalls();

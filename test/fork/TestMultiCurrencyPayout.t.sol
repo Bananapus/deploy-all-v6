@@ -6,8 +6,6 @@ import /* {*} from */ "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
 
 // Core
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
-import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
-import {JBFixedPointNumber} from "@bananapus/core-v6/src/libraries/JBFixedPointNumber.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {JBFundAccessLimitGroup} from "@bananapus/core-v6/src/structs/JBFundAccessLimitGroup.sol";
 import {JBCurrencyAmount} from "@bananapus/core-v6/src/structs/JBCurrencyAmount.sol";
@@ -18,81 +16,21 @@ import {JBTerminalConfig} from "@bananapus/core-v6/src/structs/JBTerminalConfig.
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 import {IJBPriceFeed} from "@bananapus/core-v6/src/interfaces/IJBPriceFeed.sol";
 import {IJBRulesetApprovalHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetApprovalHook.sol";
-import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 
-// 721 Hook
-import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
-import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
-import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
-import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
-import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
-
-// Address Registry
-import {JBAddressRegistry} from "@bananapus/address-registry-v6/src/JBAddressRegistry.sol";
-import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
-
-// Buyback Hook
-import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
-import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
-import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
-import {IGeomeanOracle} from "@bananapus/buyback-hook-v6/src/interfaces/IGeomeanOracle.sol";
-
-// Suckers
-import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
-import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
-import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
-
-// Croptop
-import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
-
 // Revnet
-import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
-import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
-import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
-import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
-import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
 import {REVStageConfig, REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
 import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
+import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 
-// Uniswap V4
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// @notice Mock USDC token with 6 decimals.
-contract MCPMockUSDC is ERC20 {
-    constructor() ERC20("Mock USDC", "USDC") {}
-
-    function decimals() public pure override returns (uint8) {
-        return 6;
-    }
-
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
-    }
-}
-
-/// @notice Mock price feed returning a fixed price.
-contract MCPMockPriceFeed is IJBPriceFeed {
-    uint256 public immutable PRICE;
-    uint8 public immutable FEED_DECIMALS;
-
-    constructor(uint256 price, uint8 dec) {
-        PRICE = price;
-        FEED_DECIMALS = dec;
-    }
-
-    function currentUnitPrice(uint256 decimals) external view override returns (uint256) {
-        return JBFixedPointNumber.adjustDecimals(PRICE, FEED_DECIMALS, decimals);
-    }
-}
+// Base and shared helpers.
+import {RevnetForkBase} from "../helpers/RevnetForkBase.sol";
+import {MockERC20Token} from "../helpers/MockTokens.sol";
+import {MockPriceFeed} from "../helpers/MockPriceFeed.sol";
 
 /// @notice Multi-currency payout fork test with Chainlink price conversion.
 ///
@@ -100,144 +38,48 @@ contract MCPMockPriceFeed is IJBPriceFeed {
 /// payouts with USD limits. Verifies price conversion consistency across JBPrices.
 ///
 /// Run with: forge test --match-contract TestMultiCurrencyPayout -vvv
-contract TestMultiCurrencyPayout is TestBaseWorkflow {
-    // -- Mainnet addresses
-    address constant POOL_MANAGER_ADDR = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-
-    // -- Test parameters
-    uint112 constant INITIAL_ISSUANCE = uint112(1000e18);
-
+contract TestMultiCurrencyPayout is RevnetForkBase {
     // -- Currency constants
     uint32 constant USD = 2; // JBCurrencyIds.USD
 
     // -- Actors
-    address PAYER = makeAddr("mcp_payer");
     address SPLIT_RECIPIENT = makeAddr("mcp_splitRecipient");
 
-    address private constant TRUSTED_FORWARDER = 0xB2b5841DBeF766d4b521221732F9B618fCf34A87;
-
     // -- Ecosystem contracts
-    IPoolManager poolManager;
-    MCPMockUSDC usdc;
-
-    uint256 FEE_PROJECT_ID;
-    JBSuckerRegistry SUCKER_REGISTRY;
-    IJB721TiersHookStore HOOK_STORE;
-    JB721TiersHook EXAMPLE_HOOK;
-    IJBAddressRegistry ADDRESS_REGISTRY;
-    IJB721TiersHookDeployer HOOK_DEPLOYER;
-    CTPublisher PUBLISHER;
-    JBBuybackHook BUYBACK_HOOK;
-    JBBuybackHookRegistry BUYBACK_REGISTRY;
-    IREVLoans LOANS_CONTRACT;
-    REVOwner REV_OWNER;
-    REVDeployer REV_DEPLOYER;
+    MockERC20Token usdc;
 
     // Currency helpers
     uint32 nativeCurrency;
     uint32 usdcCurrency;
 
-    receive() external payable {}
+    function _deployerSalt() internal pure override returns (bytes32) {
+        return "REVDeployer_MultiPayout";
+    }
 
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return this.onERC721Received.selector;
     }
 
     function setUp() public override {
-        vm.createSelectFork("ethereum", 21_700_000);
-        require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed");
-
         super.setUp();
 
-        poolManager = IPoolManager(POOL_MANAGER_ADDR);
-        usdc = new MCPMockUSDC();
+        usdc = new MockERC20Token("Mock USDC", "USDC", 6);
         nativeCurrency = uint32(uint160(JBConstants.NATIVE_TOKEN));
         usdcCurrency = uint32(uint160(address(usdc)));
-
-        FEE_PROJECT_ID = jbProjects().createFor(multisig());
-
-        SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
-        HOOK_STORE = new JB721TiersHookStore();
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
-        EXAMPLE_HOOK = new JB721TiersHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbRulesets(),
-            HOOK_STORE,
-            jbSplits(),
-            checkpointsDeployer,
-            multisig()
-        );
-        ADDRESS_REGISTRY = new JBAddressRegistry();
-        HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
-        PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
-
-        BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbProjects(),
-            jbTokens(),
-            poolManager,
-            IHooks(address(0)),
-            address(0)
-        );
-
-        BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
-        BUYBACK_REGISTRY.setDefaultHook(IJBRulesetDataHook(address(BUYBACK_HOOK)));
-
-        LOANS_CONTRACT = new REVLoans({
-            controller: jbController(),
-            suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
-            revId: FEE_PROJECT_ID,
-            owner: address(this),
-            permit2: permit2(),
-            trustedForwarder: TRUSTED_FORWARDER
-        });
-
-        // Deploy REVHiddenTokens.
-        REVHiddenTokens revHiddenTokens = new REVHiddenTokens(jbController(), TRUSTED_FORWARDER);
-
-        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
-        REV_OWNER = new REVOwner(
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            jbDirectory(),
-            FEE_PROJECT_ID,
-            SUCKER_REGISTRY,
-            address(LOANS_CONTRACT),
-            address(revHiddenTokens)
-        );
-
-        REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_MCP"}(
-            jbController(),
-            SUCKER_REGISTRY,
-            FEE_PROJECT_ID,
-            HOOK_DEPLOYER,
-            PUBLISHER,
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER,
-            address(REV_OWNER)
-        );
-        REV_OWNER.setDeployer(IREVDeployer(address(REV_DEPLOYER)));
-
-        vm.prank(multisig());
-        jbProjects().approve(address(REV_DEPLOYER), FEE_PROJECT_ID);
 
         // Mock geomean oracle so payments work.
         _mockOracle(1, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
 
         // Register price feeds: ETH/USD = 2000, USDC/USD = 1.
-        MCPMockPriceFeed ethUsdFeed = new MCPMockPriceFeed(2000e18, 18);
+        MockPriceFeed ethUsdFeed = new MockPriceFeed(2000e18, 18);
         vm.prank(multisig());
         jbPrices().addPriceFeedFor(0, USD, nativeCurrency, IJBPriceFeed(address(ethUsdFeed)));
 
-        MCPMockPriceFeed usdcUsdFeed = new MCPMockPriceFeed(1e6, 6);
+        MockPriceFeed usdcUsdFeed = new MockPriceFeed(1e6, 6);
         vm.prank(multisig());
         jbPrices().addPriceFeedFor(0, USD, usdcCurrency, IJBPriceFeed(address(usdcUsdFeed)));
 
-        // Fund actors.
+        // Fund actors with extra ETH and USDC for multi-currency tests.
         vm.deal(PAYER, 200 ether);
         usdc.mint(PAYER, 500_000e6);
         vm.deal(SPLIT_RECIPIENT, 1 ether);
@@ -246,66 +88,6 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
     // ===================================================================
     //  Helpers
     // ===================================================================
-
-    function _mockOracle(int256 liquidity, int24 tick, uint32 twapWindow) internal {
-        vm.etch(address(0), hex"00");
-
-        int56[] memory tickCumulatives = new int56[](2);
-        tickCumulatives[0] = 0;
-        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow));
-
-        uint136[] memory secondsPerLiquidityCumulativeX128s = new uint136[](2);
-        secondsPerLiquidityCumulativeX128s[0] = 0;
-        uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
-        if (liq == 0) liq = 1;
-        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq);
-
-        vm.mockCall(
-            address(0),
-            abi.encodeWithSelector(IGeomeanOracle.observe.selector),
-            abi.encode(tickCumulatives, secondsPerLiquidityCumulativeX128s)
-        );
-    }
-
-    function _deployFeeProject() internal {
-        JBAccountingContext[] memory acc = new JBAccountingContext[](1);
-        acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency});
-        JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
-
-        JBSplit[] memory splits = new JBSplit[](1);
-        splits[0].beneficiary = payable(multisig());
-        splits[0].percent = 10_000;
-
-        REVStageConfig[] memory stages = new REVStageConfig[](1);
-        stages[0] = REVStageConfig({
-            startsAtOrAfter: uint40(block.timestamp),
-            autoIssuances: new REVAutoIssuance[](0),
-            splitPercent: 0,
-            splits: splits,
-            initialIssuance: INITIAL_ISSUANCE,
-            issuanceCutFrequency: 0,
-            issuanceCutPercent: 0,
-            cashOutTaxRate: 5000,
-            extraMetadata: 0
-        });
-
-        REVConfig memory cfg = REVConfig({
-            description: REVDescription("Fee", "FEE", "ipfs://fee", "FEE_MCP"),
-            baseCurrency: nativeCurrency,
-            splitOperator: multisig(),
-            stageConfigurations: stages
-        });
-
-        REVSuckerDeploymentConfig memory sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("FEE_MCP"))
-        });
-
-        vm.prank(multisig());
-        REV_DEPLOYER.deployFor({
-            revnetId: FEE_PROJECT_ID, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
-        });
-    }
 
     /// @notice Launch a plain JB project (not via REVDeployer) with explicit payout limits.
     function _launchProjectWithPayoutLimits(
@@ -342,16 +124,12 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
 
         projectId = jbController()
             .launchProjectFor({
-                owner: address(this),
-                projectUri: "ipfs://mcp-test",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: terminalConfigs,
-                memo: ""
-            });
-    }
-
-    function _terminalBalance(uint256 projectId, address token) internal view returns (uint256) {
-        return jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, token);
+            owner: address(this),
+            projectUri: "ipfs://mcp-test",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: terminalConfigs,
+            memo: ""
+        });
     }
 
     // ===================================================================
@@ -362,7 +140,7 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
     /// Pay 10 ETH, set a $5000 USD payout limit, send payouts in ETH.
     /// At $2000/ETH, 2.5 ETH should be distributed.
     function test_mcp_usdPayoutLimitPaidInETH() public {
-        _deployFeeProject();
+        _deployFeeProject(5000);
 
         // Terminal accepts ETH.
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
@@ -423,12 +201,8 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
         uint256 recipientBefore = SPLIT_RECIPIENT.balance;
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 5000e18,
-                currency: USD,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId, token: JBConstants.NATIVE_TOKEN, amount: 5000e18, currency: USD, minTokensPaidOut: 0
+        });
 
         uint256 recipientReceived = SPLIT_RECIPIENT.balance - recipientBefore;
 
@@ -454,7 +228,7 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
     /// JBTerminalStore takes the fast path (amountPaidOut = amount) with no price conversion,
     /// so amounts must match the token's stored balance precision.
     function test_mcp_usdPayoutLimitPaidInUSDC() public {
-        _deployFeeProject();
+        _deployFeeProject(5000);
 
         // Terminal accepts USDC.
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
@@ -522,26 +296,26 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
 
         uint256 projectId = jbController()
             .launchProjectFor({
-                owner: address(this),
-                projectUri: "ipfs://mcp-usdc",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: tc,
-                memo: ""
-            });
+            owner: address(this),
+            projectUri: "ipfs://mcp-usdc",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: tc,
+            memo: ""
+        });
 
         // Pay 10,000 USDC.
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 10_000e6);
         jbMultiTerminal()
             .pay({
-                projectId: projectId,
-                token: address(usdc),
-                amount: 10_000e6,
-                beneficiary: PAYER,
-                minReturnedTokens: 0,
-                memo: "",
-                metadata: ""
-            });
+            projectId: projectId,
+            token: address(usdc),
+            amount: 10_000e6,
+            beneficiary: PAYER,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: ""
+        });
         vm.stopPrank();
 
         uint256 balance = jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, address(usdc));
@@ -551,8 +325,8 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
         uint256 recipientBefore = usdc.balanceOf(SPLIT_RECIPIENT);
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId, token: address(usdc), amount: 5000e6, currency: usdcCurrency, minTokensPaidOut: 0
-            });
+            projectId: projectId, token: address(usdc), amount: 5000e6, currency: usdcCurrency, minTokensPaidOut: 0
+        });
 
         uint256 recipientReceived = usdc.balanceOf(SPLIT_RECIPIENT) - recipientBefore;
 
@@ -564,7 +338,7 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
     /// @notice Verify price conversion consistency: paying equivalent USD amounts via ETH vs USDC
     /// should produce the same token count.
     function test_mcp_priceConversionConsistency() public {
-        _deployFeeProject();
+        _deployFeeProject(5000);
 
         // Deploy a USD-base revnet accepting both ETH and USDC.
         JBAccountingContext[] memory acc = new JBAccountingContext[](2);
@@ -624,14 +398,14 @@ contract TestMultiCurrencyPayout is TestBaseWorkflow {
         usdc.approve(address(jbMultiTerminal()), 2000e6);
         uint256 tokensFromUSDC = jbMultiTerminal()
             .pay({
-                projectId: revnetId,
-                token: address(usdc),
-                amount: 2000e6,
-                beneficiary: payer2,
-                minReturnedTokens: 0,
-                memo: "",
-                metadata: ""
-            });
+            projectId: revnetId,
+            token: address(usdc),
+            amount: 2000e6,
+            beneficiary: payer2,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: ""
+        });
         vm.stopPrank();
 
         // Both should receive the same number of tokens (equivalent $2000 payments).
