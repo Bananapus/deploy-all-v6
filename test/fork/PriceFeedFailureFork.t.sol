@@ -66,8 +66,8 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
         vm.prank(multisig());
         jbPrices()
             .addPriceFeedFor({
-                projectId: 0, pricingCurrency: USD, unitCurrency: NATIVE_CURRENCY, feed: IJBPriceFeed(address(feed))
-            });
+            projectId: 0, pricingCurrency: USD, unitCurrency: NATIVE_CURRENCY, feed: IJBPriceFeed(address(feed))
+        });
 
         vm.deal(PAYER, 100 ether);
     }
@@ -161,12 +161,12 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
 
         return jbController()
             .launchProjectFor({
-                owner: PROJECT_OWNER,
-                projectUri: "test://price-feed-failure",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: _terminalConfigs(),
-                memo: ""
-            });
+            owner: PROJECT_OWNER,
+            projectUri: "test://price-feed-failure",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: _terminalConfigs(),
+            memo: ""
+        });
     }
 
     /// @notice Launch a same-currency project (ETH base, ETH terminal, ETH payout limits).
@@ -196,12 +196,12 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
 
         return jbController()
             .launchProjectFor({
-                owner: PROJECT_OWNER,
-                projectUri: "test://same-currency",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: _terminalConfigs(),
-                memo: ""
-            });
+            owner: PROJECT_OWNER,
+            projectUri: "test://same-currency",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: _terminalConfigs(),
+            memo: ""
+        });
     }
 
     function _pay(uint256 _projectId, uint256 amount) internal returns (uint256 tokens) {
@@ -237,12 +237,12 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
         vm.expectRevert();
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 500e18, // 500 USD worth
-                currency: USD,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 500e18, // 500 USD worth
+            currency: USD,
+            minTokensPaidOut: 0
+        });
     }
 
     /// @notice Same-currency payouts succeed even when the price feed is broken (no conversion needed).
@@ -260,12 +260,12 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
         vm.prank(PROJECT_OWNER);
         uint256 paid = jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: sameCurrencyProject,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 1 ether,
-                currency: NATIVE_CURRENCY,
-                minTokensPaidOut: 0
-            });
+            projectId: sameCurrencyProject,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 1 ether,
+            currency: NATIVE_CURRENCY,
+            minTokensPaidOut: 0
+        });
         assertGt(paid, 0, "Same-currency payout should work with broken feed");
     }
 
@@ -286,14 +286,14 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
         vm.expectRevert();
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: projectId,
-                cashOutCount: tokens / 2,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: projectId,
+            cashOutCount: tokens / 2,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
     }
 
     /// @notice Once a broken feed recovers, payouts resume — DoS not fund loss.
@@ -311,12 +311,8 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
         vm.expectRevert();
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 500e18,
-                currency: USD,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId, token: JBConstants.NATIVE_TOKEN, amount: 500e18, currency: USD, minTokensPaidOut: 0
+        });
 
         // Recover feed.
         feed.setRevert(false);
@@ -325,12 +321,8 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
         vm.prank(PROJECT_OWNER);
         uint256 paid = jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 500e18,
-                currency: USD,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId, token: JBConstants.NATIVE_TOKEN, amount: 500e18, currency: USD, minTokensPaidOut: 0
+        });
         assertGt(paid, 0, "Payout should succeed after feed recovery");
     }
 }

@@ -25,7 +25,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
 
         // Deploy revnet with 80% reserved (splitPercent = 8000).
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildTwoStageConfigWithLPSplit(7000, 2000, 8000);
+            _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 8000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
@@ -55,14 +55,14 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         vm.prank(PAYER);
         uint256 reclaimAmount = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         uint256 ethReceived = PAYER.balance - payerEthBefore;
         assertGt(ethReceived, 0, "should receive ETH from cashout");
@@ -111,7 +111,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         // Deploy two identical revnets to compare behavior.
         // Revnet A: cash out WITHOUT distributing reserved tokens first.
         (REVConfig memory cfgA, JBTerminalConfig[] memory tcA, REVSuckerDeploymentConfig memory sdcA) =
-            _buildTwoStageConfigWithLPSplit(7000, 2000, 8000);
+            _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 8000);
 
         (uint256 revnetA,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfgA, terminalConfigurations: tcA, suckerDeploymentConfiguration: sdcA
@@ -119,7 +119,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
 
         // Revnet B: cash out AFTER distributing reserved tokens.
         (REVConfig memory cfgB, JBTerminalConfig[] memory tcB, REVSuckerDeploymentConfig memory sdcB) =
-            _buildTwoStageConfigWithLPSplit(7000, 2000, 8000);
+            _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 8000);
         // Use a different salt for revnet B to avoid collision.
         cfgB.description.salt = "ECO_SALT_B";
 
@@ -162,24 +162,24 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         // Preview cashout for revnet A (undistributed).
         (, uint256 reclaimA,,) = jbMultiTerminal()
             .previewCashOutFrom({
-                holder: payerA,
-                projectId: revnetA,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                beneficiary: payable(payerA),
-                metadata: ""
-            });
+            holder: payerA,
+            projectId: revnetA,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            beneficiary: payable(payerA),
+            metadata: ""
+        });
 
         // Preview cashout for revnet B (distributed).
         (, uint256 reclaimB,,) = jbMultiTerminal()
             .previewCashOutFrom({
-                holder: payerB,
-                projectId: revnetB,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                beneficiary: payable(payerB),
-                metadata: ""
-            });
+            holder: payerB,
+            projectId: revnetB,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            beneficiary: payable(payerB),
+            metadata: ""
+        });
 
         // The reclaim amounts should be equal: distributing reserved tokens does not change the totalSupply
         // used in the bonding curve because `totalTokenSupplyWithReservedTokensOf` includes pending regardless.
@@ -201,7 +201,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
 
         // Deploy revnet with 721 + buyback (no pool) + 50% reserved.
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildTwoStageConfigWithLPSplit(7000, 2000, 5000);
+            _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 5000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
@@ -233,13 +233,13 @@ contract ReservedInflationForkTest is EcosystemForkTest {
 
         (, uint256 reclaimAmount,,) = jbMultiTerminal()
             .previewCashOutFrom({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         // Manually compute what the bonding curve should return using totalSupplyWithReserved.
         uint256 surplus = _terminalBalance(revnetId, JBConstants.NATIVE_TOKEN);
@@ -254,14 +254,6 @@ contract ReservedInflationForkTest is EcosystemForkTest {
             surplus: surplus,
             cashOutCount: nonFeeCashOutCount,
             totalSupply: totalSupplyWithReserved,
-            cashOutTaxRate: 7000
-        });
-
-        // Then the fee portion is computed from the remaining surplus.
-        uint256 expectedFeeAmount = JBCashOuts.cashOutFrom({
-            surplus: surplus - expectedPostFeeReclaim,
-            cashOutCount: feeCashOutCount,
-            totalSupply: totalSupplyWithReserved - nonFeeCashOutCount,
             cashOutTaxRate: 7000
         });
 
@@ -287,14 +279,14 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         vm.prank(PAYER);
         uint256 actualReclaim = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         // The terminal applies a 2.5% fee on the reclaimAmount when cashOutTaxRate != 0.
         uint256 terminalFee = JBFees.feeAmountFrom({amountBeforeFee: reclaimAmount, feePercent: 25});
@@ -325,6 +317,5 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         emit log_named_uint("Total supply with reserved", totalSupplyWithReserved);
         emit log_named_uint("Reclaim amount (with reserved inflation)", reclaimAmount);
         emit log_named_uint("Hypothetical reclaim (no inflation)", hypotheticalReclaimNoPending);
-        emit log_named_uint("Fee amount", expectedFeeAmount);
     }
 }

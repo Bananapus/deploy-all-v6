@@ -212,12 +212,12 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         // Launch the project.
         projectId = jbController()
             .launchProjectFor({
-                owner: PROJECT_OWNER,
-                projectUri: "",
-                rulesetConfigurations: rulesetConfigs,
-                terminalConfigurations: tc,
-                memo: ""
-            });
+            owner: PROJECT_OWNER,
+            projectUri: "",
+            rulesetConfigurations: rulesetConfigs,
+            terminalConfigurations: tc,
+            memo: ""
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -271,12 +271,12 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         //   5. The first payout still completes (hook received the funds via try-catch in executePayout)
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: PAYOUT_LIMIT,
-                currency: NATIVE_CURRENCY,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: PAYOUT_LIMIT,
+            currency: NATIVE_CURRENCY,
+            minTokensPaidOut: 0
+        });
 
         // Verify the hook attempted re-entry.
         assertTrue(maliciousHook.reentryCalled(), "hook should have attempted re-entry");
@@ -305,12 +305,12 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         vm.expectRevert();
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: PAYOUT_LIMIT,
-                currency: NATIVE_CURRENCY,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: PAYOUT_LIMIT,
+            currency: NATIVE_CURRENCY,
+            minTokensPaidOut: 0
+        });
     }
 
     /// @notice A split hook re-enters via `addToBalanceOf()` during payout processing.
@@ -348,12 +348,12 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         // to send the ETH back to the project.
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: PAYOUT_LIMIT,
-                currency: NATIVE_CURRENCY,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: PAYOUT_LIMIT,
+            currency: NATIVE_CURRENCY,
+            minTokensPaidOut: 0
+        });
 
         // Verify the hook called addToBalanceOf.
         assertTrue(addHook.addToBalanceCalled(), "hook should have called addToBalanceOf");
@@ -381,11 +381,11 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         vm.expectRevert();
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: PAYOUT_LIMIT,
-                currency: NATIVE_CURRENCY,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: PAYOUT_LIMIT,
+            currency: NATIVE_CURRENCY,
+            minTokensPaidOut: 0
+        });
     }
 }

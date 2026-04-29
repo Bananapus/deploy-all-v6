@@ -230,12 +230,12 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         // Send payouts denominated in USD (cross-currency: limit is USD, balance is ETH).
         uint256 amountPaidOut = jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: PAYOUT_LIMIT_USD, // $1000 USD
-                currency: USD, // denominated in USD
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: PAYOUT_LIMIT_USD, // $1000 USD
+            currency: USD, // denominated in USD
+            minTokensPaidOut: 0
+        });
 
         assertGt(amountPaidOut, 0, "Step 4: payouts should send ETH"); // ETH was paid out
 
@@ -341,14 +341,14 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         vm.prank(PAYER2); // cash out as PAYER2
         uint256 reclaimAmount = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER2,
-                projectId: projectId,
-                cashOutCount: cashOutCount,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER2),
-                metadata: ""
-            });
+            holder: PAYER2,
+            projectId: projectId,
+            cashOutCount: cashOutCount,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER2),
+            metadata: ""
+        });
 
         // Verify PAYER2 received ETH from the cash out.
         uint256 payer2EthAfter = PAYER2.balance; // check ETH balance after
@@ -468,12 +468,12 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         // Launch the project.
         id = jbController()
             .launchProjectFor({
-                owner: address(this), // test contract owns the project
-                projectUri: "ipfs://lifecycle-test", // project metadata URI
-                rulesetConfigurations: rulesets, // initial rulesets
-                terminalConfigurations: tc, // terminal setup
-                memo: "cross-feature lifecycle test" // launch memo
-            });
+            owner: address(this), // test contract owns the project
+            projectUri: "ipfs://lifecycle-test", // project metadata URI
+            rulesetConfigurations: rulesets, // initial rulesets
+            terminalConfigurations: tc, // terminal setup
+            memo: "cross-feature lifecycle test" // launch memo
+        });
     }
 
     /// @notice Builds a JBRulesetConfig with the lifecycle test parameters.
@@ -639,10 +639,10 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         // Queue the ruleset (it will start after the current ruleset's duration ends).
         jbController()
             .queueRulesetsOf({
-                projectId: _projectId, // for our project
-                rulesetConfigurations: rulesets, // the new ruleset
-                memo: "queue ruleset with 721 hook" // memo
-            });
+            projectId: _projectId, // for our project
+            rulesetConfigurations: rulesets, // the new ruleset
+            memo: "queue ruleset with 721 hook" // memo
+        });
     }
 
     /// @notice Builds payment metadata that selects tier 1 for NFT minting.

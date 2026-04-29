@@ -159,12 +159,12 @@ contract AdversarialCoreForkTest is FullStackForkTest {
 
         projectId = jbController()
             .launchProjectFor({
-                owner: owner,
-                projectUri: "ipfs://adversarial",
-                rulesetConfigurations: rulesetConfigs,
-                terminalConfigurations: tc,
-                memo: ""
-            });
+            owner: owner,
+            projectUri: "ipfs://adversarial",
+            rulesetConfigurations: rulesetConfigs,
+            terminalConfigurations: tc,
+            memo: ""
+        });
     }
 
     /// @notice Launch a raw JB project with a split hook receiving a percentage of payouts.
@@ -252,12 +252,12 @@ contract AdversarialCoreForkTest is FullStackForkTest {
 
         projectId = jbController()
             .launchProjectFor({
-                owner: owner,
-                projectUri: "ipfs://adversarial-split",
-                rulesetConfigurations: rulesetConfigs,
-                terminalConfigurations: tc,
-                memo: ""
-            });
+            owner: owner,
+            projectUri: "ipfs://adversarial-split",
+            rulesetConfigurations: rulesetConfigs,
+            terminalConfigurations: tc,
+            memo: ""
+        });
     }
 
     /// @notice Build a two-stage revnet config with custom splitPercent for reserved token testing.
@@ -432,14 +432,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         vm.prank(ACCOMPLICE);
         uint256 reclaimed = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: ACCOMPLICE,
-                projectId: projectId,
-                cashOutCount: accompliceTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(ACCOMPLICE),
-                metadata: ""
-            });
+            holder: ACCOMPLICE,
+            projectId: projectId,
+            cashOutCount: accompliceTokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(ACCOMPLICE),
+            metadata: ""
+        });
 
         uint256 accompliceEthReceived = ACCOMPLICE.balance - accompliceEthBefore;
         emit log_named_uint("ACCOMPLICE reclaimed (return value)", reclaimed);
@@ -535,12 +535,12 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         // Step 6: Trigger payouts -- the hook will receive its share and try to cashOut PAYER2's tokens.
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 3 ether,
-                currency: NATIVE_CURRENCY,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 3 ether,
+            currency: NATIVE_CURRENCY,
+            minTokensPaidOut: 0
+        });
 
         // Step 7: Check results.
         emit log_named_uint("Re-entry called", reentryHook.reentryCalled() ? 1 : 0);
@@ -613,14 +613,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         vm.prank(PAYER2);
         uint256 reclaimScenarioA = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER2,
-                projectId: revnetId,
-                cashOutCount: payer2Tokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER2),
-                metadata: ""
-            });
+            holder: PAYER2,
+            projectId: revnetId,
+            cashOutCount: payer2Tokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER2),
+            metadata: ""
+        });
 
         uint256 ethReceivedA = PAYER2.balance - payer2EthBefore;
         emit log_named_uint("Scenario A: PAYER2 cashout reclaim (return)", reclaimScenarioA);
@@ -639,14 +639,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         vm.prank(PAYER);
         uint256 payerReclaim = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER,
-                projectId: revnetId,
-                cashOutCount: payerTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER),
-                metadata: ""
-            });
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: payerTokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
 
         uint256 payerEthReceived = PAYER.balance - payerEthBefore;
         emit log_named_uint("Scenario B: PAYER cashout first, ETH received", payerEthReceived);
@@ -660,14 +660,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         vm.prank(PAYER2);
         uint256 reclaimScenarioB = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: PAYER2,
-                projectId: revnetId,
-                cashOutCount: payer2Tokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(PAYER2),
-                metadata: ""
-            });
+            holder: PAYER2,
+            projectId: revnetId,
+            cashOutCount: payer2Tokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER2),
+            metadata: ""
+        });
 
         uint256 ethReceivedB = PAYER2.balance - payer2EthBefore;
         emit log_named_uint("Scenario B: PAYER2 cashout after PAYER, ETH received", ethReceivedB);
@@ -707,7 +707,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
 
         // Deploy two-stage revnet: 70% tax -> 20% tax after 30 days.
         (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
-            _buildTwoStageConfig(7000, 2000);
+            _buildTwoStageNativeConfig(7000, 2000);
 
         uint256 deployTimestamp = block.timestamp;
 
@@ -715,7 +715,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
-        _setupPool(revnetId, 10_000 ether);
+        _setupNativePool(revnetId, 10_000 ether);
 
         // Step 1: Pay in stage 1 to establish a baseline.
         _payRevnet(revnetId, PAYER, 5 ether);
@@ -777,14 +777,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         vm.prank(latePayer);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: latePayer,
-                projectId: revnetId,
-                cashOutCount: latePayerTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(latePayer),
-                metadata: ""
-            });
+            holder: latePayer,
+            projectId: revnetId,
+            cashOutCount: latePayerTokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(latePayer),
+            metadata: ""
+        });
 
         uint256 latePayerEthReceived = latePayer.balance - latePayerEthBefore;
         emit log_named_uint("Late payer (+1s) cashout ETH received", latePayerEthReceived);
@@ -796,14 +796,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         vm.prank(exactPayer);
         jbMultiTerminal()
             .cashOutTokensOf({
-                holder: exactPayer,
-                projectId: revnetId,
-                cashOutCount: exactPayerTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(exactPayer),
-                metadata: ""
-            });
+            holder: exactPayer,
+            projectId: revnetId,
+            cashOutCount: exactPayerTokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(exactPayer),
+            metadata: ""
+        });
 
         uint256 exactPayerEthReceived = exactPayer.balance - exactPayerEthBefore;
         emit log_named_uint("Exact boundary payer cashout ETH received", exactPayerEthReceived);
@@ -826,7 +826,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
 
         // Deploy a second revnet that generates fees via cashouts.
         uint256 revnetId = _deployRevnet(5000); // 50% tax -- fees are charged on cashouts when tax < 100%
-        _setupPool(revnetId, 10_000 ether);
+        _setupNativePool(revnetId, 10_000 ether);
 
         // Two payers for bonding curve effect.
         _payRevnet(revnetId, PAYER, 10 ether);
@@ -850,14 +850,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         vm.prank(feePayer);
         uint256 normalReclaim = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: feePayer,
-                projectId: revnetId,
-                cashOutCount: halfTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(feePayer),
-                metadata: ""
-            });
+            holder: feePayer,
+            projectId: revnetId,
+            cashOutCount: halfTokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(feePayer),
+            metadata: ""
+        });
 
         uint256 normalEthReceived = feePayer.balance - feePayerEthBefore;
         uint256 feeProjectBalAfterNormal = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
@@ -892,14 +892,14 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         vm.prank(feePayer);
         uint256 mockedReclaim = jbMultiTerminal()
             .cashOutTokensOf({
-                holder: feePayer,
-                projectId: revnetId,
-                cashOutCount: remainingTokens,
-                tokenToReclaim: JBConstants.NATIVE_TOKEN,
-                minTokensReclaimed: 0,
-                beneficiary: payable(feePayer),
-                metadata: ""
-            });
+            holder: feePayer,
+            projectId: revnetId,
+            cashOutCount: remainingTokens,
+            tokenToReclaim: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0,
+            beneficiary: payable(feePayer),
+            metadata: ""
+        });
 
         uint256 mockedEthReceived = feePayer.balance - feePayerEthBefore;
         emit log_named_uint("Mocked cashout ETH received", mockedEthReceived);
@@ -982,7 +982,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
         });
 
-        _setupPool(revnetId, 10_000 ether);
+        _setupNativePool(revnetId, 10_000 ether);
 
         // Step 1: Pay 10 ETH in stage 1 to accumulate reserved tokens.
         _payRevnet(revnetId, PAYER, 10 ether);

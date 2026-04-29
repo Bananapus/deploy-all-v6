@@ -10,60 +10,17 @@ import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol"
 import {JBMetadataResolver} from "@bananapus/core-v6/src/libraries/JBMetadataResolver.sol";
 import {JBFixedPointNumber} from "@bananapus/core-v6/src/libraries/JBFixedPointNumber.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
-import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
-import {IJBPayHook} from "@bananapus/core-v6/src/interfaces/IJBPayHook.sol";
-import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
-import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {IJBPriceFeed} from "@bananapus/core-v6/src/interfaces/IJBPriceFeed.sol";
+import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 
 // 721 Hook
-import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
-import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
-import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
-import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
 import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
-import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
-import {IJB721TiersHookStore} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookStore.sol";
 import {IJB721TokenUriResolver} from "@bananapus/721-hook-v6/src/interfaces/IJB721TokenUriResolver.sol";
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
 import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721InitTiersConfig.sol";
 import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 
-// Address Registry
-import {JBAddressRegistry} from "@bananapus/address-registry-v6/src/JBAddressRegistry.sol";
-import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
-
-// Buyback Hook
-import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
-import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
-import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
-import {IJBBuybackHook} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHook.sol";
-import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
-import {IGeomeanOracle} from "@bananapus/buyback-hook-v6/src/interfaces/IGeomeanOracle.sol";
-
-// Suckers
-import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
-import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
-import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
-
-// Croptop
-import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
-
-// LP Split Hook
-import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
-import {IJBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
-
-// Uniswap V4 Router Hook
-import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
-import {JuiceboxSwapRouter} from "@bananapus/univ4-router-v6/test/utils/JuiceboxSwapRouter.sol";
-
 // Revnet
-import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
-import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
-import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
-import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
-import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
 import {REVStageConfig, REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
@@ -72,129 +29,23 @@ import {REVDeploy721TiersHookConfig} from "@rev-net/core-v6/src/structs/REVDeplo
 import {REVBaseline721HookConfig} from "@rev-net/core-v6/src/structs/REVBaseline721HookConfig.sol";
 import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHookFlags.sol";
 import {REVCroptopAllowedPost} from "@rev-net/core-v6/src/structs/REVCroptopAllowedPost.sol";
-import {REVLoanSource} from "@rev-net/core-v6/src/structs/REVLoanSource.sol";
 
-// Uniswap V4
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
-import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
-import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
-import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+// Suckers
+import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {LibClone} from "solady/src/utils/LibClone.sol";
 
-/// @notice Mock USDC token with 6 decimals.
-contract CCMockUSDC is ERC20 {
-    constructor() ERC20("Mock USDC", "USDC") {}
-
-    function decimals() public pure override returns (uint8) {
-        return 6;
-    }
-
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
-    }
-}
-
-/// @notice Inline mock price feed that returns a fixed price.
-contract MockPriceFeed is IJBPriceFeed {
-    uint256 public immutable PRICE;
-    uint8 public immutable FEED_DECIMALS;
-
-    constructor(uint256 price, uint8 dec) {
-        PRICE = price;
-        FEED_DECIMALS = dec;
-    }
-
-    function currentUnitPrice(uint256 decimals) external view override returns (uint256) {
-        return JBFixedPointNumber.adjustDecimals(PRICE, FEED_DECIMALS, decimals);
-    }
-}
-
-/// @notice Adds liquidity to a hookless V4 pool via unlock/callback pattern.
-contract CCLiquidityHelper is IUnlockCallback {
-    IPoolManager public immutable poolManager;
-
-    constructor(IPoolManager _poolManager) {
-        poolManager = _poolManager;
-    }
-
-    receive() external payable {}
-
-    function addLiquidity(
-        PoolKey memory key,
-        int24 tickLower,
-        int24 tickUpper,
-        int256 liquidityDelta
-    )
-        external
-        payable
-    {
-        poolManager.unlock(abi.encode(key, tickLower, tickUpper, liquidityDelta));
-    }
-
-    function unlockCallback(bytes calldata data) external override returns (bytes memory) {
-        (PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta) =
-            abi.decode(data, (PoolKey, int24, int24, int256));
-
-        (BalanceDelta delta,) = poolManager.modifyLiquidity(
-            key,
-            ModifyLiquidityParams({
-                tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
-            }),
-            ""
-        );
-
-        int128 amount0 = delta.amount0();
-        int128 amount1 = delta.amount1();
-
-        if (amount0 < 0) _settle(key.currency0, uint128(-amount0));
-        if (amount1 < 0) _settle(key.currency1, uint128(-amount1));
-        if (amount0 > 0) poolManager.take(key.currency0, address(this), uint128(amount0));
-        if (amount1 > 0) poolManager.take(key.currency1, address(this), uint128(amount1));
-
-        return "";
-    }
-
-    function _settle(Currency currency, uint256 amount) internal {
-        if (Currency.unwrap(currency) == address(0)) {
-            poolManager.settle{value: amount}();
-        } else {
-            poolManager.sync(currency);
-            IERC20(Currency.unwrap(currency)).transfer(address(poolManager), amount);
-            poolManager.settle();
-        }
-    }
-}
+// Shared helpers
+import {RevnetEcosystemBase} from "../helpers/RevnetEcosystemBase.sol";
+import {MockERC20Token} from "../helpers/MockTokens.sol";
+import {MockPriceFeed} from "../helpers/MockPriceFeed.sol";
 
 /// @notice Cross-currency integration fork test: stress-tests JBPrices in live payment flows with hooks.
 /// Exercises cross-currency paths in JBTerminalStore, JB721TiersHookLib, and JBBuybackHook.
 ///
 /// Run with: forge test --match-contract CrossCurrencyForkTest -vvv
-contract CrossCurrencyForkTest is TestBaseWorkflow {
-    using PoolIdLibrary for PoolKey;
-
-    // -- Mainnet addresses
-    address constant POOL_MANAGER_ADDR = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-    address constant V4_POSITION_MANAGER_ADDR = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
-
-    // -- Tick range for full-range liquidity (hookless pool)
-    int24 constant TICK_LOWER = -887_200;
-    int24 constant TICK_UPPER = 887_200;
-
-    // -- Test parameters
-    uint112 constant INITIAL_ISSUANCE = uint112(1000e18); // 1000 tokens per USD unit
-    uint32 constant STAGE_DURATION = 30 days;
+contract CrossCurrencyForkTest is RevnetEcosystemBase {
+    // -- Test parameters (cross-currency specific)
     uint104 constant TIER_PRICE_USD = 100e18; // 100 USD (18 decimals for USD abstract pricing)
     uint104 constant TIER_PRICE_ETH = 0.05e18; // 0.05 ETH
 
@@ -203,142 +54,24 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
     uint32 constant ETH_ID = 1; // JBCurrencyIds.ETH
 
     // -- Actors
-    address PAYER = makeAddr("cc_payer");
     address PAYER2 = makeAddr("cc_payer2");
-    address SPLIT_BENEFICIARY = makeAddr("cc_splitBeneficiary");
 
-    address private constant TRUSTED_FORWARDER = 0xB2b5841DBeF766d4b521221732F9B618fCf34A87;
-
-    // -- Ecosystem contracts
-    IPoolManager poolManager;
-    IPositionManager positionManager;
-    CCLiquidityHelper liqHelper;
-
-    CCMockUSDC usdc;
-
-    uint256 FEE_PROJECT_ID;
-    JBSuckerRegistry SUCKER_REGISTRY;
-    IJB721TiersHookStore HOOK_STORE;
-    JB721TiersHook EXAMPLE_HOOK;
-    IJBAddressRegistry ADDRESS_REGISTRY;
-    IJB721TiersHookDeployer HOOK_DEPLOYER;
-    CTPublisher PUBLISHER;
-    JBBuybackHook BUYBACK_HOOK;
-    JBBuybackHookRegistry BUYBACK_REGISTRY;
-    IREVLoans LOANS_CONTRACT;
-    REVOwner REV_OWNER;
-    REVDeployer REV_DEPLOYER;
-
-    // LP-split hook
-    JBUniswapV4LPSplitHook LP_SPLIT_HOOK;
-
-    // Currency helpers
+    // -- Cross-currency state
+    MockERC20Token usdc;
     uint32 nativeCurrency;
     uint32 usdcCurrency;
 
-    receive() external payable {}
+    function _deployerSalt() internal pure override returns (bytes32) {
+        return "REVDeployer_CrossCurrency";
+    }
 
     function setUp() public override {
-        vm.createSelectFork("ethereum", 21_700_000);
-        require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed");
-        require(V4_POSITION_MANAGER_ADDR.code.length > 0, "PositionManager not deployed");
-
         super.setUp();
 
-        poolManager = IPoolManager(POOL_MANAGER_ADDR);
-        positionManager = IPositionManager(V4_POSITION_MANAGER_ADDR);
-        liqHelper = new CCLiquidityHelper(poolManager);
-
-        usdc = new CCMockUSDC();
+        // Deploy mock USDC.
+        usdc = new MockERC20Token("Mock USDC", "USDC", 6);
         nativeCurrency = uint32(uint160(JBConstants.NATIVE_TOKEN));
         usdcCurrency = uint32(uint160(address(usdc)));
-
-        FEE_PROJECT_ID = jbProjects().createFor(multisig());
-
-        SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
-        HOOK_STORE = new JB721TiersHookStore();
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
-        EXAMPLE_HOOK = new JB721TiersHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbRulesets(),
-            HOOK_STORE,
-            jbSplits(),
-            checkpointsDeployer,
-            multisig()
-        );
-        ADDRESS_REGISTRY = new JBAddressRegistry();
-        HOOK_DEPLOYER = new JB721TiersHookDeployer(EXAMPLE_HOOK, HOOK_STORE, ADDRESS_REGISTRY, multisig());
-        PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
-
-        BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbProjects(),
-            jbTokens(),
-            poolManager,
-            IHooks(address(0)),
-            address(0)
-        );
-
-        BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
-        BUYBACK_REGISTRY.setDefaultHook(IJBRulesetDataHook(address(BUYBACK_HOOK)));
-
-        LOANS_CONTRACT = new REVLoans({
-            controller: jbController(),
-            suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
-            revId: FEE_PROJECT_ID,
-            owner: address(this),
-            permit2: permit2(),
-            trustedForwarder: TRUSTED_FORWARDER
-        });
-
-        // Deploy REVHiddenTokens.
-        REVHiddenTokens revHiddenTokens = new REVHiddenTokens(jbController(), TRUSTED_FORWARDER);
-
-        // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
-        REV_OWNER = new REVOwner(
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            jbDirectory(),
-            FEE_PROJECT_ID,
-            SUCKER_REGISTRY,
-            address(LOANS_CONTRACT),
-            address(revHiddenTokens)
-        );
-
-        REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_CC"}(
-            jbController(),
-            SUCKER_REGISTRY,
-            FEE_PROJECT_ID,
-            HOOK_DEPLOYER,
-            PUBLISHER,
-            IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            address(LOANS_CONTRACT),
-            TRUSTED_FORWARDER,
-            address(REV_OWNER)
-        );
-        REV_OWNER.setDeployer(IREVDeployer(address(REV_DEPLOYER)));
-
-        vm.prank(multisig());
-        jbProjects().approve(address(REV_DEPLOYER), FEE_PROJECT_ID);
-
-        // Deploy LP-split hook (clone pattern).
-        JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()),
-            jbPermissions(),
-            address(jbTokens()),
-            poolManager,
-            positionManager,
-            permit2(),
-            IHooks(address(0))
-        );
-        LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
-        LP_SPLIT_HOOK.initialize(0, 0);
-
-        // Mock geomean oracle.
-        _mockOracle(1, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
 
         // --- Register price feeds ---
 
@@ -358,8 +91,6 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         jbPrices().addPriceFeedFor(0, ETH_ID, nativeCurrency, IJBPriceFeed(address(nativeEthFeed)));
 
         // Fund actors.
-        usdc.mint(PAYER, 200_000e6);
-        usdc.mint(PAYER2, 100_000e6);
         vm.deal(PAYER, 100 ether);
         vm.deal(PAYER2, 100 ether);
     }
@@ -551,89 +282,8 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
     }
 
     // ===================================================================
-    //  Pool / Oracle Helpers
-    // ===================================================================
-
-    function _mockOracle(int256 liquidity, int24 tick, uint32 twapWindow) internal {
-        vm.etch(address(0), hex"00");
-
-        int56[] memory tickCumulatives = new int56[](2);
-        tickCumulatives[0] = 0;
-        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow));
-
-        uint136[] memory secondsPerLiquidityCumulativeX128s = new uint136[](2);
-        secondsPerLiquidityCumulativeX128s[0] = 0;
-        uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
-        if (liq == 0) liq = 1;
-        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq);
-
-        vm.mockCall(
-            address(0),
-            abi.encodeWithSelector(IGeomeanOracle.observe.selector),
-            abi.encode(tickCumulatives, secondsPerLiquidityCumulativeX128s)
-        );
-    }
-
-    // ===================================================================
-    //  Fee Project Helper
-    // ===================================================================
-
-    function _deployFeeProject(uint16 cashOutTaxRate) internal {
-        JBAccountingContext[] memory acc = new JBAccountingContext[](1);
-        acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency});
-        JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
-
-        JBSplit[] memory splits = new JBSplit[](1);
-        splits[0].beneficiary = payable(multisig());
-        splits[0].percent = 10_000;
-
-        REVStageConfig[] memory stages = new REVStageConfig[](1);
-        stages[0] = REVStageConfig({
-            startsAtOrAfter: uint40(block.timestamp),
-            autoIssuances: new REVAutoIssuance[](0),
-            splitPercent: 0,
-            splits: splits,
-            initialIssuance: INITIAL_ISSUANCE,
-            issuanceCutFrequency: 0,
-            issuanceCutPercent: 0,
-            cashOutTaxRate: cashOutTaxRate,
-            extraMetadata: 0
-        });
-
-        REVConfig memory cfg = REVConfig({
-            description: REVDescription("Fee", "FEE", "ipfs://fee", "FEE_CC"),
-            baseCurrency: nativeCurrency,
-            splitOperator: multisig(),
-            stageConfigurations: stages
-        });
-
-        REVSuckerDeploymentConfig memory sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: keccak256(abi.encodePacked("FEE_CC"))
-        });
-
-        vm.prank(multisig());
-        REV_DEPLOYER.deployFor({
-            revnetId: FEE_PROJECT_ID, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
-        });
-    }
-
-    // ===================================================================
     //  Payment / Metadata Helpers
     // ===================================================================
-
-    function _payRevnetETH(uint256 revnetId, address payer, uint256 amount) internal returns (uint256 tokensReceived) {
-        vm.prank(payer);
-        tokensReceived = jbMultiTerminal().pay{value: amount}({
-            projectId: revnetId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: amount,
-            beneficiary: payer,
-            minReturnedTokens: 0,
-            memo: "",
-            metadata: ""
-        });
-    }
 
     function _payRevnetUSDC(uint256 revnetId, address payer, uint256 amount) internal returns (uint256 tokensReceived) {
         usdc.mint(payer, amount);
@@ -641,14 +291,14 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         usdc.approve(address(jbMultiTerminal()), amount);
         tokensReceived = jbMultiTerminal()
             .pay({
-                projectId: revnetId,
-                token: address(usdc),
-                amount: amount,
-                beneficiary: payer,
-                minReturnedTokens: 0,
-                memo: "",
-                metadata: ""
-            });
+            projectId: revnetId,
+            token: address(usdc),
+            amount: amount,
+            beneficiary: payer,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: ""
+        });
         vm.stopPrank();
     }
 
@@ -685,7 +335,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         // Weight ratio: pricePerUnitOf(_, nativeCurrency, USD, 18) = inverse of 2000e18 = 5e14
         // Expected: mulDiv(1e18, 1000e18, 5e14) = 2,000,000e18 tokens total
         // With 20% reserved → payer gets 1,600,000e18
-        uint256 tokens = _payRevnetETH(revnetId, PAYER, 1 ether);
+        uint256 tokens = _payRevnet(revnetId, PAYER, 1 ether);
 
         assertEq(tokens, 1_600_000e18, "1 ETH at $2000 -> 1,600,000 tokens (80% after 20% reserved)");
 
@@ -775,14 +425,14 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         usdc.approve(address(jbMultiTerminal()), 100e6);
         jbMultiTerminal()
             .pay({
-                projectId: revnetId,
-                token: address(usdc),
-                amount: 100e6,
-                beneficiary: PAYER,
-                minReturnedTokens: 0,
-                memo: "",
-                metadata: metadata
-            });
+            projectId: revnetId,
+            token: address(usdc),
+            amount: 100e6,
+            beneficiary: PAYER,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: metadata
+        });
         vm.stopPrank();
 
         assertEq(IERC721(address(hook)).balanceOf(PAYER), 1, "1 NFT minted from USDC via cross-currency");
@@ -822,14 +472,14 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         usdc.approve(address(jbMultiTerminal()), 100e6);
         jbMultiTerminal()
             .pay({
-                projectId: revnetId,
-                token: address(usdc),
-                amount: 100e6,
-                beneficiary: PAYER,
-                minReturnedTokens: 0,
-                memo: "",
-                metadata: metadata
-            });
+            projectId: revnetId,
+            token: address(usdc),
+            amount: 100e6,
+            beneficiary: PAYER,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: metadata
+        });
         vm.stopPrank();
 
         // NFT minted to payer.
@@ -964,7 +614,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
 
         // Pay with ETH (currencies differ, no prices contract).
         // normalizePaymentValue returns (0, false) -> no NFT minted, but payer still gets project tokens.
-        uint256 tokens = _payRevnetETH(revnetId, PAYER, 1 ether);
+        uint256 tokens = _payRevnet(revnetId, PAYER, 1 ether);
 
         assertEq(IERC721(address(hook)).balanceOf(PAYER), 0, "no NFT minted (silent skip)");
         assertGt(tokens, 0, "payer still receives ERC-20 project tokens");
@@ -1005,7 +655,7 @@ contract CrossCurrencyForkTest is TestBaseWorkflow {
         });
 
         // Pay 1 ETH (= $2000) + 2000 USDC (= $2000).
-        _payRevnetETH(revnetId, PAYER, 1 ether);
+        _payRevnet(revnetId, PAYER, 1 ether);
         _payRevnetUSDC(revnetId, PAYER2, 2000e6);
 
         // Check surplus in USD terms.

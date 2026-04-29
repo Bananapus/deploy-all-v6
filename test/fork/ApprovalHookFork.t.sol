@@ -129,12 +129,12 @@ contract ApprovalHookForkTest is TestBaseWorkflow {
 
         return jbController()
             .launchProjectFor({
-                owner: PROJECT_OWNER,
-                projectUri: "test://approval-hook",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: _terminalConfigs(),
-                memo: ""
-            });
+            owner: PROJECT_OWNER,
+            projectUri: "test://approval-hook",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: _terminalConfigs(),
+            memo: ""
+        });
     }
 
     /// @notice Launch a project with a 7-day cycle and payout limits, plus the given approval hook.
@@ -167,12 +167,12 @@ contract ApprovalHookForkTest is TestBaseWorkflow {
 
         return jbController()
             .launchProjectFor({
-                owner: PROJECT_OWNER,
-                projectUri: "test://approval-hook-payout",
-                rulesetConfigurations: rulesets,
-                terminalConfigurations: _terminalConfigs(),
-                memo: ""
-            });
+            owner: PROJECT_OWNER,
+            projectUri: "test://approval-hook-payout",
+            rulesetConfigurations: rulesets,
+            terminalConfigurations: _terminalConfigs(),
+            memo: ""
+        });
     }
 
     /// @notice Queue a new ruleset with a different weight. The queued ruleset has no approval hook of its own.
@@ -278,23 +278,23 @@ contract ApprovalHookForkTest is TestBaseWorkflow {
         vm.expectRevert();
         jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 2 ether,
-                currency: NATIVE_CURRENCY,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 2 ether,
+            currency: NATIVE_CURRENCY,
+            minTokensPaidOut: 0
+        });
 
         // Payout of 1 ETH should succeed (within base limit).
         vm.prank(PROJECT_OWNER);
         uint256 paid = jbMultiTerminal()
             .sendPayoutsOf({
-                projectId: projectId,
-                token: JBConstants.NATIVE_TOKEN,
-                amount: 1 ether,
-                currency: NATIVE_CURRENCY,
-                minTokensPaidOut: 0
-            });
+            projectId: projectId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 1 ether,
+            currency: NATIVE_CURRENCY,
+            minTokensPaidOut: 0
+        });
         assertGt(paid, 0, "Payout within base limit should succeed");
     }
 
