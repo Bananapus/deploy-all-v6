@@ -575,13 +575,23 @@ contract InstrumentedDeployer is IERC721Receiver {
             OMNICHAIN_DEPLOYER_SALT,
             type(JBOmnichainDeployer).creationCode,
             abi.encode(
-                suckerRegistry, IJB721TiersHookDeployer(address(hookDeployer)), permissions, projects, trustedForwarder
+                suckerRegistry,
+                IJB721TiersHookDeployer(address(hookDeployer)),
+                permissions,
+                projects,
+                directory,
+                trustedForwarder
             )
         );
         omnichainDeployer = dD
             ? JBOmnichainDeployer(d)
             : new JBOmnichainDeployer{salt: OMNICHAIN_DEPLOYER_SALT}(
-                suckerRegistry, IJB721TiersHookDeployer(address(hookDeployer)), permissions, projects, trustedForwarder
+                suckerRegistry,
+                IJB721TiersHookDeployer(address(hookDeployer)),
+                permissions,
+                projects,
+                directory,
+                trustedForwarder
             );
     }
 

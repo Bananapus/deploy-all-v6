@@ -165,6 +165,7 @@ contract Deploy is Script, Sphinx {
     error Deploy_ExistingAddressMismatch(address expected, address actual);
     error Deploy_ProjectIdMismatch(uint256 expected, uint256 actual);
     error Deploy_ProjectNotOwned(uint256 projectId);
+    error Deploy_ProjectNotCanonical(uint256 projectId);
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
     error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
 
@@ -1497,6 +1498,7 @@ contract Deploy is Script, Sphinx {
                 IJB721TiersHookDeployer(address(_hookDeployer)),
                 _permissions,
                 _projects,
+                _directory,
                 _trustedForwarder
             )
         );
@@ -1507,6 +1509,7 @@ contract Deploy is Script, Sphinx {
                 hookDeployer: IJB721TiersHookDeployer(address(_hookDeployer)),
                 permissions: _permissions,
                 projects: _projects,
+                directory: _directory,
                 trustedForwarder: _trustedForwarder
             });
     }
@@ -2407,17 +2410,25 @@ contract Deploy is Script, Sphinx {
 
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(NANA_SUCKER_SALT);
 
-        // Approve the deployer to configure project ID 1.
-        if (address(_directory.controllerOf(feeProjectId)) == address(0)) {
-            _projects.approve(address(_revDeployer), feeProjectId);
-
-            _revDeployer.deployFor({
-                revnetId: feeProjectId,
-                configuration: nanaConfig,
-                terminalConfigurations: terminalConfigs,
-                suckerDeploymentConfiguration: suckerConfig
-            });
+        // Configure project ID 1 only if it has not already become the canonical NANA revnet.
+        if (address(_directory.controllerOf(feeProjectId)) != address(0)) {
+            if (!_isCanonicalRevnetProject({projectId: feeProjectId, expectedSymbol: "NANA"})) {
+                revert Deploy_ProjectNotCanonical(feeProjectId);
+            }
+            return;
         }
+
+        if (_projects.ownerOf(feeProjectId) != safeAddress()) revert Deploy_ProjectNotOwned(feeProjectId);
+
+        // Approve the deployer to configure project ID 1.
+        _projects.approve(address(_revDeployer), feeProjectId);
+
+        _revDeployer.deployFor({
+            revnetId: feeProjectId,
+            configuration: nanaConfig,
+            terminalConfigurations: terminalConfigs,
+            suckerDeploymentConfiguration: suckerConfig
+        });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2894,10 +2905,11 @@ contract Deploy is Script, Sphinx {
             // token mappings until Phase 2 (JBSwapCCIPSucker) enables cross-currency bridging.
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
             suckerDeployerConfigs[0] =
-                JBSuckerDeployerConfig({deployer: _optimismSuckerDeployer, mappings: tokenMappings});
-            suckerDeployerConfigs[1] = JBSuckerDeployerConfig({deployer: _baseSuckerDeployer, mappings: tokenMappings});
+                JBSuckerDeployerConfig({deployer: _optimismSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
+            suckerDeployerConfigs[1] =
+                JBSuckerDeployerConfig({deployer: _baseSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
             suckerDeployerConfigs[2] =
-                JBSuckerDeployerConfig({deployer: _arbitrumSuckerDeployer, mappings: tokenMappings});
+                JBSuckerDeployerConfig({deployer: _arbitrumSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
             // TODO: Tempo sucker config commented out until chain is ready.
         } else {
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
@@ -2906,6 +2918,7 @@ contract Deploy is Script, Sphinx {
                 deployer: address(_optimismSuckerDeployer) != address(0)
                     ? _optimismSuckerDeployer
                     : address(_baseSuckerDeployer) != address(0) ? _baseSuckerDeployer : _arbitrumSuckerDeployer,
+                peer: bytes32(0),
                 mappings: tokenMappings
             });
         }
@@ -2927,6 +2940,24 @@ contract Deploy is Script, Sphinx {
         } else if (address(existing) != address(expectedFeed)) {
             revert Deploy_PriceFeedMismatch(projectId, pricingCurrency, unitCurrency);
         }
+    }
+
+    function _isCanonicalRevnetProject(uint256 projectId, string memory expectedSymbol) internal view returns (bool) {
+        if (_projects.ownerOf(projectId) != address(_revDeployer)) return false;
+        if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
+        if (_revDeployer.hashedEncodedConfigurationOf(projectId) == bytes32(0)) return false;
+        if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: expectedSymbol})) return false;
+        return true;
+    }
+
+    function _projectTokenSymbolIs(uint256 projectId, string memory expectedSymbol) internal view returns (bool) {
+        address token = address(_tokens.tokenOf(projectId));
+        if (token == address(0)) return false;
+
+        (bool success, bytes memory data) = token.staticcall(abi.encodeWithSignature("symbol()"));
+        if (!success || data.length < 32) return false;
+
+        return keccak256(bytes(abi.decode(data, (string)))) == keccak256(bytes(expectedSymbol));
     }
 
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {

@@ -97,6 +97,7 @@ import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721Init
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
 import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
+import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
 import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
 import {IJB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721CheckpointsDeployer.sol";
 
@@ -184,6 +185,7 @@ import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectP
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title Resume -- Juicebox V6 Deployment Recovery Script
 /// @notice Resumes an interrupted Deploy.s.sol run. Uses identical salts and constructor arguments.
@@ -203,6 +205,8 @@ contract Resume is Script {
     error Resume_ProjectIdMismatch(uint256 expected, uint256 actual);
     /// @notice Reverts when the deployer does not own a project it should.
     error Resume_ProjectNotOwned(uint256 projectId);
+    /// @notice Reverts when a pre-existing configured project does not match the canonical deployment shape.
+    error Resume_ProjectNotCanonical(uint256 projectId);
     /// @notice Reverts when a registered price feed does not match the expected feed.
     error Resume_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
 
@@ -1524,6 +1528,7 @@ contract Resume is Script {
                 IJB721TiersHookDeployer(address(_hookDeployer)),
                 _permissions,
                 _projects,
+                _directory,
                 _trustedForwarder
             )
         );
@@ -1534,6 +1539,7 @@ contract Resume is Script {
                 IJB721TiersHookDeployer(address(_hookDeployer)),
                 _permissions,
                 _projects,
+                _directory,
                 _trustedForwarder
             );
 
@@ -2413,8 +2419,9 @@ contract Resume is Script {
             return;
         }
 
-        // Skip if NANA project is already configured (has a controller set).
+        // Skip only if NANA project is already configured as the canonical NANA revnet.
         if (address(_directory.controllerOf(_FEE_PROJECT_ID)) != address(0)) {
+            if (!_isCanonicalConfiguredProject(_FEE_PROJECT_ID)) revert Resume_ProjectNotCanonical(_FEE_PROJECT_ID);
             console2.log("[Phase 08b] NANA Revnet: SKIPPED (already configured)");
             _phasesSkipped++;
             return;
@@ -2482,6 +2489,8 @@ contract Resume is Script {
         });
 
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(NANA_SUCKER_SALT);
+
+        if (_projects.ownerOf(feeProjectId) != _deployer) revert Resume_ProjectNotOwned(feeProjectId);
 
         // Approve the REV deployer to configure project ID 1.
         _projects.approve(address(_revDeployer), feeProjectId);
@@ -3001,10 +3010,11 @@ contract Resume is Script {
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
             suckerDeployerConfigs[0] =
-                JBSuckerDeployerConfig({deployer: _optimismSuckerDeployer, mappings: tokenMappings});
-            suckerDeployerConfigs[1] = JBSuckerDeployerConfig({deployer: _baseSuckerDeployer, mappings: tokenMappings});
+                JBSuckerDeployerConfig({deployer: _optimismSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
+            suckerDeployerConfigs[1] =
+                JBSuckerDeployerConfig({deployer: _baseSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
             suckerDeployerConfigs[2] =
-                JBSuckerDeployerConfig({deployer: _arbitrumSuckerDeployer, mappings: tokenMappings});
+                JBSuckerDeployerConfig({deployer: _arbitrumSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
         } else {
             // L2 -> L1: pick whichever deployer is non-zero for this chain.
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
@@ -3012,6 +3022,7 @@ contract Resume is Script {
                 deployer: address(_optimismSuckerDeployer) != address(0)
                     ? _optimismSuckerDeployer
                     : address(_baseSuckerDeployer) != address(0) ? _baseSuckerDeployer : _arbitrumSuckerDeployer,
+                peer: bytes32(0),
                 mappings: tokenMappings
             });
         }
@@ -3044,9 +3055,10 @@ contract Resume is Script {
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {
         uint256 count = _projects.count(); // Read current project count.
         if (count >= expectedProjectId) {
-            // If a controller is already set, the project is fully configured — skip ownership check.
-            // This handles resumed deployments where the NFT may have been transferred to a Safe.
             if (address(_directory.controllerOf(expectedProjectId)) != address(0)) {
+                if (!_isCanonicalConfiguredProject(expectedProjectId)) {
+                    revert Resume_ProjectNotCanonical(expectedProjectId);
+                }
                 return expectedProjectId;
             }
             // Project exists but not yet configured — verify ownership so we can configure it.
@@ -3062,6 +3074,106 @@ contract Resume is Script {
             revert Resume_ProjectIdMismatch(expectedProjectId, created); // Order matters.
         }
         return created; // Return newly created ID.
+    }
+
+    function _isCanonicalConfiguredProject(uint256 projectId) internal view returns (bool) {
+        (,, address expectedRevOwner, address expectedRevDeployer) = _expectedRevnetAddresses();
+
+        if (expectedRevDeployer.code.length == 0) return false;
+        if (_projects.ownerOf(projectId) != expectedRevDeployer) return false;
+        if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
+        if (REVDeployer(expectedRevDeployer).hashedEncodedConfigurationOf(projectId) == bytes32(0)) return false;
+
+        if (projectId == _FEE_PROJECT_ID && !_projectTokenSymbolIs(projectId, "NANA")) return false;
+        if (projectId == _CPN_PROJECT_ID && !_projectTokenSymbolIs(projectId, "CPN")) return false;
+        if (projectId == _REV_PROJECT_ID && !_projectTokenSymbolIs(projectId, "REV")) return false;
+        if (projectId == _BAN_PROJECT_ID) {
+            if (!_projectTokenSymbolIs(projectId, "BAN")) return false;
+            if (expectedRevOwner.code.length == 0) return false;
+
+            IJB721TiersHook hook = REVOwner(expectedRevOwner).tiered721HookOf(projectId);
+            if (address(hook) == address(0)) return false;
+            if (hook.PROJECT_ID() != projectId) return false;
+            if (address(hook.STORE()) != address(_hookStore)) return false;
+            if (!_metadataSymbolIs(address(hook), "BANNY")) return false;
+        }
+
+        return true;
+    }
+
+    function _expectedCtPublisherAddress() internal view returns (address publisher) {
+        (publisher,) = _isDeployed(
+            CT_PUBLISHER_SALT,
+            type(CTPublisher).creationCode,
+            abi.encode(_directory, _permissions, _CPN_PROJECT_ID, _trustedForwarder)
+        );
+    }
+
+    function _expectedRevnetAddresses()
+        internal
+        view
+        returns (address revLoans, address revHiddenTokens, address revOwner, address revDeployer)
+    {
+        (revLoans,) = _isDeployed(
+            REV_LOANS_SALT,
+            type(REVLoans).creationCode,
+            abi.encode(
+                _controller,
+                IJBSuckerRegistry(address(_suckerRegistry)),
+                _REV_PROJECT_ID,
+                _deployer,
+                _PERMIT2,
+                _trustedForwarder
+            )
+        );
+
+        (revHiddenTokens,) = _isDeployed(
+            REV_HIDDEN_TOKENS_SALT, type(REVHiddenTokens).creationCode, abi.encode(_controller, _trustedForwarder)
+        );
+
+        (revOwner,) = _isDeployed(
+            REV_OWNER_SALT,
+            type(REVOwner).creationCode,
+            abi.encode(
+                IJBBuybackHookRegistry(address(_buybackRegistry)),
+                _directory,
+                _REV_PROJECT_ID,
+                _suckerRegistry,
+                revLoans,
+                revHiddenTokens
+            )
+        );
+
+        address publisher = address(_ctPublisher) == address(0) ? _expectedCtPublisherAddress() : address(_ctPublisher);
+        (revDeployer,) = _isDeployed(
+            REV_DEPLOYER_SALT,
+            type(REVDeployer).creationCode,
+            abi.encode(
+                _controller,
+                _suckerRegistry,
+                _REV_PROJECT_ID,
+                IJB721TiersHookDeployer(address(_hookDeployer)),
+                publisher,
+                IJBBuybackHookRegistry(address(_buybackRegistry)),
+                revLoans,
+                _trustedForwarder,
+                revOwner
+            )
+        );
+    }
+
+    function _projectTokenSymbolIs(uint256 projectId, string memory expected) internal view returns (bool) {
+        address token = address(_tokens.tokenOf(projectId));
+        if (token == address(0)) return false;
+        return _metadataSymbolIs(token, expected);
+    }
+
+    function _metadataSymbolIs(address token, string memory expected) internal view returns (bool) {
+        try IERC20Metadata(token).symbol() returns (string memory actual) {
+            return keccak256(bytes(actual)) == keccak256(bytes(expected));
+        } catch {
+            return false;
+        }
     }
 
     /// @dev Computes the CREATE2 address and checks if code exists there.

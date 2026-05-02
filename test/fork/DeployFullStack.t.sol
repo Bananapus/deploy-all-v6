@@ -501,7 +501,12 @@ contract DeployFullStackTest is Test {
     /// @dev Phase 04: Omnichain Deployer. Mirrors Deploy._deployOmnichainDeployer().
     function _deployOmnichainDeployer() internal {
         _omnichainDeployer = new JBOmnichainDeployer(
-            _suckerRegistry, IJB721TiersHookDeployer(address(_hookDeployer)), _permissions, _projects, _trustedForwarder
+            _suckerRegistry,
+            IJB721TiersHookDeployer(address(_hookDeployer)),
+            _permissions,
+            _projects,
+            _directory,
+            _trustedForwarder
         );
     }
 

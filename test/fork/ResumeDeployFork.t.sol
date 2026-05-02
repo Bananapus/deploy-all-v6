@@ -544,13 +544,23 @@ contract ResumeDeployHarness is IERC721Receiver {
             OMNICHAIN_DEPLOYER_SALT,
             type(JBOmnichainDeployer).creationCode,
             abi.encode(
-                suckerRegistry, IJB721TiersHookDeployer(address(hookDeployer)), permissions, projects, trustedForwarder
+                suckerRegistry,
+                IJB721TiersHookDeployer(address(hookDeployer)),
+                permissions,
+                projects,
+                directory,
+                trustedForwarder
             )
         );
         omnichainDeployer = deployed
             ? JBOmnichainDeployer(deployerAddress)
             : new JBOmnichainDeployer{salt: OMNICHAIN_DEPLOYER_SALT}(
-                suckerRegistry, IJB721TiersHookDeployer(address(hookDeployer)), permissions, projects, trustedForwarder
+                suckerRegistry,
+                IJB721TiersHookDeployer(address(hookDeployer)),
+                permissions,
+                projects,
+                directory,
+                trustedForwarder
             );
     }
 
