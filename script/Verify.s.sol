@@ -33,6 +33,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
 import {JB721TiersHookProjectDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookProjectDeployer.sol";
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
+import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
 
 // ── Buyback Hook ──
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
@@ -56,6 +57,19 @@ import {CTProjectOwner} from "@croptop/core-v6/src/CTProjectOwner.sol";
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
+
+// ── Defifa ──
+import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
+import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
+import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
+
+// ── Phase 11 Periphery ──
+import {JBProjectHandles} from "@bananapus/project-handles-v6/src/JBProjectHandles.sol";
+import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.sol";
+import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
+import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectPayerDeployer.sol";
+
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title Verify — Post-Deployment Verification for Juicebox V6
 /// @notice Read-only Forge Script that validates all deployed contracts are correctly wired together.
@@ -150,7 +164,17 @@ contract Verify is Script {
     // The address registry contract (optional, not deployed on all chains).
     address public addressRegistry;
     // The Defifa deployer contract (optional, not deployed on all chains).
-    address public defifaDeployer;
+    DefifaDeployer public defifaDeployer;
+
+    // -- Phase 11 Periphery (optional on testnets) --
+    // ENS-backed project handle registry.
+    JBProjectHandles public projectHandles;
+    // 721 staking reward distributor.
+    JB721Distributor public distributor721;
+    // ERC-20 staking reward distributor.
+    JBTokenDistributor public tokenDistributor;
+    // Project payer clone deployer.
+    JBProjectPayerDeployer public projectPayerDeployer;
 
     // ════════════════════════════════════════════════════════════════════
     //  Counters — track pass/fail for summary
@@ -175,6 +199,8 @@ contract Verify is Script {
     uint256 private constant _REV_PROJECT_ID = 3;
     // The BAN/Banny project is always project 4.
     uint256 private constant _BAN_PROJECT_ID = 4;
+    // Phase 11 distributor vesting rounds must match Deploy.s.sol.
+    uint256 private constant _VESTING_ROUNDS = 52;
 
     // ════════════════════════════════════════════════════════════════════
     //  Entry Point
@@ -206,6 +232,7 @@ contract Verify is Script {
         _verifyPriceFeeds();
         _verifyAllowlists();
         _verifyRoutes();
+        _verifyPeripheryExtensions();
 
         // Print final summary of results.
         _printSummary();
@@ -283,7 +310,13 @@ contract Verify is Script {
         // Read the address registry address from env (address(0) if not deployed on this chain).
         addressRegistry = vm.envOr("VERIFY_ADDRESS_REGISTRY", address(0));
         // Read the Defifa deployer address from env (address(0) if not deployed on this chain).
-        defifaDeployer = vm.envOr("VERIFY_DEFIFA_DEPLOYER", address(0));
+        defifaDeployer = DefifaDeployer(vm.envOr("VERIFY_DEFIFA_DEPLOYER", address(0)));
+
+        // Read Phase 11 periphery addresses from env (address(0) if intentionally omitted on a testnet).
+        projectHandles = JBProjectHandles(vm.envOr("VERIFY_PROJECT_HANDLES", address(0)));
+        distributor721 = JB721Distributor(payable(vm.envOr("VERIFY_721_DISTRIBUTOR", address(0))));
+        tokenDistributor = JBTokenDistributor(payable(vm.envOr("VERIFY_TOKEN_DISTRIBUTOR", address(0))));
+        projectPayerDeployer = JBProjectPayerDeployer(vm.envOr("VERIFY_PROJECT_PAYER_DEPLOYER", address(0)));
 
         // On production chains, require the full deployment stack.
         // Testnets may omit optional components, but mainnet and major L2s must fail-closed.
@@ -303,6 +336,23 @@ contract Verify is Script {
             require(address(revDeployer) != address(0), "Verify: VERIFY_REV_DEPLOYER required on production chain");
             require(address(revOwner) != address(0), "Verify: VERIFY_REV_OWNER required on production chain");
             require(address(revLoans) != address(0), "Verify: VERIFY_REV_LOANS required on production chain");
+            require(addressRegistry != address(0), "Verify: VERIFY_ADDRESS_REGISTRY required on production chain");
+            require(
+                address(defifaDeployer) != address(0), "Verify: VERIFY_DEFIFA_DEPLOYER required on production chain"
+            );
+            require(
+                address(projectHandles) != address(0), "Verify: VERIFY_PROJECT_HANDLES required on production chain"
+            );
+            require(
+                address(distributor721) != address(0), "Verify: VERIFY_721_DISTRIBUTOR required on production chain"
+            );
+            require(
+                address(tokenDistributor) != address(0), "Verify: VERIFY_TOKEN_DISTRIBUTOR required on production chain"
+            );
+            require(
+                address(projectPayerDeployer) != address(0),
+                "Verify: VERIFY_PROJECT_PAYER_DEPLOYER required on production chain"
+            );
         }
     }
 
@@ -334,8 +384,54 @@ contract Verify is Script {
         // Verify project 4 (BAN/Banny) has an owner.
         _checkProjectHasOwner(_BAN_PROJECT_ID, "Project 4 (BAN) exists with owner");
 
+        _verifyCanonicalProjectIdentities();
+
         // Log a blank line for readability.
         console.log("");
+    }
+
+    function _verifyCanonicalProjectIdentities() internal {
+        if (address(revDeployer) == address(0)) {
+            _skip("Canonical project identity checks (REVDeployer not configured)");
+            return;
+        }
+
+        _verifyCanonicalRevnetProject(_FEE_PROJECT_ID, "NANA", "NANA(1)");
+        _verifyCanonicalRevnetProject(_CPN_PROJECT_ID, "CPN", "CPN(2)");
+        _verifyCanonicalRevnetProject(_REV_PROJECT_ID, "REV", "REV(3)");
+        _verifyCanonicalRevnetProject(_BAN_PROJECT_ID, "BAN", "BAN(4)");
+
+        if (address(revOwner) != address(0)) {
+            IJB721TiersHook bannyHook = revOwner.tiered721HookOf(_BAN_PROJECT_ID);
+            _check(address(bannyHook) != address(0), "BAN(4) has Banny 721 hook recorded", true);
+            if (address(bannyHook) != address(0)) {
+                _check(bannyHook.PROJECT_ID() == _BAN_PROJECT_ID, "Banny hook PROJECT_ID == 4", true);
+                _check(address(bannyHook.STORE()) == address(hookStore), "Banny hook uses canonical 721 store", true);
+                _check(_metadataSymbolIs(address(bannyHook), "BANNY"), "Banny hook symbol == BANNY", true);
+            }
+        } else {
+            _skip("Banny 721 hook identity checks (REVOwner not configured)");
+        }
+    }
+
+    function _verifyCanonicalRevnetProject(uint256 projectId, string memory symbol, string memory label) internal {
+        try projects.ownerOf(projectId) returns (address owner) {
+            _check(owner == address(revDeployer), string.concat(label, " project NFT is owned by REVDeployer"), true);
+        } catch {
+            _check(false, string.concat(label, " project NFT owner readable"), true);
+        }
+
+        _check(
+            revDeployer.hashedEncodedConfigurationOf(projectId) != bytes32(0),
+            string.concat(label, " has REVDeployer configuration hash"),
+            true
+        );
+
+        address token = address(tokens.tokenOf(projectId));
+        _check(token != address(0), string.concat(label, " project token is deployed"), true);
+        if (token != address(0)) {
+            _check(_metadataSymbolIs(token, symbol), string.concat(label, " project token symbol matches"), true);
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -681,11 +777,53 @@ contract Verify is Script {
         }
 
         // If the Defifa deployer is not set, skip these checks.
-        if (defifaDeployer == address(0)) {
+        if (address(defifaDeployer) == address(0)) {
             _skip("DefifaDeployer not deployed (VERIFY_DEFIFA_DEPLOYER not set)");
         } else {
             // Verify the Defifa deployer is deployed (has code).
-            _check(defifaDeployer.code.length > 0, "DefifaDeployer has code", true);
+            _check(address(defifaDeployer).code.length > 0, "DefifaDeployer has code", true);
+            _check(defifaDeployer.DEFIFA_PROJECT_ID() == _REV_PROJECT_ID, "Defifa uses REV(3) as fee project", true);
+            _check(
+                defifaDeployer.BASE_PROTOCOL_PROJECT_ID() == _FEE_PROJECT_ID,
+                "Defifa uses NANA(1) as base protocol project",
+                true
+            );
+            _check(address(defifaDeployer.CONTROLLER()) == address(controller), "Defifa controller wiring", true);
+            _check(address(defifaDeployer.REGISTRY()) == addressRegistry, "Defifa address registry wiring", true);
+            _check(address(defifaDeployer.HOOK_STORE()) == address(hookStore), "Defifa hook store wiring", true);
+
+            address hookCodeOrigin = defifaDeployer.HOOK_CODE_ORIGIN();
+            _check(hookCodeOrigin.code.length > 0, "Defifa hook code origin has code", true);
+            if (hookCodeOrigin.code.length > 0) {
+                _check(
+                    address(DefifaHook(hookCodeOrigin).DEFIFA_TOKEN()) == address(tokens.tokenOf(_REV_PROJECT_ID)),
+                    "Defifa hook code origin uses REV token",
+                    true
+                );
+                _check(
+                    address(DefifaHook(hookCodeOrigin).BASE_PROTOCOL_TOKEN())
+                        == address(tokens.tokenOf(_FEE_PROJECT_ID)),
+                    "Defifa hook code origin uses NANA token",
+                    true
+                );
+            }
+
+            address tokenUriResolver = address(defifaDeployer.TOKEN_URI_RESOLVER());
+            address governor = address(defifaDeployer.GOVERNOR());
+            _check(tokenUriResolver.code.length > 0, "Defifa token URI resolver has code", true);
+            _check(governor.code.length > 0, "Defifa governor has code", true);
+            if (governor.code.length > 0) {
+                _check(
+                    DefifaGovernor(governor).owner() == address(defifaDeployer),
+                    "Defifa governor owned by deployer",
+                    true
+                );
+                _check(
+                    address(DefifaGovernor(governor).CONTROLLER()) == address(controller),
+                    "Defifa governor controller wiring",
+                    true
+                );
+            }
         }
 
         // Log a blank line for readability.
@@ -864,12 +1002,13 @@ contract Verify is Script {
     //  Category 10: Routes
     // ════════════════════════════════════════════════════════════════════
 
-    /// @dev Validates that the router terminal is included in every canonical project's terminal list.
+    /// @dev Validates that the router terminal registry is included in every canonical project's terminal list.
     function _verifyRoutes() internal {
         console.log("--- Category 10: Routes ---");
 
-        // Check that the router terminal (if deployed) is in each project's terminal list.
-        if (address(routerTerminal) != address(0)) {
+        // Deploy.s.sol installs the router terminal registry as the project terminal. The registry then resolves to the
+        // raw router terminal.
+        if (address(routerTerminalRegistry) != address(0)) {
             uint256[4] memory projectIds = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
             string[4] memory labels = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
 
@@ -877,12 +1016,12 @@ contract Verify is Script {
                 IJBTerminal[] memory terminals = directory.terminalsOf(projectIds[i]);
                 bool found = false;
                 for (uint256 j; j < terminals.length; j++) {
-                    if (address(terminals[j]) == address(routerTerminal)) {
+                    if (address(terminals[j]) == address(routerTerminalRegistry)) {
                         found = true;
                         break;
                     }
                 }
-                _check(found, string.concat(labels[i], " terminal list includes RouterTerminal"), false);
+                _check(found, string.concat(labels[i], " terminal list includes RouterTerminalRegistry"), true);
             }
 
             // Verify the router terminal's primary terminal for native token is the JBMultiTerminal.
@@ -899,8 +1038,95 @@ contract Verify is Script {
     }
 
     // ════════════════════════════════════════════════════════════════════
+    //  Category 11: Phase 11 Periphery Extensions
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @dev Validates the late-phase convenience contracts that Deploy.s.sol always deploys.
+    function _verifyPeripheryExtensions() internal {
+        console.log("--- Category 11: Phase 11 Periphery Extensions ---");
+
+        uint256 expectedRoundDuration = _expectedRoundDuration();
+
+        if (address(projectHandles) == address(0)) {
+            _skip("ProjectHandles not deployed (VERIFY_PROJECT_HANDLES not set)");
+        } else {
+            _check(address(projectHandles).code.length > 0, "ProjectHandles has code", true);
+            _check(
+                keccak256(bytes(projectHandles.TEXT_KEY())) == keccak256(bytes("juicebox")),
+                "ProjectHandles text key == juicebox",
+                true
+            );
+            _check(
+                projectHandles.trustedForwarder() == projects.trustedForwarder(),
+                "ProjectHandles trusted forwarder matches core",
+                true
+            );
+        }
+
+        if (address(distributor721) == address(0)) {
+            _skip("JB721Distributor not deployed (VERIFY_721_DISTRIBUTOR not set)");
+        } else {
+            _check(address(distributor721).code.length > 0, "JB721Distributor has code", true);
+            _check(address(distributor721.DIRECTORY()) == address(directory), "JB721Distributor directory wiring", true);
+            _verifyDistributorTiming(
+                distributor721.roundDuration(), distributor721.vestingRounds(), expectedRoundDuration
+            );
+        }
+
+        if (address(tokenDistributor) == address(0)) {
+            _skip("JBTokenDistributor not deployed (VERIFY_TOKEN_DISTRIBUTOR not set)");
+        } else {
+            _check(address(tokenDistributor).code.length > 0, "JBTokenDistributor has code", true);
+            _check(
+                address(tokenDistributor.DIRECTORY()) == address(directory), "JBTokenDistributor directory wiring", true
+            );
+            _verifyDistributorTiming(
+                tokenDistributor.roundDuration(), tokenDistributor.vestingRounds(), expectedRoundDuration
+            );
+        }
+
+        if (address(projectPayerDeployer) == address(0)) {
+            _skip("ProjectPayerDeployer not deployed (VERIFY_PROJECT_PAYER_DEPLOYER not set)");
+        } else {
+            _check(address(projectPayerDeployer).code.length > 0, "ProjectPayerDeployer has code", true);
+            _check(
+                address(projectPayerDeployer.DIRECTORY()) == address(directory),
+                "ProjectPayerDeployer directory wiring",
+                true
+            );
+
+            address implementation = projectPayerDeployer.IMPLEMENTATION();
+            _check(implementation.code.length > 0, "ProjectPayer implementation has code", true);
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
     //  Internal Helpers
     // ════════════════════════════════════════════════════════════════════
+
+    function _verifyDistributorTiming(
+        uint256 roundDuration,
+        uint256 vestingRounds,
+        uint256 expectedRoundDuration
+    )
+        internal
+    {
+        if (expectedRoundDuration != 0) {
+            _check(roundDuration == expectedRoundDuration, "Distributor round duration", true);
+        }
+        _check(vestingRounds == _VESTING_ROUNDS, "Distributor vesting rounds", true);
+    }
+
+    function _expectedRoundDuration() internal view returns (uint256) {
+        if (block.chainid == 1 || block.chainid == 11_155_111) return 50_400;
+        if (block.chainid == 10 || block.chainid == 11_155_420 || block.chainid == 8453 || block.chainid == 84_532) {
+            return 302_400;
+        }
+        if (block.chainid == 42_161 || block.chainid == 421_614) return 2_419_200;
+        return 0;
+    }
 
     /// @dev Checks whether a project exists by calling ownerOf on the ERC-721.
     /// @param projectId The project ID to check.
@@ -910,12 +1136,17 @@ contract Verify is Script {
         try projects.ownerOf(projectId) returns (address owner) {
             // Verify the owner is not the zero address (burned token).
             _check(owner != address(0), label, true);
-            if (expectedSafe != address(0)) {
-                _check(owner == expectedSafe, string.concat(label, " and is canonically safe-owned"), true);
-            }
         } catch {
             // ownerOf reverted, meaning the project does not exist.
             _check(false, label, true);
+        }
+    }
+
+    function _metadataSymbolIs(address token, string memory expected) internal view returns (bool) {
+        try IERC20Metadata(token).symbol() returns (string memory actual) {
+            return keccak256(bytes(actual)) == keccak256(bytes(expected));
+        } catch {
+            return false;
         }
     }
 

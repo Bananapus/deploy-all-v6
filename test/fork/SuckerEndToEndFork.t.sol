@@ -199,7 +199,9 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         });
 
         JBSuckerDeployerConfig[] memory configs = new JBSuckerDeployerConfig[](1);
-        configs[0] = JBSuckerDeployerConfig({deployer: IJBSuckerDeployer(address(opDeployer)), mappings: mappings});
+        configs[0] = JBSuckerDeployerConfig({
+            deployer: IJBSuckerDeployer(address(opDeployer)), peer: bytes32(0), mappings: mappings
+        });
 
         vm.prank(PROJECT_OWNER);
         address[] memory suckers = suckerRegistry.deploySuckersFor(projectId, bytes32("SALT"), configs);

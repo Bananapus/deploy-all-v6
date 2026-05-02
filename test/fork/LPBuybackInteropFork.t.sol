@@ -222,7 +222,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
 
         // 3. Deploy pool via LP split hook (uses accumulated tokens as liquidity).
         _grantDeployPoolPermission(address(this), revnetId);
-        LP_SPLIT_HOOK.deployPool({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
+        LP_SPLIT_HOOK.deployPool({projectId: revnetId, minCashOutReturn: 0});
 
         // Accumulated tokens should be cleared after pool deployment.
         assertEq(LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId), 0, "accumulated tokens should be cleared");
@@ -297,7 +297,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
 
         // Deploy pool.
         _grantDeployPoolPermission(address(this), revnetId);
-        LP_SPLIT_HOOK.deployPool({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
+        LP_SPLIT_HOOK.deployPool({projectId: revnetId, minCashOutReturn: 0});
 
         // More payments -> more reserved tokens.
         _payRevnet(revnetId, PAYER, 5 ether);
@@ -350,7 +350,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         // Distribute and deploy pool.
         jbController().sendReservedTokensToSplitsOf(revnetId);
         _grantDeployPoolPermission(address(this), revnetId);
-        LP_SPLIT_HOOK.deployPool({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
+        LP_SPLIT_HOOK.deployPool({projectId: revnetId, minCashOutReturn: 0});
 
         // Also add manual liquidity to the same native ETH pool to ensure swap path is competitive with mint.
         _seedBuybackPoolLiquidity(revnetId, 10_000 ether);
@@ -384,7 +384,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         // Distribute and deploy pool.
         jbController().sendReservedTokensToSplitsOf(revnetId);
         _grantDeployPoolPermission(address(this), revnetId);
-        LP_SPLIT_HOOK.deployPool({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
+        LP_SPLIT_HOOK.deployPool({projectId: revnetId, minCashOutReturn: 0});
 
         // Cash out tokens -- bonding curve should work with pool deployed.
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
@@ -509,7 +509,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         // Must happen BEFORE initializePoolFor, because initializePoolFor would set tick 0
         // which puts the LP range out of reach (the range is one-sided project-token only).
         // No permission grant needed -- address(this) IS the project owner.
-        LP_SPLIT_HOOK.deployPool({projectId: projectId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0});
+        LP_SPLIT_HOOK.deployPool({projectId: projectId, minCashOutReturn: 0});
 
         assertEq(LP_SPLIT_HOOK.accumulatedProjectTokens(projectId), 0, "accumulated should be cleared");
         assertGt(LP_SPLIT_HOOK.tokenIdOf(projectId, JBConstants.NATIVE_TOKEN), 0, "LP position should exist");

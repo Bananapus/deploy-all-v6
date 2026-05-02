@@ -343,11 +343,12 @@ contract InstrumentedDeployer is IERC721Receiver {
         hookStore = hsD ? JB721TiersHookStore(hs) : new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
         // Deploy or resolve checkpoints deployer.
-        (address cpd, bool cpdD) =
-            _isDeployed(HOOK_721_CHECKPOINTS_DEPLOYER_SALT, type(JB721CheckpointsDeployer).creationCode, "");
+        (address cpd, bool cpdD) = _isDeployed(
+            HOOK_721_CHECKPOINTS_DEPLOYER_SALT, type(JB721CheckpointsDeployer).creationCode, abi.encode(hookStore)
+        );
         checkpointsDeployer = cpdD
             ? JB721CheckpointsDeployer(cpd)
-            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}();
+            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}(hookStore);
 
         // Deploy or resolve 721 hook implementation.
         (address h, bool hD) = _isDeployed(
@@ -575,13 +576,23 @@ contract InstrumentedDeployer is IERC721Receiver {
             OMNICHAIN_DEPLOYER_SALT,
             type(JBOmnichainDeployer).creationCode,
             abi.encode(
-                suckerRegistry, IJB721TiersHookDeployer(address(hookDeployer)), permissions, projects, trustedForwarder
+                suckerRegistry,
+                IJB721TiersHookDeployer(address(hookDeployer)),
+                permissions,
+                projects,
+                directory,
+                trustedForwarder
             )
         );
         omnichainDeployer = dD
             ? JBOmnichainDeployer(d)
             : new JBOmnichainDeployer{salt: OMNICHAIN_DEPLOYER_SALT}(
-                suckerRegistry, IJB721TiersHookDeployer(address(hookDeployer)), permissions, projects, trustedForwarder
+                suckerRegistry,
+                IJB721TiersHookDeployer(address(hookDeployer)),
+                permissions,
+                projects,
+                directory,
+                trustedForwarder
             );
     }
 

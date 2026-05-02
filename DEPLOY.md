@@ -38,7 +38,7 @@ The deploy script (`script/Deploy.s.sol`) executes 11 phases in strict order:
 | 08 | Revnet Config | Configures CPN (project 2) and NANA (project 1) as revnets |
 | 09 | Banny | Banny721TokenUriResolver; creates BAN project (ID 4) |
 | 10 | Defifa | DefifaHook, DefifaTokenUriResolver, DefifaGovernor, DefifaDeployer |
-| 11 | Periphery Extensions | JBProjectHandles, JBDistributor, JBProjectPayerDeployer |
+| 11 | Periphery Extensions | JBProjectHandles, JB721Distributor, JBTokenDistributor, JBProjectPayerDeployer |
 
 All contracts use CREATE2 with deterministic salts. Addresses are identical across chains for the same salt + initcode.
 
@@ -147,13 +147,20 @@ export VERIFY_CT_DEPLOYER=0x...
 export VERIFY_CT_PROJECT_OWNER=0x...
 ```
 
-Optional (set to `address(0)` or omit if not deployed on this chain):
+Required on production chains (Ethereum, Optimism, Base, Arbitrum). Testnets may set these to `address(0)` or omit intentionally omitted components:
 ```bash
+export VERIFY_ADDRESS_REGISTRY=0x...
 export VERIFY_BUYBACK_REGISTRY=0x...
 export VERIFY_ROUTER_TERMINAL_REGISTRY=0x...
 export VERIFY_ROUTER_TERMINAL=0x...
 export VERIFY_REV_DEPLOYER=0x...
+export VERIFY_REV_OWNER=0x...
 export VERIFY_REV_LOANS=0x...
+export VERIFY_DEFIFA_DEPLOYER=0x...
+export VERIFY_PROJECT_HANDLES=0x...
+export VERIFY_721_DISTRIBUTOR=0x...
+export VERIFY_TOKEN_DISTRIBUTOR=0x...
+export VERIFY_PROJECT_PAYER_DEPLOYER=0x...
 ```
 
 ### Running Verification
@@ -168,17 +175,21 @@ This is a read-only script — no `--broadcast` needed.
 
 ### Verification Categories
 
-Verify checks 7 categories in order:
+Verify checks 11 categories in order:
 
 | # | Category | What It Checks |
 |---|---|---|
-| 1 | Project IDs | Projects 1-4 exist, `projects.count() >= 4`, each has correct controller |
+| 1 | Project IDs | Projects 1-4 exist, `projects.count() >= 4`, canonical revnet ownership, token symbols, and Banny hook identity |
 | 2 | Directory Wiring | `controllerOf()` returns controller for each project, terminal is registered |
 | 3 | Controller Wiring | Controller references correct directory, tokens, rulesets, permissions |
 | 4 | Terminal Wiring | Terminal references correct store, directory, permissions, feeless registry |
 | 5 | Hook Registries | 721 hook store/deployer wiring, buyback registry default hook, router terminal default |
 | 6 | Omnichain | Omnichain deployer references correct controller/directory, sucker deployers are allowed |
-| 7 | Price Feeds | ETH/USD and USDC/USD feeds resolve, prices are non-zero and sane |
+| 7 | Address Registry & Defifa | Address registry code, Defifa deployer identity, token/governor/controller/hook-store wiring |
+| 8 | Price Feeds | ETH/USD and USDC/USD feeds resolve, prices are non-zero and sane |
+| 9 | Allowlists | Optional sucker deployer and feeless-address allowlist checks |
+| 10 | Routes | Canonical projects include the router terminal registry in their terminal lists |
+| 11 | Periphery Extensions | Project handles, distributors, and project payer deployer code and constructor wiring |
 
 ### Interpreting Results
 
@@ -195,7 +206,7 @@ The script logs each check as `PASS`, `FAIL`, or `SKIP` and prints a summary:
 
 Any `FAIL` triggers a revert with a descriptive reason. Zero failures = deployment is correctly wired.
 
-Skips are normal — they indicate chain-specific components that weren't deployed (e.g., buyback hook on chains without Uniswap V4).
+Skips are normal on testnets or chains with intentionally omitted components. On production chains, the verifier fail-closes for the full deployment surface.
 
 ## Operator Checklist: Full Deployment Cycle
 

@@ -355,7 +355,7 @@ contract DeployFullStackTest is Test {
     /// @dev Phase 03a: 721 Hook. Mirrors Deploy._deploy721Hook().
     function _deploy721Hook() internal {
         _hookStore = new JB721TiersHookStore();
-        JB721CheckpointsDeployer _checkpointsDeployer = new JB721CheckpointsDeployer();
+        JB721CheckpointsDeployer _checkpointsDeployer = new JB721CheckpointsDeployer(_hookStore);
         _hook721 = new JB721TiersHook(
             _directory, _permissions, _prices, _rulesets, _hookStore, _splits, _checkpointsDeployer, _trustedForwarder
         );
@@ -501,7 +501,12 @@ contract DeployFullStackTest is Test {
     /// @dev Phase 04: Omnichain Deployer. Mirrors Deploy._deployOmnichainDeployer().
     function _deployOmnichainDeployer() internal {
         _omnichainDeployer = new JBOmnichainDeployer(
-            _suckerRegistry, IJB721TiersHookDeployer(address(_hookDeployer)), _permissions, _projects, _trustedForwarder
+            _suckerRegistry,
+            IJB721TiersHookDeployer(address(_hookDeployer)),
+            _permissions,
+            _projects,
+            _directory,
+            _trustedForwarder
         );
     }
 
