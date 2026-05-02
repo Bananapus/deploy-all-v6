@@ -786,11 +786,11 @@ contract Resume is Script {
         (address checkpointsDeployer, bool checkpointsDeployerDeployed) = _isDeployed({
             salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT,
             creationCode: type(JB721CheckpointsDeployer).creationCode,
-            arguments: ""
+            arguments: abi.encode(_hookStore)
         });
         _checkpointsDeployer = checkpointsDeployerDeployed
             ? JB721CheckpointsDeployer(checkpointsDeployer)
-            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}();
+            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}(_hookStore);
 
         // Deploy or resolve 721 hook implementation.
         (address hook721, bool hook721Deployed) = _isDeployed({

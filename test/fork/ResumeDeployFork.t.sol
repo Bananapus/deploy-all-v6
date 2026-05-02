@@ -316,11 +316,12 @@ contract ResumeDeployHarness is IERC721Receiver {
             ? JB721TiersHookStore(hookStoreAddress)
             : new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
 
-        (address checkpointsDeployerAddress, bool checkpointsDeployerDeployed) =
-            _isDeployed(HOOK_721_CHECKPOINTS_DEPLOYER_SALT, type(JB721CheckpointsDeployer).creationCode, "");
+        (address checkpointsDeployerAddress, bool checkpointsDeployerDeployed) = _isDeployed(
+            HOOK_721_CHECKPOINTS_DEPLOYER_SALT, type(JB721CheckpointsDeployer).creationCode, abi.encode(hookStore)
+        );
         checkpointsDeployer = checkpointsDeployerDeployed
             ? JB721CheckpointsDeployer(checkpointsDeployerAddress)
-            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}();
+            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}(hookStore);
 
         (address hook721Address, bool hook721Deployed) = _isDeployed(
             HOOK_721_SALT,

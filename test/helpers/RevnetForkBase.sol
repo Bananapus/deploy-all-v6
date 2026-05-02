@@ -135,7 +135,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
+        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer(HOOK_STORE);
         EXAMPLE_HOOK = new JB721TiersHook(
             jbDirectory(),
             jbPermissions(),

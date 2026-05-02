@@ -170,7 +170,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
 
         // Deploy 721 hook infrastructure (store + example hook + deployer).
         JB721TiersHookStore hookStore = new JB721TiersHookStore();
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
+        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer(hookStore);
         JB721TiersHook exampleHook = new JB721TiersHook(
             jbDirectory(),
             jbPermissions(),

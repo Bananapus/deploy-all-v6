@@ -107,7 +107,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
 
         // Deploy 721 hook infrastructure.
         HOOK_STORE = new JB721TiersHookStore(); // tier data storage
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
+        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer(HOOK_STORE);
         EXAMPLE_HOOK = new JB721TiersHook(
             jbDirectory(),
             jbPermissions(),

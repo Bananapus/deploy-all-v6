@@ -355,7 +355,7 @@ contract DeployFullStackTest is Test {
     /// @dev Phase 03a: 721 Hook. Mirrors Deploy._deploy721Hook().
     function _deploy721Hook() internal {
         _hookStore = new JB721TiersHookStore();
-        JB721CheckpointsDeployer _checkpointsDeployer = new JB721CheckpointsDeployer();
+        JB721CheckpointsDeployer _checkpointsDeployer = new JB721CheckpointsDeployer(_hookStore);
         _hook721 = new JB721TiersHook(
             _directory, _permissions, _prices, _rulesets, _hookStore, _splits, _checkpointsDeployer, _trustedForwarder
         );

@@ -88,8 +88,9 @@ contract ResumeRevnetHarness {
 
         revLoans = new MockREVLoans(revProjectId);
         revOwner = new MockREVOwner(revProjectId);
-        revDeployer =
-            new MockREVDeployer(controller, suckerRegistry, hookDeployer, publisher, address(revLoans), address(revOwner), revProjectId);
+        revDeployer = new MockREVDeployer(
+            controller, suckerRegistry, hookDeployer, publisher, address(revLoans), address(revOwner), revProjectId
+        );
         revOwner.setDeployer(revDeployer);
 
         PROJECTS.approve(address(revDeployer), revProjectId);
