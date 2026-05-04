@@ -2030,7 +2030,7 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 feeRevnetId: _revProjectId,
                 suckerRegistry: _suckerRegistry,
-                loans: address(_revLoans),
+                loans: _revLoans,
                 hiddenTokens: address(_revHiddenTokens)
             });
 
@@ -2062,13 +2062,13 @@ contract Deploy is Script, Sphinx {
                 hookDeployer: IJB721TiersHookDeployer(address(_hookDeployer)),
                 publisher: _ctPublisher,
                 buybackHook: IJBBuybackHookRegistry(address(_buybackRegistry)),
-                loans: address(_revLoans),
+                loans: _revLoans,
                 trustedForwarder: _trustedForwarder,
                 owner: address(_revOwner)
             });
 
         // Approve the deployer to configure the $REV project.
-        _projects.approve(address(_revDeployer), _revProjectId);
+        _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
 
         // Configure the $REV revnet.
         if (address(_directory.controllerOf(_revProjectId)) == address(0)) _deployRevFeeProject();
@@ -2332,7 +2332,7 @@ contract Deploy is Script, Sphinx {
 
         // Approve the deployer to configure CPN (project 2).
         if (address(_directory.controllerOf(_cpnProjectId)) == address(0)) {
-            _projects.approve(address(_revDeployer), _cpnProjectId);
+            _projects.approve({to: address(_revDeployer), tokenId: _cpnProjectId});
 
             _revDeployer.deployFor({
                 revnetId: _cpnProjectId,
@@ -2421,7 +2421,7 @@ contract Deploy is Script, Sphinx {
         if (_projects.ownerOf(feeProjectId) != safeAddress()) revert Deploy_ProjectNotOwned(feeProjectId);
 
         // Approve the deployer to configure project ID 1.
-        _projects.approve(address(_revDeployer), feeProjectId);
+        _projects.approve({to: address(_revDeployer), tokenId: feeProjectId});
 
         _revDeployer.deployFor({
             revnetId: feeProjectId,
@@ -2934,11 +2934,16 @@ contract Deploy is Script, Sphinx {
     )
         internal
     {
-        IJBPriceFeed existing = _prices.priceFeedFor(projectId, pricingCurrency, unitCurrency);
+        IJBPriceFeed existing =
+            _prices.priceFeedFor({projectId: projectId, pricingCurrency: pricingCurrency, unitCurrency: unitCurrency});
         if (address(existing) == address(0)) {
-            _prices.addPriceFeedFor(projectId, pricingCurrency, unitCurrency, expectedFeed);
+            _prices.addPriceFeedFor({
+                projectId: projectId, pricingCurrency: pricingCurrency, unitCurrency: unitCurrency, feed: expectedFeed
+            });
         } else if (address(existing) != address(expectedFeed)) {
-            revert Deploy_PriceFeedMismatch(projectId, pricingCurrency, unitCurrency);
+            revert Deploy_PriceFeedMismatch({
+                projectId: projectId, pricingCurrency: pricingCurrency, unitCurrency: unitCurrency
+            });
         }
     }
 

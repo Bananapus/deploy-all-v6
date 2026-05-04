@@ -2049,7 +2049,7 @@ contract Resume is Script {
                 _directory,
                 _revProjectId,
                 _suckerRegistry,
-                address(_revLoans),
+                _revLoans,
                 address(_revHiddenTokens)
             )
         );
@@ -2060,7 +2060,7 @@ contract Resume is Script {
                 _directory,
                 _revProjectId,
                 _suckerRegistry,
-                address(_revLoans),
+                _revLoans,
                 address(_revHiddenTokens)
             );
 
@@ -2092,13 +2092,13 @@ contract Resume is Script {
                 IJB721TiersHookDeployer(address(_hookDeployer)),
                 _ctPublisher,
                 IJBBuybackHookRegistry(address(_buybackRegistry)),
-                address(_revLoans),
+                _revLoans,
                 _trustedForwarder,
                 address(_revOwner)
             );
 
         // Approve the deployer to configure the $REV project (idempotent via controllerOf check).
-        _projects.approve(address(_revDeployer), _revProjectId);
+        _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
 
         // Configure the $REV revnet only if not already configured.
         if (address(_directory.controllerOf(_revProjectId)) == address(0)) {
@@ -2393,7 +2393,7 @@ contract Resume is Script {
         });
 
         // Approve the REV deployer to configure CPN (project 2).
-        _projects.approve(address(_revDeployer), _cpnProjectId);
+        _projects.approve({to: address(_revDeployer), tokenId: _cpnProjectId});
 
         _revDeployer.deployFor({
             revnetId: _cpnProjectId,
@@ -2493,7 +2493,7 @@ contract Resume is Script {
         if (_projects.ownerOf(feeProjectId) != _deployer) revert Resume_ProjectNotOwned(feeProjectId);
 
         // Approve the REV deployer to configure project ID 1.
-        _projects.approve(address(_revDeployer), feeProjectId);
+        _projects.approve({to: address(_revDeployer), tokenId: feeProjectId});
 
         _revDeployer.deployFor({
             revnetId: feeProjectId,
@@ -3084,18 +3084,24 @@ contract Resume is Script {
         if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
         if (REVDeployer(expectedRevDeployer).hashedEncodedConfigurationOf(projectId) == bytes32(0)) return false;
 
-        if (projectId == _FEE_PROJECT_ID && !_projectTokenSymbolIs(projectId, "NANA")) return false;
-        if (projectId == _CPN_PROJECT_ID && !_projectTokenSymbolIs(projectId, "CPN")) return false;
-        if (projectId == _REV_PROJECT_ID && !_projectTokenSymbolIs(projectId, "REV")) return false;
+        if (projectId == _FEE_PROJECT_ID && !_projectTokenSymbolIs({projectId: projectId, expected: "NANA"})) {
+            return false;
+        }
+        if (projectId == _CPN_PROJECT_ID && !_projectTokenSymbolIs({projectId: projectId, expected: "CPN"})) {
+            return false;
+        }
+        if (projectId == _REV_PROJECT_ID && !_projectTokenSymbolIs({projectId: projectId, expected: "REV"})) {
+            return false;
+        }
         if (projectId == _BAN_PROJECT_ID) {
-            if (!_projectTokenSymbolIs(projectId, "BAN")) return false;
+            if (!_projectTokenSymbolIs({projectId: projectId, expected: "BAN"})) return false;
             if (expectedRevOwner.code.length == 0) return false;
 
             IJB721TiersHook hook = REVOwner(expectedRevOwner).tiered721HookOf(projectId);
             if (address(hook) == address(0)) return false;
             if (hook.PROJECT_ID() != projectId) return false;
             if (address(hook.STORE()) != address(_hookStore)) return false;
-            if (!_metadataSymbolIs(address(hook), "BANNY")) return false;
+            if (!_metadataSymbolIs({token: address(hook), expected: "BANNY"})) return false;
         }
 
         return true;
@@ -3165,7 +3171,7 @@ contract Resume is Script {
     function _projectTokenSymbolIs(uint256 projectId, string memory expected) internal view returns (bool) {
         address token = address(_tokens.tokenOf(projectId));
         if (token == address(0)) return false;
-        return _metadataSymbolIs(token, expected);
+        return _metadataSymbolIs({token: token, expected: expected});
     }
 
     function _metadataSymbolIs(address token, string memory expected) internal view returns (bool) {
