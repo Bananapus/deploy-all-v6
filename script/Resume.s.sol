@@ -1158,27 +1158,13 @@ contract Resume is Script {
                 OP_SALT,
                 type(JBOptimismSucker).creationCode,
                 abi.encode(
-                    opDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
             );
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
                 : new JBOptimismSucker{salt: OP_SALT}(
-                    opDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 );
             // Configure singleton in deployer if not already done.
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
@@ -1215,27 +1201,13 @@ contract Resume is Script {
                 OP_SALT,
                 type(JBOptimismSucker).creationCode,
                 abi.encode(
-                    opDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
             );
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
                 : new JBOptimismSucker{salt: OP_SALT}(
-                    opDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 );
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
@@ -1281,27 +1253,13 @@ contract Resume is Script {
                 BASE_SALT,
                 type(JBBaseSucker).creationCode,
                 abi.encode(
-                    baseDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
             );
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
                 : new JBBaseSucker{salt: BASE_SALT}(
-                    baseDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 );
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
@@ -1337,27 +1295,13 @@ contract Resume is Script {
                 BASE_SALT,
                 type(JBBaseSucker).creationCode,
                 abi.encode(
-                    baseDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
             );
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
                 : new JBBaseSucker{salt: BASE_SALT}(
-                    baseDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 );
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
@@ -1402,27 +1346,13 @@ contract Resume is Script {
                 ARB_SALT,
                 type(JBArbitrumSucker).creationCode,
                 abi.encode(
-                    arbDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
             );
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
                 : new JBArbitrumSucker{salt: ARB_SALT}(
-                    arbDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 );
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
@@ -1465,27 +1395,13 @@ contract Resume is Script {
                 ARB_SALT,
                 type(JBArbitrumSucker).creationCode,
                 abi.encode(
-                    arbDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
             );
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
                 : new JBArbitrumSucker{salt: ARB_SALT}(
-                    arbDeployer,
-                    _directory,
-                    _permissions,
-                    address(_prices),
-                    _tokens,
-                    1,
-                    _suckerRegistry,
-                    _trustedForwarder
+                    arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 );
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
@@ -1599,14 +1515,12 @@ contract Resume is Script {
         (address singletonAddress, bool singletonDeployed) = _isDeployed(
             salt,
             type(JBCCIPSucker).creationCode,
-            abi.encode(
-                deployer, _directory, _permissions, address(_prices), _tokens, 1, _suckerRegistry, _trustedForwarder
-            )
+            abi.encode(deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder)
         );
         JBCCIPSucker singleton = singletonDeployed
             ? JBCCIPSucker(payable(singletonAddress))
             : new JBCCIPSucker{salt: salt}(
-                deployer, _directory, _permissions, address(_prices), _tokens, 1, _suckerRegistry, _trustedForwarder
+                deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
             );
         // Configure singleton in deployer if not already done.
         if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);

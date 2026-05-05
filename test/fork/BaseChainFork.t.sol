@@ -237,7 +237,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
             FEE_PROJECT_ID,
             SUCKER_REGISTRY,
             LOANS_CONTRACT,
-            address(revHiddenTokens)
+            revHiddenTokens
         );
 
         // Deploy the REVDeployer that orchestrates revnet creation.

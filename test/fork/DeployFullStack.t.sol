@@ -613,7 +613,7 @@ contract DeployFullStackTest is Test {
         });
         opDeployer.setChainSpecificConstants(IOPMessenger(cfg.opMessenger), IOPStandardBridge(cfg.opBridge));
         JBOptimismSucker singleton = new JBOptimismSucker(
-            opDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
+            opDeployer, _directory, _permissions, _prices, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         opDeployer.configureSingleton(singleton);
         return address(opDeployer);
@@ -632,7 +632,7 @@ contract DeployFullStackTest is Test {
             IOPStandardBridge(0x4200000000000000000000000000000000000010)
         );
         JBOptimismSucker singleton = new JBOptimismSucker(
-            opDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
+            opDeployer, _directory, _permissions, _prices, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         opDeployer.configureSingleton(singleton);
         return address(opDeployer);
@@ -648,7 +648,7 @@ contract DeployFullStackTest is Test {
         });
         baseDeployer.setChainSpecificConstants(IOPMessenger(cfg.baseMessenger), IOPStandardBridge(cfg.baseBridge));
         JBBaseSucker singleton = new JBBaseSucker(
-            baseDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
+            baseDeployer, _directory, _permissions, _prices, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         baseDeployer.configureSingleton(singleton);
         return address(baseDeployer);
@@ -667,7 +667,7 @@ contract DeployFullStackTest is Test {
             IOPStandardBridge(0x4200000000000000000000000000000000000010)
         );
         JBBaseSucker singleton = new JBBaseSucker(
-            baseDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
+            baseDeployer, _directory, _permissions, _prices, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         baseDeployer.configureSingleton(singleton);
         return address(baseDeployer);
@@ -687,7 +687,7 @@ contract DeployFullStackTest is Test {
             gatewayRouter: IArbGatewayRouter(ARBAddresses.L1_GATEWAY_ROUTER)
         });
         JBArbitrumSucker singleton = new JBArbitrumSucker(
-            arbDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
+            arbDeployer, _directory, _permissions, _prices, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         arbDeployer.configureSingleton(singleton);
         return address(arbDeployer);
@@ -707,7 +707,7 @@ contract DeployFullStackTest is Test {
             gatewayRouter: IArbGatewayRouter(ARBAddresses.L2_GATEWAY_ROUTER)
         });
         JBArbitrumSucker singleton = new JBArbitrumSucker(
-            arbDeployer, _directory, _permissions, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
+            arbDeployer, _directory, _permissions, _prices, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         arbDeployer.configureSingleton(singleton);
         return address(arbDeployer);
@@ -748,7 +748,7 @@ contract DeployFullStackTest is Test {
             ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
         );
         JBCCIPSucker singleton = new JBCCIPSucker(
-            deployer, _directory, _tokens, _permissions, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
+            deployer, _directory, _permissions, _prices, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         deployer.configureSingleton(singleton);
     }

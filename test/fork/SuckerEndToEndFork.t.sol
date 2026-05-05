@@ -99,6 +99,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             deployer: opDeployer,
             directory: jbDirectory(),
             permissions: jbPermissions(),
+            prices: jbPrices(),
             tokens: jbTokens(),
             feeProjectId: 1,
             registry: suckerRegistry,

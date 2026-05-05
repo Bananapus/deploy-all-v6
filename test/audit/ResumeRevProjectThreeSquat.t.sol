@@ -100,7 +100,7 @@ contract ResumeRevnetHarness {
         return 3;
     }
 
-    function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {
+    function _ensureProjectExists(uint256 expectedProjectId) internal view returns (uint256) {
         uint256 count = PROJECTS.count();
         if (count >= expectedProjectId) {
             if (address(DIRECTORY.controllerOf(expectedProjectId)) != address(0)) {
@@ -188,7 +188,7 @@ contract MockProjects {
         return _ownerOf[projectId];
     }
 
-    function approve(address, uint256 projectId) external {
+    function approve(address, uint256 projectId) external view {
         address owner = _ownerOf[projectId];
         if (msg.sender != owner && msg.sender != _approvedCallerOf[projectId]) revert("not authorized");
     }

@@ -181,7 +181,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             FEE_PROJECT_ID,
             SUCKER_REGISTRY,
             LOANS_CONTRACT,
-            address(revHiddenTokens)
+            revHiddenTokens
         );
 
         REV_DEPLOYER = new REVDeployer{salt: _deployerSalt()}(
