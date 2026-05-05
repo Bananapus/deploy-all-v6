@@ -170,7 +170,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
 
         // Deploy 721 hook infrastructure (store + example hook + deployer).
         JB721TiersHookStore hookStore = new JB721TiersHookStore();
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
+        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer(hookStore);
         JB721TiersHook exampleHook = new JB721TiersHook(
             jbDirectory(),
             jbPermissions(),
@@ -236,8 +236,8 @@ contract BaseChainForkTest is TestBaseWorkflow {
             jbDirectory(),
             FEE_PROJECT_ID,
             SUCKER_REGISTRY,
-            address(LOANS_CONTRACT),
-            address(revHiddenTokens)
+            LOANS_CONTRACT,
+            revHiddenTokens
         );
 
         // Deploy the REVDeployer that orchestrates revnet creation.
@@ -248,7 +248,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
             HOOK_DEPLOYER,
             PUBLISHER,
             IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            address(LOANS_CONTRACT),
+            LOANS_CONTRACT,
             TRUSTED_FORWARDER,
             address(REV_OWNER)
         );

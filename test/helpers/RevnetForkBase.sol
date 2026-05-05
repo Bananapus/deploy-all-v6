@@ -135,7 +135,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
-        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer();
+        JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer(HOOK_STORE);
         EXAMPLE_HOOK = new JB721TiersHook(
             jbDirectory(),
             jbPermissions(),
@@ -180,8 +180,8 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             jbDirectory(),
             FEE_PROJECT_ID,
             SUCKER_REGISTRY,
-            address(LOANS_CONTRACT),
-            address(revHiddenTokens)
+            LOANS_CONTRACT,
+            revHiddenTokens
         );
 
         REV_DEPLOYER = new REVDeployer{salt: _deployerSalt()}(
@@ -191,7 +191,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             HOOK_DEPLOYER,
             PUBLISHER,
             IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
-            address(LOANS_CONTRACT),
+            LOANS_CONTRACT,
             TRUSTED_FORWARDER,
             address(REV_OWNER)
         );

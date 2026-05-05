@@ -12,7 +12,7 @@ import {REVCroptopAllowedPost} from "@rev-net/core-v6/src/structs/REVCroptopAllo
 
 // Uniswap V4 Router Hook
 import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
-import {JuiceboxSwapRouter} from "@bananapus/univ4-router-v6/test/utils/JuiceboxSwapRouter.sol";
+import {JuiceboxSwapRouter} from "../helpers/JuiceboxSwapRouter.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";

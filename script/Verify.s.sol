@@ -33,6 +33,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
 import {JB721TiersHookProjectDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookProjectDeployer.sol";
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
+import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
 
 // ── Buyback Hook ──
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
@@ -56,6 +57,19 @@ import {CTProjectOwner} from "@croptop/core-v6/src/CTProjectOwner.sol";
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
+
+// ── Defifa ──
+import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
+import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
+import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
+
+// ── Phase 11 Periphery ──
+import {JBProjectHandles} from "@bananapus/project-handles-v6/src/JBProjectHandles.sol";
+import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.sol";
+import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
+import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectPayerDeployer.sol";
+
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title Verify — Post-Deployment Verification for Juicebox V6
 /// @notice Read-only Forge Script that validates all deployed contracts are correctly wired together.
@@ -150,7 +164,17 @@ contract Verify is Script {
     // The address registry contract (optional, not deployed on all chains).
     address public addressRegistry;
     // The Defifa deployer contract (optional, not deployed on all chains).
-    address public defifaDeployer;
+    DefifaDeployer public defifaDeployer;
+
+    // -- Phase 11 Periphery (optional on testnets) --
+    // ENS-backed project handle registry.
+    JBProjectHandles public projectHandles;
+    // 721 staking reward distributor.
+    JB721Distributor public distributor721;
+    // ERC-20 staking reward distributor.
+    JBTokenDistributor public tokenDistributor;
+    // Project payer clone deployer.
+    JBProjectPayerDeployer public projectPayerDeployer;
 
     // ════════════════════════════════════════════════════════════════════
     //  Counters — track pass/fail for summary
@@ -175,6 +199,8 @@ contract Verify is Script {
     uint256 private constant _REV_PROJECT_ID = 3;
     // The BAN/Banny project is always project 4.
     uint256 private constant _BAN_PROJECT_ID = 4;
+    // Phase 11 distributor vesting rounds must match Deploy.s.sol.
+    uint256 private constant _VESTING_ROUNDS = 52;
 
     // ════════════════════════════════════════════════════════════════════
     //  Entry Point
@@ -206,6 +232,7 @@ contract Verify is Script {
         _verifyPriceFeeds();
         _verifyAllowlists();
         _verifyRoutes();
+        _verifyPeripheryExtensions();
 
         // Print final summary of results.
         _printSummary();
@@ -250,13 +277,14 @@ contract Verify is Script {
         hookProjectDeployer = JB721TiersHookProjectDeployer(vm.envAddress("VERIFY_HOOK_PROJECT_DEPLOYER"));
 
         // Read the buyback hook registry address from env (address(0) if not deployed on this chain).
-        buybackRegistry = JBBuybackHookRegistry(vm.envOr("VERIFY_BUYBACK_REGISTRY", address(0)));
+        buybackRegistry = JBBuybackHookRegistry(vm.envOr({name: "VERIFY_BUYBACK_REGISTRY", defaultValue: address(0)}));
 
         // Read the router terminal registry address from env (address(0) if not deployed on this chain).
-        routerTerminalRegistry =
-            JBRouterTerminalRegistry(payable(vm.envOr("VERIFY_ROUTER_TERMINAL_REGISTRY", address(0))));
+        routerTerminalRegistry = JBRouterTerminalRegistry(
+            payable(vm.envOr({name: "VERIFY_ROUTER_TERMINAL_REGISTRY", defaultValue: address(0)}))
+        );
         // Read the router terminal address from env (address(0) if not deployed on this chain).
-        routerTerminal = JBRouterTerminal(payable(vm.envOr("VERIFY_ROUTER_TERMINAL", address(0))));
+        routerTerminal = JBRouterTerminal(payable(vm.envOr({name: "VERIFY_ROUTER_TERMINAL", defaultValue: address(0)})));
 
         // Read the sucker registry address from env.
         suckerRegistry = JBSuckerRegistry(vm.envAddress("VERIFY_SUCKER_REGISTRY"));
@@ -272,18 +300,26 @@ contract Verify is Script {
         ctProjectOwner = CTProjectOwner(vm.envAddress("VERIFY_CT_PROJECT_OWNER"));
 
         // Read the REV deployer address from env (address(0) if not deployed on this chain).
-        revDeployer = REVDeployer(vm.envOr("VERIFY_REV_DEPLOYER", address(0)));
+        revDeployer = REVDeployer(vm.envOr({name: "VERIFY_REV_DEPLOYER", defaultValue: address(0)}));
         // Read the REV owner address from env (address(0) if not deployed on this chain).
-        revOwner = REVOwner(vm.envOr("VERIFY_REV_OWNER", address(0)));
+        revOwner = REVOwner(vm.envOr({name: "VERIFY_REV_OWNER", defaultValue: address(0)}));
         // Read the REV loans address from env (address(0) if not deployed on this chain).
-        revLoans = REVLoans(payable(vm.envOr("VERIFY_REV_LOANS", address(0))));
+        revLoans = REVLoans(payable(vm.envOr({name: "VERIFY_REV_LOANS", defaultValue: address(0)})));
         // Read the canonical Safe owner if provided.
-        expectedSafe = vm.envOr("VERIFY_SAFE", address(0));
+        expectedSafe = vm.envOr({name: "VERIFY_SAFE", defaultValue: address(0)});
 
         // Read the address registry address from env (address(0) if not deployed on this chain).
-        addressRegistry = vm.envOr("VERIFY_ADDRESS_REGISTRY", address(0));
+        addressRegistry = vm.envOr({name: "VERIFY_ADDRESS_REGISTRY", defaultValue: address(0)});
         // Read the Defifa deployer address from env (address(0) if not deployed on this chain).
-        defifaDeployer = vm.envOr("VERIFY_DEFIFA_DEPLOYER", address(0));
+        defifaDeployer = DefifaDeployer(vm.envOr({name: "VERIFY_DEFIFA_DEPLOYER", defaultValue: address(0)}));
+
+        // Read Phase 11 periphery addresses from env (address(0) if intentionally omitted on a testnet).
+        projectHandles = JBProjectHandles(vm.envOr({name: "VERIFY_PROJECT_HANDLES", defaultValue: address(0)}));
+        distributor721 = JB721Distributor(payable(vm.envOr({name: "VERIFY_721_DISTRIBUTOR", defaultValue: address(0)})));
+        tokenDistributor =
+            JBTokenDistributor(payable(vm.envOr({name: "VERIFY_TOKEN_DISTRIBUTOR", defaultValue: address(0)})));
+        projectPayerDeployer =
+            JBProjectPayerDeployer(vm.envOr({name: "VERIFY_PROJECT_PAYER_DEPLOYER", defaultValue: address(0)}));
 
         // On production chains, require the full deployment stack.
         // Testnets may omit optional components, but mainnet and major L2s must fail-closed.
@@ -303,6 +339,23 @@ contract Verify is Script {
             require(address(revDeployer) != address(0), "Verify: VERIFY_REV_DEPLOYER required on production chain");
             require(address(revOwner) != address(0), "Verify: VERIFY_REV_OWNER required on production chain");
             require(address(revLoans) != address(0), "Verify: VERIFY_REV_LOANS required on production chain");
+            require(addressRegistry != address(0), "Verify: VERIFY_ADDRESS_REGISTRY required on production chain");
+            require(
+                address(defifaDeployer) != address(0), "Verify: VERIFY_DEFIFA_DEPLOYER required on production chain"
+            );
+            require(
+                address(projectHandles) != address(0), "Verify: VERIFY_PROJECT_HANDLES required on production chain"
+            );
+            require(
+                address(distributor721) != address(0), "Verify: VERIFY_721_DISTRIBUTOR required on production chain"
+            );
+            require(
+                address(tokenDistributor) != address(0), "Verify: VERIFY_TOKEN_DISTRIBUTOR required on production chain"
+            );
+            require(
+                address(projectPayerDeployer) != address(0),
+                "Verify: VERIFY_PROJECT_PAYER_DEPLOYER required on production chain"
+            );
         }
     }
 
@@ -320,22 +373,92 @@ contract Verify is Script {
 
         // Deploy.s.sol always creates 4 projects (NANA, CPN, REV, BAN) regardless of whether the
         // Uniswap stack is present. The router terminal is optional but does not gate project creation.
-        _check(totalProjects >= 4, "Project count >= 4", true);
+        _check({condition: totalProjects >= 4, label: "Project count >= 4", critical: true});
 
         // Verify project 1 (NANA/FEE) has an owner (ERC-721 ownerOf does not revert).
-        _checkProjectHasOwner(_FEE_PROJECT_ID, "Project 1 (NANA) exists with owner");
+        _checkProjectHasOwner({projectId: _FEE_PROJECT_ID, label: "Project 1 (NANA) exists with owner"});
 
         // Verify project 2 (CPN/Croptop) has an owner.
-        _checkProjectHasOwner(_CPN_PROJECT_ID, "Project 2 (CPN) exists with owner");
+        _checkProjectHasOwner({projectId: _CPN_PROJECT_ID, label: "Project 2 (CPN) exists with owner"});
 
         // Verify project 3 (REV) has an owner.
-        _checkProjectHasOwner(_REV_PROJECT_ID, "Project 3 (REV) exists with owner");
+        _checkProjectHasOwner({projectId: _REV_PROJECT_ID, label: "Project 3 (REV) exists with owner"});
 
         // Verify project 4 (BAN/Banny) has an owner.
-        _checkProjectHasOwner(_BAN_PROJECT_ID, "Project 4 (BAN) exists with owner");
+        _checkProjectHasOwner({projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN) exists with owner"});
+
+        _verifyCanonicalProjectIdentities();
 
         // Log a blank line for readability.
         console.log("");
+    }
+
+    function _verifyCanonicalProjectIdentities() internal {
+        if (address(revDeployer) == address(0)) {
+            _skip("Canonical project identity checks (REVDeployer not configured)");
+            return;
+        }
+
+        _verifyCanonicalRevnetProject({projectId: _FEE_PROJECT_ID, symbol: "NANA", label: "NANA(1)"});
+        _verifyCanonicalRevnetProject({projectId: _CPN_PROJECT_ID, symbol: "CPN", label: "CPN(2)"});
+        _verifyCanonicalRevnetProject({projectId: _REV_PROJECT_ID, symbol: "REV", label: "REV(3)"});
+        _verifyCanonicalRevnetProject({projectId: _BAN_PROJECT_ID, symbol: "BAN", label: "BAN(4)"});
+
+        if (address(revOwner) != address(0)) {
+            IJB721TiersHook bannyHook = revOwner.tiered721HookOf(_BAN_PROJECT_ID);
+            _check({
+                condition: address(bannyHook) != address(0), label: "BAN(4) has Banny 721 hook recorded", critical: true
+            });
+            if (address(bannyHook) != address(0)) {
+                _check({
+                    condition: bannyHook.PROJECT_ID() == _BAN_PROJECT_ID,
+                    label: "Banny hook PROJECT_ID == 4",
+                    critical: true
+                });
+                _check({
+                    condition: address(bannyHook.STORE()) == address(hookStore),
+                    label: "Banny hook uses canonical 721 store",
+                    critical: true
+                });
+                _check({
+                    condition: _metadataSymbolIs({token: address(bannyHook), expected: "BANNY"}),
+                    label: "Banny hook symbol == BANNY",
+                    critical: true
+                });
+            }
+        } else {
+            _skip("Banny 721 hook identity checks (REVOwner not configured)");
+        }
+    }
+
+    function _verifyCanonicalRevnetProject(uint256 projectId, string memory symbol, string memory label) internal {
+        try projects.ownerOf(projectId) returns (address owner) {
+            _check({
+                condition: owner == address(revDeployer),
+                label: string.concat(label, " project NFT is owned by REVDeployer"),
+                critical: true
+            });
+        } catch {
+            _check({condition: false, label: string.concat(label, " project NFT owner readable"), critical: true});
+        }
+
+        _check(
+            revDeployer.hashedEncodedConfigurationOf(projectId) != bytes32(0),
+            string.concat(label, " has REVDeployer configuration hash"),
+            true
+        );
+
+        address token = address(tokens.tokenOf(projectId));
+        _check({
+            condition: token != address(0), label: string.concat(label, " project token is deployed"), critical: true
+        });
+        if (token != address(0)) {
+            _check({
+                condition: _metadataSymbolIs({token: token, expected: symbol}),
+                label: string.concat(label, " project token symbol matches"),
+                critical: true
+            });
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -348,7 +471,11 @@ contract Verify is Script {
         console.log("--- Category 2: Directory Wiring ---");
 
         // Verify directory's PROJECTS points to the correct JBProjects contract.
-        _check(address(directory.PROJECTS()) == address(projects), "Directory.PROJECTS == JBProjects", true);
+        _check({
+            condition: address(directory.PROJECTS()) == address(projects),
+            label: "Directory.PROJECTS == JBProjects",
+            critical: true
+        });
 
         // Check that the controller is allowed to set first controllers.
         _check(
@@ -371,7 +498,11 @@ contract Verify is Script {
             // Read the controller set for this project in the directory.
             IERC165 projectController = directory.controllerOf(projectIds[i]);
             // Verify a controller is actually set (non-zero address).
-            _check(address(projectController) != address(0), string.concat(labels[i], " has controller set"), true);
+            _check({
+                condition: address(projectController) != address(0),
+                label: string.concat(labels[i], " has controller set"),
+                critical: true
+            });
 
             // Read the primary terminal for this project for the native token.
             IJBTerminal primaryTerm = directory.primaryTerminalOf(projectIds[i], JBConstants.NATIVE_TOKEN);
@@ -385,7 +516,9 @@ contract Verify is Script {
             // Read the full list of terminals for this project.
             IJBTerminal[] memory terminals = directory.terminalsOf(projectIds[i]);
             // Verify the terminal list is non-empty.
-            _check(terminals.length > 0, string.concat(labels[i], " has >= 1 terminal"), true);
+            _check({
+                condition: terminals.length > 0, label: string.concat(labels[i], " has >= 1 terminal"), critical: true
+            });
 
             // Verify the main JBMultiTerminal is in the project's terminal list.
             bool terminalFound = false;
@@ -399,7 +532,11 @@ contract Verify is Script {
                 }
             }
             // Assert the JBMultiTerminal was found in the project's terminal list.
-            _check(terminalFound, string.concat(labels[i], " terminal list contains JBMultiTerminal"), true);
+            _check({
+                condition: terminalFound,
+                label: string.concat(labels[i], " terminal list contains JBMultiTerminal"),
+                critical: true
+            });
         }
 
         // Log a blank line for readability.
@@ -416,7 +553,11 @@ contract Verify is Script {
         console.log("--- Category 3: Controller Wiring ---");
 
         // Verify the controller's DIRECTORY immutable points to JBDirectory.
-        _check(address(controller.DIRECTORY()) == address(directory), "Controller.DIRECTORY == JBDirectory", true);
+        _check({
+            condition: address(controller.DIRECTORY()) == address(directory),
+            label: "Controller.DIRECTORY == JBDirectory",
+            critical: true
+        });
 
         // Verify the controller's FUND_ACCESS_LIMITS immutable points to JBFundAccessLimits.
         _check(
@@ -426,19 +567,39 @@ contract Verify is Script {
         );
 
         // Verify the controller's TOKENS immutable points to JBTokens.
-        _check(address(controller.TOKENS()) == address(tokens), "Controller.TOKENS == JBTokens", true);
+        _check({
+            condition: address(controller.TOKENS()) == address(tokens),
+            label: "Controller.TOKENS == JBTokens",
+            critical: true
+        });
 
         // Verify the controller's PRICES immutable points to JBPrices.
-        _check(address(controller.PRICES()) == address(prices), "Controller.PRICES == JBPrices", true);
+        _check({
+            condition: address(controller.PRICES()) == address(prices),
+            label: "Controller.PRICES == JBPrices",
+            critical: true
+        });
 
         // Verify the controller's PROJECTS immutable points to JBProjects.
-        _check(address(controller.PROJECTS()) == address(projects), "Controller.PROJECTS == JBProjects", true);
+        _check({
+            condition: address(controller.PROJECTS()) == address(projects),
+            label: "Controller.PROJECTS == JBProjects",
+            critical: true
+        });
 
         // Verify the controller's RULESETS immutable points to JBRulesets.
-        _check(address(controller.RULESETS()) == address(rulesets), "Controller.RULESETS == JBRulesets", true);
+        _check({
+            condition: address(controller.RULESETS()) == address(rulesets),
+            label: "Controller.RULESETS == JBRulesets",
+            critical: true
+        });
 
         // Verify the controller's SPLITS immutable points to JBSplits.
-        _check(address(controller.SPLITS()) == address(splits), "Controller.SPLITS == JBSplits", true);
+        _check({
+            condition: address(controller.SPLITS()) == address(splits),
+            label: "Controller.SPLITS == JBSplits",
+            critical: true
+        });
 
         // Verify the controller's OMNICHAIN_RULESET_OPERATOR points to the omnichain deployer.
         _check(
@@ -461,19 +622,39 @@ contract Verify is Script {
         console.log("--- Category 4: Terminal Wiring ---");
 
         // Verify the terminal's STORE immutable points to JBTerminalStore.
-        _check(address(terminal.STORE()) == address(terminalStore), "Terminal.STORE == JBTerminalStore", true);
+        _check({
+            condition: address(terminal.STORE()) == address(terminalStore),
+            label: "Terminal.STORE == JBTerminalStore",
+            critical: true
+        });
 
         // Verify the terminal's DIRECTORY immutable points to JBDirectory.
-        _check(address(terminal.DIRECTORY()) == address(directory), "Terminal.DIRECTORY == JBDirectory", true);
+        _check({
+            condition: address(terminal.DIRECTORY()) == address(directory),
+            label: "Terminal.DIRECTORY == JBDirectory",
+            critical: true
+        });
 
         // Verify the terminal's PROJECTS immutable points to JBProjects.
-        _check(address(terminal.PROJECTS()) == address(projects), "Terminal.PROJECTS == JBProjects", true);
+        _check({
+            condition: address(terminal.PROJECTS()) == address(projects),
+            label: "Terminal.PROJECTS == JBProjects",
+            critical: true
+        });
 
         // Verify the terminal's SPLITS immutable points to JBSplits.
-        _check(address(terminal.SPLITS()) == address(splits), "Terminal.SPLITS == JBSplits", true);
+        _check({
+            condition: address(terminal.SPLITS()) == address(splits),
+            label: "Terminal.SPLITS == JBSplits",
+            critical: true
+        });
 
         // Verify the terminal's TOKENS immutable points to JBTokens.
-        _check(address(terminal.TOKENS()) == address(tokens), "Terminal.TOKENS == JBTokens", true);
+        _check({
+            condition: address(terminal.TOKENS()) == address(tokens),
+            label: "Terminal.TOKENS == JBTokens",
+            critical: true
+        });
 
         // Verify the terminal's FEELESS_ADDRESSES immutable points to JBFeelessAddresses.
         _check(
@@ -483,13 +664,25 @@ contract Verify is Script {
         );
 
         // Verify the terminal store's DIRECTORY immutable points to JBDirectory.
-        _check(address(terminalStore.DIRECTORY()) == address(directory), "TerminalStore.DIRECTORY == JBDirectory", true);
+        _check({
+            condition: address(terminalStore.DIRECTORY()) == address(directory),
+            label: "TerminalStore.DIRECTORY == JBDirectory",
+            critical: true
+        });
 
         // Verify the terminal store's RULESETS immutable points to JBRulesets.
-        _check(address(terminalStore.RULESETS()) == address(rulesets), "TerminalStore.RULESETS == JBRulesets", true);
+        _check({
+            condition: address(terminalStore.RULESETS()) == address(rulesets),
+            label: "TerminalStore.RULESETS == JBRulesets",
+            critical: true
+        });
 
         // Verify the terminal store's PRICES immutable points to JBPrices.
-        _check(address(terminalStore.PRICES()) == address(prices), "TerminalStore.PRICES == JBPrices", true);
+        _check({
+            condition: address(terminalStore.PRICES()) == address(prices),
+            label: "TerminalStore.PRICES == JBPrices",
+            critical: true
+        });
 
         // Log a blank line for readability.
         console.log("");
@@ -505,10 +698,12 @@ contract Verify is Script {
         console.log("--- Category 5: Hook Registries ---");
 
         // Verify the 721 hook deployer has deployed code (is a live contract).
-        _check(address(hookDeployer).code.length > 0, "721 hook deployer is deployed", true);
+        _check({
+            condition: address(hookDeployer).code.length > 0, label: "721 hook deployer is deployed", critical: true
+        });
 
         // Verify the 721 hook store has deployed code (is a live contract).
-        _check(address(hookStore).code.length > 0, "721 hook store is deployed", true);
+        _check({condition: address(hookStore).code.length > 0, label: "721 hook store is deployed", critical: true});
 
         // Verify the 721 project deployer references the correct hook deployer.
         _check(
@@ -559,7 +754,11 @@ contract Verify is Script {
                 );
 
                 // Verify the router terminal is marked as feeless.
-                _check(feelessAddresses.isFeeless(address(routerTerminal)), "RouterTerminal is feeless", true);
+                _check({
+                    condition: feelessAddresses.isFeeless(address(routerTerminal)),
+                    label: "RouterTerminal is feeless",
+                    critical: true
+                });
             }
         } else {
             // Skip router terminal checks when not deployed.
@@ -580,7 +779,11 @@ contract Verify is Script {
         console.log("--- Category 6: Omnichain ---");
 
         // Verify the omnichain deployer has deployed code.
-        _check(address(omnichainDeployer).code.length > 0, "OmnichainDeployer is deployed", true);
+        _check({
+            condition: address(omnichainDeployer).code.length > 0,
+            label: "OmnichainDeployer is deployed",
+            critical: true
+        });
 
         // Verify the omnichain deployer's SUCKER_REGISTRY points to the sucker registry.
         _check(
@@ -607,7 +810,11 @@ contract Verify is Script {
         );
 
         // Verify the sucker registry's PROJECTS points to JBProjects.
-        _check(address(suckerRegistry.PROJECTS()) == address(projects), "SuckerRegistry.PROJECTS == JBProjects", true);
+        _check({
+            condition: address(suckerRegistry.PROJECTS()) == address(projects),
+            label: "SuckerRegistry.PROJECTS == JBProjects",
+            critical: true
+        });
 
         // Verify the controller's OMNICHAIN_RULESET_OPERATOR matches the omnichain deployer.
         _check(
@@ -645,14 +852,26 @@ contract Verify is Script {
             // Verify the REV deployer's LOANS points to the REV loans contract.
             if (address(revLoans) != address(0)) {
                 // Compare the LOANS() address against the expected REVLoans contract.
-                _check(revDeployer.LOANS() == address(revLoans), "REVDeployer.LOANS == REVLoans", true);
+                _check({
+                    condition: address(revDeployer.LOANS()) == address(revLoans),
+                    label: "REVDeployer.LOANS == REVLoans",
+                    critical: true
+                });
             }
 
             // Verify the REV deployer's OWNER points to the REV owner contract.
             if (address(revOwner) != address(0)) {
-                _check(revDeployer.OWNER() == address(revOwner), "REVDeployer.OWNER == REVOwner", true);
+                _check({
+                    condition: revDeployer.OWNER() == address(revOwner),
+                    label: "REVDeployer.OWNER == REVOwner",
+                    critical: true
+                });
                 // Verify the REV owner's DEPLOYER points back to the REV deployer.
-                _check(address(revOwner.DEPLOYER()) == address(revDeployer), "REVOwner.DEPLOYER == REVDeployer", true);
+                _check({
+                    condition: address(revOwner.DEPLOYER()) == address(revDeployer),
+                    label: "REVOwner.DEPLOYER == REVDeployer",
+                    critical: true
+                });
             }
         } else {
             // Skip revnet checks when not deployed.
@@ -677,15 +896,79 @@ contract Verify is Script {
             _skip("AddressRegistry not deployed (VERIFY_ADDRESS_REGISTRY not set)");
         } else {
             // Verify the registry is deployed (has code).
-            _check(addressRegistry.code.length > 0, "AddressRegistry has code", true);
+            _check({condition: addressRegistry.code.length > 0, label: "AddressRegistry has code", critical: true});
         }
 
         // If the Defifa deployer is not set, skip these checks.
-        if (defifaDeployer == address(0)) {
+        if (address(defifaDeployer) == address(0)) {
             _skip("DefifaDeployer not deployed (VERIFY_DEFIFA_DEPLOYER not set)");
         } else {
             // Verify the Defifa deployer is deployed (has code).
-            _check(defifaDeployer.code.length > 0, "DefifaDeployer has code", true);
+            _check({
+                condition: address(defifaDeployer).code.length > 0, label: "DefifaDeployer has code", critical: true
+            });
+            _check({
+                condition: defifaDeployer.DEFIFA_PROJECT_ID() == _REV_PROJECT_ID,
+                label: "Defifa uses REV(3) as fee project",
+                critical: true
+            });
+            _check(
+                defifaDeployer.BASE_PROTOCOL_PROJECT_ID() == _FEE_PROJECT_ID,
+                "Defifa uses NANA(1) as base protocol project",
+                true
+            );
+            _check({
+                condition: address(defifaDeployer.CONTROLLER()) == address(controller),
+                label: "Defifa controller wiring",
+                critical: true
+            });
+            _check({
+                condition: address(defifaDeployer.REGISTRY()) == addressRegistry,
+                label: "Defifa address registry wiring",
+                critical: true
+            });
+            _check({
+                condition: address(defifaDeployer.HOOK_STORE()) == address(hookStore),
+                label: "Defifa hook store wiring",
+                critical: true
+            });
+
+            address hookCodeOrigin = defifaDeployer.HOOK_CODE_ORIGIN();
+            _check({
+                condition: hookCodeOrigin.code.length > 0, label: "Defifa hook code origin has code", critical: true
+            });
+            if (hookCodeOrigin.code.length > 0) {
+                _check(
+                    address(DefifaHook(hookCodeOrigin).DEFIFA_TOKEN()) == address(tokens.tokenOf(_REV_PROJECT_ID)),
+                    "Defifa hook code origin uses REV token",
+                    true
+                );
+                _check(
+                    address(DefifaHook(hookCodeOrigin).BASE_PROTOCOL_TOKEN())
+                        == address(tokens.tokenOf(_FEE_PROJECT_ID)),
+                    "Defifa hook code origin uses NANA token",
+                    true
+                );
+            }
+
+            address tokenUriResolver = address(defifaDeployer.TOKEN_URI_RESOLVER());
+            address governor = address(defifaDeployer.GOVERNOR());
+            _check({
+                condition: tokenUriResolver.code.length > 0, label: "Defifa token URI resolver has code", critical: true
+            });
+            _check({condition: governor.code.length > 0, label: "Defifa governor has code", critical: true});
+            if (governor.code.length > 0) {
+                _check(
+                    DefifaGovernor(governor).owner() == address(defifaDeployer),
+                    "Defifa governor owned by deployer",
+                    true
+                );
+                _check(
+                    address(DefifaGovernor(governor).CONTROLLER()) == address(controller),
+                    "Defifa governor controller wiring",
+                    true
+                );
+            }
         }
 
         // Log a blank line for readability.
@@ -704,7 +987,9 @@ contract Verify is Script {
         // Check the ETH/USD price feed (pricingCurrency=USD, unitCurrency=NATIVE_TOKEN).
         IJBPriceFeed ethUsdFeed = prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)));
         // Verify the ETH/USD feed address is set (non-zero).
-        _check(address(ethUsdFeed) != address(0), "ETH/USD price feed is configured", true);
+        _check({
+            condition: address(ethUsdFeed) != address(0), label: "ETH/USD price feed is configured", critical: true
+        });
 
         // If the feed is configured, query the current price and validate it is sane.
         if (address(ethUsdFeed) != address(0)) {
@@ -717,12 +1002,12 @@ contract Verify is Script {
                 // Log the actual price for debugging.
                 console.log("  ETH/USD price (18 dec)", ethPrice);
                 // Check the lower bound.
-                _check(aboveMin, "ETH/USD price > $100", true);
+                _check({condition: aboveMin, label: "ETH/USD price > $100", critical: true});
                 // Check the upper bound.
-                _check(belowMax, "ETH/USD price < $1,000,000", true);
+                _check({condition: belowMax, label: "ETH/USD price < $1,000,000", critical: true});
             } catch {
                 // Feed reverted — mark as critical failure (staleness, sequencer down, etc).
-                _check(false, "ETH/USD feed.currentUnitPrice() did not revert", true);
+                _check({condition: false, label: "ETH/USD feed.currentUnitPrice() did not revert", critical: true});
             }
         }
 
@@ -730,7 +1015,11 @@ contract Verify is Script {
         IJBPriceFeed ethNativeFeed =
             prices.priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)));
         // Verify the ETH/NATIVE feed address is set.
-        _check(address(ethNativeFeed) != address(0), "ETH/NATIVE_TOKEN matching feed is configured", true);
+        _check({
+            condition: address(ethNativeFeed) != address(0),
+            label: "ETH/NATIVE_TOKEN matching feed is configured",
+            critical: true
+        });
 
         // If the matching feed exists, verify it returns ~1e18 (identity price).
         if (address(ethNativeFeed) != address(0)) {
@@ -741,17 +1030,19 @@ contract Verify is Script {
                 // Log the actual price for debugging.
                 console.log("  ETH/NATIVE price (18 dec)", matchPrice);
                 // Verify the price is exactly 1:1.
-                _check(isUnity, "ETH/NATIVE matching feed returns 1e18", true);
+                _check({condition: isUnity, label: "ETH/NATIVE matching feed returns 1e18", critical: true});
             } catch {
                 // Feed reverted — mark as failure.
-                _check(false, "ETH/NATIVE matching feed did not revert", true);
+                _check({condition: false, label: "ETH/NATIVE matching feed did not revert", critical: true});
             }
         }
 
         // Check the USD/NATIVE_TOKEN feed (inverse of ETH/USD, should also be set).
         IJBPriceFeed usdNativeFeed = prices.priceFeedFor(0, JBCurrencyIds.USD, JBCurrencyIds.ETH);
         // Verify the USD/ETH feed is configured (this is the same feed as ETH/USD, just different key).
-        _check(address(usdNativeFeed) != address(0), "USD/ETH price feed is configured", false);
+        _check({
+            condition: address(usdNativeFeed) != address(0), label: "USD/ETH price feed is configured", critical: false
+        });
 
         // Check the USDC/USD price feed — registered during deployment but not previously verified.
         address usdc;
@@ -767,7 +1058,11 @@ contract Verify is Script {
         if (usdc != address(0)) {
             // forge-lint: disable-next-line(unsafe-typecast)
             IJBPriceFeed usdcUsdFeed = prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(usdc)));
-            _check(address(usdcUsdFeed) != address(0), "USDC/USD price feed is configured", true);
+            _check({
+                condition: address(usdcUsdFeed) != address(0),
+                label: "USDC/USD price feed is configured",
+                critical: true
+            });
 
             if (address(usdcUsdFeed) != address(0)) {
                 try usdcUsdFeed.currentUnitPrice(18) returns (uint256 usdcPrice) {
@@ -775,10 +1070,10 @@ contract Verify is Script {
                     bool aboveMin = usdcPrice > 0.9e18;
                     bool belowMax = usdcPrice < 1.1e18;
                     console.log("  USDC/USD price (18 dec)", usdcPrice);
-                    _check(aboveMin, "USDC/USD price > $0.90", true);
-                    _check(belowMax, "USDC/USD price < $1.10", true);
+                    _check({condition: aboveMin, label: "USDC/USD price > $0.90", critical: true});
+                    _check({condition: belowMax, label: "USDC/USD price < $1.10", critical: true});
                 } catch {
-                    _check(false, "USDC/USD feed.currentUnitPrice() did not revert", true);
+                    _check({condition: false, label: "USDC/USD feed.currentUnitPrice() did not revert", critical: true});
                 }
             }
         }
@@ -798,11 +1093,11 @@ contract Verify is Script {
             ) {
                 // Dereference through the wrapper to compare the inner aggregator, not the wrapper address.
                 try JBChainlinkV3PriceFeed(address(feed)).FEED() returns (AggregatorV3Interface innerFeed) {
-                    _check(
-                        address(innerFeed) == expectedEthUsdFeed,
-                        "ETH/USD inner aggregator matches expected Chainlink feed (mainnet)",
-                        false
-                    );
+                    _check({
+                        condition: address(innerFeed) == expectedEthUsdFeed,
+                        label: "ETH/USD inner aggregator matches expected Chainlink feed (mainnet)",
+                        critical: false
+                    });
                 } catch {
                     _skip("ETH/USD oracle provenance (feed wrapper does not expose FEED)");
                 }
@@ -834,7 +1129,11 @@ contract Verify is Script {
                 address deployer = vm.parseAddress(parts[i]);
                 if (deployer != address(0)) {
                     bool allowed = suckerRegistry.suckerDeployerIsAllowed(deployer);
-                    _check(allowed, string.concat("Sucker deployer ", vm.toString(deployer), " is allowed"), true);
+                    _check({
+                        condition: allowed,
+                        label: string.concat("Sucker deployer ", vm.toString(deployer), " is allowed"),
+                        critical: true
+                    });
                 }
             }
         } else {
@@ -850,7 +1149,9 @@ contract Verify is Script {
                 address feeless = vm.parseAddress(parts[i]);
                 if (feeless != address(0)) {
                     bool isFeeless = feelessAddresses.isFeeless(feeless);
-                    _check(isFeeless, string.concat(vm.toString(feeless), " is feeless"), true);
+                    _check({
+                        condition: isFeeless, label: string.concat(vm.toString(feeless), " is feeless"), critical: true
+                    });
                 }
             }
         } else {
@@ -864,12 +1165,13 @@ contract Verify is Script {
     //  Category 10: Routes
     // ════════════════════════════════════════════════════════════════════
 
-    /// @dev Validates that the router terminal is included in every canonical project's terminal list.
+    /// @dev Validates that the router terminal registry is included in every canonical project's terminal list.
     function _verifyRoutes() internal {
         console.log("--- Category 10: Routes ---");
 
-        // Check that the router terminal (if deployed) is in each project's terminal list.
-        if (address(routerTerminal) != address(0)) {
+        // Deploy.s.sol installs the router terminal registry as the project terminal. The registry then resolves to the
+        // raw router terminal.
+        if (address(routerTerminalRegistry) != address(0)) {
             uint256[4] memory projectIds = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
             string[4] memory labels = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
 
@@ -877,12 +1179,16 @@ contract Verify is Script {
                 IJBTerminal[] memory terminals = directory.terminalsOf(projectIds[i]);
                 bool found = false;
                 for (uint256 j; j < terminals.length; j++) {
-                    if (address(terminals[j]) == address(routerTerminal)) {
+                    if (address(terminals[j]) == address(routerTerminalRegistry)) {
                         found = true;
                         break;
                     }
                 }
-                _check(found, string.concat(labels[i], " terminal list includes RouterTerminal"), false);
+                _check({
+                    condition: found,
+                    label: string.concat(labels[i], " terminal list includes RouterTerminalRegistry"),
+                    critical: true
+                });
             }
 
             // Verify the router terminal's primary terminal for native token is the JBMultiTerminal.
@@ -899,8 +1205,121 @@ contract Verify is Script {
     }
 
     // ════════════════════════════════════════════════════════════════════
+    //  Category 11: Phase 11 Periphery Extensions
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @dev Validates the late-phase convenience contracts that Deploy.s.sol always deploys.
+    function _verifyPeripheryExtensions() internal {
+        console.log("--- Category 11: Phase 11 Periphery Extensions ---");
+
+        uint256 expectedRoundDuration = _expectedRoundDuration();
+
+        if (address(projectHandles) == address(0)) {
+            _skip("ProjectHandles not deployed (VERIFY_PROJECT_HANDLES not set)");
+        } else {
+            _check({
+                condition: address(projectHandles).code.length > 0, label: "ProjectHandles has code", critical: true
+            });
+            _check(
+                keccak256(bytes(projectHandles.TEXT_KEY())) == keccak256(bytes("juicebox")),
+                "ProjectHandles text key == juicebox",
+                true
+            );
+            _check(
+                projectHandles.trustedForwarder() == projects.trustedForwarder(),
+                "ProjectHandles trusted forwarder matches core",
+                true
+            );
+        }
+
+        if (address(distributor721) == address(0)) {
+            _skip("JB721Distributor not deployed (VERIFY_721_DISTRIBUTOR not set)");
+        } else {
+            _check({
+                condition: address(distributor721).code.length > 0, label: "JB721Distributor has code", critical: true
+            });
+            _check({
+                condition: address(distributor721.DIRECTORY()) == address(directory),
+                label: "JB721Distributor directory wiring",
+                critical: true
+            });
+            _verifyDistributorTiming({
+                roundDuration: distributor721.roundDuration(),
+                vestingRounds: distributor721.vestingRounds(),
+                expectedRoundDuration: expectedRoundDuration
+            });
+        }
+
+        if (address(tokenDistributor) == address(0)) {
+            _skip("JBTokenDistributor not deployed (VERIFY_TOKEN_DISTRIBUTOR not set)");
+        } else {
+            _check({
+                condition: address(tokenDistributor).code.length > 0,
+                label: "JBTokenDistributor has code",
+                critical: true
+            });
+            _check({
+                condition: address(tokenDistributor.DIRECTORY()) == address(directory),
+                label: "JBTokenDistributor directory wiring",
+                critical: true
+            });
+            _verifyDistributorTiming({
+                roundDuration: tokenDistributor.roundDuration(),
+                vestingRounds: tokenDistributor.vestingRounds(),
+                expectedRoundDuration: expectedRoundDuration
+            });
+        }
+
+        if (address(projectPayerDeployer) == address(0)) {
+            _skip("ProjectPayerDeployer not deployed (VERIFY_PROJECT_PAYER_DEPLOYER not set)");
+        } else {
+            _check({
+                condition: address(projectPayerDeployer).code.length > 0,
+                label: "ProjectPayerDeployer has code",
+                critical: true
+            });
+            _check(
+                address(projectPayerDeployer.DIRECTORY()) == address(directory),
+                "ProjectPayerDeployer directory wiring",
+                true
+            );
+
+            address implementation = projectPayerDeployer.IMPLEMENTATION();
+            _check({
+                condition: implementation.code.length > 0, label: "ProjectPayer implementation has code", critical: true
+            });
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
     //  Internal Helpers
     // ════════════════════════════════════════════════════════════════════
+
+    function _verifyDistributorTiming(
+        uint256 roundDuration,
+        uint256 vestingRounds,
+        uint256 expectedRoundDuration
+    )
+        internal
+    {
+        if (expectedRoundDuration != 0) {
+            _check({
+                condition: roundDuration == expectedRoundDuration, label: "Distributor round duration", critical: true
+            });
+        }
+        _check({condition: vestingRounds == _VESTING_ROUNDS, label: "Distributor vesting rounds", critical: true});
+    }
+
+    function _expectedRoundDuration() internal view returns (uint256) {
+        if (block.chainid == 1 || block.chainid == 11_155_111) return 50_400;
+        if (block.chainid == 10 || block.chainid == 11_155_420 || block.chainid == 8453 || block.chainid == 84_532) {
+            return 302_400;
+        }
+        if (block.chainid == 42_161 || block.chainid == 421_614) return 2_419_200;
+        return 0;
+    }
 
     /// @dev Checks whether a project exists by calling ownerOf on the ERC-721.
     /// @param projectId The project ID to check.
@@ -909,13 +1328,18 @@ contract Verify is Script {
         // Try calling ownerOf; if the project does not exist, this reverts.
         try projects.ownerOf(projectId) returns (address owner) {
             // Verify the owner is not the zero address (burned token).
-            _check(owner != address(0), label, true);
-            if (expectedSafe != address(0)) {
-                _check(owner == expectedSafe, string.concat(label, " and is canonically safe-owned"), true);
-            }
+            _check({condition: owner != address(0), label: label, critical: true});
         } catch {
             // ownerOf reverted, meaning the project does not exist.
-            _check(false, label, true);
+            _check({condition: false, label: label, critical: true});
+        }
+    }
+
+    function _metadataSymbolIs(address token, string memory expected) internal view returns (bool) {
+        try IERC20Metadata(token).symbol() returns (string memory actual) {
+            return keccak256(bytes(actual)) == keccak256(bytes(expected));
+        } catch {
+            return false;
         }
     }
 

@@ -165,6 +165,7 @@ contract Deploy is Script, Sphinx {
     error Deploy_ExistingAddressMismatch(address expected, address actual);
     error Deploy_ProjectIdMismatch(uint256 expected, uint256 actual);
     error Deploy_ProjectNotOwned(uint256 projectId);
+    error Deploy_ProjectNotCanonical(uint256 projectId);
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
     error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
 
@@ -713,11 +714,11 @@ contract Deploy is Script, Sphinx {
         (address checkpointsDeployer, bool checkpointsDeployerDeployed) = _isDeployed({
             salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT,
             creationCode: type(JB721CheckpointsDeployer).creationCode,
-            arguments: ""
+            arguments: abi.encode(_hookStore)
         });
         _checkpointsDeployer = checkpointsDeployerDeployed
             ? JB721CheckpointsDeployer(checkpointsDeployer)
-            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}();
+            : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}(_hookStore);
 
         (address hook721, bool hook721Deployed) = _isDeployed({
             salt: HOOK_721_SALT,
@@ -1046,7 +1047,9 @@ contract Deploy is Script, Sphinx {
             (address singletonAddress, bool singletonDeployed) = _isDeployed(
                 OP_SALT,
                 type(JBOptimismSucker).creationCode,
-                abi.encode(opDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder)
+                abi.encode(
+                    opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                )
             );
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
@@ -1054,6 +1057,7 @@ contract Deploy is Script, Sphinx {
                     deployer: opDeployer,
                     directory: _directory,
                     permissions: _permissions,
+                    prices: _prices,
                     tokens: _tokens,
                     feeProjectId: 1,
                     registry: _suckerRegistry,
@@ -1091,7 +1095,9 @@ contract Deploy is Script, Sphinx {
             (address singletonAddress, bool singletonDeployed) = _isDeployed(
                 OP_SALT,
                 type(JBOptimismSucker).creationCode,
-                abi.encode(opDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder)
+                abi.encode(
+                    opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                )
             );
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
@@ -1099,6 +1105,7 @@ contract Deploy is Script, Sphinx {
                     deployer: opDeployer,
                     directory: _directory,
                     permissions: _permissions,
+                    prices: _prices,
                     tokens: _tokens,
                     feeProjectId: 1,
                     registry: _suckerRegistry,
@@ -1145,7 +1152,9 @@ contract Deploy is Script, Sphinx {
             (address singletonAddress, bool singletonDeployed) = _isDeployed(
                 BASE_SALT,
                 type(JBBaseSucker).creationCode,
-                abi.encode(baseDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder)
+                abi.encode(
+                    baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                )
             );
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
@@ -1153,6 +1162,7 @@ contract Deploy is Script, Sphinx {
                     deployer: baseDeployer,
                     directory: _directory,
                     permissions: _permissions,
+                    prices: _prices,
                     tokens: _tokens,
                     feeProjectId: 1,
                     registry: _suckerRegistry,
@@ -1190,7 +1200,9 @@ contract Deploy is Script, Sphinx {
             (address singletonAddress, bool singletonDeployed) = _isDeployed(
                 BASE_SALT,
                 type(JBBaseSucker).creationCode,
-                abi.encode(baseDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder)
+                abi.encode(
+                    baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                )
             );
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
@@ -1198,6 +1210,7 @@ contract Deploy is Script, Sphinx {
                     deployer: baseDeployer,
                     directory: _directory,
                     permissions: _permissions,
+                    prices: _prices,
                     tokens: _tokens,
                     feeProjectId: 1,
                     registry: _suckerRegistry,
@@ -1240,7 +1253,9 @@ contract Deploy is Script, Sphinx {
             (address singletonAddress, bool singletonDeployed) = _isDeployed(
                 ARB_SALT,
                 type(JBArbitrumSucker).creationCode,
-                abi.encode(arbDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder)
+                abi.encode(
+                    arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                )
             );
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
@@ -1248,6 +1263,7 @@ contract Deploy is Script, Sphinx {
                     deployer: arbDeployer,
                     directory: _directory,
                     permissions: _permissions,
+                    prices: _prices,
                     tokens: _tokens,
                     feeProjectId: 1,
                     registry: _suckerRegistry,
@@ -1291,7 +1307,9 @@ contract Deploy is Script, Sphinx {
             (address singletonAddress, bool singletonDeployed) = _isDeployed(
                 ARB_SALT,
                 type(JBArbitrumSucker).creationCode,
-                abi.encode(arbDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder)
+                abi.encode(
+                    arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                )
             );
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
@@ -1299,6 +1317,7 @@ contract Deploy is Script, Sphinx {
                     deployer: arbDeployer,
                     directory: _directory,
                     permissions: _permissions,
+                    prices: _prices,
                     tokens: _tokens,
                     feeProjectId: 1,
                     registry: _suckerRegistry,
@@ -1419,15 +1438,16 @@ contract Deploy is Script, Sphinx {
         (address singletonAddress, bool singletonDeployed) = _isDeployed(
             salt,
             type(JBCCIPSucker).creationCode,
-            abi.encode(deployer, _directory, _tokens, _permissions, 1, _suckerRegistry, _trustedForwarder)
+            abi.encode(deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder)
         );
         JBCCIPSucker singleton = singletonDeployed
             ? JBCCIPSucker(payable(singletonAddress))
             : new JBCCIPSucker{salt: salt}({
                 deployer: deployer,
                 directory: _directory,
-                tokens: _tokens,
                 permissions: _permissions,
+                prices: _prices,
+                tokens: _tokens,
                 feeProjectId: 1,
                 registry: _suckerRegistry,
                 trustedForwarder: _trustedForwarder
@@ -1468,15 +1488,16 @@ contract Deploy is Script, Sphinx {
         (address singletonAddress, bool singletonDeployed) = _isDeployed(
             salt,
             type(JBCCIPSucker).creationCode,
-            abi.encode(deployer, _directory, _tokens, _permissions, 1, _suckerRegistry, _trustedForwarder)
+            abi.encode(deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder)
         );
         JBCCIPSucker singleton = singletonDeployed
             ? JBCCIPSucker(payable(singletonAddress))
             : new JBCCIPSucker{salt: salt}({
                 deployer: deployer,
                 directory: _directory,
-                tokens: _tokens,
                 permissions: _permissions,
+                prices: _prices,
+                tokens: _tokens,
                 feeProjectId: 1,
                 registry: _suckerRegistry,
                 trustedForwarder: _trustedForwarder
@@ -1497,6 +1518,7 @@ contract Deploy is Script, Sphinx {
                 IJB721TiersHookDeployer(address(_hookDeployer)),
                 _permissions,
                 _projects,
+                _directory,
                 _trustedForwarder
             )
         );
@@ -1507,6 +1529,7 @@ contract Deploy is Script, Sphinx {
                 hookDeployer: IJB721TiersHookDeployer(address(_hookDeployer)),
                 permissions: _permissions,
                 projects: _projects,
+                directory: _directory,
                 trustedForwarder: _trustedForwarder
             });
     }
@@ -2016,8 +2039,8 @@ contract Deploy is Script, Sphinx {
                 _directory,
                 _revProjectId,
                 _suckerRegistry,
-                address(_revLoans),
-                address(_revHiddenTokens)
+                _revLoans,
+                _revHiddenTokens
             )
         );
         _revOwner = revOwnerDeployed
@@ -2027,8 +2050,8 @@ contract Deploy is Script, Sphinx {
                 directory: _directory,
                 feeRevnetId: _revProjectId,
                 suckerRegistry: _suckerRegistry,
-                loans: address(_revLoans),
-                hiddenTokens: address(_revHiddenTokens)
+                loans: _revLoans,
+                hiddenTokens: _revHiddenTokens
             });
 
         // Deploy REVDeployer.
@@ -2059,13 +2082,13 @@ contract Deploy is Script, Sphinx {
                 hookDeployer: IJB721TiersHookDeployer(address(_hookDeployer)),
                 publisher: _ctPublisher,
                 buybackHook: IJBBuybackHookRegistry(address(_buybackRegistry)),
-                loans: address(_revLoans),
+                loans: _revLoans,
                 trustedForwarder: _trustedForwarder,
                 owner: address(_revOwner)
             });
 
         // Approve the deployer to configure the $REV project.
-        _projects.approve(address(_revDeployer), _revProjectId);
+        _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
 
         // Configure the $REV revnet.
         if (address(_directory.controllerOf(_revProjectId)) == address(0)) _deployRevFeeProject();
@@ -2329,7 +2352,7 @@ contract Deploy is Script, Sphinx {
 
         // Approve the deployer to configure CPN (project 2).
         if (address(_directory.controllerOf(_cpnProjectId)) == address(0)) {
-            _projects.approve(address(_revDeployer), _cpnProjectId);
+            _projects.approve({to: address(_revDeployer), tokenId: _cpnProjectId});
 
             _revDeployer.deployFor({
                 revnetId: _cpnProjectId,
@@ -2407,17 +2430,25 @@ contract Deploy is Script, Sphinx {
 
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(NANA_SUCKER_SALT);
 
-        // Approve the deployer to configure project ID 1.
-        if (address(_directory.controllerOf(feeProjectId)) == address(0)) {
-            _projects.approve(address(_revDeployer), feeProjectId);
-
-            _revDeployer.deployFor({
-                revnetId: feeProjectId,
-                configuration: nanaConfig,
-                terminalConfigurations: terminalConfigs,
-                suckerDeploymentConfiguration: suckerConfig
-            });
+        // Configure project ID 1 only if it has not already become the canonical NANA revnet.
+        if (address(_directory.controllerOf(feeProjectId)) != address(0)) {
+            if (!_isCanonicalRevnetProject({projectId: feeProjectId, expectedSymbol: "NANA"})) {
+                revert Deploy_ProjectNotCanonical(feeProjectId);
+            }
+            return;
         }
+
+        if (_projects.ownerOf(feeProjectId) != safeAddress()) revert Deploy_ProjectNotOwned(feeProjectId);
+
+        // Approve the deployer to configure project ID 1.
+        _projects.approve({to: address(_revDeployer), tokenId: feeProjectId});
+
+        _revDeployer.deployFor({
+            revnetId: feeProjectId,
+            configuration: nanaConfig,
+            terminalConfigurations: terminalConfigs,
+            suckerDeploymentConfiguration: suckerConfig
+        });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2894,10 +2925,11 @@ contract Deploy is Script, Sphinx {
             // token mappings until Phase 2 (JBSwapCCIPSucker) enables cross-currency bridging.
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
             suckerDeployerConfigs[0] =
-                JBSuckerDeployerConfig({deployer: _optimismSuckerDeployer, mappings: tokenMappings});
-            suckerDeployerConfigs[1] = JBSuckerDeployerConfig({deployer: _baseSuckerDeployer, mappings: tokenMappings});
+                JBSuckerDeployerConfig({deployer: _optimismSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
+            suckerDeployerConfigs[1] =
+                JBSuckerDeployerConfig({deployer: _baseSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
             suckerDeployerConfigs[2] =
-                JBSuckerDeployerConfig({deployer: _arbitrumSuckerDeployer, mappings: tokenMappings});
+                JBSuckerDeployerConfig({deployer: _arbitrumSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
             // TODO: Tempo sucker config commented out until chain is ready.
         } else {
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
@@ -2906,6 +2938,7 @@ contract Deploy is Script, Sphinx {
                 deployer: address(_optimismSuckerDeployer) != address(0)
                     ? _optimismSuckerDeployer
                     : address(_baseSuckerDeployer) != address(0) ? _baseSuckerDeployer : _arbitrumSuckerDeployer,
+                peer: bytes32(0),
                 mappings: tokenMappings
             });
         }
@@ -2921,12 +2954,35 @@ contract Deploy is Script, Sphinx {
     )
         internal
     {
-        IJBPriceFeed existing = _prices.priceFeedFor(projectId, pricingCurrency, unitCurrency);
+        IJBPriceFeed existing =
+            _prices.priceFeedFor({projectId: projectId, pricingCurrency: pricingCurrency, unitCurrency: unitCurrency});
         if (address(existing) == address(0)) {
-            _prices.addPriceFeedFor(projectId, pricingCurrency, unitCurrency, expectedFeed);
+            _prices.addPriceFeedFor({
+                projectId: projectId, pricingCurrency: pricingCurrency, unitCurrency: unitCurrency, feed: expectedFeed
+            });
         } else if (address(existing) != address(expectedFeed)) {
-            revert Deploy_PriceFeedMismatch(projectId, pricingCurrency, unitCurrency);
+            revert Deploy_PriceFeedMismatch({
+                projectId: projectId, pricingCurrency: pricingCurrency, unitCurrency: unitCurrency
+            });
         }
+    }
+
+    function _isCanonicalRevnetProject(uint256 projectId, string memory expectedSymbol) internal view returns (bool) {
+        if (_projects.ownerOf(projectId) != address(_revDeployer)) return false;
+        if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
+        if (_revDeployer.hashedEncodedConfigurationOf(projectId) == bytes32(0)) return false;
+        if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: expectedSymbol})) return false;
+        return true;
+    }
+
+    function _projectTokenSymbolIs(uint256 projectId, string memory expectedSymbol) internal view returns (bool) {
+        address token = address(_tokens.tokenOf(projectId));
+        if (token == address(0)) return false;
+
+        (bool success, bytes memory data) = token.staticcall(abi.encodeWithSignature("symbol()"));
+        if (!success || data.length < 32) return false;
+
+        return keccak256(bytes(abi.decode(data, (string)))) == keccak256(bytes(expectedSymbol));
     }
 
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {

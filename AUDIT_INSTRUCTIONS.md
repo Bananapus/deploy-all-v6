@@ -95,6 +95,7 @@ The key audit mindset is that many runtime trust assumptions are born during dep
 
 ## Verification
 
-- run the fork-based deployment and resume tests
+- run `forge build --deny notes --skip "*/test/**"` to compile the deployment scripts without lint notes
+- run the fork-based deployment and resume tests with `forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"`
 - compare deployed addresses and owner targets against the expected chain config
 - run `script/Verify.s.sol` after concrete deployment changes

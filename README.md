@@ -71,8 +71,8 @@ This repo is a private workspace package, not a published reusable library. Use 
 
 ```bash
 npm install
-forge build
-forge test
+forge build --deny notes --skip "*/test/**"
+forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"
 ```
 
 The test suite is fork-heavy and exercises realistic multi-repo compositions rather than isolated mocks.

@@ -649,6 +649,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         });
 
         uint256 payerEthReceived = PAYER.balance - payerEthBefore;
+        emit log_named_uint("Scenario B: PAYER cashout first reclaim (return)", payerReclaim);
         emit log_named_uint("Scenario B: PAYER cashout first, ETH received", payerEthReceived);
 
         uint256 surpusAfterPayerCashout = _terminalBalance(revnetId, JBConstants.NATIVE_TOKEN);
@@ -670,6 +671,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         });
 
         uint256 ethReceivedB = PAYER2.balance - payer2EthBefore;
+        emit log_named_uint("Scenario B: PAYER2 cashout after PAYER reclaim (return)", reclaimScenarioB);
         emit log_named_uint("Scenario B: PAYER2 cashout after PAYER, ETH received", ethReceivedB);
 
         // Key comparison: the amounts should differ because the surplus changed.
@@ -863,6 +865,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 feeProjectBalAfterNormal = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
         uint256 revnetBalAfterNormal = _terminalBalance(revnetId, JBConstants.NATIVE_TOKEN);
 
+        emit log_named_uint("Normal cashout reclaim (return)", normalReclaim);
         emit log_named_uint("Normal cashout ETH received", normalEthReceived);
         emit log_named_uint("Fee project balance after normal cashout", feeProjectBalAfterNormal);
         emit log_named_uint("Revnet balance after normal cashout", revnetBalAfterNormal);
