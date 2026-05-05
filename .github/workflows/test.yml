@@ -16,24 +16,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.4.x
+          node-version: 25.9.0
 
       - name: Install npm dependencies
-        run: npm install --omit=dev
+        run: npm install
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Build
-        run: forge build --skip "*/test/**" --skip "*/script/**"
+        run: forge build --deny notes --skip "*/test/**"
 
       - name: Check contract sizes
-        run: |
-          # Run with optimizer so sizes reflect production builds.
-          # Allow known dependency contracts that exceed EIP-170 in this aggregation repo
-          # (each dependency repo enforces its own size limits).
-          FOUNDRY_PROFILE=ci_sizes forge build --sizes --skip "*/test/**" --skip "*/script/**" --skip SphinxUtils 2>&1 | tee /tmp/sizes.txt || true
-          # Fail only if a contract from THIS repo (script/) exceeds the limit
-          if grep -q "Error: some contracts exceed" /tmp/sizes.txt; then
-            echo "::warning::Some dependency contracts exceed EIP-170. See size table above."
-          fi
+        run: forge build --deny notes --sizes --skip "*/test/**" --skip "*/script/**" --skip SphinxUtils

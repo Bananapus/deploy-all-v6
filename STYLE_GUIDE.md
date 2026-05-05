@@ -419,17 +419,17 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.4.x
+          node-version: 25.9.0
       - name: Install npm dependencies
-        run: npm install --omit=dev
+        run: npm install
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
       - name: Run tests
-        run: forge test --fail-fast --summary --detailed --skip "*/script/**"
+        run: forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"
         env:
           RPC_ETHEREUM_MAINNET: ${{ secrets.RPC_ETHEREUM_MAINNET }}
       - name: Check contract sizes
-        run: forge build --sizes --skip "*/test/**" --skip "*/script/**" --skip SphinxUtils
+        run: forge build --deny notes --sizes --skip "*/test/**" --skip "*/script/**" --skip SphinxUtils
 ```
 
 **lint.yml:**
@@ -470,15 +470,18 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@v4
         with:
-          node-version: latest
+          node-version: 25.9.0
       - name: Install npm dependencies
-        run: npm install --omit=dev
+        run: npm install
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+      - name: Build contracts
+        run: forge build --deny notes --build-info --skip "*/test/**" --skip "*/script/**"
       - name: Run slither
-        uses: crytic/slither-action@v0.3.1
+        uses: crytic/slither-action@v0.4.1
         with:
             slither-config: slither-ci.config.json
+            ignore-compile: true
             fail-on: medium
 ```
 
@@ -508,14 +511,14 @@ jobs:
   "version": "x.x.x",
   "license": "MIT",
   "repository": { "type": "git", "url": "git+https://github.com/Org/repo.git" },
-  "engines": { "node": ">=20.0.0" },
+  "engines": { "node": "25.9.0" },
   "scripts": {
     "test": "forge test",
     "coverage": "forge coverage --match-path \"./src/*.sol\" --report lcov --report summary"
   },
   "dependencies": { ... },
   "devDependencies": {
-    "@sphinx-labs/plugins": "^0.33.2"
+    "@sphinx-labs/plugins": "0.33.3"
   }
 }
 ```
@@ -602,8 +605,9 @@ CI checks formatting via `forge fmt --check`.
 - Solidity dependencies via npm (`node_modules/`)
 - `forge-std` as a git submodule in `lib/`
 - Sphinx plugins as a devDependency
-- Cross-repo references use `file:../sibling-repo` in local development
-- Published versions use semver ranges (`^0.0.x`) for npm
+- Cross-repo references use exact npm package pins once the dependency has been published.
+- Local `file:../sibling-repo` references are temporary only while an upstream package has not been published yet.
+- Published versions use exact npm pins. Do not use semver ranges or `latest`.
 
 ### Contract Size Checks
 
