@@ -2109,11 +2109,10 @@ contract Resume is Script {
                 address(_revOwner)
             );
 
-        // Approve the deployer to configure the $REV project (idempotent via controllerOf check).
-        _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
-
         // Configure the $REV revnet only if not already configured.
         if (address(_directory.controllerOf(_revProjectId)) == address(0)) {
+            // Approve the deployer to configure the $REV project.
+            _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
             _deployRevFeeProject(); // Deploy the $REV revnet configuration.
         }
 
