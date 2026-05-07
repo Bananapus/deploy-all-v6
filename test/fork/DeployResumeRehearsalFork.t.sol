@@ -610,10 +610,12 @@ contract InstrumentedDeployer is IERC721Receiver {
         _ensureDefaultPriceFeed(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)), nativeEthFeed);
 
         // Deploy USDC/USD feed.
+        // forge-lint: disable-next-line(unsafe-typecast)
         IJBPriceFeed existingUsdc = prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(USDC)));
         if (address(existingUsdc) == address(0)) {
             IJBPriceFeed usdcFeed =
                 IJBPriceFeed(address(new JBChainlinkV3PriceFeed(AggregatorV3Interface(USDC_USD_FEED), 86_400)));
+            // forge-lint: disable-next-line(unsafe-typecast)
             _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(USDC)), usdcFeed);
         }
 

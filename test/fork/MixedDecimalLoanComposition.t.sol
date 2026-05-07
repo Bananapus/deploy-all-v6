@@ -40,7 +40,7 @@ import {MockERC20Token} from "../helpers/MockTokens.sol";
 ///
 /// This test validates correct behavior when all of these subsystems interact simultaneously,
 /// specifically targeting the "mixed-decimal loan source + stage transition + buyback + migration"
-/// gap identified in CodexQA.
+/// gap identified in RegressionQA.
 ///
 /// Key assertions:
 /// - 6-decimal USDC accounting is preserved throughout the entire lifecycle
@@ -197,6 +197,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         vm.stopPrank();
 
         // Calculate liquidity delta from USDC amount.
+        // forge-lint: disable-next-line(unsafe-typecast)
         int256 liquidityDelta = int256(liquidityUSDCAmount / 2);
 
         // Add full-range liquidity to the pool.
@@ -258,6 +259,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         jbPermissions()
             .setPermissionsFor(
                 from,
+                // forge-lint: disable-next-line(unsafe-typecast)
                 JBPermissionsData({operator: operator, projectId: uint64(projectId), permissionIds: permissionIds})
             );
     }

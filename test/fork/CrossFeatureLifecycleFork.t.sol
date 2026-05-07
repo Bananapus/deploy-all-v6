@@ -584,6 +584,7 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
             votingUnits: 0, // no voting power
             reserveFrequency: 0, // no reserve minting
             reserveBeneficiary: address(0), // no reserve beneficiary
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32("lifecycleTier1"), // tier metadata URI
             category: 1, // category 1 (must be sorted ascending)
             discountPercent: 0, // no discount
@@ -625,6 +626,7 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         IJB721TiersHook newHook = HOOK_DEPLOYER.deployHookFor({
             projectId: _projectId, // for our project
             deployTiersHookConfig: deployConfig, // with this config
+            // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("LIFECYCLE_721") // deterministic salt
         });
 

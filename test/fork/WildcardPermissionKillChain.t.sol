@@ -81,7 +81,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         // RevnetForkBase.setUp() forks mainnet, deploys full JB core stack + ecosystem.
         super.setUp();
 
-        // Deploy CTDeployer — grants wildcard MAP_SUCKER_TOKEN to SUCKER_REGISTRY, ADJUST_721_TIERS to PUBLISHER.
+        // Deploy CTDeployer. It grants wildcard ADJUST_721_TIERS to PUBLISHER on its own account.
         CT_DEPLOYER = new CTDeployer(
             jbPermissions(),
             jbProjects(),
@@ -91,7 +91,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
             address(0xB2b5841DBeF766d4b521221732F9B618fCf34A87)
         );
 
-        // Deploy JBOmnichainDeployer — grants wildcard MAP_SUCKER_TOKEN to SUCKER_REGISTRY.
+        // Deploy JBOmnichainDeployer. It grants wildcard MAP_SUCKER_TOKEN to SUCKER_REGISTRY on its own account.
         OMNICHAIN_DEPLOYER = new JBOmnichainDeployer(
             SUCKER_REGISTRY,
             HOOK_DEPLOYER,
@@ -366,7 +366,11 @@ contract WildcardPermissionKillChain is RevnetForkBase {
 
         // Attempt to deploy suckers for the victim's project.
         SUCKER_REGISTRY.deploySuckersFor({
-            projectId: victimProjectId, salt: bytes32("malicious"), configurations: suckerConfigs
+            // forge-lint: disable-next-line(unsafe-typecast)
+            projectId: victimProjectId,
+            // forge-lint: disable-next-line(unsafe-typecast)
+            salt: bytes32("malicious"),
+            configurations: suckerConfigs
         });
     }
 
@@ -487,6 +491,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
             account: VICTIM_OWNER,
             permissionsData: JBPermissionsData({
             operator: address(REV_DEPLOYER),
+            // forge-lint: disable-next-line(unsafe-typecast)
             projectId: uint64(victimProjectId), // cast to uint64 for JBPermissionsData
             permissionIds: rootPermission
         })
@@ -544,7 +549,12 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         // Build the REV configuration.
         REVConfig memory revConfig = REVConfig({
             description: REVDescription({
-                name: "TestRevnet", ticker: "TREV", uri: "ipfs://test", salt: bytes32("test")
+                // forge-lint: disable-next-line(unsafe-typecast)
+                name: "TestRevnet",
+                ticker: "TREV",
+                uri: "ipfs://test",
+                // forge-lint: disable-next-line(unsafe-typecast)
+                salt: bytes32("test")
             }),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             splitOperator: address(0),
@@ -592,18 +602,29 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         // Assert the loans contract has USE_ALLOWANCE via wildcard.
         assertTrue(loansHasAllowance, "LOANS should have USE_ALLOWANCE on REV_DEPLOYER's account via wildcard");
 
-        // ── Verify the SUCKER_REGISTRY has MAP_SUCKER_TOKEN wildcard on REVDeployer's account ──
-        bool registryHasMapToken = jbPermissions()
+        // Verify the buyback registry has SET_BUYBACK_POOL wildcard on REVDeployer's account.
+        bool registryHasSetPool = jbPermissions()
+            .hasPermission({
+            operator: address(BUYBACK_REGISTRY),
+            account: address(REV_DEPLOYER),
+            projectId: revnetId,
+            permissionId: JBPermissionIds.SET_BUYBACK_POOL,
+            includeRoot: false,
+            includeWildcardProjectId: true // check wildcard
+        });
+        assertTrue(registryHasSetPool, "BUYBACK_REGISTRY should have SET_BUYBACK_POOL via wildcard");
+
+        // The registry maps tokens through its deployment override, so REVDeployer does not need this wildcard.
+        bool suckerRegistryHasMapToken = jbPermissions()
             .hasPermission({
             operator: address(SUCKER_REGISTRY),
             account: address(REV_DEPLOYER),
             projectId: revnetId,
             permissionId: JBPermissionIds.MAP_SUCKER_TOKEN,
             includeRoot: false,
-            includeWildcardProjectId: true // check wildcard
+            includeWildcardProjectId: true
         });
-        // Assert the sucker registry has MAP_SUCKER_TOKEN via wildcard.
-        assertTrue(registryHasMapToken, "SUCKER_REGISTRY should have MAP_SUCKER_TOKEN via wildcard");
+        assertFalse(suckerRegistryHasMapToken, "SUCKER_REGISTRY should not have unused MAP_SUCKER_TOKEN wildcard");
 
         // ── Verify NONE of these singletons have permissions on the VICTIM project ──
         bool loansOnVictim = jbPermissions()

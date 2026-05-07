@@ -79,7 +79,7 @@ The test suite is fork-heavy and exercises realistic multi-repo compositions rat
 
 ## Deployment Notes
 
-This repo assumes the sibling V6 packages are present and their deployment artifacts are internally consistent. Some phases are intentionally chain-dependent, including skipping parts of the Uniswap stack on networks without the required external infrastructure. `Verify.s.sol` is a deployment check, not a full runtime audit.
+This repo assumes the sibling V6 packages are present and their deployment artifacts are internally consistent. Some phases are intentionally chain-dependent, including skipping parts of the Uniswap stack on networks without the required external infrastructure. `Verify.s.sol` is a deployment check, not a full runtime review.
 
 ## Repository Layout
 

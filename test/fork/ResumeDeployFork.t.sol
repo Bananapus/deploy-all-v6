@@ -630,7 +630,8 @@ contract ResumeDeployHarness is IERC721Receiver {
 
     function _deployUsdcFeed() internal {
         IJBPriceFeed existing =
-            prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)));
+        // forge-lint: disable-next-line(unsafe-typecast)
+        prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)));
         if (address(existing) == address(0)) {
             IJBPriceFeed usdcFeed = IJBPriceFeed(
                 address(
@@ -640,7 +641,12 @@ contract ResumeDeployHarness is IERC721Receiver {
                 )
             );
             _ensureDefaultPriceFeed(
-                0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)), usdcFeed
+                // forge-lint: disable-next-line(unsafe-typecast)
+                0,
+                JBCurrencyIds.USD,
+                // forge-lint: disable-next-line(unsafe-typecast)
+                uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)),
+                usdcFeed
             );
         }
     }
@@ -814,8 +820,9 @@ contract ResumeDeployForkTest is Test {
         );
         assertTrue(
             address(
-                harness.prices()
-                    .priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)))
+                harness.prices().
+                    // forge-lint: disable-next-line(unsafe-typecast)
+                    priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)))
             ) != address(0),
             "missing usdc usd feed"
         );

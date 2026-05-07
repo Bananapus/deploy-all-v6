@@ -620,8 +620,11 @@ contract Resume is Script {
         // The _isDeployed pattern handles this: if code exists, skip; otherwise deploy.
 
         // Deploy or resolve trusted forwarder.
-        (address trustedForwarder, bool trustedForwarderDeployed) =
-            _isDeployed(coreSalt, type(ERC2771Forwarder).creationCode, abi.encode(TRUSTED_FORWARDER_NAME));
+        (address trustedForwarder, bool trustedForwarderDeployed) = _isDeployed({
+            salt: coreSalt,
+            creationCode: type(ERC2771Forwarder).creationCode,
+            arguments: abi.encode(TRUSTED_FORWARDER_NAME)
+        });
         _trustedForwarder = trustedForwarderDeployed
             ? trustedForwarder  // Already deployed — use existing address.
             : address(new ERC2771Forwarder{salt: coreSalt}(TRUSTED_FORWARDER_NAME)); // Deploy new.
@@ -683,8 +686,9 @@ contract Resume is Script {
             });
 
         // Deploy or resolve ERC20 implementation.
-        (address erc20, bool erc20Deployed) =
-            _isDeployed(coreSalt, type(JBERC20).creationCode, abi.encode(_permissions, _projects));
+        (address erc20, bool erc20Deployed) = _isDeployed({
+            salt: coreSalt, creationCode: type(JBERC20).creationCode, arguments: abi.encode(_permissions, _projects)
+        });
         JBERC20 token = erc20Deployed ? JBERC20(erc20) : new JBERC20{salt: coreSalt}(_permissions, _projects);
 
         // Deploy or resolve tokens.
@@ -767,7 +771,7 @@ contract Resume is Script {
         _addressRegistry = deployed ? JBAddressRegistry(registry) : new JBAddressRegistry{salt: ADDRESS_REGISTRY_SALT}();
 
         // Log the result.
-        _logPhase("02", "Address Registry", deployed);
+        _logPhase({phaseId: "02", phaseName: "Address Registry", allDeployed: deployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -854,7 +858,7 @@ contract Resume is Script {
 
         // Log: all four sub-contracts.
         bool allDeployed = hookStoreDeployed && hook721Deployed && hookDeployerDeployed && hookProjectDeployerDeployed;
-        _logPhase("03a", "721 Tier Hook", allDeployed);
+        _logPhase({phaseId: "03a", phaseName: "721 Tier Hook", allDeployed: allDeployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -892,7 +896,7 @@ contract Resume is Script {
             });
 
         // Log the result.
-        _logPhase("03b", "Uniswap V4 Router Hook", deployed);
+        _logPhase({phaseId: "03b", phaseName: "Uniswap V4 Router Hook", allDeployed: deployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -911,7 +915,7 @@ contract Resume is Script {
                 permissions: _permissions, projects: _projects, owner: _deployer, trustedForwarder: _trustedForwarder
             });
 
-        _logPhase("03c", "Buyback Registry", registryDeployed);
+        _logPhase({phaseId: "03c", phaseName: "Buyback Registry", allDeployed: registryDeployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -924,10 +928,10 @@ contract Resume is Script {
         }
 
         // Deploy or resolve the buyback hook.
-        (address hook, bool hookDeployed) = _isDeployed(
-            BUYBACK_HOOK_SALT,
-            type(JBBuybackHook).creationCode,
-            abi.encode(
+        (address hook, bool hookDeployed) = _isDeployed({
+            salt: BUYBACK_HOOK_SALT,
+            creationCode: type(JBBuybackHook).creationCode,
+            arguments: abi.encode(
                 _directory,
                 _permissions,
                 _prices,
@@ -937,7 +941,7 @@ contract Resume is Script {
                 IHooks(address(_uniswapV4Hook)),
                 _trustedForwarder
             )
-        );
+        });
         _buybackHook = hookDeployed
             ? JBBuybackHook(payable(hook))
             : new JBBuybackHook{salt: BUYBACK_HOOK_SALT}({
@@ -961,7 +965,7 @@ contract Resume is Script {
         }
 
         // Log the result.
-        _logPhase("03d", "Buyback Hook", hookDeployed);
+        _logPhase({phaseId: "03d", phaseName: "Buyback Hook", allDeployed: hookDeployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -986,10 +990,10 @@ contract Resume is Script {
             });
 
         // Deploy or resolve the router terminal.
-        (address terminal, bool terminalDeployed) = _isDeployed(
-            ROUTER_TERMINAL_SALT,
-            type(JBRouterTerminal).creationCode,
-            abi.encode(
+        (address terminal, bool terminalDeployed) = _isDeployed({
+            salt: ROUTER_TERMINAL_SALT,
+            creationCode: type(JBRouterTerminal).creationCode,
+            arguments: abi.encode(
                 _directory,
                 _tokens,
                 _PERMIT2,
@@ -1000,7 +1004,7 @@ contract Resume is Script {
                 address(_uniswapV4Hook),
                 _trustedForwarder
             )
-        );
+        });
         _routerTerminal = terminalDeployed
             ? JBRouterTerminal(payable(terminal))
             : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}({
@@ -1032,7 +1036,7 @@ contract Resume is Script {
         }
 
         // Log the result.
-        _logPhase("03d", "Router Terminal", registryDeployed && terminalDeployed);
+        _logPhase({phaseId: "03d", phaseName: "Router Terminal", allDeployed: registryDeployed && terminalDeployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1041,10 +1045,10 @@ contract Resume is Script {
 
     function _resumeLpSplitHook() internal {
         // Deploy or resolve the LP split hook.
-        (address hook, bool hookDeployed) = _isDeployed(
-            LP_SPLIT_HOOK_SALT,
-            type(JBUniswapV4LPSplitHook).creationCode,
-            abi.encode(
+        (address hook, bool hookDeployed) = _isDeployed({
+            salt: LP_SPLIT_HOOK_SALT,
+            creationCode: type(JBUniswapV4LPSplitHook).creationCode,
+            arguments: abi.encode(
                 address(_directory),
                 _permissions,
                 address(_tokens),
@@ -1053,7 +1057,7 @@ contract Resume is Script {
                 IAllowanceTransfer(address(_PERMIT2)),
                 IHooks(address(_uniswapV4Hook))
             )
-        );
+        });
         _lpSplitHook = hookDeployed
             ? JBUniswapV4LPSplitHook(payable(hook))
             : new JBUniswapV4LPSplitHook{salt: LP_SPLIT_HOOK_SALT}(
@@ -1067,11 +1071,11 @@ contract Resume is Script {
             );
 
         // Deploy or resolve the LP split hook deployer.
-        (address deployer, bool deployerDeployed) = _isDeployed(
-            LP_SPLIT_HOOK_DEPLOYER_SALT,
-            type(JBUniswapV4LPSplitHookDeployer).creationCode,
-            abi.encode(_lpSplitHook, IJBAddressRegistry(address(_addressRegistry)))
-        );
+        (address deployer, bool deployerDeployed) = _isDeployed({
+            salt: LP_SPLIT_HOOK_DEPLOYER_SALT,
+            creationCode: type(JBUniswapV4LPSplitHookDeployer).creationCode,
+            arguments: abi.encode(_lpSplitHook, IJBAddressRegistry(address(_addressRegistry)))
+        });
         _lpSplitHookDeployer = deployerDeployed
             ? JBUniswapV4LPSplitHookDeployer(deployer)
             : new JBUniswapV4LPSplitHookDeployer{salt: LP_SPLIT_HOOK_DEPLOYER_SALT}(
@@ -1079,7 +1083,7 @@ contract Resume is Script {
             );
 
         // Log the result.
-        _logPhase("03e", "LP Split Hook", hookDeployed && deployerDeployed);
+        _logPhase({phaseId: "03e", phaseName: "LP Split Hook", allDeployed: hookDeployed && deployerDeployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1088,11 +1092,11 @@ contract Resume is Script {
 
     function _resumeSuckers() internal {
         // Deploy or resolve the sucker registry.
-        (address registry, bool registryDeployed) = _isDeployed(
-            SUCKER_REGISTRY_SALT,
-            type(JBSuckerRegistry).creationCode,
-            abi.encode(_directory, _permissions, _deployer, _trustedForwarder)
-        );
+        (address registry, bool registryDeployed) = _isDeployed({
+            salt: SUCKER_REGISTRY_SALT,
+            creationCode: type(JBSuckerRegistry).creationCode,
+            arguments: abi.encode(_directory, _permissions, _deployer, _trustedForwarder)
+        });
         _suckerRegistry = registryDeployed
             ? JBSuckerRegistry(registry)
             : new JBSuckerRegistry{salt: SUCKER_REGISTRY_SALT}(_directory, _permissions, _deployer, _trustedForwarder);
@@ -1124,11 +1128,11 @@ contract Resume is Script {
         // L1: Ethereum Mainnet / Sepolia.
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             // Deploy or resolve OP sucker deployer.
-            (address opDeployerAddress, bool opDeployerDeployed) = _isDeployed(
-                OP_SALT,
-                type(JBOptimismSuckerDeployer).creationCode,
-                abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
-            );
+            (address opDeployerAddress, bool opDeployerDeployed) = _isDeployed({
+                salt: OP_SALT,
+                creationCode: type(JBOptimismSuckerDeployer).creationCode,
+                arguments: abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
+            });
             JBOptimismSuckerDeployer opDeployer = opDeployerDeployed
                 ? JBOptimismSuckerDeployer(opDeployerAddress)
                 : new JBOptimismSuckerDeployer{salt: OP_SALT}(
@@ -1154,13 +1158,13 @@ contract Resume is Script {
             }
 
             // Deploy or resolve OP sucker singleton.
-            (address singletonAddress, bool singletonDeployed) = _isDeployed(
-                OP_SALT,
-                type(JBOptimismSucker).creationCode,
-                abi.encode(
+            (address singletonAddress, bool singletonDeployed) = _isDeployed({
+                salt: OP_SALT,
+                creationCode: type(JBOptimismSucker).creationCode,
+                arguments: abi.encode(
                     opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
-            );
+            });
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
                 : new JBOptimismSucker{salt: OP_SALT}(
@@ -1175,11 +1179,11 @@ contract Resume is Script {
         // L2: Optimism / Optimism Sepolia.
         if (block.chainid == 10 || block.chainid == 11_155_420) {
             // Deploy or resolve OP sucker deployer on L2.
-            (address opDeployerAddress, bool opDeployerDeployed) = _isDeployed(
-                OP_SALT,
-                type(JBOptimismSuckerDeployer).creationCode,
-                abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
-            );
+            (address opDeployerAddress, bool opDeployerDeployed) = _isDeployed({
+                salt: OP_SALT,
+                creationCode: type(JBOptimismSuckerDeployer).creationCode,
+                arguments: abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
+            });
             JBOptimismSuckerDeployer opDeployer = opDeployerDeployed
                 ? JBOptimismSuckerDeployer(opDeployerAddress)
                 : new JBOptimismSuckerDeployer{salt: OP_SALT}(
@@ -1197,13 +1201,13 @@ contract Resume is Script {
             }
 
             // Deploy or resolve OP sucker singleton on L2.
-            (address singletonAddress, bool singletonDeployed) = _isDeployed(
-                OP_SALT,
-                type(JBOptimismSucker).creationCode,
-                abi.encode(
+            (address singletonAddress, bool singletonDeployed) = _isDeployed({
+                salt: OP_SALT,
+                creationCode: type(JBOptimismSucker).creationCode,
+                arguments: abi.encode(
                     opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
-            );
+            });
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
                 : new JBOptimismSucker{salt: OP_SALT}(
@@ -1219,11 +1223,11 @@ contract Resume is Script {
         // L1.
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             // Deploy or resolve Base sucker deployer.
-            (address baseDeployerAddress, bool baseDeployerDeployed) = _isDeployed(
-                BASE_SALT,
-                type(JBBaseSuckerDeployer).creationCode,
-                abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
-            );
+            (address baseDeployerAddress, bool baseDeployerDeployed) = _isDeployed({
+                salt: BASE_SALT,
+                creationCode: type(JBBaseSuckerDeployer).creationCode,
+                arguments: abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
+            });
             JBBaseSuckerDeployer baseDeployer = baseDeployerDeployed
                 ? JBBaseSuckerDeployer(baseDeployerAddress)
                 : new JBBaseSuckerDeployer{salt: BASE_SALT}(
@@ -1249,13 +1253,13 @@ contract Resume is Script {
             }
 
             // Deploy or resolve Base sucker singleton.
-            (address singletonAddress, bool singletonDeployed) = _isDeployed(
-                BASE_SALT,
-                type(JBBaseSucker).creationCode,
-                abi.encode(
+            (address singletonAddress, bool singletonDeployed) = _isDeployed({
+                salt: BASE_SALT,
+                creationCode: type(JBBaseSucker).creationCode,
+                arguments: abi.encode(
                     baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
-            );
+            });
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
                 : new JBBaseSucker{salt: BASE_SALT}(
@@ -1269,11 +1273,11 @@ contract Resume is Script {
         // L2: Base / Base Sepolia.
         if (block.chainid == 8453 || block.chainid == 84_532) {
             // Deploy or resolve Base sucker deployer on L2.
-            (address baseDeployerAddress, bool baseDeployerDeployed) = _isDeployed(
-                BASE_SALT,
-                type(JBBaseSuckerDeployer).creationCode,
-                abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
-            );
+            (address baseDeployerAddress, bool baseDeployerDeployed) = _isDeployed({
+                salt: BASE_SALT,
+                creationCode: type(JBBaseSuckerDeployer).creationCode,
+                arguments: abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
+            });
             JBBaseSuckerDeployer baseDeployer = baseDeployerDeployed
                 ? JBBaseSuckerDeployer(baseDeployerAddress)
                 : new JBBaseSuckerDeployer{salt: BASE_SALT}(
@@ -1291,13 +1295,13 @@ contract Resume is Script {
             }
 
             // Deploy or resolve Base sucker singleton on L2.
-            (address singletonAddress, bool singletonDeployed) = _isDeployed(
-                BASE_SALT,
-                type(JBBaseSucker).creationCode,
-                abi.encode(
+            (address singletonAddress, bool singletonDeployed) = _isDeployed({
+                salt: BASE_SALT,
+                creationCode: type(JBBaseSucker).creationCode,
+                arguments: abi.encode(
                     baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
-            );
+            });
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
                 : new JBBaseSucker{salt: BASE_SALT}(
@@ -1313,11 +1317,11 @@ contract Resume is Script {
         // L1.
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             // Deploy or resolve Arbitrum sucker deployer.
-            (address arbDeployerAddress, bool arbDeployerDeployed) = _isDeployed(
-                ARB_SALT,
-                type(JBArbitrumSuckerDeployer).creationCode,
-                abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
-            );
+            (address arbDeployerAddress, bool arbDeployerDeployed) = _isDeployed({
+                salt: ARB_SALT,
+                creationCode: type(JBArbitrumSuckerDeployer).creationCode,
+                arguments: abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
+            });
             JBArbitrumSuckerDeployer arbDeployer = arbDeployerDeployed
                 ? JBArbitrumSuckerDeployer(arbDeployerAddress)
                 : new JBArbitrumSuckerDeployer{salt: ARB_SALT}(
@@ -1342,13 +1346,13 @@ contract Resume is Script {
             }
 
             // Deploy or resolve Arbitrum sucker singleton.
-            (address singletonAddress, bool singletonDeployed) = _isDeployed(
-                ARB_SALT,
-                type(JBArbitrumSucker).creationCode,
-                abi.encode(
+            (address singletonAddress, bool singletonDeployed) = _isDeployed({
+                salt: ARB_SALT,
+                creationCode: type(JBArbitrumSucker).creationCode,
+                arguments: abi.encode(
                     arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
-            );
+            });
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
                 : new JBArbitrumSucker{salt: ARB_SALT}(
@@ -1362,11 +1366,11 @@ contract Resume is Script {
         // L2: Arbitrum / Arbitrum Sepolia.
         if (block.chainid == 42_161 || block.chainid == 421_614) {
             // Deploy or resolve Arbitrum sucker deployer on L2.
-            (address arbDeployerAddress, bool arbDeployerDeployed) = _isDeployed(
-                ARB_SALT,
-                type(JBArbitrumSuckerDeployer).creationCode,
-                abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
-            );
+            (address arbDeployerAddress, bool arbDeployerDeployed) = _isDeployed({
+                salt: ARB_SALT,
+                creationCode: type(JBArbitrumSuckerDeployer).creationCode,
+                arguments: abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
+            });
             JBArbitrumSuckerDeployer arbDeployer = arbDeployerDeployed
                 ? JBArbitrumSuckerDeployer(arbDeployerAddress)
                 : new JBArbitrumSuckerDeployer{salt: ARB_SALT}(
@@ -1391,13 +1395,13 @@ contract Resume is Script {
             }
 
             // Deploy or resolve Arbitrum sucker singleton on L2.
-            (address singletonAddress, bool singletonDeployed) = _isDeployed(
-                ARB_SALT,
-                type(JBArbitrumSucker).creationCode,
-                abi.encode(
+            (address singletonAddress, bool singletonDeployed) = _isDeployed({
+                salt: ARB_SALT,
+                creationCode: type(JBArbitrumSucker).creationCode,
+                arguments: abi.encode(
                     arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                 )
-            );
+            });
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
                 : new JBArbitrumSucker{salt: ARB_SALT}(
@@ -1413,15 +1417,25 @@ contract Resume is Script {
         // L1: Deploy CCIP suckers for OP, Base, Arb.
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             _preApprovedSuckerDeployers.push(
-                address(_resumeCCIPSuckerFor(OP_SALT, block.chainid == 1 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID))
-            );
-            _preApprovedSuckerDeployers.push(
                 address(
-                    _resumeCCIPSuckerFor(BASE_SALT, block.chainid == 1 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID)
+                    _resumeCCIPSuckerFor({
+                        salt: OP_SALT, remoteChainId: block.chainid == 1 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID
+                    })
                 )
             );
             _preApprovedSuckerDeployers.push(
-                address(_resumeCCIPSuckerFor(ARB_SALT, block.chainid == 1 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID))
+                address(
+                    _resumeCCIPSuckerFor({
+                        salt: BASE_SALT, remoteChainId: block.chainid == 1 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
+                    })
+                )
+            );
+            _preApprovedSuckerDeployers.push(
+                address(
+                    _resumeCCIPSuckerFor({
+                        salt: ARB_SALT, remoteChainId: block.chainid == 1 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
+                    })
+                )
             );
         }
 
@@ -1429,37 +1443,52 @@ contract Resume is Script {
         if (block.chainid == 42_161 || block.chainid == 421_614) {
             _preApprovedSuckerDeployers.push(
                 address(
-                    _resumeCCIPSuckerFor(ARB_SALT, block.chainid == 42_161 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID)
+                    _resumeCCIPSuckerFor({
+                        salt: ARB_SALT,
+                        remoteChainId: block.chainid == 42_161 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID
+                    })
                 )
             );
             _preApprovedSuckerDeployers.push(
                 address(
-                    _resumeCCIPSuckerFor(ARB_OP_SALT, block.chainid == 42_161 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID)
+                    _resumeCCIPSuckerFor({
+                        salt: ARB_OP_SALT,
+                        remoteChainId: block.chainid == 42_161 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID
+                    })
                 )
             );
             _preApprovedSuckerDeployers.push(
                 address(
-                    _resumeCCIPSuckerFor(
-                        ARB_BASE_SALT, block.chainid == 42_161 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
-                    )
+                    _resumeCCIPSuckerFor({
+                        salt: ARB_BASE_SALT,
+                        remoteChainId: block.chainid == 42_161 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
+                    })
                 )
             );
         }
         // Optimism / Optimism Sepolia.
         else if (block.chainid == 10 || block.chainid == 11_155_420) {
             _preApprovedSuckerDeployers.push(
-                address(_resumeCCIPSuckerFor(OP_SALT, block.chainid == 10 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID))
-            );
-            _preApprovedSuckerDeployers.push(
                 address(
-                    _resumeCCIPSuckerFor(ARB_OP_SALT, block.chainid == 10 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID)
+                    _resumeCCIPSuckerFor({
+                        salt: OP_SALT, remoteChainId: block.chainid == 10 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID
+                    })
                 )
             );
             _preApprovedSuckerDeployers.push(
                 address(
-                    _resumeCCIPSuckerFor(
-                        OP_BASE_SALT, block.chainid == 10 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
-                    )
+                    _resumeCCIPSuckerFor({
+                        salt: ARB_OP_SALT,
+                        remoteChainId: block.chainid == 10 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
+                    })
+                )
+            );
+            _preApprovedSuckerDeployers.push(
+                address(
+                    _resumeCCIPSuckerFor({
+                        salt: OP_BASE_SALT,
+                        remoteChainId: block.chainid == 10 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
+                    })
                 )
             );
         }
@@ -1467,19 +1496,26 @@ contract Resume is Script {
         else if (block.chainid == 8453 || block.chainid == 84_532) {
             _preApprovedSuckerDeployers.push(
                 address(
-                    _resumeCCIPSuckerFor(BASE_SALT, block.chainid == 8453 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID)
+                    _resumeCCIPSuckerFor({
+                        salt: BASE_SALT,
+                        remoteChainId: block.chainid == 8453 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID
+                    })
                 )
             );
             _preApprovedSuckerDeployers.push(
                 address(
-                    _resumeCCIPSuckerFor(OP_BASE_SALT, block.chainid == 8453 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID)
+                    _resumeCCIPSuckerFor({
+                        salt: OP_BASE_SALT,
+                        remoteChainId: block.chainid == 8453 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID
+                    })
                 )
             );
             _preApprovedSuckerDeployers.push(
                 address(
-                    _resumeCCIPSuckerFor(
-                        ARB_BASE_SALT, block.chainid == 8453 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
-                    )
+                    _resumeCCIPSuckerFor({
+                        salt: ARB_BASE_SALT,
+                        remoteChainId: block.chainid == 8453 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
+                    })
                 )
             );
         }
@@ -1491,11 +1527,11 @@ contract Resume is Script {
         returns (JBCCIPSuckerDeployer deployer)
     {
         // Deploy or resolve the CCIP sucker deployer.
-        (address deployerAddress, bool deployerDeployed) = _isDeployed(
-            salt,
-            type(JBCCIPSuckerDeployer).creationCode,
-            abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
-        );
+        (address deployerAddress, bool deployerDeployed) = _isDeployed({
+            salt: salt,
+            creationCode: type(JBCCIPSuckerDeployer).creationCode,
+            arguments: abi.encode(_directory, _permissions, _tokens, _deployer, _trustedForwarder)
+        });
         deployer = deployerDeployed
             ? JBCCIPSuckerDeployer(deployerAddress)
             : new JBCCIPSuckerDeployer{salt: salt}(_directory, _permissions, _tokens, _deployer, _trustedForwarder);
@@ -1512,11 +1548,13 @@ contract Resume is Script {
         }
 
         // Deploy or resolve the CCIP sucker singleton.
-        (address singletonAddress, bool singletonDeployed) = _isDeployed(
-            salt,
-            type(JBCCIPSucker).creationCode,
-            abi.encode(deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder)
-        );
+        (address singletonAddress, bool singletonDeployed) = _isDeployed({
+            salt: salt,
+            creationCode: type(JBCCIPSucker).creationCode,
+            arguments: abi.encode(
+                deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+            )
+        });
         JBCCIPSucker singleton = singletonDeployed
             ? JBCCIPSucker(payable(singletonAddress))
             : new JBCCIPSucker{salt: salt}(
@@ -1532,10 +1570,10 @@ contract Resume is Script {
 
     function _resumeOmnichainDeployer() internal {
         // Deploy or resolve the omnichain deployer.
-        (address deployer, bool deployed) = _isDeployed(
-            OMNICHAIN_DEPLOYER_SALT,
-            type(JBOmnichainDeployer).creationCode,
-            abi.encode(
+        (address deployer, bool deployed) = _isDeployed({
+            salt: OMNICHAIN_DEPLOYER_SALT,
+            creationCode: type(JBOmnichainDeployer).creationCode,
+            arguments: abi.encode(
                 _suckerRegistry,
                 IJB721TiersHookDeployer(address(_hookDeployer)),
                 _permissions,
@@ -1543,7 +1581,7 @@ contract Resume is Script {
                 _directory,
                 _trustedForwarder
             )
-        );
+        });
         _omnichainDeployer = deployed
             ? JBOmnichainDeployer(deployer)
             : new JBOmnichainDeployer{salt: OMNICHAIN_DEPLOYER_SALT}(
@@ -1556,7 +1594,7 @@ contract Resume is Script {
             );
 
         // Log the result.
-        _logPhase("04", "Omnichain Deployer", deployed);
+        _logPhase({phaseId: "04", phaseName: "Omnichain Deployer", allDeployed: deployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1575,29 +1613,45 @@ contract Resume is Script {
         }
 
         // Register price feeds (idempotent — skips if already registered).
-        _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)), ethUsdFeed);
-        _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, JBCurrencyIds.ETH, ethUsdFeed);
-        _ensureDefaultPriceFeed(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)), matchingFeed);
+        _ensureDefaultPriceFeed({
+            projectId: 0,
+            pricingCurrency: JBCurrencyIds.USD,
+            unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            expectedFeed: ethUsdFeed
+        });
+        _ensureDefaultPriceFeed({
+            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: JBCurrencyIds.ETH, expectedFeed: ethUsdFeed
+        });
+        _ensureDefaultPriceFeed({
+            projectId: 0,
+            pricingCurrency: JBCurrencyIds.ETH,
+            unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            expectedFeed: matchingFeed
+        });
 
         // Deploy USDC/USD feed.
         _deployUsdcFeed();
 
         // Deploy deadline contracts (idempotent).
-        (, bool isDeployed) = _isDeployed(DEADLINES_SALT, type(JBDeadline3Hours).creationCode, "");
+        (, bool isDeployed) =
+            _isDeployed({salt: DEADLINES_SALT, creationCode: type(JBDeadline3Hours).creationCode, arguments: ""});
         if (!isDeployed) new JBDeadline3Hours{salt: DEADLINES_SALT}(); // 3-hour deadline.
-        (, isDeployed) = _isDeployed(DEADLINES_SALT, type(JBDeadline1Day).creationCode, "");
+        (, isDeployed) =
+            _isDeployed({salt: DEADLINES_SALT, creationCode: type(JBDeadline1Day).creationCode, arguments: ""});
         if (!isDeployed) new JBDeadline1Day{salt: DEADLINES_SALT}(); // 1-day deadline.
-        (, isDeployed) = _isDeployed(DEADLINES_SALT, type(JBDeadline3Days).creationCode, "");
+        (, isDeployed) =
+            _isDeployed({salt: DEADLINES_SALT, creationCode: type(JBDeadline3Days).creationCode, arguments: ""});
         if (!isDeployed) new JBDeadline3Days{salt: DEADLINES_SALT}(); // 3-day deadline.
-        (, isDeployed) = _isDeployed(DEADLINES_SALT, type(JBDeadline7Days).creationCode, "");
+        (, isDeployed) =
+            _isDeployed({salt: DEADLINES_SALT, creationCode: type(JBDeadline7Days).creationCode, arguments: ""});
         if (!isDeployed) new JBDeadline7Days{salt: DEADLINES_SALT}(); // 7-day deadline.
 
         // Deploy the Controller — depends on omnichain deployer address.
         bytes32 coreSalt = keccak256(abi.encode(CORE_DEPLOYMENT_NONCE));
-        (address controller, bool controllerDeployed) = _isDeployed(
-            coreSalt,
-            type(JBController).creationCode,
-            abi.encode(
+        (address controller, bool controllerDeployed) = _isDeployed({
+            salt: coreSalt,
+            creationCode: type(JBController).creationCode,
+            arguments: abi.encode(
                 _directory,
                 _fundAccess,
                 _prices,
@@ -1609,7 +1663,7 @@ contract Resume is Script {
                 address(_omnichainDeployer),
                 _trustedForwarder
             )
-        );
+        });
         _controller = controllerDeployed
             ? JBController(controller)
             : new JBController{salt: coreSalt}({
@@ -1646,8 +1700,9 @@ contract Resume is Script {
         if (block.chainid == 1) {
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419), 3600 seconds);
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USD_NATIVE_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             feed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1662,8 +1717,9 @@ contract Resume is Script {
         else if (block.chainid == 11_155_111) {
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306), 3600 seconds);
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USD_NATIVE_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             feed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1682,8 +1738,11 @@ contract Resume is Script {
                 AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
                 L2GracePeriod
             );
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USD_NATIVE_FEED_SALT,
+                creationCode: type(JBChainlinkV3SequencerPriceFeed).creationCode,
+                arguments: args
+            });
             feed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1701,8 +1760,9 @@ contract Resume is Script {
         else if (block.chainid == 11_155_420) {
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0x61Ec26aA57019C486B10502285c5A3D4A4750AD7), 3600 seconds);
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USD_NATIVE_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             feed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1721,8 +1781,11 @@ contract Resume is Script {
                 AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
                 L2GracePeriod
             );
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USD_NATIVE_FEED_SALT,
+                creationCode: type(JBChainlinkV3SequencerPriceFeed).creationCode,
+                arguments: args
+            });
             feed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1740,8 +1803,9 @@ contract Resume is Script {
         else if (block.chainid == 84_532) {
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1), 3600 seconds);
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USD_NATIVE_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             feed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1760,8 +1824,11 @@ contract Resume is Script {
                 AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
                 L2GracePeriod
             );
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USD_NATIVE_FEED_SALT,
+                creationCode: type(JBChainlinkV3SequencerPriceFeed).creationCode,
+                arguments: args
+            });
             feed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1779,8 +1846,9 @@ contract Resume is Script {
         else if (block.chainid == 421_614) {
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 3600 seconds);
-            (feedAddress, feedDeployed) =
-                _isDeployed(USD_NATIVE_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USD_NATIVE_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             feed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1810,7 +1878,9 @@ contract Resume is Script {
             usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; // USDC on mainnet.
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6), 86_400 seconds);
-            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USDC_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             usdcFeed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1824,7 +1894,9 @@ contract Resume is Script {
             usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // USDC on Sepolia.
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E), 86_400 seconds);
-            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USDC_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             usdcFeed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1842,8 +1914,9 @@ contract Resume is Script {
                 AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
                 L2GracePeriod
             );
-            (feedAddress, feedDeployed) =
-                _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USDC_FEED_SALT, creationCode: type(JBChainlinkV3SequencerPriceFeed).creationCode, arguments: args
+            });
             usdcFeed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1860,7 +1933,9 @@ contract Resume is Script {
             usdc = 0x5fd84259d66Cd46123540766Be93DFE6D43130D7; // USDC on OP Sepolia.
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C), 86_400 seconds);
-            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USDC_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             usdcFeed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1878,8 +1953,9 @@ contract Resume is Script {
                 AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
                 L2GracePeriod
             );
-            (feedAddress, feedDeployed) =
-                _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USDC_FEED_SALT, creationCode: type(JBChainlinkV3SequencerPriceFeed).creationCode, arguments: args
+            });
             usdcFeed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1896,7 +1972,9 @@ contract Resume is Script {
             usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e; // USDC on Base Sepolia.
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165), 86_400 seconds);
-            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USDC_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             usdcFeed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1914,8 +1992,9 @@ contract Resume is Script {
                 AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
                 L2GracePeriod
             );
-            (feedAddress, feedDeployed) =
-                _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3SequencerPriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USDC_FEED_SALT, creationCode: type(JBChainlinkV3SequencerPriceFeed).creationCode, arguments: args
+            });
             usdcFeed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1932,7 +2011,9 @@ contract Resume is Script {
             usdc = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d; // USDC on Arb Sepolia.
             bytes memory args =
                 abi.encode(AggregatorV3Interface(0x0153002d20B96532C639313c2d54c3dA09109309), 86_400 seconds);
-            (feedAddress, feedDeployed) = _isDeployed(USDC_FEED_SALT, type(JBChainlinkV3PriceFeed).creationCode, args);
+            (feedAddress, feedDeployed) = _isDeployed({
+                salt: USDC_FEED_SALT, creationCode: type(JBChainlinkV3PriceFeed).creationCode, arguments: args
+            });
             usdcFeed = feedDeployed
                 ? IJBPriceFeed(feedAddress)
                 : IJBPriceFeed(
@@ -1947,7 +2028,13 @@ contract Resume is Script {
         }
 
         // Register the USDC/USD feed (idempotent).
-        _ensureDefaultPriceFeed(0, JBCurrencyIds.USD, uint32(uint160(usdc)), usdcFeed);
+        _ensureDefaultPriceFeed({
+            projectId: 0,
+            pricingCurrency: JBCurrencyIds.USD,
+            // forge-lint: disable-next-line(unsafe-typecast)
+            unitCurrency: uint32(uint160(usdc)),
+            expectedFeed: usdcFeed
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1959,20 +2046,20 @@ contract Resume is Script {
         _cpnProjectId = _ensureProjectExists(_CPN_PROJECT_ID);
 
         // Deploy or resolve CTPublisher.
-        (address publisher, bool publisherDeployed) = _isDeployed(
-            CT_PUBLISHER_SALT,
-            type(CTPublisher).creationCode,
-            abi.encode(_directory, _permissions, _cpnProjectId, _trustedForwarder)
-        );
+        (address publisher, bool publisherDeployed) = _isDeployed({
+            salt: CT_PUBLISHER_SALT,
+            creationCode: type(CTPublisher).creationCode,
+            arguments: abi.encode(_directory, _permissions, _cpnProjectId, _trustedForwarder)
+        });
         _ctPublisher = publisherDeployed
             ? CTPublisher(publisher)
             : new CTPublisher{salt: CT_PUBLISHER_SALT}(_directory, _permissions, _cpnProjectId, _trustedForwarder);
 
         // Deploy or resolve CTDeployer.
-        (address deployer, bool deployerDeployed) = _isDeployed(
-            CT_DEPLOYER_SALT,
-            type(CTDeployer).creationCode,
-            abi.encode(
+        (address deployer, bool deployerDeployed) = _isDeployed({
+            salt: CT_DEPLOYER_SALT,
+            creationCode: type(CTDeployer).creationCode,
+            arguments: abi.encode(
                 _permissions,
                 _projects,
                 IJB721TiersHookDeployer(address(_hookDeployer)),
@@ -1980,7 +2067,7 @@ contract Resume is Script {
                 _suckerRegistry,
                 _trustedForwarder
             )
-        );
+        });
         _ctDeployer = deployerDeployed
             ? CTDeployer(deployer)
             : new CTDeployer{salt: CT_DEPLOYER_SALT}(
@@ -1993,16 +2080,18 @@ contract Resume is Script {
             );
 
         // Deploy or resolve CTProjectOwner.
-        (address projectOwner, bool ownerDeployed) = _isDeployed(
-            CT_PROJECT_OWNER_SALT, type(CTProjectOwner).creationCode, abi.encode(_permissions, _projects, _ctPublisher)
-        );
+        (address projectOwner, bool ownerDeployed) = _isDeployed({
+            salt: CT_PROJECT_OWNER_SALT,
+            creationCode: type(CTProjectOwner).creationCode,
+            arguments: abi.encode(_permissions, _projects, _ctPublisher)
+        });
         _ctProjectOwner = ownerDeployed
             ? CTProjectOwner(projectOwner)
             : new CTProjectOwner{salt: CT_PROJECT_OWNER_SALT}(_permissions, _projects, _ctPublisher);
 
         // Log the result.
         bool allDeployed = publisherDeployed && deployerDeployed && ownerDeployed;
-        _logPhase("06", "Croptop", allDeployed);
+        _logPhase({phaseId: "06", phaseName: "Croptop", allDeployed: allDeployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2021,10 +2110,10 @@ contract Resume is Script {
         _revProjectId = _ensureProjectExists(_REV_PROJECT_ID);
 
         // Deploy or resolve REVLoans.
-        (address revLoans, bool revLoansDeployed) = _isDeployed(
-            REV_LOANS_SALT,
-            type(REVLoans).creationCode,
-            abi.encode(
+        (address revLoans, bool revLoansDeployed) = _isDeployed({
+            salt: REV_LOANS_SALT,
+            creationCode: type(REVLoans).creationCode,
+            arguments: abi.encode(
                 _controller,
                 IJBSuckerRegistry(address(_suckerRegistry)),
                 _revProjectId,
@@ -2032,7 +2121,7 @@ contract Resume is Script {
                 _PERMIT2,
                 _trustedForwarder
             )
-        );
+        });
         _revLoans = revLoansDeployed
             ? REVLoans(payable(revLoans))
             : new REVLoans{salt: REV_LOANS_SALT}(
@@ -2045,18 +2134,20 @@ contract Resume is Script {
             );
 
         // Deploy or resolve REVHiddenTokens.
-        (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed(
-            REV_HIDDEN_TOKENS_SALT, type(REVHiddenTokens).creationCode, abi.encode(_controller, _trustedForwarder)
-        );
+        (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed({
+            salt: REV_HIDDEN_TOKENS_SALT,
+            creationCode: type(REVHiddenTokens).creationCode,
+            arguments: abi.encode(_controller, _trustedForwarder)
+        });
         _revHiddenTokens = revHiddenTokensDeployed
             ? REVHiddenTokens(revHiddenTokens)
             : new REVHiddenTokens{salt: REV_HIDDEN_TOKENS_SALT}(_controller, _trustedForwarder);
 
         // Deploy or resolve REVOwner — the runtime data hook for pay and cash out callbacks.
-        (address revOwner, bool revOwnerDeployed) = _isDeployed(
-            REV_OWNER_SALT,
-            type(REVOwner).creationCode,
-            abi.encode(
+        (address revOwner, bool revOwnerDeployed) = _isDeployed({
+            salt: REV_OWNER_SALT,
+            creationCode: type(REVOwner).creationCode,
+            arguments: abi.encode(
                 IJBBuybackHookRegistry(address(_buybackRegistry)),
                 _directory,
                 _revProjectId,
@@ -2064,7 +2155,7 @@ contract Resume is Script {
                 _revLoans,
                 _revHiddenTokens
             )
-        );
+        });
         _revOwner = revOwnerDeployed
             ? REVOwner(revOwner)
             : new REVOwner{salt: REV_OWNER_SALT}(
@@ -2077,10 +2168,10 @@ contract Resume is Script {
             );
 
         // Deploy or resolve REVDeployer.
-        (address revDeployer, bool revDeployerDeployed) = _isDeployed(
-            REV_DEPLOYER_SALT,
-            type(REVDeployer).creationCode,
-            abi.encode(
+        (address revDeployer, bool revDeployerDeployed) = _isDeployed({
+            salt: REV_DEPLOYER_SALT,
+            creationCode: type(REVDeployer).creationCode,
+            arguments: abi.encode(
                 _controller,
                 _suckerRegistry,
                 _revProjectId,
@@ -2091,7 +2182,7 @@ contract Resume is Script {
                 _trustedForwarder,
                 address(_revOwner)
             )
-        );
+        });
         if (address(_revOwner.DEPLOYER()) == address(0)) {
             _revOwner.setDeployer(IREVDeployer(revDeployer));
         }
@@ -2117,7 +2208,9 @@ contract Resume is Script {
         }
 
         // Log the result.
-        _logPhase("07", "Revnet", revLoansDeployed && revOwnerDeployed && revDeployerDeployed);
+        _logPhase({
+            phaseId: "07", phaseName: "Revnet", allDeployed: revLoansDeployed && revOwnerDeployed && revDeployerDeployed
+        });
     }
 
     /// @dev Configures the $REV fee project — identical to Deploy.s.sol._deployRevFeeProject().
@@ -2166,6 +2259,7 @@ contract Resume is Script {
                 autoIssuances: autoIssuances,
                 splitPercent: 3800,
                 splits: splits,
+                // forge-lint: disable-next-line(unsafe-typecast)
                 initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
                 issuanceCutFrequency: 90 days,
                 issuanceCutPercent: 380_000_000,
@@ -2178,7 +2272,11 @@ contract Resume is Script {
             // Stage 1: Reduced issuance with premint.
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
-                chainId: PREMINT_CHAIN_ID, count: uint104(1_550_000 * DECIMAL_MULTIPLIER), beneficiary: operator
+                // forge-lint: disable-next-line(unsafe-typecast)
+                chainId: PREMINT_CHAIN_ID,
+                // forge-lint: disable-next-line(unsafe-typecast)
+                count: uint104(1_550_000 * DECIMAL_MULTIPLIER),
+                beneficiary: operator
             });
 
             stages[1] = REVStageConfig({
@@ -2291,6 +2389,7 @@ contract Resume is Script {
                 autoIssuances: autoIssuances,
                 splitPercent: 3800,
                 splits: splits,
+                // forge-lint: disable-next-line(unsafe-typecast)
                 initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
                 issuanceCutFrequency: 120 days,
                 issuanceCutPercent: 380_000_000,
@@ -2480,6 +2579,7 @@ contract Resume is Script {
             autoIssuances: autoIssuances,
             splitPercent: 6200,
             splits: splits,
+            // forge-lint: disable-next-line(unsafe-typecast)
             initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
             issuanceCutFrequency: 360 days,
             issuanceCutPercent: 380_000_000,
@@ -2563,8 +2663,11 @@ contract Resume is Script {
                 operator,
                 _trustedForwarder
             );
-            (address resolverAddress, bool resolverDeployed) =
-                _isDeployed(BAN_RESOLVER_SALT, type(Banny721TokenUriResolver).creationCode, resolverArgs);
+            (address resolverAddress, bool resolverDeployed) = _isDeployed({
+                salt: BAN_RESOLVER_SALT,
+                creationCode: type(Banny721TokenUriResolver).creationCode,
+                arguments: resolverArgs
+            });
             if (resolverDeployed) {
                 resolver = Banny721TokenUriResolver(resolverAddress);
                 // Re-initialize metadata if resolver was deployed but setMetadata was interrupted.
@@ -2632,6 +2735,7 @@ contract Resume is Script {
                 autoIssuances: autoIssuances,
                 splitPercent: 3800,
                 splits: splits,
+                // forge-lint: disable-next-line(unsafe-typecast)
                 initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
                 issuanceCutFrequency: 60 days,
                 issuanceCutPercent: 380_000_000,
@@ -2643,7 +2747,11 @@ contract Resume is Script {
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
-                chainId: PREMINT_CHAIN_ID, count: uint104(1_000_000 * DECIMAL_MULTIPLIER), beneficiary: operator
+                // forge-lint: disable-next-line(unsafe-typecast)
+                chainId: PREMINT_CHAIN_ID,
+                // forge-lint: disable-next-line(unsafe-typecast)
+                count: uint104(1_000_000 * DECIMAL_MULTIPLIER),
+                beneficiary: operator
             });
 
             stages[1] = REVStageConfig({
@@ -2690,6 +2798,7 @@ contract Resume is Script {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
@@ -2711,6 +2820,7 @@ contract Resume is Script {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
@@ -2732,6 +2842,7 @@ contract Resume is Script {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
@@ -2753,6 +2864,7 @@ contract Resume is Script {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
@@ -2832,7 +2944,8 @@ contract Resume is Script {
         // ── DefifaHook (code origin for clone-based game deployment) ──
         {
             bytes memory hookArgs = abi.encode(_directory, defifaToken, baseProtocolToken);
-            (address hookAddr, bool hookDeployed) = _isDeployed(DEFIFA_SALT, type(DefifaHook).creationCode, hookArgs);
+            (address hookAddr, bool hookDeployed) =
+                _isDeployed({salt: DEFIFA_SALT, creationCode: type(DefifaHook).creationCode, arguments: hookArgs});
 
             if (hookDeployed) {
                 _defifaHook = DefifaHook(hookAddr);
@@ -2847,8 +2960,9 @@ contract Resume is Script {
         // ── DefifaTokenUriResolver (on-chain SVG renderer for game NFTs) ──
         {
             bytes memory resolverArgs = abi.encode(_typeface);
-            (address resolverAddr, bool resolverDeployed) =
-                _isDeployed(DEFIFA_SALT, type(DefifaTokenUriResolver).creationCode, resolverArgs);
+            (address resolverAddr, bool resolverDeployed) = _isDeployed({
+                salt: DEFIFA_SALT, creationCode: type(DefifaTokenUriResolver).creationCode, arguments: resolverArgs
+            });
 
             if (resolverDeployed) {
                 _defifaTokenUriResolver = DefifaTokenUriResolver(resolverAddr);
@@ -2861,8 +2975,9 @@ contract Resume is Script {
         // ── DefifaGovernor (scorecard attestation and ratification) ──
         {
             bytes memory governorArgs = abi.encode(_controller, _deployer);
-            (address governorAddr, bool governorDeployed) =
-                _isDeployed(DEFIFA_SALT, type(DefifaGovernor).creationCode, governorArgs);
+            (address governorAddr, bool governorDeployed) = _isDeployed({
+                salt: DEFIFA_SALT, creationCode: type(DefifaGovernor).creationCode, arguments: governorArgs
+            });
 
             if (governorDeployed) {
                 _defifaGovernor = DefifaGovernor(governorAddr);
@@ -2875,7 +2990,7 @@ contract Resume is Script {
         // ── DefifaHookStore (dedicated store for Defifa game NFT tiers) ──
         {
             (address storeAddr, bool storeDeployed) =
-                _isDeployed(DEFIFA_SALT, type(JB721TiersHookStore).creationCode, "");
+                _isDeployed({salt: DEFIFA_SALT, creationCode: type(JB721TiersHookStore).creationCode, arguments: ""});
             _defifaHookStore =
                 storeDeployed ? JB721TiersHookStore(storeAddr) : new JB721TiersHookStore{salt: DEFIFA_SALT}();
             if (!storeDeployed) allDeployed = false;
@@ -2893,8 +3008,9 @@ contract Resume is Script {
                 _FEE_PROJECT_ID,
                 _defifaHookStore
             );
-            (address deployerAddr, bool deployerDeployed) =
-                _isDeployed(DEFIFA_SALT, type(DefifaDeployer).creationCode, deployerArgs);
+            (address deployerAddr, bool deployerDeployed) = _isDeployed({
+                salt: DEFIFA_SALT, creationCode: type(DefifaDeployer).creationCode, arguments: deployerArgs
+            });
 
             if (deployerDeployed) {
                 _defifaDeployer = DefifaDeployer(deployerAddr);
@@ -2923,7 +3039,7 @@ contract Resume is Script {
             }
         }
 
-        _logPhase("10", "Defifa", allDeployed);
+        _logPhase({phaseId: "10", phaseName: "Defifa", allDeployed: allDeployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2999,7 +3115,7 @@ contract Resume is Script {
             }
         }
 
-        _logPhase("11", "Periphery Extensions", allDeployed);
+        _logPhase({phaseId: "11", phaseName: "Periphery Extensions", allDeployed: allDeployed});
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -3119,11 +3235,11 @@ contract Resume is Script {
     }
 
     function _expectedCtPublisherAddress() internal view returns (address publisher) {
-        (publisher,) = _isDeployed(
-            CT_PUBLISHER_SALT,
-            type(CTPublisher).creationCode,
-            abi.encode(_directory, _permissions, _CPN_PROJECT_ID, _trustedForwarder)
-        );
+        (publisher,) = _isDeployed({
+            salt: CT_PUBLISHER_SALT,
+            creationCode: type(CTPublisher).creationCode,
+            arguments: abi.encode(_directory, _permissions, _CPN_PROJECT_ID, _trustedForwarder)
+        });
     }
 
     function _expectedRevnetAddresses()
@@ -3131,10 +3247,10 @@ contract Resume is Script {
         view
         returns (address revLoans, address revHiddenTokens, address revOwner, address revDeployer)
     {
-        (revLoans,) = _isDeployed(
-            REV_LOANS_SALT,
-            type(REVLoans).creationCode,
-            abi.encode(
+        (revLoans,) = _isDeployed({
+            salt: REV_LOANS_SALT,
+            creationCode: type(REVLoans).creationCode,
+            arguments: abi.encode(
                 _controller,
                 IJBSuckerRegistry(address(_suckerRegistry)),
                 _REV_PROJECT_ID,
@@ -3142,16 +3258,18 @@ contract Resume is Script {
                 _PERMIT2,
                 _trustedForwarder
             )
-        );
+        });
 
-        (revHiddenTokens,) = _isDeployed(
-            REV_HIDDEN_TOKENS_SALT, type(REVHiddenTokens).creationCode, abi.encode(_controller, _trustedForwarder)
-        );
+        (revHiddenTokens,) = _isDeployed({
+            salt: REV_HIDDEN_TOKENS_SALT,
+            creationCode: type(REVHiddenTokens).creationCode,
+            arguments: abi.encode(_controller, _trustedForwarder)
+        });
 
-        (revOwner,) = _isDeployed(
-            REV_OWNER_SALT,
-            type(REVOwner).creationCode,
-            abi.encode(
+        (revOwner,) = _isDeployed({
+            salt: REV_OWNER_SALT,
+            creationCode: type(REVOwner).creationCode,
+            arguments: abi.encode(
                 IJBBuybackHookRegistry(address(_buybackRegistry)),
                 _directory,
                 _REV_PROJECT_ID,
@@ -3159,13 +3277,13 @@ contract Resume is Script {
                 revLoans,
                 revHiddenTokens
             )
-        );
+        });
 
         address publisher = address(_ctPublisher) == address(0) ? _expectedCtPublisherAddress() : address(_ctPublisher);
-        (revDeployer,) = _isDeployed(
-            REV_DEPLOYER_SALT,
-            type(REVDeployer).creationCode,
-            abi.encode(
+        (revDeployer,) = _isDeployed({
+            salt: REV_DEPLOYER_SALT,
+            creationCode: type(REVDeployer).creationCode,
+            arguments: abi.encode(
                 _controller,
                 _suckerRegistry,
                 _REV_PROJECT_ID,
@@ -3176,7 +3294,7 @@ contract Resume is Script {
                 _trustedForwarder,
                 revOwner
             )
-        );
+        });
     }
 
     function _projectTokenSymbolIs(uint256 projectId, string memory expected) internal view returns (bool) {

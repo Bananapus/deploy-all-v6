@@ -183,7 +183,10 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         vm.prank(from);
         jbPermissions()
             .setPermissionsFor(
-                from, JBPermissionsData({operator: operator, projectId: uint64(_projectId), permissionIds: ids})
+                // forge-lint: disable-next-line(unsafe-typecast)
+                from,
+                // forge-lint: disable-next-line(unsafe-typecast)
+                JBPermissionsData({operator: operator, projectId: uint64(_projectId), permissionIds: ids})
             );
     }
 
@@ -205,6 +208,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         });
 
         vm.prank(PROJECT_OWNER);
+        // forge-lint: disable-next-line(unsafe-typecast)
         address[] memory suckers = suckerRegistry.deploySuckersFor(projectId, bytes32("SALT"), configs);
         return suckers[0];
     }

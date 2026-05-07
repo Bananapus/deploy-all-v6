@@ -134,7 +134,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | CPN revnet configuration | LOW | `_deployCpnRevnet()` is fully implemented and called during deployment. Verify stage parameters, splits, and terminal configs match intended CPN economics. |
 | Fee percentage non-configurable | LOW | The 2.5% fee is a constant in `JBMultiTerminal` (`FEE = 25`, `MAX_FEE = 1000`). It cannot be changed post-deployment. This is by design but means a fee adjustment requires full protocol redeployment. |
 | NANA 62% split percentage | HIGH | Project 1 (NANA/fee project) has `splitPercent: 6200` -- 62% of all tokens minted during payments go to reserved token splits. If this percentage is misconfigured, fee revenue distribution is permanently affected. |
-| REV cashOutTaxRate of 10% | MEDIUM | All three revnets use `cashOutTaxRate: 1000` (10%). This is low enough that revnet loans become more attractive than cashouts above ~39% (per CryptoEconLab finding). If the intended rate was different, it cannot be changed. |
+| REV cashOutTaxRate of 10% | MEDIUM | All three revnets use `cashOutTaxRate: 1000` (10%). This is low enough that revnet loans become more attractive than cashouts above ~39% (per CryptoEconLab note). If the intended rate was different, it cannot be changed. |
 
 ### CREATE2 Salt Risks
 
