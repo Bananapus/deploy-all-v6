@@ -214,12 +214,14 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
 
         int56[] memory tickCumulatives = new int56[](2);
         tickCumulatives[0] = 0;
+        // forge-lint: disable-next-line(unsafe-typecast)
         tickCumulatives[1] = int56(tick) * int56(int32(twapWindow));
 
         uint136[] memory secondsPerLiquidityCumulativeX128s = new uint136[](2);
         secondsPerLiquidityCumulativeX128s[0] = 0;
         uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
         if (liq == 0) liq = 1;
+        // forge-lint: disable-next-line(unsafe-typecast)
         secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq);
 
         vm.mockCall(
@@ -365,6 +367,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32("tier1"),
             category: 1,
             discountPercent: 0,
@@ -398,6 +401,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
                     preventOverspending: false
                 })
             }),
+            // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("TEST_721"),
             preventSplitOperatorAdjustingTiers: false,
             preventSplitOperatorUpdatingMetadata: false,
@@ -457,6 +461,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         vm.prank(address(liqHelper));
         IERC20(projectToken).approve(address(poolManager), type(uint256).max);
 
+        // forge-lint: disable-next-line(unsafe-typecast)
         int256 liquidityDelta = int256(liquidityTokenAmount / 50);
         vm.prank(address(liqHelper));
         liqHelper.addLiquidity{value: liquidityTokenAmount}(key, TICK_LOWER, TICK_UPPER, liquidityDelta);
@@ -497,7 +502,11 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             .setPermissionsFor(
                 account,
                 JBPermissionsData({
-                operator: address(LOANS_CONTRACT), projectId: uint64(revnetId), permissionIds: permissionIds
+                // forge-lint: disable-next-line(unsafe-typecast)
+                operator: address(LOANS_CONTRACT),
+                // forge-lint: disable-next-line(unsafe-typecast)
+                projectId: uint64(revnetId),
+                permissionIds: permissionIds
             })
             );
     }

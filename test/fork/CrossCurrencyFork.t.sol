@@ -185,6 +185,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32("ccUsdTier1"),
             category: 1,
             discountPercent: 0,
@@ -220,6 +221,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
                     preventOverspending: false
                 })
             }),
+            // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32(withSplit ? bytes32("CC_USD_721_S") : bytes32("CC_USD_721")),
             preventSplitOperatorAdjustingTiers: false,
             preventSplitOperatorUpdatingMetadata: false,
@@ -238,6 +240,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32("ccEthTier1"),
             category: 1,
             discountPercent: 0,
@@ -273,6 +276,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
                     preventOverspending: false
                 })
             }),
+            // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("CC_ETH_721"),
             preventSplitOperatorAdjustingTiers: false,
             preventSplitOperatorUpdatingMetadata: false,
@@ -565,6 +569,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32("noPricesTier"),
             category: 1,
             discountPercent: 0,
@@ -596,6 +601,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
                     preventOverspending: false
                 })
             }),
+            // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("NP_721"),
             preventSplitOperatorAdjustingTiers: false,
             preventSplitOperatorUpdatingMetadata: false,

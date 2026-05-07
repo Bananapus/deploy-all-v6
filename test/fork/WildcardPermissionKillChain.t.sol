@@ -366,7 +366,11 @@ contract WildcardPermissionKillChain is RevnetForkBase {
 
         // Attempt to deploy suckers for the victim's project.
         SUCKER_REGISTRY.deploySuckersFor({
-            projectId: victimProjectId, salt: bytes32("malicious"), configurations: suckerConfigs
+            // forge-lint: disable-next-line(unsafe-typecast)
+            projectId: victimProjectId,
+            // forge-lint: disable-next-line(unsafe-typecast)
+            salt: bytes32("malicious"),
+            configurations: suckerConfigs
         });
     }
 
@@ -487,6 +491,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
             account: VICTIM_OWNER,
             permissionsData: JBPermissionsData({
             operator: address(REV_DEPLOYER),
+            // forge-lint: disable-next-line(unsafe-typecast)
             projectId: uint64(victimProjectId), // cast to uint64 for JBPermissionsData
             permissionIds: rootPermission
         })
@@ -544,7 +549,12 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         // Build the REV configuration.
         REVConfig memory revConfig = REVConfig({
             description: REVDescription({
-                name: "TestRevnet", ticker: "TREV", uri: "ipfs://test", salt: bytes32("test")
+                // forge-lint: disable-next-line(unsafe-typecast)
+                name: "TestRevnet",
+                ticker: "TREV",
+                uri: "ipfs://test",
+                // forge-lint: disable-next-line(unsafe-typecast)
+                salt: bytes32("test")
             }),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             splitOperator: address(0),

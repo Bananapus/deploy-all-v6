@@ -156,7 +156,11 @@ contract TestTerminalMigration is RevnetForkBase {
             .setPermissionsFor(
                 address(this),
                 JBPermissionsData({
-                operator: address(LOANS_CONTRACT), projectId: uint64(projectId), permissionIds: loanPermissionIds
+                // forge-lint: disable-next-line(unsafe-typecast)
+                operator: address(LOANS_CONTRACT),
+                // forge-lint: disable-next-line(unsafe-typecast)
+                projectId: uint64(projectId),
+                permissionIds: loanPermissionIds
             })
             );
     }

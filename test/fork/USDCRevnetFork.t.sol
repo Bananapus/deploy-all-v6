@@ -234,6 +234,7 @@ contract USDCRevnetForkTest is RevnetForkBase {
         IERC20(projectToken).approve(address(poolManager), type(uint256).max);
         vm.stopPrank();
 
+        // forge-lint: disable-next-line(unsafe-typecast)
         int256 liquidityDelta = int256(liquidityUSDCAmount / 2);
         vm.prank(address(liqHelper));
         liqHelper.addLiquidity(key, TICK_LOWER, TICK_UPPER, liquidityDelta);

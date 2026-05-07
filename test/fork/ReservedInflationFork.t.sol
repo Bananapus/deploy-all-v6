@@ -12,7 +12,7 @@ import {REVCroptopAllowedPost} from "@rev-net/core-v6/src/structs/REVCroptopAllo
 import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
 import {JBTerminalConfig} from "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
 
-/// @notice Tests for H-4 CONFIRMED: Pending reserved tokens inflate `totalSupply`, reducing cashout value.
+/// @notice Tests for CONFIRMED: Pending reserved tokens inflate `totalSupply`, reducing cashout value.
 /// Verifies behavior in the context of REVDeployer's data hook composition chain (REVDeployer -> BuybackHook).
 ///
 /// Run with: forge test --match-contract ReservedInflationForkTest -vvv
@@ -87,7 +87,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         assertLt(
             reclaimAmount,
             hypotheticalReclaimNoReserved,
-            "H-4: payer gets LESS due to pending reserved token inflation in totalSupply"
+            "payer gets LESS due to pending reserved token inflation in totalSupply"
         );
 
         // Document the magnitude of the reduction.

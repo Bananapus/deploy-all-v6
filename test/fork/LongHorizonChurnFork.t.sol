@@ -513,6 +513,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
         JBSplit[] memory payoutSplits = new JBSplit[](2); // two payout splits
         payoutSplits[0] = JBSplit({
             percent: uint32(JBConstants.SPLITS_TOTAL_PERCENT / 2), // 50% of payouts to Project B
+            // forge-lint: disable-next-line(unsafe-typecast)
             projectId: uint56(projectB), // route to Project B
             beneficiary: payable(address(0)), // no specific beneficiary (goes to project)
             preferAddToBalance: true, // add to B's balance (not pay)
@@ -599,6 +600,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
             votingUnits: 0, // no voting power
             reserveFrequency: 0, // no reserve minting
             reserveBeneficiary: address(0), // no reserve beneficiary
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32("churnTier1"), // tier metadata URI
             category: 1, // category 1
             discountPercent: 0, // no discount
@@ -640,6 +642,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
         IJB721TiersHook newHook = HOOK_DEPLOYER.deployHookFor({
             projectId: _projectId, // for our project
             deployTiersHookConfig: deployConfig, // with this config
+            // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("CHURN_721") // deterministic salt
         });
 

@@ -274,6 +274,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32("wbtcTier1"),
             category: 1, // Tiers must be sorted by category
             discountPercent: 0,
@@ -310,6 +311,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
                     preventOverspending: false
                 })
             }),
+            // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32(withSplit ? bytes32("WBTC_721_S") : bytes32("WBTC_721")),
             preventSplitOperatorAdjustingTiers: false,
             preventSplitOperatorUpdatingMetadata: false,
@@ -580,6 +582,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         vm.stopPrank();
 
         // Add liquidity across the full tick range.
+        // forge-lint: disable-next-line(unsafe-typecast)
         int256 liquidityDelta = int256(wbtcLiquidity / 2);
         vm.prank(address(liqHelper));
         liqHelper.addLiquidity(key, TICK_LOWER, TICK_UPPER, liquidityDelta);

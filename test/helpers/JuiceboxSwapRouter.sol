@@ -82,8 +82,10 @@ contract JuiceboxSwapRouter {
         int256 delta1 = delta.amount1();
 
         if (data.params.zeroForOne) {
+            // forge-lint: disable-next-line(unsafe-typecast)
             delta0 += int256(inputAmount);
         } else {
+            // forge-lint: disable-next-line(unsafe-typecast)
             delta1 += int256(inputAmount);
         }
 
@@ -91,18 +93,24 @@ contract JuiceboxSwapRouter {
         if (amountOutMin > 0) {
             uint256 outputAmount;
             if (data.params.zeroForOne) {
+                // forge-lint: disable-next-line(unsafe-typecast)
                 outputAmount = delta1 > 0 ? uint256(delta1) : 0;
             } else {
+                // forge-lint: disable-next-line(unsafe-typecast)
                 outputAmount = delta0 > 0 ? uint256(delta0) : 0;
             }
 
             if (outputAmount < amountOutMin) revert("Output below minimum");
         }
 
+        // forge-lint: disable-next-line(unsafe-typecast)
         if (delta0 < 0) data.key.currency0.settle(poolManager, data.sender, uint256(-delta0), false);
+        // forge-lint: disable-next-line(unsafe-typecast)
         if (delta1 < 0) data.key.currency1.settle(poolManager, data.sender, uint256(-delta1), false);
 
+        // forge-lint: disable-next-line(unsafe-typecast)
         if (delta0 > 0) data.key.currency0.take(poolManager, data.sender, uint256(delta0), false);
+        // forge-lint: disable-next-line(unsafe-typecast)
         if (delta1 > 0) data.key.currency1.take(poolManager, data.sender, uint256(delta1), false);
 
         return abi.encode(delta);

@@ -48,9 +48,13 @@ contract V4LiquidityHelper is IUnlockCallback {
         int128 amount0 = delta.amount0();
         int128 amount1 = delta.amount1();
 
+        // forge-lint: disable-next-line(unsafe-typecast)
         if (amount0 < 0) _settle(key.currency0, uint128(-amount0));
+        // forge-lint: disable-next-line(unsafe-typecast)
         if (amount1 < 0) _settle(key.currency1, uint128(-amount1));
+        // forge-lint: disable-next-line(unsafe-typecast)
         if (amount0 > 0) poolManager.take(key.currency0, address(this), uint128(amount0));
+        // forge-lint: disable-next-line(unsafe-typecast)
         if (amount1 > 0) poolManager.take(key.currency1, address(this), uint128(amount1));
 
         return "";
@@ -61,6 +65,7 @@ contract V4LiquidityHelper is IUnlockCallback {
             poolManager.settle{value: amount}();
         } else {
             poolManager.sync(currency);
+            // forge-lint: disable-next-line(erc20-unchecked-transfer)
             IERC20(Currency.unwrap(currency)).transfer(address(poolManager), amount);
             poolManager.settle();
         }

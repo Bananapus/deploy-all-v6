@@ -157,6 +157,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         IERC20(projectToken).approve(address(poolManager), type(uint256).max);
 
         // Use a conservative liquidity delta (1/50th) to stay within token budgets.
+        // forge-lint: disable-next-line(unsafe-typecast)
         int256 liquidityDelta = int256(liquidityTokenAmount / 50);
         vm.prank(address(liqHelper));
         liqHelper.addLiquidity{value: liquidityTokenAmount}(key, TICK_LOWER, TICK_UPPER, liquidityDelta);

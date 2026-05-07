@@ -140,6 +140,7 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
             votingUnits: 0,
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
+            // forge-lint: disable-next-line(unsafe-typecast)
             encodedIPFSUri: bytes32("tier1"),
             category: 1,
             discountPercent: 0,
@@ -173,6 +174,7 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
                     preventOverspending: false
                 })
             }),
+            // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("UECO_721"),
             preventSplitOperatorAdjustingTiers: false,
             preventSplitOperatorUpdatingMetadata: false,
@@ -209,6 +211,7 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
         IERC20(projectToken).approve(address(poolManager), type(uint256).max);
         vm.stopPrank();
 
+        // forge-lint: disable-next-line(unsafe-typecast)
         int256 liquidityDelta = int256(liquidityAmount / 2);
         vm.prank(address(liqHelper));
         liqHelper.addLiquidity(key, TICK_LOWER, TICK_UPPER, liquidityDelta);

@@ -442,11 +442,11 @@ contract Verify is Script {
             _check({condition: false, label: string.concat(label, " project NFT owner readable"), critical: true});
         }
 
-        _check(
-            revDeployer.hashedEncodedConfigurationOf(projectId) != bytes32(0),
-            string.concat(label, " has REVDeployer configuration hash"),
-            true
-        );
+        _check({
+            condition: revDeployer.hashedEncodedConfigurationOf(projectId) != bytes32(0),
+            label: string.concat(label, " has REVDeployer configuration hash"),
+            critical: true
+        });
 
         address token = address(tokens.tokenOf(projectId));
         _check({
@@ -478,11 +478,11 @@ contract Verify is Script {
         });
 
         // Check that the controller is allowed to set first controllers.
-        _check(
-            directory.isAllowedToSetFirstController(address(controller)),
-            "Controller allowed to set first controller",
-            true
-        );
+        _check({
+            condition: directory.isAllowedToSetFirstController(address(controller)),
+            label: "Controller allowed to set first controller",
+            critical: true
+        });
 
         // Deploy.s.sol always creates and configures all 4 canonical projects regardless of
         // whether the Uniswap stack is present. Check directory wiring for all of them.
@@ -507,11 +507,11 @@ contract Verify is Script {
             // Read the primary terminal for this project for the native token.
             IJBTerminal primaryTerm = directory.primaryTerminalOf(projectIds[i], JBConstants.NATIVE_TOKEN);
             // Verify a primary terminal is set.
-            _check(
-                address(primaryTerm) != address(0),
-                string.concat(labels[i], " has primary terminal for native token"),
-                true
-            );
+            _check({
+                condition: address(primaryTerm) != address(0),
+                label: string.concat(labels[i], " has primary terminal for native token"),
+                critical: true
+            });
 
             // Read the full list of terminals for this project.
             IJBTerminal[] memory terminals = directory.terminalsOf(projectIds[i]);
@@ -560,11 +560,11 @@ contract Verify is Script {
         });
 
         // Verify the controller's FUND_ACCESS_LIMITS immutable points to JBFundAccessLimits.
-        _check(
-            address(controller.FUND_ACCESS_LIMITS()) == address(fundAccessLimits),
-            "Controller.FUND_ACCESS_LIMITS == JBFundAccessLimits",
-            true
-        );
+        _check({
+            condition: address(controller.FUND_ACCESS_LIMITS()) == address(fundAccessLimits),
+            label: "Controller.FUND_ACCESS_LIMITS == JBFundAccessLimits",
+            critical: true
+        });
 
         // Verify the controller's TOKENS immutable points to JBTokens.
         _check({
@@ -602,11 +602,11 @@ contract Verify is Script {
         });
 
         // Verify the controller's OMNICHAIN_RULESET_OPERATOR points to the omnichain deployer.
-        _check(
-            controller.OMNICHAIN_RULESET_OPERATOR() == address(omnichainDeployer),
-            "Controller.OMNICHAIN_RULESET_OPERATOR == JBOmnichainDeployer",
-            true
-        );
+        _check({
+            condition: controller.OMNICHAIN_RULESET_OPERATOR() == address(omnichainDeployer),
+            label: "Controller.OMNICHAIN_RULESET_OPERATOR == JBOmnichainDeployer",
+            critical: true
+        });
 
         // Log a blank line for readability.
         console.log("");
@@ -657,11 +657,11 @@ contract Verify is Script {
         });
 
         // Verify the terminal's FEELESS_ADDRESSES immutable points to JBFeelessAddresses.
-        _check(
-            address(terminal.FEELESS_ADDRESSES()) == address(feelessAddresses),
-            "Terminal.FEELESS_ADDRESSES == JBFeelessAddresses",
-            true
-        );
+        _check({
+            condition: address(terminal.FEELESS_ADDRESSES()) == address(feelessAddresses),
+            label: "Terminal.FEELESS_ADDRESSES == JBFeelessAddresses",
+            critical: true
+        });
 
         // Verify the terminal store's DIRECTORY immutable points to JBDirectory.
         _check({
@@ -706,11 +706,11 @@ contract Verify is Script {
         _check({condition: address(hookStore).code.length > 0, label: "721 hook store is deployed", critical: true});
 
         // Verify the 721 project deployer references the correct hook deployer.
-        _check(
-            address(hookProjectDeployer.HOOK_DEPLOYER()) == address(hookDeployer),
-            "HookProjectDeployer.HOOK_DEPLOYER == JB721TiersHookDeployer",
-            true
-        );
+        _check({
+            condition: address(hookProjectDeployer.HOOK_DEPLOYER()) == address(hookDeployer),
+            label: "HookProjectDeployer.HOOK_DEPLOYER == JB721TiersHookDeployer",
+            critical: true
+        });
 
         // The buyback registry is always deployed, but the default hook requires the Uniswap stack.
         // Use the router terminal presence to determine if the full Uniswap-dependent stack was deployed.
@@ -718,15 +718,19 @@ contract Verify is Script {
 
         if (address(buybackRegistry) != address(0)) {
             // Verify the buyback registry's PROJECTS points to JBProjects.
-            _check(
-                address(buybackRegistry.PROJECTS()) == address(projects), "BuybackRegistry.PROJECTS == JBProjects", true
-            );
+            _check({
+                condition: address(buybackRegistry.PROJECTS()) == address(projects),
+                label: "BuybackRegistry.PROJECTS == JBProjects",
+                critical: true
+            });
 
             // The default hook is only set on chains with the full Uniswap stack.
             if (uniswapStackDeployed) {
-                _check(
-                    address(buybackRegistry.defaultHook()) != address(0), "BuybackRegistry has default hook set", true
-                );
+                _check({
+                    condition: address(buybackRegistry.defaultHook()) != address(0),
+                    label: "BuybackRegistry has default hook set",
+                    critical: true
+                });
             } else {
                 _skip("BuybackRegistry default hook check (Uniswap stack not deployed)");
             }
@@ -738,20 +742,20 @@ contract Verify is Script {
         // Verify router terminal registry has a non-zero default terminal (only if deployed).
         if (address(routerTerminalRegistry) != address(0)) {
             // Read the default terminal from the router terminal registry.
-            _check(
-                address(routerTerminalRegistry.defaultTerminal()) != address(0),
-                "RouterTerminalRegistry has default terminal set",
-                true
-            );
+            _check({
+                condition: address(routerTerminalRegistry.defaultTerminal()) != address(0),
+                label: "RouterTerminalRegistry has default terminal set",
+                critical: true
+            });
 
             // If the explicit router terminal address was provided, verify it matches the default.
             if (address(routerTerminal) != address(0)) {
                 // Verify the default terminal in the registry matches the expected router terminal.
-                _check(
-                    address(routerTerminalRegistry.defaultTerminal()) == address(routerTerminal),
-                    "RouterTerminalRegistry.defaultTerminal == JBRouterTerminal",
-                    true
-                );
+                _check({
+                    condition: address(routerTerminalRegistry.defaultTerminal()) == address(routerTerminal),
+                    label: "RouterTerminalRegistry.defaultTerminal == JBRouterTerminal",
+                    critical: true
+                });
 
                 // Verify the router terminal is marked as feeless.
                 _check({
@@ -786,28 +790,32 @@ contract Verify is Script {
         });
 
         // Verify the omnichain deployer's SUCKER_REGISTRY points to the sucker registry.
-        _check(
-            address(omnichainDeployer.SUCKER_REGISTRY()) == address(suckerRegistry),
-            "OmnichainDeployer.SUCKER_REGISTRY == JBSuckerRegistry",
-            true
-        );
+        _check({
+            condition: address(omnichainDeployer.SUCKER_REGISTRY()) == address(suckerRegistry),
+            label: "OmnichainDeployer.SUCKER_REGISTRY == JBSuckerRegistry",
+            critical: true
+        });
 
         // Verify the omnichain deployer's HOOK_DEPLOYER points to the 721 hook deployer.
-        _check(
-            address(omnichainDeployer.HOOK_DEPLOYER()) == address(hookDeployer),
-            "OmnichainDeployer.HOOK_DEPLOYER == JB721TiersHookDeployer",
-            true
-        );
+        _check({
+            condition: address(omnichainDeployer.HOOK_DEPLOYER()) == address(hookDeployer),
+            label: "OmnichainDeployer.HOOK_DEPLOYER == JB721TiersHookDeployer",
+            critical: true
+        });
 
         // Verify the omnichain deployer's PROJECTS points to JBProjects.
-        _check(
-            address(omnichainDeployer.PROJECTS()) == address(projects), "OmnichainDeployer.PROJECTS == JBProjects", true
-        );
+        _check({
+            condition: address(omnichainDeployer.PROJECTS()) == address(projects),
+            label: "OmnichainDeployer.PROJECTS == JBProjects",
+            critical: true
+        });
 
         // Verify the sucker registry's DIRECTORY points to JBDirectory.
-        _check(
-            address(suckerRegistry.DIRECTORY()) == address(directory), "SuckerRegistry.DIRECTORY == JBDirectory", true
-        );
+        _check({
+            condition: address(suckerRegistry.DIRECTORY()) == address(directory),
+            label: "SuckerRegistry.DIRECTORY == JBDirectory",
+            critical: true
+        });
 
         // Verify the sucker registry's PROJECTS points to JBProjects.
         _check({
@@ -817,37 +825,41 @@ contract Verify is Script {
         });
 
         // Verify the controller's OMNICHAIN_RULESET_OPERATOR matches the omnichain deployer.
-        _check(
-            controller.OMNICHAIN_RULESET_OPERATOR() == address(omnichainDeployer),
-            "Controller recognizes OmnichainDeployer as ruleset operator",
-            true
-        );
+        _check({
+            condition: controller.OMNICHAIN_RULESET_OPERATOR() == address(omnichainDeployer),
+            label: "Controller recognizes OmnichainDeployer as ruleset operator",
+            critical: true
+        });
 
         // Verify revnet deployer wiring (only if deployed).
         if (address(revDeployer) != address(0)) {
             // Verify the REV deployer's CONTROLLER points to the correct controller.
-            _check(
-                address(revDeployer.CONTROLLER()) == address(controller), "REVDeployer.CONTROLLER == JBController", true
-            );
+            _check({
+                condition: address(revDeployer.CONTROLLER()) == address(controller),
+                label: "REVDeployer.CONTROLLER == JBController",
+                critical: true
+            });
 
             // Verify the REV deployer's SUCKER_REGISTRY points to the sucker registry.
-            _check(
-                address(revDeployer.SUCKER_REGISTRY()) == address(suckerRegistry),
-                "REVDeployer.SUCKER_REGISTRY == JBSuckerRegistry",
-                true
-            );
+            _check({
+                condition: address(revDeployer.SUCKER_REGISTRY()) == address(suckerRegistry),
+                label: "REVDeployer.SUCKER_REGISTRY == JBSuckerRegistry",
+                critical: true
+            });
 
             // Verify the REV deployer's HOOK_DEPLOYER points to the 721 hook deployer.
-            _check(
-                address(revDeployer.HOOK_DEPLOYER()) == address(hookDeployer),
-                "REVDeployer.HOOK_DEPLOYER == JB721TiersHookDeployer",
-                true
-            );
+            _check({
+                condition: address(revDeployer.HOOK_DEPLOYER()) == address(hookDeployer),
+                label: "REVDeployer.HOOK_DEPLOYER == JB721TiersHookDeployer",
+                critical: true
+            });
 
             // Verify the REV deployer's PUBLISHER points to the Croptop publisher.
-            _check(
-                address(revDeployer.PUBLISHER()) == address(ctPublisher), "REVDeployer.PUBLISHER == CTPublisher", true
-            );
+            _check({
+                condition: address(revDeployer.PUBLISHER()) == address(ctPublisher),
+                label: "REVDeployer.PUBLISHER == CTPublisher",
+                critical: true
+            });
 
             // Verify the REV deployer's LOANS points to the REV loans contract.
             if (address(revLoans) != address(0)) {
@@ -912,11 +924,11 @@ contract Verify is Script {
                 label: "Defifa uses REV(3) as fee project",
                 critical: true
             });
-            _check(
-                defifaDeployer.BASE_PROTOCOL_PROJECT_ID() == _FEE_PROJECT_ID,
-                "Defifa uses NANA(1) as base protocol project",
-                true
-            );
+            _check({
+                condition: defifaDeployer.BASE_PROTOCOL_PROJECT_ID() == _FEE_PROJECT_ID,
+                label: "Defifa uses NANA(1) as base protocol project",
+                critical: true
+            });
             _check({
                 condition: address(defifaDeployer.CONTROLLER()) == address(controller),
                 label: "Defifa controller wiring",
@@ -938,17 +950,18 @@ contract Verify is Script {
                 condition: hookCodeOrigin.code.length > 0, label: "Defifa hook code origin has code", critical: true
             });
             if (hookCodeOrigin.code.length > 0) {
-                _check(
-                    address(DefifaHook(hookCodeOrigin).DEFIFA_TOKEN()) == address(tokens.tokenOf(_REV_PROJECT_ID)),
-                    "Defifa hook code origin uses REV token",
-                    true
-                );
-                _check(
-                    address(DefifaHook(hookCodeOrigin).BASE_PROTOCOL_TOKEN())
+                _check({
+                    condition: address(DefifaHook(hookCodeOrigin).DEFIFA_TOKEN())
+                        == address(tokens.tokenOf(_REV_PROJECT_ID)),
+                    label: "Defifa hook code origin uses REV token",
+                    critical: true
+                });
+                _check({
+                    condition: address(DefifaHook(hookCodeOrigin).BASE_PROTOCOL_TOKEN())
                         == address(tokens.tokenOf(_FEE_PROJECT_ID)),
-                    "Defifa hook code origin uses NANA token",
-                    true
-                );
+                    label: "Defifa hook code origin uses NANA token",
+                    critical: true
+                });
             }
 
             address tokenUriResolver = address(defifaDeployer.TOKEN_URI_RESOLVER());
@@ -958,16 +971,16 @@ contract Verify is Script {
             });
             _check({condition: governor.code.length > 0, label: "Defifa governor has code", critical: true});
             if (governor.code.length > 0) {
-                _check(
-                    DefifaGovernor(governor).owner() == address(defifaDeployer),
-                    "Defifa governor owned by deployer",
-                    true
-                );
-                _check(
-                    address(DefifaGovernor(governor).CONTROLLER()) == address(controller),
-                    "Defifa governor controller wiring",
-                    true
-                );
+                _check({
+                    condition: DefifaGovernor(governor).owner() == address(defifaDeployer),
+                    label: "Defifa governor owned by deployer",
+                    critical: true
+                });
+                _check({
+                    condition: address(DefifaGovernor(governor).CONTROLLER()) == address(controller),
+                    label: "Defifa governor controller wiring",
+                    critical: true
+                });
             }
         }
 
@@ -1192,11 +1205,12 @@ contract Verify is Script {
             }
 
             // Verify the router terminal's primary terminal for native token is the JBMultiTerminal.
-            _check(
-                address(directory.primaryTerminalOf(_FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN)) == address(terminal),
-                "NANA(1) primary native terminal is JBMultiTerminal",
-                true
-            );
+            _check({
+                condition: address(directory.primaryTerminalOf(_FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN))
+                    == address(terminal),
+                label: "NANA(1) primary native terminal is JBMultiTerminal",
+                critical: true
+            });
         } else {
             _skip("Router terminal route checks (not deployed on this chain)");
         }
@@ -1220,16 +1234,16 @@ contract Verify is Script {
             _check({
                 condition: address(projectHandles).code.length > 0, label: "ProjectHandles has code", critical: true
             });
-            _check(
-                keccak256(bytes(projectHandles.TEXT_KEY())) == keccak256(bytes("juicebox")),
-                "ProjectHandles text key == juicebox",
-                true
-            );
-            _check(
-                projectHandles.trustedForwarder() == projects.trustedForwarder(),
-                "ProjectHandles trusted forwarder matches core",
-                true
-            );
+            _check({
+                condition: keccak256(bytes(projectHandles.TEXT_KEY())) == keccak256(bytes("juicebox")),
+                label: "ProjectHandles text key == juicebox",
+                critical: true
+            });
+            _check({
+                condition: projectHandles.trustedForwarder() == projects.trustedForwarder(),
+                label: "ProjectHandles trusted forwarder matches core",
+                critical: true
+            });
         }
 
         if (address(distributor721) == address(0)) {
@@ -1278,11 +1292,11 @@ contract Verify is Script {
                 label: "ProjectPayerDeployer has code",
                 critical: true
             });
-            _check(
-                address(projectPayerDeployer.DIRECTORY()) == address(directory),
-                "ProjectPayerDeployer directory wiring",
-                true
-            );
+            _check({
+                condition: address(projectPayerDeployer.DIRECTORY()) == address(directory),
+                label: "ProjectPayerDeployer directory wiring",
+                critical: true
+            });
 
             address implementation = projectPayerDeployer.IMPLEMENTATION();
             _check({
