@@ -240,6 +240,10 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             _buildNativeConfig(cashOutTaxRate);
         feeCfg.description = REVDescription("Fee", "FEE", "ipfs://fee", "FEE_SALT");
 
+        // FEE_PROJECT_ID is created before the registry's default-hook threshold is set, so wire the hook explicitly.
+        vm.prank(multisig());
+        BUYBACK_REGISTRY.setHookFor(FEE_PROJECT_ID, IJBRulesetDataHook(address(BUYBACK_HOOK)));
+
         vm.prank(multisig());
         REV_DEPLOYER.deployFor({
             revnetId: FEE_PROJECT_ID,

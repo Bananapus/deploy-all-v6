@@ -1,8 +1,8 @@
-# Review Guide
+# Audit Instructions
 
 This repo is the full-stack deployment orchestrator. Treat it as production code: wrong wiring here can make correct runtime contracts unsafe.
 
-## Review Objective
+## Audit Objective
 
 Find issues that:
 
@@ -23,7 +23,7 @@ In scope:
 
 Out of scope:
 
-- reviewing the internal logic of every deployed dependency in `node_modules`
+- re-auditing the internal logic of every deployed dependency in `node_modules`
 
 ## Start Here
 
@@ -41,7 +41,7 @@ This repo does not introduce a new treasury or hook. It assembles the ecosystem:
 - creates canonical projects and compositions in a specific order
 - provides recovery and verification tooling for interrupted or resumed runs
 
-The key review mindset is that many runtime trust assumptions are born during deployment:
+The key audit mindset is that many runtime trust assumptions are born during deployment:
 
 - which hook is the default
 - which registry is authoritative
