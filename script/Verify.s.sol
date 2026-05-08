@@ -391,6 +391,28 @@ contract Verify is Script {
 
         _verifyCanonicalProjectIdentities();
 
+        // Finding N: No stale ERC-721 approvals on canonical projects.
+        _check({
+            condition: projects.getApproved(_FEE_PROJECT_ID) == address(0),
+            label: "Project 1 (NANA) has no stale approval",
+            critical: true
+        });
+        _check({
+            condition: projects.getApproved(_CPN_PROJECT_ID) == address(0),
+            label: "Project 2 (CPN) has no stale approval",
+            critical: true
+        });
+        _check({
+            condition: projects.getApproved(_REV_PROJECT_ID) == address(0),
+            label: "Project 3 (REV) has no stale approval",
+            critical: true
+        });
+        _check({
+            condition: projects.getApproved(_BAN_PROJECT_ID) == address(0),
+            label: "Project 4 (BAN) has no stale approval",
+            critical: true
+        });
+
         // Log a blank line for readability.
         console.log("");
     }
@@ -1152,7 +1174,18 @@ contract Verify is Script {
                 }
             }
         } else {
-            _skip("Sucker deployer allowlist (VERIFY_SUCKER_DEPLOYERS not set)");
+            // Finding K: On production chains, the sucker deployer allowlist must be provided.
+            bool isProductionChain =
+                (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+            if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: "Sucker deployer allowlist MUST be set on production (VERIFY_SUCKER_DEPLOYERS)",
+                    critical: true
+                });
+            } else {
+                _skip("Sucker deployer allowlist (VERIFY_SUCKER_DEPLOYERS not set)");
+            }
         }
 
         // Verify feeless addresses — router terminal is already checked in Category 5.
