@@ -27,6 +27,7 @@ import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
 import {REVStageConfig, REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
 import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
+import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
 import {LibClone} from "solady/src/utils/LibClone.sol";
 
 /// @notice Extends RevnetForkBase with LP-split hook, PositionManager, and WETH.
@@ -60,7 +61,8 @@ abstract contract RevnetEcosystemBase is RevnetForkBase {
             poolManager,
             positionManager,
             permit2(),
-            IHooks(address(0))
+            IHooks(address(0)),
+            IJBSuckerRegistry(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0);
@@ -141,6 +143,7 @@ abstract contract RevnetEcosystemBase is RevnetForkBase {
             description: REVDescription("Ecosystem", "ECO", "ipfs://eco", "ECO_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

@@ -114,6 +114,7 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
             description: REVDescription("USDC Ecosystem", "UECO", "ipfs://ueco", "UECO_SALT"),
             baseCurrency: uint32(uint160(address(usdc))),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

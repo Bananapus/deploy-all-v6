@@ -147,6 +147,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
             description: REVDescription("MixedDec", "MXDC", "ipfs://mixeddec", "MXDC_SALT"),
             baseCurrency: uint32(uint160(address(usdc))), // USDC as base currency.
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

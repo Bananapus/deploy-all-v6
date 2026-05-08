@@ -139,6 +139,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             description: REVDescription("CC Test", "CCT", "ipfs://cc", "CC_SALT"),
             baseCurrency: USD, // Abstract USD
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -529,6 +530,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             description: REVDescription("NoPriceFeed", "NPF", "ipfs://npf", "NPF_SALT"),
             baseCurrency: 999,
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -704,6 +706,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             description: REVDescription("ETH Base", "ETHB", "ipfs://ethb", "ETHB_SALT"),
             baseCurrency: nativeCurrency, // Same currency as payment token
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

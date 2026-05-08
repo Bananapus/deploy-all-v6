@@ -100,6 +100,7 @@ import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV
 
 // ── Suckers ──
 import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
+import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
 
 // ── Omnichain Deployer ──
 import {JBOmnichainDeployer} from "@bananapus/omnichain-deployers-v6/src/JBOmnichainDeployer.sol";
@@ -513,7 +514,7 @@ contract InstrumentedDeployer is IERC721Receiver {
         if (address(routerTerminalRegistry.defaultTerminal()) == address(0)) {
             routerTerminalRegistry.setDefaultTerminal({terminal: IJBTerminal(address(routerTerminal))});
         }
-        if (!feeless.isFeeless(address(routerTerminal))) {
+        if (!feeless.isFeelessFor({addr: address(routerTerminal), projectId: 0})) {
             feeless.setFeelessAddress({addr: address(routerTerminal), flag: true});
         }
     }
@@ -530,7 +531,8 @@ contract InstrumentedDeployer is IERC721Receiver {
                 IPoolManager(POOL_MANAGER),
                 IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook))
+                IHooks(address(uniswapV4Hook)),
+                IJBSuckerRegistry(address(suckerRegistry))
             )
         );
         lpSplitHook = hD
@@ -542,7 +544,8 @@ contract InstrumentedDeployer is IERC721Receiver {
                 IPoolManager(POOL_MANAGER),
                 IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook))
+                IHooks(address(uniswapV4Hook)),
+                IJBSuckerRegistry(address(suckerRegistry))
             );
 
         // Deploy or resolve LP split hook deployer.
@@ -818,7 +821,10 @@ contract DeployResumeRehearsalForkTest is Test {
             harness.directory().isAllowedToSetFirstController(address(harness.controller())),
             "controller not allowlisted in directory"
         );
-        assertTrue(harness.feeless().isFeeless(address(harness.routerTerminal())), "routerTerminal not feeless");
+        assertTrue(
+            harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}),
+            "routerTerminal not feeless"
+        );
         assertEq(harness.projects().count(), 3, "unexpected project count");
     }
 
@@ -960,7 +966,10 @@ contract DeployResumeRehearsalForkTest is Test {
             harness.directory().isAllowedToSetFirstController(address(harness.controller())),
             "controller not allowlisted after resume"
         );
-        assertTrue(harness.feeless().isFeeless(address(harness.routerTerminal())), "routerTerminal not feeless");
+        assertTrue(
+            harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}),
+            "routerTerminal not feeless"
+        );
         assertEq(
             address(harness.buybackRegistry().defaultHook()),
             address(harness.buybackHook()),

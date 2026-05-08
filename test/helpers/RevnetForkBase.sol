@@ -181,7 +181,8 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             FEE_PROJECT_ID,
             SUCKER_REGISTRY,
             LOANS_CONTRACT,
-            revHiddenTokens
+            revHiddenTokens,
+            address(this)
         );
 
         REV_DEPLOYER = new REVDeployer{salt: _deployerSalt()}(
@@ -289,6 +290,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             description: REVDescription("Revnet", "REV", "ipfs://rev", "REV_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -345,6 +347,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             description: REVDescription("TwoStage", "2STG", "ipfs://2stg", "2STG_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

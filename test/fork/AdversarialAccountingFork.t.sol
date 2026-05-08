@@ -90,7 +90,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             allowAddPriceFeed: false,
             ownerMustSendPayouts: false,
             holdFees: true,
-            useTotalSurplusForCashOuts: false,
+            scopeCashOutsToLocalBalances: true,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),
@@ -115,7 +115,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             allowAddPriceFeed: false,
             ownerMustSendPayouts: false,
             holdFees: false,
-            useTotalSurplusForCashOuts: false,
+            scopeCashOutsToLocalBalances: true,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),
@@ -140,7 +140,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             allowAddPriceFeed: true,
             ownerMustSendPayouts: false,
             holdFees: false,
-            useTotalSurplusForCashOuts: false,
+            scopeCashOutsToLocalBalances: true,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),
@@ -148,7 +148,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         });
     }
 
-    /// @notice Build metadata with useTotalSurplusForCashOuts=true and allowSetTerminals=true.
+    /// @notice Build metadata with scopeCashOutsToLocalBalances=true and allowSetTerminals=true.
     function _totalSurplusMetadata(uint16 cashOutTaxRate) internal pure returns (JBRulesetMetadata memory) {
         return JBRulesetMetadata({
             reservedPercent: 0,
@@ -165,7 +165,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             allowAddPriceFeed: true,
             ownerMustSendPayouts: false,
             holdFees: false,
-            useTotalSurplusForCashOuts: true,
+            scopeCashOutsToLocalBalances: false,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),
@@ -714,16 +714,16 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    //  Test 6: useTotalSurplusForCashOuts with multiple terminals (Gap 2)
+    //  Test 6: scopeCashOutsToLocalBalances with multiple terminals (Gap 2)
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Tests that useTotalSurplusForCashOuts aggregates surplus across multiple terminals,
+    /// @notice Tests that scopeCashOutsToLocalBalances aggregates surplus across multiple terminals,
     /// increasing the cashout value from Terminal A, but capped at Terminal A's local balance.
     function test_adversarial_totalSurplusCashOut_multiTerminal() public {
         // Deploy a mock ERC-20 token.
         MockERC20Token mockToken = new MockERC20Token();
 
-        // Launch a raw JB project with useTotalSurplusForCashOuts=true and allowSetTerminals=true.
+        // Launch a raw JB project with scopeCashOutsToLocalBalances=true and allowSetTerminals=true.
         // Configure a single terminal initially; we will add accounting contexts for the ERC-20 after.
         JBAccountingContext[] memory acc = new JBAccountingContext[](2);
         acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
@@ -742,7 +742,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             weight: uint112(INITIAL_ISSUANCE),
             weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
-            metadata: _totalSurplusMetadata(0), // 0% tax, useTotalSurplus=true
+            metadata: _totalSurplusMetadata(0), // 0% tax, scopeCashOutsToLocalBalances=false
             splitGroups: new JBSplitGroup[](0),
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
@@ -816,7 +816,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
 
         // Now do a REFERENCE cashout (without total surplus) to compare.
         // First, let's preview what the cashout would give from Terminal A (ETH side).
-        // With useTotalSurplusForCashOuts=true, the surplus calculation includes Terminal B's balance.
+        // With scopeCashOutsToLocalBalances=true, the surplus calculation includes Terminal B's balance.
         // This means the payer's share of the surplus is calculated against a larger pool.
 
         // Cash out a small portion of tokens to test.

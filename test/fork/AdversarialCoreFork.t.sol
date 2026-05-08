@@ -147,7 +147,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
                 allowAddPriceFeed: false,
                 ownerMustSendPayouts: false,
                 holdFees: false,
-                useTotalSurplusForCashOuts: false,
+                scopeCashOutsToLocalBalances: true,
                 useDataHookForPay: false,
                 useDataHookForCashOut: false,
                 dataHook: address(0),
@@ -240,7 +240,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
                 allowAddPriceFeed: false,
                 ownerMustSendPayouts: false,
                 holdFees: false,
-                useTotalSurplusForCashOuts: false,
+                scopeCashOutsToLocalBalances: true,
                 useDataHookForPay: false,
                 useDataHookForCashOut: false,
                 dataHook: address(0),
@@ -310,6 +310,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             description: REVDescription("Adversarial", "ADV", "ipfs://adv", "ADV_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -384,7 +385,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
                 allowAddPriceFeed: false,
                 ownerMustSendPayouts: false,
                 holdFees: false,
-                useTotalSurplusForCashOuts: false,
+                scopeCashOutsToLocalBalances: true,
                 useDataHookForPay: false,
                 useDataHookForCashOut: false,
                 dataHook: address(0),

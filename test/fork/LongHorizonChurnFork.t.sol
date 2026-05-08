@@ -416,7 +416,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
             allowAddPriceFeed: false, // no price feeds
             ownerMustSendPayouts: false, // anyone can trigger payouts
             holdFees: false, // don't hold fees
-            useTotalSurplusForCashOuts: false, // use local surplus
+            scopeCashOutsToLocalBalances: true, // use local surplus
             useDataHookForPay: false, // no data hook for pay
             useDataHookForCashOut: false, // no data hook for cashout
             dataHook: address(0), // no hook
@@ -502,7 +502,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
             allowAddPriceFeed: false, // no price feeds
             ownerMustSendPayouts: false, // anyone can trigger payouts
             holdFees: false, // don't hold fees
-            useTotalSurplusForCashOuts: false, // use local surplus
+            scopeCashOutsToLocalBalances: true, // use local surplus
             useDataHookForPay: dataHook != address(0), // use hook if provided
             useDataHookForCashOut: false, // no hook for cashout
             dataHook: dataHook, // 721 hook or zero
