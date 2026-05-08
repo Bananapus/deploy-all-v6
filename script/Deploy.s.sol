@@ -874,6 +874,9 @@ contract Deploy is Script, Sphinx {
         } else if (address(_buybackRegistry.defaultHook()) != address(_buybackHook)) {
             revert Deploy_ExistingAddressMismatch(address(_buybackHook), address(_buybackRegistry.defaultHook()));
         }
+
+        // Pin the buyback hook for project 1 (NANA) so it persists even if the default changes.
+        _buybackRegistry.setHookFor({projectId: _FEE_PROJECT_ID, hook: _buybackHook});
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2556,7 +2559,10 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployBanny() internal {
-        if (_projects.count() >= _BAN_PROJECT_ID && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)) {
+        if (
+            _projects.count() >= _BAN_PROJECT_ID && _projects.ownerOf(_BAN_PROJECT_ID) == safeAddress()
+                && address(_tokens.tokenOf(_BAN_PROJECT_ID)) != address(0)
+        ) {
             return;
         }
 
@@ -2582,7 +2588,7 @@ contract Deploy is Script, Sphinx {
                 defaultMouth,
                 defaultStandardEyes,
                 defaultAlienEyes,
-                operator,
+                safeAddress(),
                 _trustedForwarder
             );
             (address resolverAddress, bool resolverDeployed) = _isDeployed({
@@ -2599,7 +2605,7 @@ contract Deploy is Script, Sphinx {
                     defaultMouth: defaultMouth,
                     defaultStandardEyes: defaultStandardEyes,
                     defaultAlienEyes: defaultAlienEyes,
-                    owner: operator,
+                    owner: safeAddress(),
                     trustedForwarder: _trustedForwarder
                 });
                 resolver.setMetadata(
@@ -2607,6 +2613,7 @@ contract Deploy is Script, Sphinx {
                     "https://retail.banny.eth.shop",
                     "https://bannyverse.infura-ipfs.io/ipfs/"
                 );
+                resolver.transferOwnership(operator);
             }
         }
 
