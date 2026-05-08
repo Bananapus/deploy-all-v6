@@ -478,7 +478,7 @@ contract ResumeDeployHarness is IERC721Receiver {
         if (address(routerTerminalRegistry.defaultTerminal()) == address(0)) {
             routerTerminalRegistry.setDefaultTerminal({terminal: IJBTerminal(address(routerTerminal))});
         }
-        if (!feeless.isFeelessFor(address(routerTerminal), 0)) {
+        if (!feeless.isFeelessFor({addr: address(routerTerminal), projectId: 0})) {
             feeless.setFeelessAddress({addr: address(routerTerminal), flag: true});
         }
     }
@@ -806,7 +806,7 @@ contract ResumeDeployForkTest is Test {
         assertEq(harness.projects().ownerOf(3), address(harness), "project 3 owner");
         assertTrue(harness.suckerRegistry().suckerDeployerIsAllowed(address(0x1001)), "deployer 1 not allowlisted");
         assertTrue(harness.suckerRegistry().suckerDeployerIsAllowed(address(0x1002)), "deployer 2 not allowlisted");
-        assertTrue(harness.feeless().isFeelessFor(address(harness.routerTerminal()), 0), "router terminal not feeless");
+        assertTrue(harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}), "router terminal not feeless");
         assertTrue(
             address(harness.prices().priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN))))
                 != address(0),
@@ -842,7 +842,7 @@ contract ResumeDeployForkTest is Test {
             address(harness.routerTerminal()),
             "router terminal not preserved"
         );
-        assertTrue(harness.feeless().isFeelessFor(address(harness.routerTerminal()), 0), "router terminal not feeless");
+        assertTrue(harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}), "router terminal not feeless");
         assertEq(address(harness.uniswapV4Hook()), harness.expectedUniswapV4HookAddress(), "hook address drifted");
         assertEq(
             address(harness.routerTerminal()),

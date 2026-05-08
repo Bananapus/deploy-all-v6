@@ -514,7 +514,7 @@ contract InstrumentedDeployer is IERC721Receiver {
         if (address(routerTerminalRegistry.defaultTerminal()) == address(0)) {
             routerTerminalRegistry.setDefaultTerminal({terminal: IJBTerminal(address(routerTerminal))});
         }
-        if (!feeless.isFeelessFor(address(routerTerminal), 0)) {
+        if (!feeless.isFeelessFor({addr: address(routerTerminal), projectId: 0})) {
             feeless.setFeelessAddress({addr: address(routerTerminal), flag: true});
         }
     }
@@ -821,7 +821,7 @@ contract DeployResumeRehearsalForkTest is Test {
             harness.directory().isAllowedToSetFirstController(address(harness.controller())),
             "controller not allowlisted in directory"
         );
-        assertTrue(harness.feeless().isFeelessFor(address(harness.routerTerminal()), 0), "routerTerminal not feeless");
+        assertTrue(harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}), "routerTerminal not feeless");
         assertEq(harness.projects().count(), 3, "unexpected project count");
     }
 
@@ -963,7 +963,7 @@ contract DeployResumeRehearsalForkTest is Test {
             harness.directory().isAllowedToSetFirstController(address(harness.controller())),
             "controller not allowlisted after resume"
         );
-        assertTrue(harness.feeless().isFeelessFor(address(harness.routerTerminal()), 0), "routerTerminal not feeless");
+        assertTrue(harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}), "routerTerminal not feeless");
         assertEq(
             address(harness.buybackRegistry().defaultHook()),
             address(harness.buybackHook()),

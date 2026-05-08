@@ -916,7 +916,7 @@ contract DeployFullStackTest is Test {
             string.concat(chainName, ": Router default terminal mismatch")
         );
         assertTrue(
-            _feeless.isFeelessFor(address(_routerTerminal), 0),
+            _feeless.isFeelessFor({addr: address(_routerTerminal), projectId: 0}),
             string.concat(chainName, ": Router terminal not feeless")
         );
 

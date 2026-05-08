@@ -791,7 +791,7 @@ contract Verify is Script {
 
                 // Verify the router terminal is marked as feeless.
                 _check({
-                    condition: feelessAddresses.isFeelessFor(address(routerTerminal), 0),
+                    condition: feelessAddresses.isFeelessFor({addr: address(routerTerminal), projectId: 0}),
                     label: "RouterTerminal is feeless",
                     critical: true
                 });
@@ -1204,7 +1204,7 @@ contract Verify is Script {
             for (uint256 i; i < parts.length; i++) {
                 address feeless = vm.parseAddress(parts[i]);
                 if (feeless != address(0)) {
-                    bool isFeeless = feelessAddresses.isFeelessFor(feeless, 0);
+                    bool isFeeless = feelessAddresses.isFeelessFor({addr: feeless, projectId: 0});
                     _check({
                         condition: isFeeless, label: string.concat(vm.toString(feeless), " is feeless"), critical: true
                     });

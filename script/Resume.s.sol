@@ -1036,7 +1036,7 @@ contract Resume is Script {
         }
 
         // Idempotent: mark router terminal as feeless only if not already.
-        if (!_feeless.isFeelessFor(address(_routerTerminal), 0)) {
+        if (!_feeless.isFeelessFor({addr: address(_routerTerminal), projectId: 0})) {
             _feeless.setFeelessAddress({addr: address(_routerTerminal), flag: true}); // Fee exemption.
         }
 
