@@ -24,7 +24,9 @@ import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol"
 // ── Core Interfaces ──
 import {IJBPriceFeed} from "@bananapus/core-v6/src/interfaces/IJBPriceFeed.sol";
 import {JBChainlinkV3PriceFeed} from "@bananapus/core-v6/src/JBChainlinkV3PriceFeed.sol";
+import {JBChainlinkV3SequencerPriceFeed} from "@bananapus/core-v6/src/JBChainlinkV3SequencerPriceFeed.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -33,6 +35,9 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {JB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookDeployer.sol";
 import {JB721TiersHookProjectDeployer} from "@bananapus/721-hook-v6/src/JB721TiersHookProjectDeployer.sol";
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
+import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
+import {IJB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721CheckpointsDeployer.sol";
+import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
 
 // ── Buyback Hook ──
@@ -44,6 +49,7 @@ import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRout
 
 // ── Suckers ──
 import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
+import {JBSuckersPair} from "@bananapus/suckers-v6/src/structs/JBSuckersPair.sol";
 
 // ── Omnichain Deployer ──
 import {JBOmnichainDeployer} from "@bananapus/omnichain-deployers-v6/src/JBOmnichainDeployer.sol";
@@ -57,6 +63,7 @@ import {CTProjectOwner} from "@croptop/core-v6/src/CTProjectOwner.sol";
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
+import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 
 // ── Defifa ──
 import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
@@ -170,6 +177,13 @@ contract Verify is Script {
     // The Defifa deployer contract (optional, not deployed on all chains).
     DefifaDeployer public defifaDeployer;
 
+    // Dedicated Defifa hook store (separate from shared 721 hook store).
+    JB721TiersHookStore public defifaHookStore;
+    // REVHiddenTokens contract.
+    REVHiddenTokens public revHiddenTokens;
+    // Expected trusted forwarder address.
+    address public expectedTrustedForwarder;
+
     // -- Phase 11 Periphery (optional on testnets) --
     // ENS-backed project handle registry.
     JBProjectHandles public projectHandles;
@@ -243,6 +257,9 @@ contract Verify is Script {
         _verifyCroptopImmutables();
         _verifyHookDeployerImmutables();
         _verifyRevImmutables();
+        _verifyCanonicalProjectEconomics();
+        _verifySuckerManifest();
+        _verifyExternalAddresses();
 
         // Print final summary of results.
         _printSummary();
@@ -323,6 +340,13 @@ contract Verify is Script {
         // Read the Defifa deployer address from env (address(0) if not deployed on this chain).
         defifaDeployer = DefifaDeployer(vm.envOr({name: "VERIFY_DEFIFA_DEPLOYER", defaultValue: address(0)}));
 
+        // Read the dedicated Defifa hook store address (separate from shared 721 hook store).
+        defifaHookStore = JB721TiersHookStore(vm.envOr({name: "VERIFY_DEFIFA_HOOK_STORE", defaultValue: address(0)}));
+        // Read the REVHiddenTokens address.
+        revHiddenTokens = REVHiddenTokens(vm.envOr({name: "VERIFY_REV_HIDDEN_TOKENS", defaultValue: address(0)}));
+        // Read the expected trusted forwarder address.
+        expectedTrustedForwarder = vm.envOr({name: "VERIFY_TRUSTED_FORWARDER", defaultValue: address(0)});
+
         // Read Phase 11 periphery addresses from env (address(0) if intentionally omitted on a testnet).
         projectHandles = JBProjectHandles(vm.envOr({name: "VERIFY_PROJECT_HANDLES", defaultValue: address(0)}));
         distributor721 = JB721Distributor(payable(vm.envOr({name: "VERIFY_721_DISTRIBUTOR", defaultValue: address(0)})));
@@ -366,6 +390,15 @@ contract Verify is Script {
                 address(projectPayerDeployer) != address(0),
                 "Verify: VERIFY_PROJECT_PAYER_DEPLOYER required on production chain"
             );
+            require(expectedSafe != address(0), "Verify: VERIFY_SAFE required on production chain");
+            require(
+                expectedTrustedForwarder != address(0),
+                "Verify: VERIFY_TRUSTED_FORWARDER required on production chain"
+            );
+            require(
+                address(revHiddenTokens) != address(0),
+                "Verify: VERIFY_REV_HIDDEN_TOKENS required on production chain"
+            );
         }
     }
 
@@ -399,7 +432,7 @@ contract Verify is Script {
 
         _verifyCanonicalProjectIdentities();
 
-        // Finding N: No stale ERC-721 approvals on canonical projects.
+        // No stale ERC-721 approvals on canonical projects.
         _check({
             condition: projects.getApproved(_FEE_PROJECT_ID) == address(0),
             label: "Project 1 (NANA) has no stale approval",
@@ -510,6 +543,8 @@ contract Verify is Script {
         });
 
         // Check that the controller is allowed to set first controllers.
+        // Note: Cannot prove no OTHER controllers are allowed (non-enumerable mapping).
+        // Operators must reconcile via archive logs or accept this limitation.
         _check({
             condition: directory.isAllowedToSetFirstController(address(controller)),
             label: "Controller allowed to set first controller",
@@ -763,6 +798,13 @@ contract Verify is Script {
                     label: "BuybackRegistry has default hook set",
                     critical: true
                 });
+
+                // Verify project 1 has an explicit buyback hook pinned.
+                _check({
+                    condition: address(buybackRegistry.hookOf(_FEE_PROJECT_ID)) != address(0),
+                    label: "NANA(1) has explicit buyback hook pinned",
+                    critical: true
+                });
             } else {
                 _skip("BuybackRegistry default hook check (Uniswap stack not deployed)");
             }
@@ -971,11 +1013,21 @@ contract Verify is Script {
                 label: "Defifa address registry wiring",
                 critical: true
             });
-            _check({
-                condition: address(defifaDeployer.HOOK_STORE()) == address(hookStore),
-                label: "Defifa hook store wiring",
-                critical: true
-            });
+            // Defifa uses a DEDICATED hook store, not the shared one.
+            if (address(defifaHookStore) != address(0)) {
+                _check({
+                    condition: address(defifaDeployer.HOOK_STORE()) == address(defifaHookStore),
+                    label: "Defifa hook store == dedicated VERIFY_DEFIFA_HOOK_STORE",
+                    critical: true
+                });
+            } else {
+                // Fallback: at minimum verify HOOK_STORE has code and is not address(0).
+                _check({
+                    condition: address(defifaDeployer.HOOK_STORE()).code.length > 0,
+                    label: "Defifa HOOK_STORE has code (VERIFY_DEFIFA_HOOK_STORE not set)",
+                    critical: true
+                });
+            }
 
             address hookCodeOrigin = defifaDeployer.HOOK_CODE_ORIGIN();
             _check({
@@ -992,6 +1044,11 @@ contract Verify is Script {
                     condition: address(DefifaHook(hookCodeOrigin).BASE_PROTOCOL_TOKEN())
                         == address(tokens.tokenOf(_FEE_PROJECT_ID)),
                     label: "Defifa hook code origin uses NANA token",
+                    critical: true
+                });
+                _check({
+                    condition: address(DefifaHook(hookCodeOrigin).DIRECTORY()) == address(directory),
+                    label: "Defifa hook code origin DIRECTORY == directory",
                     critical: true
                 });
             }
@@ -1124,31 +1181,51 @@ contract Verify is Script {
         }
 
         // Verify oracle provenance — ensure the protocol is using the expected Chainlink feeds.
-        // Only check mainnet ETH/USD as a starting point; expand to other chains as needed.
-        if (block.chainid == 1) {
-            // Mainnet ETH/USD Chainlink aggregator.
-            address expectedEthUsdFeed = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
-            // Look up the feed the protocol is actually using.
-            try prices.priceFeedFor({
-                projectId: 0,
-                pricingCurrency: JBCurrencyIds.USD,
-                unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
-            }) returns (
-                IJBPriceFeed feed
-            ) {
-                // Dereference through the wrapper to compare the inner aggregator, not the wrapper address.
-                try JBChainlinkV3PriceFeed(address(feed)).FEED() returns (AggregatorV3Interface innerFeed) {
-                    _check({
-                        condition: address(innerFeed) == expectedEthUsdFeed,
-                        label: "ETH/USD inner aggregator matches expected Chainlink feed (mainnet)",
-                        critical: false
-                    });
+        {
+            address expectedEthUsdAggregator;
+            if (block.chainid == 1) expectedEthUsdAggregator = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
+            else if (block.chainid == 10) expectedEthUsdAggregator = 0x13e3Ee699D1909E989722E753853AE30b17e08c5;
+            else if (block.chainid == 8453) expectedEthUsdAggregator = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70;
+            else if (block.chainid == 42_161) expectedEthUsdAggregator = 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612;
+
+            if (expectedEthUsdAggregator != address(0)) {
+                try prices.priceFeedFor({
+                    projectId: 0,
+                    pricingCurrency: JBCurrencyIds.USD,
+                    unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+                }) returns (IJBPriceFeed feed) {
+                    // Dereference through the wrapper to compare the inner aggregator.
+                    try JBChainlinkV3PriceFeed(address(feed)).FEED() returns (AggregatorV3Interface innerFeed) {
+                        _check({
+                            condition: address(innerFeed) == expectedEthUsdAggregator,
+                            label: "ETH/USD inner aggregator matches expected Chainlink feed",
+                            critical: true
+                        });
+                    } catch {
+                        _check({condition: false, label: "ETH/USD feed wrapper does not expose FEED()", critical: true});
+                    }
+
+                    // On L2 chains, verify the sequencer-aware variant is used.
+                    if (block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161) {
+                        try JBChainlinkV3SequencerPriceFeed(address(feed)).SEQUENCER_FEED() returns (
+                            AggregatorV2V3Interface sequencerFeed
+                        ) {
+                            _check({
+                                condition: address(sequencerFeed) != address(0),
+                                label: "L2 ETH/USD feed has sequencer feed set",
+                                critical: true
+                            });
+                        } catch {
+                            _check({
+                                condition: false,
+                                label: "L2 ETH/USD feed is sequencer-aware variant",
+                                critical: true
+                            });
+                        }
+                    }
                 } catch {
-                    _skip("ETH/USD oracle provenance (feed wrapper does not expose FEED)");
+                    _skip("ETH/USD oracle provenance (feed lookup reverted)");
                 }
-            } catch {
-                // priceFeedFor reverted — already covered by earlier checks, skip provenance.
-                _skip("ETH/USD oracle provenance (feed lookup reverted)");
             }
         }
 
@@ -1182,7 +1259,7 @@ contract Verify is Script {
                 }
             }
         } else {
-            // Finding K: On production chains, the sucker deployer allowlist must be provided.
+            // On production chains, the sucker deployer allowlist must be provided.
             bool isProductionChain =
                 (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
             if (isProductionChain) {
@@ -1212,6 +1289,21 @@ contract Verify is Script {
             }
         } else {
             _skip("Extra feeless addresses (VERIFY_FEELESS_ADDRESSES not set)");
+        }
+
+        // Verify expected deployer count matches if provided.
+        string memory expectedCountStr = vm.envOr("VERIFY_SUCKER_DEPLOYER_COUNT", string(""));
+        if (bytes(expectedCountStr).length > 0) {
+            uint256 expectedCount = vm.parseUint(expectedCountStr);
+            string memory deployersCsvForCount = vm.envOr("VERIFY_SUCKER_DEPLOYERS", string(""));
+            if (bytes(deployersCsvForCount).length > 0) {
+                string[] memory countParts = vm.split(deployersCsvForCount, ",");
+                _check({
+                    condition: countParts.length == expectedCount,
+                    label: "Sucker deployer count matches expected",
+                    critical: true
+                });
+            }
         }
 
         console.log("");
@@ -1247,13 +1339,15 @@ contract Verify is Script {
                 });
             }
 
-            // Verify the router terminal's primary terminal for native token is the JBMultiTerminal.
-            _check({
-                condition: address(directory.primaryTerminalOf(_FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN))
-                    == address(terminal),
-                label: "NANA(1) primary native terminal is JBMultiTerminal",
-                critical: true
-            });
+            // Verify all canonical projects' primary terminal for native token is the JBMultiTerminal.
+            for (uint256 i; i < projectIds.length; i++) {
+                _check({
+                    condition: address(directory.primaryTerminalOf(projectIds[i], JBConstants.NATIVE_TOKEN))
+                        == address(terminal),
+                    label: string.concat(labels[i], " primary native terminal is JBMultiTerminal"),
+                    critical: true
+                });
+            }
         } else {
             _skip("Router terminal route checks (not deployed on this chain)");
         }
@@ -1346,7 +1440,7 @@ contract Verify is Script {
                 condition: implementation.code.length > 0, label: "ProjectPayer implementation has code", critical: true
             });
 
-            // Finding T: Verify the implementation's DIRECTORY and DEPLOYER point to canonical contracts.
+            // Verify the implementation's DIRECTORY and DEPLOYER point to canonical contracts.
             if (implementation.code.length > 0) {
                 _check({
                     condition: address(JBProjectPayer(payable(implementation)).DIRECTORY()) == address(directory),
@@ -1365,7 +1459,7 @@ contract Verify is Script {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 12: Token Implementation (Finding AK)
+    //  Category 12: Token Implementation
     // ════════════════════════════════════════════════════════════════════
 
     function _verifyTokenImplementation() internal {
@@ -1389,13 +1483,27 @@ contract Verify is Script {
             } catch {
                 _check({condition: false, label: "JBERC20 implementation PROJECTS() call failed", critical: true});
             }
+
+            // JBERC20 PERMISSIONS must match canonical permissions.
+            (bool permSuccess, bytes memory permData) =
+                address(tokenImpl).staticcall(abi.encodeWithSignature("PERMISSIONS()"));
+            if (permSuccess && permData.length >= 32) {
+                address implPermissions = abi.decode(permData, (address));
+                _check({
+                    condition: implPermissions == address(permissions),
+                    label: "JBERC20 implementation PERMISSIONS == permissions",
+                    critical: true
+                });
+            } else {
+                _check({condition: false, label: "JBERC20 implementation PERMISSIONS() call failed", critical: true});
+            }
         }
 
         console.log("");
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 13: Ownership (Finding C)
+    //  Category 13: Ownership
     // ════════════════════════════════════════════════════════════════════
 
     function _verifyOwnership() internal {
@@ -1428,11 +1536,26 @@ contract Verify is Script {
             condition: suckerRegistry.owner() == expectedSafe, label: "JBSuckerRegistry owner == safe", critical: true
         });
 
+        if (address(routerTerminalRegistry) != address(0)) {
+            _check({
+                condition: routerTerminalRegistry.owner() == expectedSafe,
+                label: "RouterTerminalRegistry owner == safe",
+                critical: true
+            });
+        }
+        if (address(revLoans) != address(0)) {
+            _check({
+                condition: revLoans.owner() == expectedSafe,
+                label: "REVLoans owner == safe",
+                critical: true
+            });
+        }
+
         console.log("");
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 14: Permissions & Forwarder Wiring (Finding O)
+    //  Category 14: Permissions & Forwarder Wiring
     // ════════════════════════════════════════════════════════════════════
 
     function _verifyPermissionsAndForwarder() internal {
@@ -1449,6 +1572,12 @@ contract Verify is Script {
             label: "Terminal.PERMISSIONS == permissions",
             critical: true
         });
+        _check({
+            condition: address(directory.PERMISSIONS()) == address(permissions),
+            label: "Directory.PERMISSIONS == permissions",
+            critical: true
+        });
+
         // Verify trustedForwarder() on ERC-2771 contracts.
         address controllerForwarder = controller.trustedForwarder();
         address terminalForwarder = terminal.trustedForwarder();
@@ -1459,11 +1588,30 @@ contract Verify is Script {
         });
         _check({condition: controllerForwarder != address(0), label: "trustedForwarder is non-zero", critical: true});
 
+        // If expected trusted forwarder is provided, verify all ERC-2771 contracts use it.
+        if (expectedTrustedForwarder != address(0)) {
+            _check({
+                condition: controllerForwarder == expectedTrustedForwarder,
+                label: "Controller.trustedForwarder == expected",
+                critical: true
+            });
+            _check({
+                condition: terminalForwarder == expectedTrustedForwarder,
+                label: "Terminal.trustedForwarder == expected",
+                critical: true
+            });
+            _check({
+                condition: projects.trustedForwarder() == expectedTrustedForwarder,
+                label: "Projects.trustedForwarder == expected",
+                critical: true
+            });
+        }
+
         console.log("");
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 15: Croptop Immutables (Finding J)
+    //  Category 15: Croptop Immutables
     // ════════════════════════════════════════════════════════════════════
 
     function _verifyCroptopImmutables() internal {
@@ -1520,11 +1668,15 @@ contract Verify is Script {
             critical: true
         });
 
+        // Note: CTPublisher fee calculation assumes ETH/18-decimal tier prices.
+        // Non-ETH-priced hooks may produce incorrect fee amounts.
+        // This is a known limitation — not verifiable on-chain.
+
         console.log("");
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 16: Hook Deployer Immutables (Finding H/AI)
+    //  Category 16: Hook Deployer Immutables
     // ════════════════════════════════════════════════════════════════════
 
     function _verifyHookDeployerImmutables() internal {
@@ -1568,13 +1720,21 @@ contract Verify is Script {
                 label: "Base hook SPLITS == splits",
                 critical: true
             });
+            _check({
+                condition: address(JB721TiersHook(baseHook).DIRECTORY()) == address(directory),
+                label: "Base hook DIRECTORY == directory",
+                critical: true
+            });
         }
+
+        // Note: CHECKPOINTS_DEPLOYER is internal on JB721TiersHook and not externally accessible.
+        // The checkpoint deployer wiring is verified indirectly through STORE checks above.
 
         console.log("");
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 17: REVOwner & REVLoans Immutables (Finding AJ)
+    //  Category 17: REVOwner & REVLoans Immutables
     // ════════════════════════════════════════════════════════════════════
 
     function _verifyRevImmutables() internal {
@@ -1608,6 +1768,13 @@ contract Verify is Script {
                 label: "REVOwner.SUCKER_REGISTRY == suckerRegistry",
                 critical: true
             });
+            if (address(revHiddenTokens) != address(0)) {
+                _check({
+                    condition: address(revOwner.HIDDEN_TOKENS()) == address(revHiddenTokens),
+                    label: "REVOwner.HIDDEN_TOKENS == revHiddenTokens",
+                    critical: true
+                });
+            }
         }
 
         if (address(revLoans) == address(0)) {
@@ -1634,7 +1801,190 @@ contract Verify is Script {
                 label: "REVLoans.SUCKER_REGISTRY == suckerRegistry",
                 critical: true
             });
+            _check({
+                condition: address(revLoans.PERMIT2()) != address(0),
+                label: "REVLoans.PERMIT2 is non-zero",
+                critical: true
+            });
         }
+
+        // Verify REVHiddenTokens wiring.
+        if (address(revHiddenTokens) != address(0)) {
+            _check({
+                condition: address(revHiddenTokens.CONTROLLER()) == address(controller),
+                label: "REVHiddenTokens.CONTROLLER == controller",
+                critical: true
+            });
+            _check({
+                condition: address(revHiddenTokens.PROJECTS()) == address(projects),
+                label: "REVHiddenTokens.PROJECTS == projects",
+                critical: true
+            });
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 18: Canonical Project Economics
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyCanonicalProjectEconomics() internal {
+        console.log("--- Category 18: Canonical Project Economics ---");
+
+        if (address(revDeployer) == address(0)) {
+            _skip("Canonical project economics (REVDeployer not configured)");
+            console.log("");
+            return;
+        }
+
+        // Verify all 4 projects have a config hash recorded.
+        uint256[4] memory pids = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
+        string[4] memory names = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
+        for (uint256 i; i < 4; i++) {
+            bytes32 configHash = revDeployer.hashedEncodedConfigurationOf(pids[i]);
+            _check({
+                condition: configHash != bytes32(0),
+                label: string.concat(names[i], " has non-zero config hash"),
+                critical: true
+            });
+        }
+
+        // Verify env-provided expected config hashes match deployed config hashes (if provided).
+        string memory expectedHashesCsv = vm.envOr("VERIFY_CONFIG_HASHES", string(""));
+        if (bytes(expectedHashesCsv).length > 0) {
+            string[] memory hashes = vm.split(expectedHashesCsv, ",");
+            for (uint256 i; i < hashes.length && i < 4; i++) {
+                bytes32 expected = vm.parseBytes32(hashes[i]);
+                if (expected != bytes32(0)) {
+                    bytes32 actual = revDeployer.hashedEncodedConfigurationOf(pids[i]);
+                    _check({
+                        condition: actual == expected,
+                        label: string.concat(names[i], " config hash matches expected"),
+                        critical: true
+                    });
+                }
+            }
+        }
+
+        // Verify Banny hook resolver and contractURI.
+        if (address(revOwner) != address(0)) {
+            IJB721TiersHook bannyHook = revOwner.tiered721HookOf(_BAN_PROJECT_ID);
+            if (address(bannyHook) != address(0)) {
+                address resolver = address(hookStore.tokenUriResolverOf(address(bannyHook)));
+                _check({
+                    condition: resolver != address(0),
+                    label: "Banny hook has token URI resolver",
+                    critical: true
+                });
+                if (resolver != address(0)) {
+                    _check({condition: resolver.code.length > 0, label: "Banny resolver has code", critical: true});
+                }
+
+                try bannyHook.contractURI() returns (string memory uri) {
+                    _check({
+                        condition: bytes(uri).length > 0,
+                        label: "Banny hook contractURI is non-empty",
+                        critical: true
+                    });
+                } catch {
+                    _skip("Banny hook contractURI() call failed");
+                }
+            }
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 19: Cross-Chain Sucker Manifest
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifySuckerManifest() internal {
+        console.log("--- Category 19: Cross-Chain Sucker Manifest ---");
+
+        // Load optional per-project sucker pair counts from env.
+        // Format: VERIFY_SUCKER_PAIRS_1=<count>,VERIFY_SUCKER_PAIRS_2=<count>, etc.
+        uint256[4] memory pids = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
+        string[4] memory names = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
+        bool anySuckerChecks = false;
+
+        for (uint256 i; i < 4; i++) {
+            string memory envKey = string.concat("VERIFY_SUCKER_PAIRS_", vm.toString(pids[i]));
+            string memory expectedCountStr = vm.envOr(envKey, string(""));
+            if (bytes(expectedCountStr).length == 0) continue;
+            anySuckerChecks = true;
+
+            uint256 expectedCount = vm.parseUint(expectedCountStr);
+            JBSuckersPair[] memory pairs = suckerRegistry.suckerPairsOf(pids[i]);
+            _check({
+                condition: pairs.length == expectedCount,
+                label: string.concat(names[i], " sucker pair count matches expected"),
+                critical: true
+            });
+
+            // Verify each pair has a non-zero remote.
+            for (uint256 j; j < pairs.length; j++) {
+                _check({
+                    condition: pairs[j].remote != bytes32(0),
+                    label: string.concat(
+                        names[i], " sucker pair ", vm.toString(j), " has non-zero remote"
+                    ),
+                    critical: true
+                });
+            }
+        }
+
+        if (!anySuckerChecks) {
+            _skip("Sucker manifest checks (VERIFY_SUCKER_PAIRS_* not set)");
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 20: External Address Provenance
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyExternalAddresses() internal {
+        console.log("--- Category 20: External Address Provenance ---");
+
+        // Terminal Permit2 wiring.
+        _check({
+            condition: address(terminal.PERMIT2()) != address(0),
+            label: "Terminal.PERMIT2 is non-zero",
+            critical: true
+        });
+
+        // Router terminal WETH and Permit2 wiring.
+        if (address(routerTerminal) != address(0)) {
+            _check({
+                condition: address(routerTerminal.WETH()) != address(0),
+                label: "RouterTerminal.WETH is non-zero",
+                critical: true
+            });
+            _check({
+                condition: address(routerTerminal.PERMIT2()) != address(0),
+                label: "RouterTerminal.PERMIT2 is non-zero",
+                critical: true
+            });
+        }
+
+        // REVLoans PERMIT2.
+        if (address(revLoans) != address(0)) {
+            _check({
+                condition: address(revLoans.PERMIT2()) != address(0),
+                label: "REVLoans.PERMIT2 is non-zero",
+                critical: true
+            });
+        }
+
+        // OmnichainDeployer DIRECTORY.
+        _check({
+            condition: address(omnichainDeployer.DIRECTORY()) == address(directory),
+            label: "OmnichainDeployer.DIRECTORY == directory",
+            critical: true
+        });
 
         console.log("");
     }

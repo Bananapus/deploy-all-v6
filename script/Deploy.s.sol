@@ -65,6 +65,7 @@ import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721Init
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
 import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
+import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
 import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
 import {IJB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721CheckpointsDeployer.sol";
 
@@ -2568,10 +2569,14 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployBanny() internal {
+        // Use canonical identity gates instead of generic ownership check.
         if (
-            _projects.count() >= _BAN_PROJECT_ID && _projects.ownerOf(_BAN_PROJECT_ID) == safeAddress()
-                && address(_tokens.tokenOf(_BAN_PROJECT_ID)) != address(0)
+            _projects.count() >= _BAN_PROJECT_ID
+                && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)
         ) {
+            if (!_isCanonicalBannyProject()) {
+                revert Deploy_ProjectNotCanonical(_BAN_PROJECT_ID);
+            }
             return;
         }
 
@@ -3098,6 +3103,24 @@ contract Deploy is Script, Sphinx {
                 projectId: projectId, pricingCurrency: pricingCurrency, unitCurrency: unitCurrency
             });
         }
+    }
+
+    /// @dev Canonical identity gate for the Banny project (ID 4).
+    function _isCanonicalBannyProject() internal view returns (bool) {
+        if (!_isCanonicalRevnetProject(_BAN_PROJECT_ID, "BAN")) return false;
+        if (address(_revOwner) == address(0)) return false;
+
+        IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
+        if (address(hook) == address(0)) return false;
+        if (hook.PROJECT_ID() != _BAN_PROJECT_ID) return false;
+        if (address(hook.STORE()) != address(_hookStore)) return false;
+
+        // Verify the BANNY symbol on the 721 hook.
+        (bool success, bytes memory data) = address(hook).staticcall(abi.encodeWithSignature("symbol()"));
+        if (!success || data.length < 32) return false;
+        if (keccak256(bytes(abi.decode(data, (string)))) != keccak256(bytes("BANNY"))) return false;
+
+        return true;
     }
 
     function _isCanonicalRevnetProject(uint256 projectId, string memory expectedSymbol) internal view returns (bool) {

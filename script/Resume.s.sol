@@ -2640,11 +2640,14 @@ contract Resume is Script {
             return;
         }
 
-        // Check if Banny project already exists with correct canonical identity.
+        // Use canonical identity gates instead of generic ownership check.
         if (
-            _projects.count() >= _BAN_PROJECT_ID && _projects.ownerOf(_BAN_PROJECT_ID) == _deployer
-                && address(_tokens.tokenOf(_BAN_PROJECT_ID)) != address(0)
+            _projects.count() >= _BAN_PROJECT_ID
+                && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)
         ) {
+            if (!_isCanonicalConfiguredProject(_BAN_PROJECT_ID)) {
+                revert Resume_ProjectNotCanonical(_BAN_PROJECT_ID);
+            }
             console2.log("[Phase 09] Banny: SKIPPED (project 4 already configured)");
             _phasesSkipped++;
             return;

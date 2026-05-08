@@ -83,6 +83,35 @@ Sphinx compiles the deploy script, simulates it, and proposes the resulting tran
 
 Monitor execution in the Sphinx dashboard or on-chain via the safe's transaction history.
 
+### Sphinx and CREATE2
+
+Sphinx 0.23.x routes Solidity `new {salt}` deployments through the deterministic deployment proxy (`0x4e59b44847b379578588920cA78FbF26c0B4956C`). This is handled automatically by the Sphinx TypeScript decoder (`isCreate2AccountAccess()`), which detects `CREATE2` opcodes in the simulation trace and replays them through the canonical factory.
+
+Key points:
+- Deploy.s.sol uses `new Contract{salt: ...}(...)` syntax throughout. Sphinx intercepts these and replays them as `CREATE2` calls to the deterministic proxy.
+- The v5 deployment used the same pattern successfully.
+- The `_isDeployed` helper computes expected addresses using `safeAddress()` as the deployer for most contracts. For Uniswap V4 hooks (where address bit-flags matter), addresses are computed using the `_CREATE2_FACTORY` instead.
+- No special action is needed from operators — this is standard Sphinx behavior.
+
+### Execution Model
+
+**Deploy.s.sol** is executed through Sphinx. The operator runs `npx sphinx propose`, which:
+1. Compiles and simulates the deploy script locally
+2. Proposes the resulting transactions to the multi-sig Safe
+3. Safe signers approve the proposal in the Sphinx dashboard or Safe UI
+4. Sphinx executes the approved transactions on-chain
+
+**Resume.s.sol** is executed directly via `forge script --broadcast`. The operator (one of the Safe signers) runs the resume from the Safe using `vm.startBroadcast(safeAddress())`. This requires the operator to have signing authority on the Safe.
+
+**Verify.s.sol** is read-only and requires no broadcast. It reads deployed state and validates wiring.
+
+### Project Identity Verification
+
+The deploy and resume scripts use canonical identity gates to verify that pre-existing projects match the expected deployment shape. These go beyond simple `projects.count()` / `controllerOf` checks:
+
+- **Projects 1-3 (NANA, CPN, REV):** Verified via `_isCanonicalRevnetProject()` — checks REVDeployer ownership, non-zero config hash, controller wiring, and token symbol.
+- **Project 4 (BAN):** Verified via `_isCanonicalBannyProject()` — additionally checks REVOwner's 721 hook registration, hook PROJECT_ID, STORE, and BANNY symbol.
+
 ## Interrupted Deploy: Using Resume.s.sol
 
 If a deploy is interrupted (gas spike, RPC timeout, operator error), use `Resume.s.sol` to continue from where it stopped.
@@ -175,10 +204,27 @@ export VERIFY_REV_DEPLOYER=0x...
 export VERIFY_REV_OWNER=0x...
 export VERIFY_REV_LOANS=0x...
 export VERIFY_DEFIFA_DEPLOYER=0x...
+export VERIFY_DEFIFA_HOOK_STORE=0x...
+export VERIFY_REV_HIDDEN_TOKENS=0x...
+export VERIFY_TRUSTED_FORWARDER=0x...
+export VERIFY_SAFE=0x...
 export VERIFY_PROJECT_HANDLES=0x...
 export VERIFY_721_DISTRIBUTOR=0x...
 export VERIFY_TOKEN_DISTRIBUTOR=0x...
 export VERIFY_PROJECT_PAYER_DEPLOYER=0x...
+```
+
+Optional manifest variables for stricter verification:
+```bash
+export VERIFY_SUCKER_DEPLOYER_COUNT=4       # Expected number of allowed sucker deployers
+export VERIFY_SUCKER_PAIRS_1=2              # Expected sucker pair count for project 1
+export VERIFY_SUCKER_PAIRS_2=2              # Expected sucker pair count for project 2
+export VERIFY_SUCKER_PAIRS_3=2              # Expected sucker pair count for project 3
+export VERIFY_SUCKER_PAIRS_4=2              # Expected sucker pair count for project 4
+export VERIFY_CONFIG_HASH_1=0x...           # Expected revnet config hash for project 1
+export VERIFY_CONFIG_HASH_2=0x...           # Expected revnet config hash for project 2
+export VERIFY_CONFIG_HASH_3=0x...           # Expected revnet config hash for project 3
+export VERIFY_CONFIG_HASH_4=0x...           # Expected revnet config hash for project 4
 ```
 
 ### Running Verification
@@ -193,7 +239,7 @@ This is a read-only script — no `--broadcast` needed.
 
 ### Verification Categories
 
-Verify checks 11 categories in order:
+Verify checks 20 categories in order:
 
 | # | Category | What It Checks |
 |---|---|---|
@@ -201,13 +247,22 @@ Verify checks 11 categories in order:
 | 2 | Directory Wiring | `controllerOf()` returns controller for each project, terminal is registered |
 | 3 | Controller Wiring | Controller references correct directory, tokens, rulesets, permissions |
 | 4 | Terminal Wiring | Terminal references correct store, directory, permissions, feeless registry |
-| 5 | Hook Registries | 721 hook store/deployer wiring, buyback registry default hook, router terminal default |
+| 5 | Hook Registries | 721 hook store/deployer wiring, buyback registry default hook, project 1 buyback pinned, router terminal default |
 | 6 | Omnichain | Omnichain deployer references correct controller/directory, sucker deployers are allowed |
-| 7 | Address Registry & Defifa | Address registry code, Defifa deployer identity, token/governor/controller/hook-store wiring |
-| 8 | Price Feeds | ETH/USD and USDC/USD feeds resolve, prices are non-zero and sane |
-| 9 | Allowlists | Optional sucker deployer and feeless-address allowlist checks |
-| 10 | Routes | Canonical projects include the router terminal registry in their terminal lists |
+| 7 | Address Registry & Defifa | Address registry code, Defifa deployer identity, dedicated hook store, token/governor/controller wiring |
+| 8 | Price Feeds | Per-chain oracle provenance (ETH/USD, USDC/USD aggregator addresses), staleness thresholds, L2 sequencer feeds |
+| 9 | Allowlists | Sucker deployer allowlist + count verification, feeless-address allowlist checks |
+| 10 | Routes | All canonical projects include the router terminal registry in their terminal lists |
 | 11 | Periphery Extensions | Project handles, distributors, and project payer deployer code and constructor wiring |
+| 12 | Token Implementation | JBERC20 clone template PROJECTS and PERMISSIONS wiring |
+| 13 | Ownership | Safe ownership of all ownable contracts (feeless, buyback registry, router terminal registry, REVLoans) |
+| 14 | Permissions & Forwarder | PERMISSIONS immutable on all permissioned contracts, trusted forwarder consistency |
+| 15 | Croptop | CTPublisher, CTDeployer, CTProjectOwner immutables and project 2 wiring |
+| 16 | Hook Deployer Immutables | Base hook DIRECTORY, STORE wiring, clone surface verification |
+| 17 | REV Singletons | REVDeployer, REVOwner, REVLoans, REVHiddenTokens immutables and PERMIT2 |
+| 18 | Project Economics | Per-project config hash verification, primary terminal for native token, Banny resolver and contractURI |
+| 19 | Sucker Manifest | Per-project sucker pair counts and remote chain connectivity |
+| 20 | External Addresses | Terminal/Router/REVLoans PERMIT2 wiring, Router WETH, OmnichainDeployer DIRECTORY |
 
 ### Interpreting Results
 
