@@ -28,10 +28,7 @@
     "script/"
   ],
   "scripts": {
-    "build": "forge build",
-    "sync": "source ./.env && npx sphinx sync --org-id ea165b21-7cdc-4d7b-be59-ecdd4c26bee4",
-    "deploy:mainnets": "source ./.env && npx sphinx propose ./script/Deploy.s.sol --networks mainnets",
-    "deploy:testnets": "source ./.env && npx sphinx propose ./script/Deploy.s.sol --networks testnets"
+    "build": "forge build"
   },
   "dependencies": {
     "@arbitrum/nitro-contracts": "3.2.0",

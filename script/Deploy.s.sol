@@ -409,7 +409,7 @@ contract Deploy is Script, Sphinx {
     function configureSphinx() public override {
         sphinxConfig.projectName = "juicebox-v6";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
-        sphinxConfig.testnets = ["optimism_sepolia"];
+        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2568,8 +2568,7 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        // NOTICE: This has been changed, is this corrcect?!
-        address operator = safeAddress();
+        address operator = 0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450;
 
         // Deploy the URI resolver.
         string memory bannyBody =
