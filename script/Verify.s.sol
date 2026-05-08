@@ -1354,8 +1354,7 @@ contract Verify is Script {
                     critical: true
                 });
                 _check({
-                    condition: JBProjectPayer(payable(implementation)).DEPLOYER()
-                        == address(projectPayerDeployer),
+                    condition: JBProjectPayer(payable(implementation)).DEPLOYER() == address(projectPayerDeployer),
                     label: "ProjectPayer implementation DEPLOYER == deployer",
                     critical: true
                 });
@@ -1374,15 +1373,9 @@ contract Verify is Script {
 
         // Verify the TOKEN() implementation on JBTokens is correctly wired.
         IJBToken tokenImpl = tokens.TOKEN();
+        _check({condition: address(tokenImpl) != address(0), label: "JBTokens.TOKEN() is non-zero", critical: true});
         _check({
-            condition: address(tokenImpl) != address(0),
-            label: "JBTokens.TOKEN() is non-zero",
-            critical: true
-        });
-        _check({
-            condition: address(tokenImpl).code.length > 0,
-            label: "JBERC20 implementation has code",
-            critical: true
+            condition: address(tokenImpl).code.length > 0, label: "JBERC20 implementation has code", critical: true
         });
 
         // Verify the implementation's PROJECTS() matches canonical projects contract.
@@ -1432,9 +1425,7 @@ contract Verify is Script {
         }
 
         _check({
-            condition: suckerRegistry.owner() == expectedSafe,
-            label: "JBSuckerRegistry owner == safe",
-            critical: true
+            condition: suckerRegistry.owner() == expectedSafe, label: "JBSuckerRegistry owner == safe", critical: true
         });
 
         console.log("");
@@ -1637,11 +1628,7 @@ contract Verify is Script {
                 label: "REVLoans.PRICES == prices",
                 critical: true
             });
-            _check({
-                condition: revLoans.REV_ID() == _REV_PROJECT_ID,
-                label: "REVLoans.REV_ID == 3",
-                critical: true
-            });
+            _check({condition: revLoans.REV_ID() == _REV_PROJECT_ID, label: "REVLoans.REV_ID == 3", critical: true});
             _check({
                 condition: address(revLoans.SUCKER_REGISTRY()) == address(suckerRegistry),
                 label: "REVLoans.SUCKER_REGISTRY == suckerRegistry",
