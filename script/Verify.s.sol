@@ -67,8 +67,12 @@ import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
 import {JBProjectHandles} from "@bananapus/project-handles-v6/src/JBProjectHandles.sol";
 import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.sol";
 import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
+import {JBProjectPayer} from "@bananapus/project-payer-v6/src/JBProjectPayer.sol";
 import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectPayerDeployer.sol";
 
+import {IJBToken} from "@bananapus/core-v6/src/interfaces/IJBToken.sol";
+import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
+import {JBERC20} from "@bananapus/core-v6/src/JBERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title Verify — Post-Deployment Verification for Juicebox V6
@@ -233,6 +237,7 @@ contract Verify is Script {
         _verifyAllowlists();
         _verifyRoutes();
         _verifyPeripheryExtensions();
+        _verifyTokenImplementation();
         _verifyOwnership();
         _verifyPermissionsAndForwarder();
 
@@ -1337,17 +1342,68 @@ contract Verify is Script {
             _check({
                 condition: implementation.code.length > 0, label: "ProjectPayer implementation has code", critical: true
             });
+
+            // Finding T: Verify the implementation's DIRECTORY and DEPLOYER point to canonical contracts.
+            if (implementation.code.length > 0) {
+                _check({
+                    condition: address(JBProjectPayer(payable(implementation)).DIRECTORY()) == address(directory),
+                    label: "ProjectPayer implementation DIRECTORY == directory",
+                    critical: true
+                });
+                _check({
+                    condition: JBProjectPayer(payable(implementation)).DEPLOYER()
+                        == address(projectPayerDeployer),
+                    label: "ProjectPayer implementation DEPLOYER == deployer",
+                    critical: true
+                });
+            }
         }
 
         console.log("");
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 12: Ownership (Finding C)
+    //  Category 12: Token Implementation (Finding AK)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyTokenImplementation() internal {
+        console.log("--- Category 12: Token Implementation ---");
+
+        // Verify the TOKEN() implementation on JBTokens is correctly wired.
+        IJBToken tokenImpl = tokens.TOKEN();
+        _check({
+            condition: address(tokenImpl) != address(0),
+            label: "JBTokens.TOKEN() is non-zero",
+            critical: true
+        });
+        _check({
+            condition: address(tokenImpl).code.length > 0,
+            label: "JBERC20 implementation has code",
+            critical: true
+        });
+
+        // Verify the implementation's PROJECTS() matches canonical projects contract.
+        if (address(tokenImpl).code.length > 0) {
+            try JBERC20(address(tokenImpl)).PROJECTS() returns (IJBProjects implProjects) {
+                _check({
+                    condition: address(implProjects) == address(projects),
+                    label: "JBERC20 implementation PROJECTS == projects",
+                    critical: true
+                });
+            } catch {
+                _check({condition: false, label: "JBERC20 implementation PROJECTS() call failed", critical: true});
+            }
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 13: Ownership (Finding C)
     // ════════════════════════════════════════════════════════════════════
 
     function _verifyOwnership() internal {
-        console.log("--- Category 12: Ownership ---");
+        console.log("--- Category 13: Ownership ---");
 
         if (expectedSafe == address(0)) {
             _skip("Ownership checks (VERIFY_SAFE not set)");
@@ -1382,11 +1438,11 @@ contract Verify is Script {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 13: Permissions & Forwarder Wiring (Finding O)
+    //  Category 14: Permissions & Forwarder Wiring (Finding O)
     // ════════════════════════════════════════════════════════════════════
 
     function _verifyPermissionsAndForwarder() internal {
-        console.log("--- Category 13: Permissions & Forwarder Wiring ---");
+        console.log("--- Category 14: Permissions & Forwarder Wiring ---");
 
         // Verify PERMISSIONS() on all permissioned contracts.
         _check({
