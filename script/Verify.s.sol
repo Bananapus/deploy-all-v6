@@ -233,6 +233,8 @@ contract Verify is Script {
         _verifyAllowlists();
         _verifyRoutes();
         _verifyPeripheryExtensions();
+        _verifyOwnership();
+        _verifyPermissionsAndForwarder();
 
         // Print final summary of results.
         _printSummary();
@@ -1303,6 +1305,76 @@ contract Verify is Script {
                 condition: implementation.code.length > 0, label: "ProjectPayer implementation has code", critical: true
             });
         }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 12: Ownership (Finding C)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyOwnership() internal {
+        console.log("--- Category 12: Ownership ---");
+
+        if (expectedSafe == address(0)) {
+            _skip("Ownership checks (VERIFY_SAFE not set)");
+            console.log("");
+            return;
+        }
+
+        _check({condition: projects.owner() == expectedSafe, label: "JBProjects owner == safe", critical: true});
+        _check({condition: directory.owner() == expectedSafe, label: "JBDirectory owner == safe", critical: true});
+        _check({condition: prices.owner() == expectedSafe, label: "JBPrices owner == safe", critical: true});
+        _check({
+            condition: feelessAddresses.owner() == expectedSafe,
+            label: "JBFeelessAddresses owner == safe",
+            critical: true
+        });
+
+        if (address(buybackRegistry) != address(0)) {
+            _check({
+                condition: buybackRegistry.owner() == expectedSafe,
+                label: "JBBuybackHookRegistry owner == safe",
+                critical: true
+            });
+        }
+
+        _check({
+            condition: suckerRegistry.owner() == expectedSafe,
+            label: "JBSuckerRegistry owner == safe",
+            critical: true
+        });
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 13: Permissions & Forwarder Wiring (Finding O)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyPermissionsAndForwarder() internal {
+        console.log("--- Category 13: Permissions & Forwarder Wiring ---");
+
+        // Verify PERMISSIONS() on all permissioned contracts.
+        _check({
+            condition: address(controller.PERMISSIONS()) == address(permissions),
+            label: "Controller.PERMISSIONS == permissions",
+            critical: true
+        });
+        _check({
+            condition: address(terminal.PERMISSIONS()) == address(permissions),
+            label: "Terminal.PERMISSIONS == permissions",
+            critical: true
+        });
+        // Verify trustedForwarder() on ERC-2771 contracts.
+        address controllerForwarder = controller.trustedForwarder();
+        address terminalForwarder = terminal.trustedForwarder();
+        _check({
+            condition: controllerForwarder == terminalForwarder,
+            label: "Controller and Terminal share the same trustedForwarder",
+            critical: true
+        });
+        _check({condition: controllerForwarder != address(0), label: "trustedForwarder is non-zero", critical: true});
 
         console.log("");
     }
