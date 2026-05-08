@@ -240,6 +240,9 @@ contract Verify is Script {
         _verifyTokenImplementation();
         _verifyOwnership();
         _verifyPermissionsAndForwarder();
+        _verifyCroptopImmutables();
+        _verifyHookDeployerImmutables();
+        _verifyRevImmutables();
 
         // Print final summary of results.
         _printSummary();
@@ -1464,6 +1467,187 @@ contract Verify is Script {
             critical: true
         });
         _check({condition: controllerForwarder != address(0), label: "trustedForwarder is non-zero", critical: true});
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 15: Croptop Immutables (Finding J)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyCroptopImmutables() internal {
+        console.log("--- Category 15: Croptop Immutables ---");
+
+        // CTPublisher immutables.
+        _check({
+            condition: address(ctPublisher.DIRECTORY()) == address(directory),
+            label: "CTPublisher.DIRECTORY == directory",
+            critical: true
+        });
+        _check({
+            condition: ctPublisher.FEE_PROJECT_ID() == _FEE_PROJECT_ID,
+            label: "CTPublisher.FEE_PROJECT_ID == 1",
+            critical: true
+        });
+
+        // CTDeployer immutables.
+        _check({
+            condition: address(ctDeployer.DEPLOYER()) == address(hookDeployer),
+            label: "CTDeployer.DEPLOYER == hookDeployer",
+            critical: true
+        });
+        _check({
+            condition: address(ctDeployer.PROJECTS()) == address(projects),
+            label: "CTDeployer.PROJECTS == projects",
+            critical: true
+        });
+        _check({
+            condition: address(ctDeployer.PUBLISHER()) == address(ctPublisher),
+            label: "CTDeployer.PUBLISHER == ctPublisher",
+            critical: true
+        });
+        _check({
+            condition: address(ctDeployer.SUCKER_REGISTRY()) == address(suckerRegistry),
+            label: "CTDeployer.SUCKER_REGISTRY == suckerRegistry",
+            critical: true
+        });
+
+        // CTProjectOwner immutables.
+        _check({
+            condition: address(ctProjectOwner.PERMISSIONS()) == address(permissions),
+            label: "CTProjectOwner.PERMISSIONS == permissions",
+            critical: true
+        });
+        _check({
+            condition: address(ctProjectOwner.PROJECTS()) == address(projects),
+            label: "CTProjectOwner.PROJECTS == projects",
+            critical: true
+        });
+        _check({
+            condition: address(ctProjectOwner.PUBLISHER()) == address(ctPublisher),
+            label: "CTProjectOwner.PUBLISHER == ctPublisher",
+            critical: true
+        });
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 16: Hook Deployer Immutables (Finding H/AI)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyHookDeployerImmutables() internal {
+        console.log("--- Category 16: Hook Deployer Immutables ---");
+
+        // JB721TiersHookDeployer immutables.
+        _check({
+            condition: address(hookDeployer.STORE()) == address(hookStore),
+            label: "HookDeployer.STORE == hookStore",
+            critical: true
+        });
+        _check({
+            condition: address(hookDeployer.ADDRESS_REGISTRY()) == addressRegistry,
+            label: "HookDeployer.ADDRESS_REGISTRY == addressRegistry",
+            critical: true
+        });
+
+        // Verify the base hook (implementation) immutables.
+        address baseHook = address(hookDeployer.HOOK());
+        _check({condition: baseHook != address(0), label: "HookDeployer.HOOK is non-zero", critical: true});
+
+        if (baseHook != address(0) && baseHook.code.length > 0) {
+            IJB721TiersHook hook = IJB721TiersHook(baseHook);
+            _check({
+                condition: address(hook.PRICES()) == address(prices),
+                label: "Base hook PRICES == prices",
+                critical: true
+            });
+            _check({
+                condition: address(hook.RULESETS()) == address(rulesets),
+                label: "Base hook RULESETS == rulesets",
+                critical: true
+            });
+            _check({
+                condition: address(hook.STORE()) == address(hookStore),
+                label: "Base hook STORE == hookStore",
+                critical: true
+            });
+            _check({
+                condition: address(hook.SPLITS()) == address(splits),
+                label: "Base hook SPLITS == splits",
+                critical: true
+            });
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 17: REVOwner & REVLoans Immutables (Finding AJ)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyRevImmutables() internal {
+        console.log("--- Category 17: REVOwner & REVLoans Immutables ---");
+
+        if (address(revOwner) == address(0)) {
+            _skip("REVOwner immutables (not deployed)");
+        } else {
+            _check({
+                condition: address(revOwner.BUYBACK_HOOK()) == address(buybackRegistry),
+                label: "REVOwner.BUYBACK_HOOK == buybackRegistry",
+                critical: true
+            });
+            _check({
+                condition: address(revOwner.DIRECTORY()) == address(directory),
+                label: "REVOwner.DIRECTORY == directory",
+                critical: true
+            });
+            _check({
+                condition: revOwner.FEE_REVNET_ID() == _FEE_PROJECT_ID,
+                label: "REVOwner.FEE_REVNET_ID == 1",
+                critical: true
+            });
+            _check({
+                condition: address(revOwner.LOANS()) == address(revLoans),
+                label: "REVOwner.LOANS == revLoans",
+                critical: true
+            });
+            _check({
+                condition: address(revOwner.SUCKER_REGISTRY()) == address(suckerRegistry),
+                label: "REVOwner.SUCKER_REGISTRY == suckerRegistry",
+                critical: true
+            });
+        }
+
+        if (address(revLoans) == address(0)) {
+            _skip("REVLoans immutables (not deployed)");
+        } else {
+            _check({
+                condition: address(revLoans.CONTROLLER()) == address(controller),
+                label: "REVLoans.CONTROLLER == controller",
+                critical: true
+            });
+            _check({
+                condition: address(revLoans.DIRECTORY()) == address(directory),
+                label: "REVLoans.DIRECTORY == directory",
+                critical: true
+            });
+            _check({
+                condition: address(revLoans.PRICES()) == address(prices),
+                label: "REVLoans.PRICES == prices",
+                critical: true
+            });
+            _check({
+                condition: revLoans.REV_ID() == _REV_PROJECT_ID,
+                label: "REVLoans.REV_ID == 3",
+                critical: true
+            });
+            _check({
+                condition: address(revLoans.SUCKER_REGISTRY()) == address(suckerRegistry),
+                label: "REVLoans.SUCKER_REGISTRY == suckerRegistry",
+                critical: true
+            });
+        }
 
         console.log("");
     }
