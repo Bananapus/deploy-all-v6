@@ -56,6 +56,7 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
             description: REVDescription("SuckerTest", "SKRT", "ipfs://sucker", "SUCKER_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

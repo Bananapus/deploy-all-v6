@@ -25,6 +25,7 @@ import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionMa
 
 // Suckers
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
+import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LibClone} from "solady/src/utils/LibClone.sol";
@@ -70,7 +71,8 @@ contract USDCRevnetForkTest is RevnetForkBase {
             poolManager,
             positionManager,
             permit2(),
-            IHooks(address(0))
+            IHooks(address(0)),
+            IJBSuckerRegistry(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0); // No fee project for simplicity.
@@ -128,6 +130,7 @@ contract USDCRevnetForkTest is RevnetForkBase {
             description: REVDescription("USDC Revnet", "UREV", "ipfs://urev", "UREV_SALT"),
             baseCurrency: uint32(uint160(address(usdc))),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -186,6 +189,7 @@ contract USDCRevnetForkTest is RevnetForkBase {
             description: REVDescription("USDC Revnet LP", "UREVLP", "ipfs://urevlp", "UREVLP_SALT"),
             baseCurrency: uint32(uint160(address(usdc))),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

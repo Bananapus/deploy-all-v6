@@ -73,6 +73,7 @@ import {IWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 // ── Suckers ──
+import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
 import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
 import {JBOptimismSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBOptimismSuckerDeployer.sol";
 import {JBBaseSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBBaseSuckerDeployer.sol";
@@ -425,7 +426,8 @@ contract DeployFullStackTest is Test {
             IPoolManager(cfg.poolManager),
             IPositionManager(cfg.positionManager),
             IAllowanceTransfer(address(_PERMIT2)),
-            IHooks(address(_uniswapV4Hook))
+            IHooks(address(_uniswapV4Hook)),
+            IJBSuckerRegistry(address(_suckerRegistry))
         );
         _lpSplitHookDeployer =
             new JBUniswapV4LPSplitHookDeployer(_lpSplitHook, IJBAddressRegistry(address(_addressRegistry)));
@@ -914,7 +916,8 @@ contract DeployFullStackTest is Test {
             string.concat(chainName, ": Router default terminal mismatch")
         );
         assertTrue(
-            _feeless.isFeeless(address(_routerTerminal)), string.concat(chainName, ": Router terminal not feeless")
+            _feeless.isFeelessFor(address(_routerTerminal), 0),
+            string.concat(chainName, ": Router terminal not feeless")
         );
 
         // LP split hook deployer.

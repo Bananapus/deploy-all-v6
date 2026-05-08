@@ -938,7 +938,7 @@ contract Deploy is Script, Sphinx {
             );
         }
 
-        if (!_feeless.isFeeless(address(_routerTerminal))) {
+        if (!_feeless.isFeelessFor(address(_routerTerminal), 0)) {
             _feeless.setFeelessAddress({addr: address(_routerTerminal), flag: true});
         }
     }
@@ -958,7 +958,8 @@ contract Deploy is Script, Sphinx {
                 IPoolManager(_poolManager),
                 IPositionManager(_positionManager),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(_uniswapV4Hook))
+                IHooks(address(_uniswapV4Hook)),
+                IJBSuckerRegistry(address(_suckerRegistry))
             )
         });
         _lpSplitHook = hookDeployed
@@ -970,7 +971,8 @@ contract Deploy is Script, Sphinx {
                 poolManager: IPoolManager(_poolManager),
                 positionManager: IPositionManager(_positionManager),
                 permit2: IAllowanceTransfer(address(_PERMIT2)),
-                oracleHook: IHooks(address(_uniswapV4Hook))
+                oracleHook: IHooks(address(_uniswapV4Hook)),
+                suckerRegistry: IJBSuckerRegistry(address(_suckerRegistry))
             });
 
         (address deployer, bool deployerDeployed) = _isDeployed({
@@ -2138,7 +2140,8 @@ contract Deploy is Script, Sphinx {
                 _revProjectId,
                 _suckerRegistry,
                 _revLoans,
-                _revHiddenTokens
+                _revHiddenTokens,
+                msg.sender
             )
         });
         _revOwner = revOwnerDeployed
@@ -2149,7 +2152,8 @@ contract Deploy is Script, Sphinx {
                 feeRevnetId: _revProjectId,
                 suckerRegistry: _suckerRegistry,
                 loans: _revLoans,
-                hiddenTokens: _revHiddenTokens
+                hiddenTokens: _revHiddenTokens,
+                deployerBinder: msg.sender
             });
 
         // Deploy REVDeployer.
@@ -2283,6 +2287,7 @@ contract Deploy is Script, Sphinx {
             ),
             baseCurrency: ETH_CURRENCY,
             splitOperator: operator,
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -2383,6 +2388,7 @@ contract Deploy is Script, Sphinx {
             }),
             baseCurrency: ETH_CURRENCY,
             splitOperator: operator,
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -2530,6 +2536,7 @@ contract Deploy is Script, Sphinx {
             }),
             baseCurrency: ETH_CURRENCY,
             splitOperator: operator,
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -2708,6 +2715,7 @@ contract Deploy is Script, Sphinx {
             ),
             baseCurrency: ETH_CURRENCY,
             splitOperator: operator,
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

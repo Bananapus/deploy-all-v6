@@ -159,6 +159,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
             description: REVDescription("WBTC Test", "WBTC8", "ipfs://wbtc", "WBTC_SALT"),
             baseCurrency: USD, // Abstract USD -> triggers cross-currency conversion via JBPrices
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -230,6 +231,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
             description: REVDescription("WBTC TwoStage", "WB2S", "ipfs://wb2s", "WB2S_SALT"),
             baseCurrency: USD,
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -860,6 +862,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
             description: REVDescription("WBTC+ETH", "WBETH", "ipfs://wbeth", "WBETH_SALT"),
             baseCurrency: USD,
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

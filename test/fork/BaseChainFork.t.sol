@@ -237,7 +237,8 @@ contract BaseChainForkTest is TestBaseWorkflow {
             FEE_PROJECT_ID,
             SUCKER_REGISTRY,
             LOANS_CONTRACT,
-            revHiddenTokens
+            revHiddenTokens,
+            address(this)
         );
 
         // Deploy the REVDeployer that orchestrates revnet creation.
@@ -310,6 +311,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
             description: REVDescription("Base Fork Test", "BFORK", "ipfs://base", "BASE_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)), // ETH as base currency.
             splitOperator: multisig(), // Multisig can operate splits.
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages // Single stage config.
         });
 

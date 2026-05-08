@@ -113,7 +113,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             allowAddPriceFeed: false,
             ownerMustSendPayouts: false,
             holdFees: true, // Enable fee holding
-            useTotalSurplusForCashOuts: false,
+            scopeCashOutsToLocalBalances: true,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),
@@ -255,6 +255,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             description: REVDescription("CashOutFee", "COF", "ipfs://cof", "COF_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -422,7 +423,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             allowAddPriceFeed: false,
             ownerMustSendPayouts: false,
             holdFees: true, // Enable fee holding
-            useTotalSurplusForCashOuts: false,
+            scopeCashOutsToLocalBalances: true,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),
@@ -578,7 +579,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             allowAddPriceFeed: false,
             ownerMustSendPayouts: false,
             holdFees: false, // Fees process immediately — no holding.
-            useTotalSurplusForCashOuts: false,
+            scopeCashOutsToLocalBalances: true,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),

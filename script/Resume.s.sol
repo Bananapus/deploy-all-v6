@@ -29,7 +29,7 @@ pragma solidity 0.8.28;
 //   3. Verify `prices.priceFeedFor(0, USD, NATIVE_TOKEN)` is non-zero.
 //   4. Verify `suckerRegistry.suckerDeployerIsAllowed(deployer)` for each
 //      expected sucker deployer.
-//   5. Verify `feeless.isFeeless(routerTerminal)` is true.
+//   5. Verify `feeless.isFeelessFor(routerTerminal, 0)` is true.
 //
 // USAGE:
 //   forge script script/Resume.s.sol:Resume --rpc-url <RPC_URL> \
@@ -1036,7 +1036,7 @@ contract Resume is Script {
         }
 
         // Idempotent: mark router terminal as feeless only if not already.
-        if (!_feeless.isFeeless(address(_routerTerminal))) {
+        if (!_feeless.isFeelessFor(address(_routerTerminal), 0)) {
             _feeless.setFeelessAddress({addr: address(_routerTerminal), flag: true}); // Fee exemption.
         }
 
@@ -1060,7 +1060,8 @@ contract Resume is Script {
                 IPoolManager(_poolManager),
                 IPositionManager(_positionManager),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(_uniswapV4Hook))
+                IHooks(address(_uniswapV4Hook)),
+                IJBSuckerRegistry(address(_suckerRegistry))
             )
         });
         _lpSplitHook = hookDeployed
@@ -1072,7 +1073,8 @@ contract Resume is Script {
                 IPoolManager(_poolManager),
                 IPositionManager(_positionManager),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(_uniswapV4Hook))
+                IHooks(address(_uniswapV4Hook)),
+                IJBSuckerRegistry(address(_suckerRegistry))
             );
 
         // Deploy or resolve the LP split hook deployer.
@@ -2158,7 +2160,8 @@ contract Resume is Script {
                 _revProjectId,
                 _suckerRegistry,
                 _revLoans,
-                _revHiddenTokens
+                _revHiddenTokens,
+                msg.sender
             )
         });
         _revOwner = revOwnerDeployed
@@ -2169,7 +2172,8 @@ contract Resume is Script {
                 _revProjectId,
                 _suckerRegistry,
                 _revLoans,
-                _revHiddenTokens
+                _revHiddenTokens,
+                msg.sender
             );
 
         // Deploy or resolve REVDeployer.
@@ -2317,6 +2321,7 @@ contract Resume is Script {
             ),
             baseCurrency: ETH_CURRENCY,
             splitOperator: operator,
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -2436,6 +2441,7 @@ contract Resume is Script {
             }),
             baseCurrency: ETH_CURRENCY,
             splitOperator: operator,
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -2601,6 +2607,7 @@ contract Resume is Script {
             }),
             baseCurrency: ETH_CURRENCY,
             splitOperator: operator,
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -2794,6 +2801,7 @@ contract Resume is Script {
             ),
             baseCurrency: ETH_CURRENCY,
             splitOperator: operator,
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

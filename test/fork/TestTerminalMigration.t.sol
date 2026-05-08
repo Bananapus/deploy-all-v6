@@ -56,7 +56,7 @@ contract TestTerminalMigration is RevnetForkBase {
     // ===================================================================
 
     /// @notice Launch a plain JB project with migration-friendly flags and both terminals pre-configured.
-    /// Uses allowTerminalMigration, allowSetTerminals, allowOwnerMinting, and useTotalSurplusForCashOuts.
+    /// Uses allowTerminalMigration, allowSetTerminals, allowOwnerMinting, and scopeCashOutsToLocalBalances.
     function _launchMigrationProject() internal returns (uint256 projectId) {
         // Accounting context for ETH on both terminals.
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
@@ -115,7 +115,7 @@ contract TestTerminalMigration is RevnetForkBase {
             allowAddPriceFeed: false,
             ownerMustSendPayouts: false,
             holdFees: false,
-            useTotalSurplusForCashOuts: true,
+            scopeCashOutsToLocalBalances: false,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),
@@ -246,7 +246,7 @@ contract TestTerminalMigration is RevnetForkBase {
         assertGt(migrated, 0, "should migrate non-zero balance");
 
         // After migration, the surplus is now in terminal 2.
-        // Since the project uses useTotalSurplusForCashOuts, borrowable should be consistent.
+        // Since the project uses scopeCashOutsToLocalBalances, borrowable should be consistent.
         uint256 borrowableAfter = LOANS_CONTRACT.borrowableAmountFrom(
             projectId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN))
         );

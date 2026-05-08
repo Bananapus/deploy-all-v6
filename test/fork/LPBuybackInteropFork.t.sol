@@ -112,6 +112,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
             description: REVDescription("LPBuyback", "LBH", "ipfs://lbh", "LBH_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
@@ -469,7 +470,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
                 allowAddPriceFeed: false,
                 ownerMustSendPayouts: false,
                 holdFees: false,
-                useTotalSurplusForCashOuts: false,
+                scopeCashOutsToLocalBalances: true,
                 useDataHookForPay: true,
                 useDataHookForCashOut: false,
                 dataHook: address(BUYBACK_HOOK),

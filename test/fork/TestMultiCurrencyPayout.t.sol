@@ -174,7 +174,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
             allowAddPriceFeed: false,
             ownerMustSendPayouts: false,
             holdFees: false,
-            useTotalSurplusForCashOuts: false,
+            scopeCashOutsToLocalBalances: true,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),
@@ -275,7 +275,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
             allowAddPriceFeed: false,
             ownerMustSendPayouts: false,
             holdFees: false,
-            useTotalSurplusForCashOuts: false,
+            scopeCashOutsToLocalBalances: true,
             useDataHookForPay: false,
             useDataHookForCashOut: false,
             dataHook: address(0),
@@ -368,6 +368,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
             description: REVDescription("CC Parity", "CCP", "ipfs://ccp", "CCP_SALT"),
             baseCurrency: USD,
             splitOperator: multisig(),
+            scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 

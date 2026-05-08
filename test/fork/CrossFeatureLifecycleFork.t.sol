@@ -495,7 +495,7 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
             allowAddPriceFeed: true, // allow adding price feeds
             ownerMustSendPayouts: false, // anyone can trigger payouts
             holdFees: false, // fees not held
-            useTotalSurplusForCashOuts: false, // use local terminal balance
+            scopeCashOutsToLocalBalances: true, // use local terminal balance
             useDataHookForPay: dataHook != address(0), // use data hook if provided
             useDataHookForCashOut: false, // no data hook for cash outs
             dataHook: dataHook, // the 721 hook (or zero)
