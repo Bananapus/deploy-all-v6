@@ -60,15 +60,28 @@ Before running a deployment:
 
 ## Running the Deploy
 
+Deployments are executed through [Sphinx](https://sphinx.dev), which batches the deploy transactions through the multi-sig safe. The Sphinx CLI proposes the deployment, which must then be approved by safe signers.
+
+### Dry Run (Forge Simulation)
+
 ```bash
-forge script script/Deploy.s.sol:Deploy \
-  --rpc-url <RPC_URL> \
-  --broadcast \
-  --sender <DEPLOYER_ADDRESS> \
-  -vvvv
+forge script script/Deploy.s.sol --rpc-url <RPC_URL> -vvvv
 ```
 
-Monitor each phase in the `-vvvv` output. The script logs phase boundaries and contract addresses as it progresses.
+No `--broadcast` flag = simulation only. Verify all phases complete without revert.
+
+### Production Deploy (via Sphinx)
+
+```bash
+npx sphinx propose --testnets   # for testnets
+npx sphinx propose --mainnets   # for production
+```
+
+Sphinx compiles the deploy script, simulates it, and proposes the resulting transactions to the multi-sig safe. Safe signers must approve the proposal before execution.
+
+> **Note:** Sphinx replays `new Contract{salt: ...}(...)` through the canonical CREATE2 deployer (`0x4e59b44847b379578588920cA78FbF26c0B4956C`). The `_isDeployed` helper must compute addresses using this factory as the deployer (not `safeAddress()`) for Uniswap V4 hook deployments where address flags matter.
+
+Monitor execution in the Sphinx dashboard or on-chain via the safe's transaction history.
 
 ## Interrupted Deploy: Using Resume.s.sol
 
@@ -82,13 +95,18 @@ State-mutating calls (e.g., `setDefaultHook`, `setIsAllowedToSetFirstController`
 
 ### Running Resume
 
+Dry-run (simulation only):
 ```bash
-forge script script/Resume.s.sol:Resume \
-  --rpc-url <RPC_URL> \
-  --broadcast \
-  --sender <DEPLOYER_ADDRESS> \
-  -vvvv
+forge script script/Resume.s.sol --rpc-url <RPC_URL> -vvvv
 ```
+
+Production resume (via Sphinx):
+```bash
+npx sphinx propose --testnets   # for testnets
+npx sphinx propose --mainnets   # for production
+```
+
+The resume script is proposed the same way as the initial deploy. Sphinx batches all remaining deployments into a single multi-sig proposal.
 
 ### Resume Output
 
@@ -225,15 +243,16 @@ This is the complete sequence for deploying to a new chain:
 - [ ] All 11 phases logged as completed
 - [ ] Gas usage is within budget
 
-### 3. Deploy
+### 3. Deploy (via Sphinx)
 
-- [ ] `forge script script/Deploy.s.sol:Deploy --rpc-url <RPC_URL> --broadcast --sender <ADDR> -vvvv`
-- [ ] Record all deployed contract addresses from the broadcast log
+- [ ] `npx sphinx propose --testnets` (or `--mainnets` for production)
+- [ ] Safe signers approve the proposal in the Sphinx dashboard
+- [ ] Record all deployed contract addresses from the Sphinx execution log
 - [ ] If interrupted: proceed to step 4
 
 ### 4. Resume (if needed)
 
-- [ ] `forge script script/Resume.s.sol:Resume --rpc-url <RPC_URL> --broadcast --sender <ADDR> -vvvv`
+- [ ] `npx sphinx propose --testnets` (or `--mainnets`) with Resume.s.sol
 - [ ] Confirm output shows `Phases skipped` + `Phases executed` totaling 11
 - [ ] Check for any `WARNING` messages requiring manual review
 - [ ] If Phases 08/09 show warnings: manually verify revnet configuration and Banny project via Etherscan or direct contract queries
