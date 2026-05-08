@@ -534,7 +534,7 @@ contract Resume is Script {
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
             _typeface = 0xA77b7D93E79f1E6B4f77FaB29d9ef85733A3D44A;
-            _roundDuration = 50_400;
+            _roundDuration = 604_800; // 7 days
         }
         // Ethereum Sepolia.
         else if (block.chainid == 11_155_111) {
@@ -543,7 +543,7 @@ contract Resume is Script {
             _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
             _positionManager = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
             _typeface = 0x8C420d3388C882F40d263714d7A6e2c8DB93905F;
-            _roundDuration = 50_400;
+            _roundDuration = 604_800; // 7 days
         }
         // Optimism.
         else if (block.chainid == 10) {
@@ -552,7 +552,7 @@ contract Resume is Script {
             _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
             _positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
             _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
-            _roundDuration = 302_400;
+            _roundDuration = 604_800; // 7 days
         }
         // Optimism Sepolia — no PositionManager, Uniswap stack skipped.
         else if (block.chainid == 11_155_420) {
@@ -561,7 +561,7 @@ contract Resume is Script {
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = address(0); // No PositionManager on OP Sepolia.
             _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
-            _roundDuration = 302_400;
+            _roundDuration = 604_800; // 7 days
         }
         // Base.
         else if (block.chainid == 8453) {
@@ -570,7 +570,7 @@ contract Resume is Script {
             _poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
             _positionManager = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
             _typeface = 0x3DE45A14ea0fe24037D6363Ae71Ef18F336D1C27;
-            _roundDuration = 302_400;
+            _roundDuration = 604_800; // 7 days
         }
         // Base Sepolia.
         else if (block.chainid == 84_532) {
@@ -579,7 +579,7 @@ contract Resume is Script {
             _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
             _positionManager = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
             _typeface = 0xEb269d9F0850CEf5e3aB0F9718fb79c466720784;
-            _roundDuration = 302_400;
+            _roundDuration = 604_800; // 7 days
         }
         // Arbitrum.
         else if (block.chainid == 42_161) {
@@ -588,7 +588,7 @@ contract Resume is Script {
             _poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
             _positionManager = 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
             _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
-            _roundDuration = 2_419_200;
+            _roundDuration = 604_800; // 7 days
         }
         // Arbitrum Sepolia.
         else if (block.chainid == 421_614) {
@@ -597,7 +597,7 @@ contract Resume is Script {
             _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
             _positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
             _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
-            _roundDuration = 2_419_200;
+            _roundDuration = 604_800; // 7 days
         } else {
             revert("Unsupported chain"); // Fail fast for unknown chains.
         }
@@ -717,7 +717,7 @@ contract Resume is Script {
         (address terminalStore, bool terminalStoreDeployed) = _isDeployed({
             salt: coreSalt,
             creationCode: type(JBTerminalStore).creationCode,
-            arguments: abi.encode(_directory, _rulesets, _prices)
+            arguments: abi.encode(_directory, _prices, _rulesets)
         });
         _terminalStore = terminalStoreDeployed
             ? JBTerminalStore(terminalStore)
@@ -728,7 +728,7 @@ contract Resume is Script {
             salt: coreSalt,
             creationCode: type(JBMultiTerminal).creationCode,
             arguments: abi.encode(
-                _permissions, _projects, _splits, _terminalStore, _tokens, _feeless, _PERMIT2, _trustedForwarder
+                _feeless, _permissions, _projects, _splits, _terminalStore, _tokens, _PERMIT2, _trustedForwarder
             )
         });
         _terminal = terminalDeployed
@@ -878,7 +878,7 @@ contract Resume is Script {
 
         // Mine a salt that produces an address with the correct Uniswap hook flags.
         bytes32 salt = _findHookSalt({
-            deployer: _deployer,
+            deployer: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
             flags: flags,
             creationCode: type(JBUniswapV4Hook).creationCode,
             constructorArgs: constructorArgs
@@ -1654,8 +1654,8 @@ contract Resume is Script {
             arguments: abi.encode(
                 _directory,
                 _fundAccess,
-                _prices,
                 _permissions,
+                _prices,
                 _projects,
                 _rulesets,
                 _splits,

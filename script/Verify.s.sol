@@ -1326,13 +1326,8 @@ contract Verify is Script {
         _check({condition: vestingRounds == _VESTING_ROUNDS, label: "Distributor vesting rounds", critical: true});
     }
 
-    function _expectedRoundDuration() internal view returns (uint256) {
-        if (block.chainid == 1 || block.chainid == 11_155_111) return 50_400;
-        if (block.chainid == 10 || block.chainid == 11_155_420 || block.chainid == 8453 || block.chainid == 84_532) {
-            return 302_400;
-        }
-        if (block.chainid == 42_161 || block.chainid == 421_614) return 2_419_200;
-        return 0;
+    function _expectedRoundDuration() internal pure returns (uint256) {
+        return 604_800; // 7 days
     }
 
     /// @dev Checks whether a project exists by calling ownerOf on the ERC-721.
