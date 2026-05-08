@@ -721,7 +721,7 @@ contract Resume is Script {
         });
         _terminalStore = terminalStoreDeployed
             ? JBTerminalStore(terminalStore)
-            : new JBTerminalStore{salt: coreSalt}({directory: _directory, rulesets: _rulesets, prices: _prices});
+            : new JBTerminalStore{salt: coreSalt}({directory: _directory, prices: _prices, rulesets: _rulesets});
 
         // Deploy or resolve multi terminal.
         (address terminal, bool terminalDeployed) = _isDeployed({
@@ -1669,8 +1669,8 @@ contract Resume is Script {
             : new JBController{salt: coreSalt}({
                 directory: _directory,
                 fundAccessLimits: _fundAccess,
-                prices: _prices,
                 permissions: _permissions,
+                prices: _prices,
                 projects: _projects,
                 rulesets: _rulesets,
                 splits: _splits,
