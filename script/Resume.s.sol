@@ -216,6 +216,8 @@ contract Resume is Script {
 
     // Permit2 canonical address across all chains.
     IPermit2 private constant _PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    /// @dev Deterministic deployment proxy (https://github.com/Arachnid/deterministic-deployment-proxy).
+    address private constant _CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
     // Trusted forwarder name for ERC2771.
     string private constant TRUSTED_FORWARDER_NAME = "Juicebox";
     // Nonce used to derive the core deployment salt.
@@ -878,7 +880,7 @@ contract Resume is Script {
 
         // Mine a salt that produces an address with the correct Uniswap hook flags.
         bytes32 salt = _findHookSalt({
-            deployer: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
+            deployer: _CREATE2_FACTORY,
             flags: flags,
             creationCode: type(JBUniswapV4Hook).creationCode,
             constructorArgs: constructorArgs
