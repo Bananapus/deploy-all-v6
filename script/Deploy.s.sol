@@ -446,12 +446,15 @@ contract Deploy is Script, Sphinx {
             // Phase 03d: Router Terminal
             _deployRouterTerminal();
 
-            // Phase 03e: Uniswap V4 LP Split Hook
-            _deployLpSplitHook();
         }
 
-        // Phase 03f: Cross-Chain Suckers
+        // Phase 03e: Cross-Chain Suckers (before LP Split Hook — LP hook needs the registry)
         _deploySuckers();
+
+        if (_positionManager != address(0)) {
+            // Phase 03f: Uniswap V4 LP Split Hook (requires PositionManager + SuckerRegistry)
+            _deployLpSplitHook();
+        }
 
         // Phase 04: Omnichain Deployer
         _deployOmnichainDeployer();

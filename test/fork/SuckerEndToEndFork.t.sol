@@ -339,7 +339,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
 
         // prepare() should revert.
         vm.prank(PAYER);
-        vm.expectRevert(JBSucker.JBSucker_Deprecated.selector);
+        vm.expectRevert(abi.encodeWithSelector(JBSucker.JBSucker_Deprecated.selector, JBSuckerState.SENDING_DISABLED));
         IJBSucker(suckerAddr)
             .prepare({
             projectTokenCount: tokens / 2,

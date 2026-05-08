@@ -479,12 +479,15 @@ contract Resume is Script {
             // ── Phase 03e: Router Terminal ──
             _resumeRouterTerminal();
 
-            // ── Phase 03f: Uniswap V4 LP Split Hook ──
-            _resumeLpSplitHook();
         }
 
-        // ── Phase 03g: Cross-Chain Suckers ──
+        // ── Phase 03e: Cross-Chain Suckers (before LP Split Hook — LP hook needs the registry) ──
         _resumeSuckers();
+
+        if (_positionManager != address(0)) {
+            // ── Phase 03f: Uniswap V4 LP Split Hook (requires PositionManager + SuckerRegistry) ──
+            _resumeLpSplitHook();
+        }
 
         // ── Phase 04: Omnichain Deployer ──
         _resumeOmnichainDeployer();

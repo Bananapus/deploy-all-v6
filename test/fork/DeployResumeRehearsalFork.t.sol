@@ -200,8 +200,8 @@ contract InstrumentedDeployer is IERC721Receiver {
         _deployUniswapV4Hook(); // Phase 03b: Uniswap V4 Router Hook.
         _deployBuybackHook(); // Phase 03c: Buyback Hook.
         _deployRouterTerminal(); // Phase 03d: Router Terminal.
-        _deployLpSplitHook(); // Phase 03e: LP Split Hook.
-        _deploySuckers(); // Phase 03f: Cross-Chain Suckers.
+        _deploySuckers(); // Phase 03e: Cross-Chain Suckers.
+        _deployLpSplitHook(); // Phase 03f: LP Split Hook (needs SuckerRegistry).
     }
 
     /// @notice Deploy Phases 01-07: Everything except Banny.
@@ -212,8 +212,8 @@ contract InstrumentedDeployer is IERC721Receiver {
         _deployUniswapV4Hook(); // Phase 03b: Uniswap V4 Router Hook.
         _deployBuybackHook(); // Phase 03c: Buyback Hook.
         _deployRouterTerminal(); // Phase 03d: Router Terminal.
-        _deployLpSplitHook(); // Phase 03e: LP Split Hook.
-        _deploySuckers(); // Phase 03f: Cross-Chain Suckers.
+        _deploySuckers(); // Phase 03e: Cross-Chain Suckers.
+        _deployLpSplitHook(); // Phase 03f: LP Split Hook (needs SuckerRegistry).
         _deployOmnichainDeployer(); // Phase 04: Omnichain Deployer.
         _deployPeriphery(); // Phase 05: Periphery.
         cpnProjectId = _ensureProjectExists(_CPN_PROJECT_ID); // Phase 06 prep.
@@ -228,8 +228,8 @@ contract InstrumentedDeployer is IERC721Receiver {
         _deployUniswapV4Hook(); // Phase 03b.
         _deployBuybackHook(); // Phase 03c.
         _deployRouterTerminal(); // Phase 03d.
-        _deployLpSplitHook(); // Phase 03e.
-        _deploySuckers(); // Phase 03f.
+        _deploySuckers(); // Phase 03e.
+        _deployLpSplitHook(); // Phase 03f.
         _deployOmnichainDeployer(); // Phase 04.
         _deployPeriphery(); // Phase 05.
         cpnProjectId = _ensureProjectExists(_CPN_PROJECT_ID); // Phase 06 prep.
