@@ -67,8 +67,12 @@ import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
 import {JBProjectHandles} from "@bananapus/project-handles-v6/src/JBProjectHandles.sol";
 import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.sol";
 import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
+import {JBProjectPayer} from "@bananapus/project-payer-v6/src/JBProjectPayer.sol";
 import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectPayerDeployer.sol";
 
+import {IJBToken} from "@bananapus/core-v6/src/interfaces/IJBToken.sol";
+import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
+import {JBERC20} from "@bananapus/core-v6/src/JBERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title Verify — Post-Deployment Verification for Juicebox V6
@@ -233,6 +237,12 @@ contract Verify is Script {
         _verifyAllowlists();
         _verifyRoutes();
         _verifyPeripheryExtensions();
+        _verifyTokenImplementation();
+        _verifyOwnership();
+        _verifyPermissionsAndForwarder();
+        _verifyCroptopImmutables();
+        _verifyHookDeployerImmutables();
+        _verifyRevImmutables();
 
         // Print final summary of results.
         _printSummary();
@@ -388,6 +398,28 @@ contract Verify is Script {
         _checkProjectHasOwner({projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN) exists with owner"});
 
         _verifyCanonicalProjectIdentities();
+
+        // Finding N: No stale ERC-721 approvals on canonical projects.
+        _check({
+            condition: projects.getApproved(_FEE_PROJECT_ID) == address(0),
+            label: "Project 1 (NANA) has no stale approval",
+            critical: true
+        });
+        _check({
+            condition: projects.getApproved(_CPN_PROJECT_ID) == address(0),
+            label: "Project 2 (CPN) has no stale approval",
+            critical: true
+        });
+        _check({
+            condition: projects.getApproved(_REV_PROJECT_ID) == address(0),
+            label: "Project 3 (REV) has no stale approval",
+            critical: true
+        });
+        _check({
+            condition: projects.getApproved(_BAN_PROJECT_ID) == address(0),
+            label: "Project 4 (BAN) has no stale approval",
+            critical: true
+        });
 
         // Log a blank line for readability.
         console.log("");
@@ -1150,7 +1182,18 @@ contract Verify is Script {
                 }
             }
         } else {
-            _skip("Sucker deployer allowlist (VERIFY_SUCKER_DEPLOYERS not set)");
+            // Finding K: On production chains, the sucker deployer allowlist must be provided.
+            bool isProductionChain =
+                (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+            if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: "Sucker deployer allowlist MUST be set on production (VERIFY_SUCKER_DEPLOYERS)",
+                    critical: true
+                });
+            } else {
+                _skip("Sucker deployer allowlist (VERIFY_SUCKER_DEPLOYERS not set)");
+            }
         }
 
         // Verify feeless addresses — router terminal is already checked in Category 5.
@@ -1301,6 +1344,295 @@ contract Verify is Script {
             address implementation = projectPayerDeployer.IMPLEMENTATION();
             _check({
                 condition: implementation.code.length > 0, label: "ProjectPayer implementation has code", critical: true
+            });
+
+            // Finding T: Verify the implementation's DIRECTORY and DEPLOYER point to canonical contracts.
+            if (implementation.code.length > 0) {
+                _check({
+                    condition: address(JBProjectPayer(payable(implementation)).DIRECTORY()) == address(directory),
+                    label: "ProjectPayer implementation DIRECTORY == directory",
+                    critical: true
+                });
+                _check({
+                    condition: JBProjectPayer(payable(implementation)).DEPLOYER() == address(projectPayerDeployer),
+                    label: "ProjectPayer implementation DEPLOYER == deployer",
+                    critical: true
+                });
+            }
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 12: Token Implementation (Finding AK)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyTokenImplementation() internal {
+        console.log("--- Category 12: Token Implementation ---");
+
+        // Verify the TOKEN() implementation on JBTokens is correctly wired.
+        IJBToken tokenImpl = tokens.TOKEN();
+        _check({condition: address(tokenImpl) != address(0), label: "JBTokens.TOKEN() is non-zero", critical: true});
+        _check({
+            condition: address(tokenImpl).code.length > 0, label: "JBERC20 implementation has code", critical: true
+        });
+
+        // Verify the implementation's PROJECTS() matches canonical projects contract.
+        if (address(tokenImpl).code.length > 0) {
+            try JBERC20(address(tokenImpl)).PROJECTS() returns (IJBProjects implProjects) {
+                _check({
+                    condition: address(implProjects) == address(projects),
+                    label: "JBERC20 implementation PROJECTS == projects",
+                    critical: true
+                });
+            } catch {
+                _check({condition: false, label: "JBERC20 implementation PROJECTS() call failed", critical: true});
+            }
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 13: Ownership (Finding C)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyOwnership() internal {
+        console.log("--- Category 13: Ownership ---");
+
+        if (expectedSafe == address(0)) {
+            _skip("Ownership checks (VERIFY_SAFE not set)");
+            console.log("");
+            return;
+        }
+
+        _check({condition: projects.owner() == expectedSafe, label: "JBProjects owner == safe", critical: true});
+        _check({condition: directory.owner() == expectedSafe, label: "JBDirectory owner == safe", critical: true});
+        _check({condition: prices.owner() == expectedSafe, label: "JBPrices owner == safe", critical: true});
+        _check({
+            condition: feelessAddresses.owner() == expectedSafe,
+            label: "JBFeelessAddresses owner == safe",
+            critical: true
+        });
+
+        if (address(buybackRegistry) != address(0)) {
+            _check({
+                condition: buybackRegistry.owner() == expectedSafe,
+                label: "JBBuybackHookRegistry owner == safe",
+                critical: true
+            });
+        }
+
+        _check({
+            condition: suckerRegistry.owner() == expectedSafe, label: "JBSuckerRegistry owner == safe", critical: true
+        });
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 14: Permissions & Forwarder Wiring (Finding O)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyPermissionsAndForwarder() internal {
+        console.log("--- Category 14: Permissions & Forwarder Wiring ---");
+
+        // Verify PERMISSIONS() on all permissioned contracts.
+        _check({
+            condition: address(controller.PERMISSIONS()) == address(permissions),
+            label: "Controller.PERMISSIONS == permissions",
+            critical: true
+        });
+        _check({
+            condition: address(terminal.PERMISSIONS()) == address(permissions),
+            label: "Terminal.PERMISSIONS == permissions",
+            critical: true
+        });
+        // Verify trustedForwarder() on ERC-2771 contracts.
+        address controllerForwarder = controller.trustedForwarder();
+        address terminalForwarder = terminal.trustedForwarder();
+        _check({
+            condition: controllerForwarder == terminalForwarder,
+            label: "Controller and Terminal share the same trustedForwarder",
+            critical: true
+        });
+        _check({condition: controllerForwarder != address(0), label: "trustedForwarder is non-zero", critical: true});
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 15: Croptop Immutables (Finding J)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyCroptopImmutables() internal {
+        console.log("--- Category 15: Croptop Immutables ---");
+
+        // CTPublisher immutables.
+        _check({
+            condition: address(ctPublisher.DIRECTORY()) == address(directory),
+            label: "CTPublisher.DIRECTORY == directory",
+            critical: true
+        });
+        _check({
+            condition: ctPublisher.FEE_PROJECT_ID() == _FEE_PROJECT_ID,
+            label: "CTPublisher.FEE_PROJECT_ID == 1",
+            critical: true
+        });
+
+        // CTDeployer immutables.
+        _check({
+            condition: address(ctDeployer.DEPLOYER()) == address(hookDeployer),
+            label: "CTDeployer.DEPLOYER == hookDeployer",
+            critical: true
+        });
+        _check({
+            condition: address(ctDeployer.PROJECTS()) == address(projects),
+            label: "CTDeployer.PROJECTS == projects",
+            critical: true
+        });
+        _check({
+            condition: address(ctDeployer.PUBLISHER()) == address(ctPublisher),
+            label: "CTDeployer.PUBLISHER == ctPublisher",
+            critical: true
+        });
+        _check({
+            condition: address(ctDeployer.SUCKER_REGISTRY()) == address(suckerRegistry),
+            label: "CTDeployer.SUCKER_REGISTRY == suckerRegistry",
+            critical: true
+        });
+
+        // CTProjectOwner immutables.
+        _check({
+            condition: address(ctProjectOwner.PERMISSIONS()) == address(permissions),
+            label: "CTProjectOwner.PERMISSIONS == permissions",
+            critical: true
+        });
+        _check({
+            condition: address(ctProjectOwner.PROJECTS()) == address(projects),
+            label: "CTProjectOwner.PROJECTS == projects",
+            critical: true
+        });
+        _check({
+            condition: address(ctProjectOwner.PUBLISHER()) == address(ctPublisher),
+            label: "CTProjectOwner.PUBLISHER == ctPublisher",
+            critical: true
+        });
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 16: Hook Deployer Immutables (Finding H/AI)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyHookDeployerImmutables() internal {
+        console.log("--- Category 16: Hook Deployer Immutables ---");
+
+        // JB721TiersHookDeployer immutables.
+        _check({
+            condition: address(hookDeployer.STORE()) == address(hookStore),
+            label: "HookDeployer.STORE == hookStore",
+            critical: true
+        });
+        _check({
+            condition: address(hookDeployer.ADDRESS_REGISTRY()) == addressRegistry,
+            label: "HookDeployer.ADDRESS_REGISTRY == addressRegistry",
+            critical: true
+        });
+
+        // Verify the base hook (implementation) immutables.
+        address baseHook = address(hookDeployer.HOOK());
+        _check({condition: baseHook != address(0), label: "HookDeployer.HOOK is non-zero", critical: true});
+
+        if (baseHook != address(0) && baseHook.code.length > 0) {
+            IJB721TiersHook hook = IJB721TiersHook(baseHook);
+            _check({
+                condition: address(hook.PRICES()) == address(prices),
+                label: "Base hook PRICES == prices",
+                critical: true
+            });
+            _check({
+                condition: address(hook.RULESETS()) == address(rulesets),
+                label: "Base hook RULESETS == rulesets",
+                critical: true
+            });
+            _check({
+                condition: address(hook.STORE()) == address(hookStore),
+                label: "Base hook STORE == hookStore",
+                critical: true
+            });
+            _check({
+                condition: address(hook.SPLITS()) == address(splits),
+                label: "Base hook SPLITS == splits",
+                critical: true
+            });
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 17: REVOwner & REVLoans Immutables (Finding AJ)
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyRevImmutables() internal {
+        console.log("--- Category 17: REVOwner & REVLoans Immutables ---");
+
+        if (address(revOwner) == address(0)) {
+            _skip("REVOwner immutables (not deployed)");
+        } else {
+            _check({
+                condition: address(revOwner.BUYBACK_HOOK()) == address(buybackRegistry),
+                label: "REVOwner.BUYBACK_HOOK == buybackRegistry",
+                critical: true
+            });
+            _check({
+                condition: address(revOwner.DIRECTORY()) == address(directory),
+                label: "REVOwner.DIRECTORY == directory",
+                critical: true
+            });
+            _check({
+                condition: revOwner.FEE_REVNET_ID() == _FEE_PROJECT_ID,
+                label: "REVOwner.FEE_REVNET_ID == 1",
+                critical: true
+            });
+            _check({
+                condition: address(revOwner.LOANS()) == address(revLoans),
+                label: "REVOwner.LOANS == revLoans",
+                critical: true
+            });
+            _check({
+                condition: address(revOwner.SUCKER_REGISTRY()) == address(suckerRegistry),
+                label: "REVOwner.SUCKER_REGISTRY == suckerRegistry",
+                critical: true
+            });
+        }
+
+        if (address(revLoans) == address(0)) {
+            _skip("REVLoans immutables (not deployed)");
+        } else {
+            _check({
+                condition: address(revLoans.CONTROLLER()) == address(controller),
+                label: "REVLoans.CONTROLLER == controller",
+                critical: true
+            });
+            _check({
+                condition: address(revLoans.DIRECTORY()) == address(directory),
+                label: "REVLoans.DIRECTORY == directory",
+                critical: true
+            });
+            _check({
+                condition: address(revLoans.PRICES()) == address(prices),
+                label: "REVLoans.PRICES == prices",
+                critical: true
+            });
+            _check({condition: revLoans.REV_ID() == _REV_PROJECT_ID, label: "REVLoans.REV_ID == 3", critical: true});
+            _check({
+                condition: address(revLoans.SUCKER_REGISTRY()) == address(suckerRegistry),
+                label: "REVLoans.SUCKER_REGISTRY == suckerRegistry",
+                critical: true
             });
         }
 
