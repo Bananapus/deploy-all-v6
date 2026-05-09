@@ -1618,8 +1618,8 @@ contract Verify is Script {
             critical: true
         });
         _check({
-            condition: ctPublisher.FEE_PROJECT_ID() == _FEE_PROJECT_ID,
-            label: "CTPublisher.FEE_PROJECT_ID == 1",
+            condition: ctPublisher.FEE_PROJECT_ID() == _CPN_PROJECT_ID,
+            label: "CTPublisher.FEE_PROJECT_ID == 2",
             critical: true
         });
 
@@ -1748,8 +1748,8 @@ contract Verify is Script {
                 critical: true
             });
             _check({
-                condition: revOwner.FEE_REVNET_ID() == _FEE_PROJECT_ID,
-                label: "REVOwner.FEE_REVNET_ID == 1",
+                condition: revOwner.FEE_REVNET_ID() == _REV_PROJECT_ID,
+                label: "REVOwner.FEE_REVNET_ID == 3",
                 critical: true
             });
             _check({
