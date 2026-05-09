@@ -33,11 +33,11 @@
   "dependencies": {
     "@arbitrum/nitro-contracts": "3.2.0",
     "@ballkidz/defifa": "^0.0.31",
-    "@bananapus/721-hook-v6": "^0.0.46",
+    "@bananapus/721-hook-v6": "^0.0.47",
     "@bananapus/address-registry-v6": "^0.0.25",
     "@bananapus/buyback-hook-v6": "^0.0.37",
     "@bananapus/core-v6": "^0.0.44",
-    "@bananapus/distributor-v6": "^0.0.9",
+    "@bananapus/distributor-v6": "^0.0.13",
     "@bananapus/omnichain-deployers-v6": "^0.0.39",
     "@bananapus/permission-ids-v6": "^0.0.22",
     "@bananapus/project-handles-v6": "^0.0.8",

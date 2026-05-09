@@ -65,6 +65,7 @@ import {JB721InitTiersConfig} from "@bananapus/721-hook-v6/src/structs/JB721Init
 import {JB721TierConfig} from "@bananapus/721-hook-v6/src/structs/JB721TierConfig.sol";
 import {JB721TierConfigFlags} from "@bananapus/721-hook-v6/src/structs/JB721TierConfigFlags.sol";
 import {IJB721TiersHookDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHookDeployer.sol";
+import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
 import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721CheckpointsDeployer.sol";
 import {IJB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721CheckpointsDeployer.sol";
 
@@ -444,13 +445,15 @@ contract Deploy is Script, Sphinx {
 
             // Phase 03d: Router Terminal
             _deployRouterTerminal();
-
-            // Phase 03e: Uniswap V4 LP Split Hook
-            _deployLpSplitHook();
         }
 
-        // Phase 03f: Cross-Chain Suckers
+        // Phase 03e: Cross-Chain Suckers (before LP Split Hook — LP hook needs the registry)
         _deploySuckers();
+
+        if (_positionManager != address(0)) {
+            // Phase 03f: Uniswap V4 LP Split Hook (requires PositionManager + SuckerRegistry)
+            _deployLpSplitHook();
+        }
 
         // Phase 04: Omnichain Deployer
         _deployOmnichainDeployer();
@@ -665,34 +668,29 @@ contract Deploy is Script, Sphinx {
             ? JBFeelessAddresses(feeless)
             : new JBFeelessAddresses{salt: coreSalt}({owner: safeAddress()});
 
-        (address terminalStore, bool terminalStoreDeployed) = _isDeployed({
-            salt: coreSalt,
-            creationCode: type(JBTerminalStore).creationCode,
-            arguments: abi.encode(_directory, _prices, _rulesets)
-        });
+        bytes memory terminalStoreCode = _loadCreationCode("artifacts/JBTerminalStore.json");
+        bytes memory terminalStoreArgs = abi.encode(_directory, _prices, _rulesets);
+        (address terminalStore, bool terminalStoreDeployed) =
+            _isDeployed({salt: coreSalt, creationCode: terminalStoreCode, arguments: terminalStoreArgs});
         _terminalStore = terminalStoreDeployed
             ? JBTerminalStore(terminalStore)
-            : new JBTerminalStore{salt: coreSalt}({directory: _directory, prices: _prices, rulesets: _rulesets});
+            : JBTerminalStore(
+                _deployFromArtifact({
+                    salt: coreSalt, creationCode: terminalStoreCode, constructorArgs: terminalStoreArgs
+                })
+            );
 
-        (address terminal, bool terminalDeployed) = _isDeployed({
-            salt: coreSalt,
-            creationCode: type(JBMultiTerminal).creationCode,
-            arguments: abi.encode(
-                _feeless, _permissions, _projects, _splits, _terminalStore, _tokens, _PERMIT2, _trustedForwarder
-            )
-        });
+        bytes memory terminalCode = _loadCreationCode("artifacts/JBMultiTerminal.json");
+        bytes memory terminalArgs = abi.encode(
+            _feeless, _permissions, _projects, _splits, _terminalStore, _tokens, _PERMIT2, _trustedForwarder
+        );
+        (address terminal, bool terminalDeployed) =
+            _isDeployed({salt: coreSalt, creationCode: terminalCode, arguments: terminalArgs});
         _terminal = terminalDeployed
             ? JBMultiTerminal(terminal)
-            : new JBMultiTerminal{salt: coreSalt}({
-                feelessAddresses: _feeless,
-                permissions: _permissions,
-                projects: _projects,
-                splits: _splits,
-                store: _terminalStore,
-                tokens: _tokens,
-                permit2: _PERMIT2,
-                trustedForwarder: _trustedForwarder
-            });
+            : JBMultiTerminal(
+                _deployFromArtifact({salt: coreSalt, creationCode: terminalCode, constructorArgs: terminalArgs})
+            );
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -711,11 +709,14 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deploy721Hook() internal {
-        (address hookStore, bool hookStoreDeployed) = _isDeployed({
-            salt: HOOK_721_STORE_SALT, creationCode: type(JB721TiersHookStore).creationCode, arguments: ""
-        });
-        _hookStore =
-            hookStoreDeployed ? JB721TiersHookStore(hookStore) : new JB721TiersHookStore{salt: HOOK_721_STORE_SALT}();
+        bytes memory hookStoreCode = _loadCreationCode("artifacts/JB721TiersHookStore.json");
+        (address hookStore, bool hookStoreDeployed) =
+            _isDeployed({salt: HOOK_721_STORE_SALT, creationCode: hookStoreCode, arguments: ""});
+        _hookStore = hookStoreDeployed
+            ? JB721TiersHookStore(hookStore)
+            : JB721TiersHookStore(
+                _deployFromArtifact({salt: HOOK_721_STORE_SALT, creationCode: hookStoreCode, constructorArgs: ""})
+            );
 
         (address checkpointsDeployer, bool checkpointsDeployerDeployed) = _isDeployed({
             salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT,
@@ -726,32 +727,17 @@ contract Deploy is Script, Sphinx {
             ? JB721CheckpointsDeployer(checkpointsDeployer)
             : new JB721CheckpointsDeployer{salt: HOOK_721_CHECKPOINTS_DEPLOYER_SALT}(_hookStore);
 
-        (address hook721, bool hook721Deployed) = _isDeployed({
-            salt: HOOK_721_SALT,
-            creationCode: type(JB721TiersHook).creationCode,
-            arguments: abi.encode(
-                _directory,
-                _permissions,
-                _prices,
-                _rulesets,
-                _hookStore,
-                _splits,
-                _checkpointsDeployer,
-                _trustedForwarder
-            )
-        });
+        bytes memory hook721Code = _loadCreationCode("artifacts/JB721TiersHook.json");
+        bytes memory hook721Args = abi.encode(
+            _directory, _permissions, _prices, _rulesets, _hookStore, _splits, _checkpointsDeployer, _trustedForwarder
+        );
+        (address hook721, bool hook721Deployed) =
+            _isDeployed({salt: HOOK_721_SALT, creationCode: hook721Code, arguments: hook721Args});
         _hook721 = hook721Deployed
             ? JB721TiersHook(hook721)
-            : new JB721TiersHook{salt: HOOK_721_SALT}({
-                directory: _directory,
-                permissions: _permissions,
-                prices: _prices,
-                rulesets: _rulesets,
-                store: _hookStore,
-                splits: _splits,
-                checkpointsDeployer: IJB721CheckpointsDeployer(_checkpointsDeployer),
-                trustedForwarder: _trustedForwarder
-            });
+            : JB721TiersHook(
+                _deployFromArtifact({salt: HOOK_721_SALT, creationCode: hook721Code, constructorArgs: hook721Args})
+            );
 
         (address hookDeployer, bool hookDeployerDeployed) = _isDeployed({
             salt: HOOK_721_DEPLOYER_SALT,
@@ -795,26 +781,20 @@ contract Deploy is Script, Sphinx {
                 | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
         );
 
+        bytes memory v4HookCode = _loadCreationCode("artifacts/JBUniswapV4Hook.json");
         bytes memory constructorArgs = abi.encode(IPoolManager(_poolManager), _tokens, _directory, _prices);
 
         bytes32 salt = _findHookSalt({
-            deployer: _CREATE2_FACTORY,
-            flags: flags,
-            creationCode: type(JBUniswapV4Hook).creationCode,
-            constructorArgs: constructorArgs
+            deployer: _CREATE2_FACTORY, flags: flags, creationCode: v4HookCode, constructorArgs: constructorArgs
         });
 
-        (address hook, bool deployed) = _isDeployed({
-            salt: salt,
-            creationCode: type(JBUniswapV4Hook).creationCode,
-            arguments: abi.encode(IPoolManager(_poolManager), _tokens, _directory, _prices)
-        });
+        (address hook, bool deployed) = _isDeployed({salt: salt, creationCode: v4HookCode, arguments: constructorArgs});
 
         _uniswapV4Hook = deployed
             ? JBUniswapV4Hook(payable(hook))
-            : new JBUniswapV4Hook{salt: salt}({
-                poolManager: IPoolManager(_poolManager), tokens: _tokens, directory: _directory, prices: _prices
-            });
+            : JBUniswapV4Hook(
+                payable(_deployFromArtifact({salt: salt, creationCode: v4HookCode, constructorArgs: constructorArgs}))
+            );
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -844,32 +824,26 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployBuybackHook() internal {
-        (address hook, bool hookDeployed) = _isDeployed({
-            salt: BUYBACK_HOOK_SALT,
-            creationCode: type(JBBuybackHook).creationCode,
-            arguments: abi.encode(
-                _directory,
-                _permissions,
-                _prices,
-                _projects,
-                _tokens,
-                IPoolManager(_poolManager),
-                IHooks(address(_uniswapV4Hook)),
-                _trustedForwarder
-            )
-        });
+        bytes memory buybackCode = _loadCreationCode("artifacts/JBBuybackHook.json");
+        bytes memory buybackArgs = abi.encode(
+            _directory,
+            _permissions,
+            _prices,
+            _projects,
+            _tokens,
+            IPoolManager(_poolManager),
+            IHooks(address(_uniswapV4Hook)),
+            _trustedForwarder
+        );
+        (address hook, bool hookDeployed) =
+            _isDeployed({salt: BUYBACK_HOOK_SALT, creationCode: buybackCode, arguments: buybackArgs});
         _buybackHook = hookDeployed
             ? JBBuybackHook(payable(hook))
-            : new JBBuybackHook{salt: BUYBACK_HOOK_SALT}({
-                directory: _directory,
-                permissions: _permissions,
-                prices: _prices,
-                projects: _projects,
-                tokens: _tokens,
-                poolManager: IPoolManager(_poolManager),
-                oracleHook: IHooks(address(_uniswapV4Hook)),
-                trustedForwarder: _trustedForwarder
-            });
+            : JBBuybackHook(
+                payable(_deployFromArtifact({
+                        salt: BUYBACK_HOOK_SALT, creationCode: buybackCode, constructorArgs: buybackArgs
+                    }))
+            );
 
         if (address(_buybackRegistry.defaultHook()) == address(0)) {
             _buybackRegistry.setDefaultHook({hook: _buybackHook});
@@ -901,34 +875,27 @@ contract Deploy is Script, Sphinx {
                 trustedForwarder: _trustedForwarder
             });
 
-        (address terminal, bool terminalDeployed) = _isDeployed({
-            salt: ROUTER_TERMINAL_SALT,
-            creationCode: type(JBRouterTerminal).creationCode,
-            arguments: abi.encode(
-                _directory,
-                _tokens,
-                _PERMIT2,
-                IWETH9(_weth),
-                IUniswapV3Factory(_v3Factory),
-                IPoolManager(_poolManager),
-                address(_buybackHook),
-                address(_uniswapV4Hook),
-                _trustedForwarder
-            )
-        });
+        bytes memory routerCode = _loadCreationCode("artifacts/JBRouterTerminal.json");
+        bytes memory routerArgs = abi.encode(
+            _directory,
+            _tokens,
+            _PERMIT2,
+            IWETH9(_weth),
+            IUniswapV3Factory(_v3Factory),
+            IPoolManager(_poolManager),
+            address(_buybackHook),
+            address(_uniswapV4Hook),
+            _trustedForwarder
+        );
+        (address terminal, bool terminalDeployed) =
+            _isDeployed({salt: ROUTER_TERMINAL_SALT, creationCode: routerCode, arguments: routerArgs});
         _routerTerminal = terminalDeployed
             ? JBRouterTerminal(payable(terminal))
-            : new JBRouterTerminal{salt: ROUTER_TERMINAL_SALT}({
-                directory: _directory,
-                tokens: _tokens,
-                permit2: _PERMIT2,
-                weth: IWETH9(_weth),
-                factory: IUniswapV3Factory(_v3Factory),
-                poolManager: IPoolManager(_poolManager),
-                buybackHook: address(_buybackHook),
-                univ4Hook: address(_uniswapV4Hook),
-                trustedForwarder: _trustedForwarder
-            });
+            : JBRouterTerminal(
+                payable(_deployFromArtifact({
+                        salt: ROUTER_TERMINAL_SALT, creationCode: routerCode, constructorArgs: routerArgs
+                    }))
+            );
 
         if (address(_routerTerminalRegistry.defaultTerminal()) == address(0)) {
             _routerTerminalRegistry.setDefaultTerminal({terminal: _routerTerminal});
@@ -948,32 +915,26 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployLpSplitHook() internal {
-        (address hook, bool hookDeployed) = _isDeployed({
-            salt: LP_SPLIT_HOOK_SALT,
-            creationCode: type(JBUniswapV4LPSplitHook).creationCode,
-            arguments: abi.encode(
-                address(_directory),
-                _permissions,
-                address(_tokens),
-                IPoolManager(_poolManager),
-                IPositionManager(_positionManager),
-                IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(_uniswapV4Hook)),
-                IJBSuckerRegistry(address(_suckerRegistry))
-            )
-        });
+        bytes memory lpSplitCode = _loadCreationCode("artifacts/JBUniswapV4LPSplitHook.json");
+        bytes memory lpSplitArgs = abi.encode(
+            address(_directory),
+            _permissions,
+            address(_tokens),
+            IPoolManager(_poolManager),
+            IPositionManager(_positionManager),
+            IAllowanceTransfer(address(_PERMIT2)),
+            IHooks(address(_uniswapV4Hook)),
+            IJBSuckerRegistry(address(_suckerRegistry))
+        );
+        (address hook, bool hookDeployed) =
+            _isDeployed({salt: LP_SPLIT_HOOK_SALT, creationCode: lpSplitCode, arguments: lpSplitArgs});
         _lpSplitHook = hookDeployed
             ? JBUniswapV4LPSplitHook(payable(hook))
-            : new JBUniswapV4LPSplitHook{salt: LP_SPLIT_HOOK_SALT}({
-                directory: address(_directory),
-                permissions: _permissions,
-                tokens: address(_tokens),
-                poolManager: IPoolManager(_poolManager),
-                positionManager: IPositionManager(_positionManager),
-                permit2: IAllowanceTransfer(address(_PERMIT2)),
-                oracleHook: IHooks(address(_uniswapV4Hook)),
-                suckerRegistry: IJBSuckerRegistry(address(_suckerRegistry))
-            });
+            : JBUniswapV4LPSplitHook(
+                payable(_deployFromArtifact({
+                        salt: LP_SPLIT_HOOK_SALT, creationCode: lpSplitCode, constructorArgs: lpSplitArgs
+                    }))
+            );
 
         (address deployer, bool deployerDeployed) = _isDeployed({
             salt: LP_SPLIT_HOOK_DEPLOYER_SALT,
@@ -1024,6 +985,8 @@ contract Deploy is Script, Sphinx {
     }
 
     function _deploySuckersOptimism() internal {
+        bytes memory opSuckerCode = _loadCreationCode("artifacts/JBOptimismSucker.json");
+
         // L1: Ethereum Mainnet / Sepolia
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             (address opDeployerAddress, bool opDeployerDeployed) = _isDeployed({
@@ -1055,25 +1018,18 @@ contract Deploy is Script, Sphinx {
                 opDeployer.setChainSpecificConstants(messenger, bridge);
             }
 
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: OP_SALT,
-                creationCode: type(JBOptimismSucker).creationCode,
-                arguments: abi.encode(
-                    opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-                )
-            });
+            bytes memory opSuckerArgs = abi.encode(
+                opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+            );
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: OP_SALT, creationCode: opSuckerCode, arguments: opSuckerArgs});
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
-                : new JBOptimismSucker{salt: OP_SALT}({
-                    deployer: opDeployer,
-                    directory: _directory,
-                    permissions: _permissions,
-                    prices: _prices,
-                    tokens: _tokens,
-                    feeProjectId: 1,
-                    registry: _suckerRegistry,
-                    trustedForwarder: _trustedForwarder
-                });
+                : JBOptimismSucker(
+                    payable(_deployFromArtifact({
+                            salt: OP_SALT, creationCode: opSuckerCode, constructorArgs: opSuckerArgs
+                        }))
+                );
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
             _optimismSuckerDeployer = IJBSuckerDeployer(address(opDeployer));
@@ -1103,25 +1059,18 @@ contract Deploy is Script, Sphinx {
                 );
             }
 
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: OP_SALT,
-                creationCode: type(JBOptimismSucker).creationCode,
-                arguments: abi.encode(
-                    opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-                )
-            });
+            bytes memory opSuckerArgs = abi.encode(
+                opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+            );
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: OP_SALT, creationCode: opSuckerCode, arguments: opSuckerArgs});
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
-                : new JBOptimismSucker{salt: OP_SALT}({
-                    deployer: opDeployer,
-                    directory: _directory,
-                    permissions: _permissions,
-                    prices: _prices,
-                    tokens: _tokens,
-                    feeProjectId: 1,
-                    registry: _suckerRegistry,
-                    trustedForwarder: _trustedForwarder
-                });
+                : JBOptimismSucker(
+                    payable(_deployFromArtifact({
+                            salt: OP_SALT, creationCode: opSuckerCode, constructorArgs: opSuckerArgs
+                        }))
+                );
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
             _optimismSuckerDeployer = IJBSuckerDeployer(address(opDeployer));
@@ -1129,6 +1078,8 @@ contract Deploy is Script, Sphinx {
     }
 
     function _deploySuckersBase() internal {
+        bytes memory baseSuckerCode = _loadCreationCode("artifacts/JBBaseSucker.json");
+
         // L1
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             (address baseDeployerAddress, bool baseDeployerDeployed) = _isDeployed({
@@ -1160,25 +1111,18 @@ contract Deploy is Script, Sphinx {
                 baseDeployer.setChainSpecificConstants(messenger, bridge);
             }
 
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: BASE_SALT,
-                creationCode: type(JBBaseSucker).creationCode,
-                arguments: abi.encode(
-                    baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-                )
-            });
+            bytes memory baseSuckerArgs = abi.encode(
+                baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+            );
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: BASE_SALT, creationCode: baseSuckerCode, arguments: baseSuckerArgs});
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
-                : new JBBaseSucker{salt: BASE_SALT}({
-                    deployer: baseDeployer,
-                    directory: _directory,
-                    permissions: _permissions,
-                    prices: _prices,
-                    tokens: _tokens,
-                    feeProjectId: 1,
-                    registry: _suckerRegistry,
-                    trustedForwarder: _trustedForwarder
-                });
+                : JBBaseSucker(
+                    payable(_deployFromArtifact({
+                            salt: BASE_SALT, creationCode: baseSuckerCode, constructorArgs: baseSuckerArgs
+                        }))
+                );
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
             _baseSuckerDeployer = IJBSuckerDeployer(address(baseDeployer));
@@ -1208,25 +1152,18 @@ contract Deploy is Script, Sphinx {
                 );
             }
 
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: BASE_SALT,
-                creationCode: type(JBBaseSucker).creationCode,
-                arguments: abi.encode(
-                    baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-                )
-            });
+            bytes memory baseSuckerArgs = abi.encode(
+                baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+            );
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: BASE_SALT, creationCode: baseSuckerCode, arguments: baseSuckerArgs});
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
-                : new JBBaseSucker{salt: BASE_SALT}({
-                    deployer: baseDeployer,
-                    directory: _directory,
-                    permissions: _permissions,
-                    prices: _prices,
-                    tokens: _tokens,
-                    feeProjectId: 1,
-                    registry: _suckerRegistry,
-                    trustedForwarder: _trustedForwarder
-                });
+                : JBBaseSucker(
+                    payable(_deployFromArtifact({
+                            salt: BASE_SALT, creationCode: baseSuckerCode, constructorArgs: baseSuckerArgs
+                        }))
+                );
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
             _baseSuckerDeployer = IJBSuckerDeployer(address(baseDeployer));
@@ -1234,6 +1171,8 @@ contract Deploy is Script, Sphinx {
     }
 
     function _deploySuckersArbitrum() internal {
+        bytes memory arbSuckerCode = _loadCreationCode("artifacts/JBArbitrumSucker.json");
+
         // L1
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             (address arbDeployerAddress, bool arbDeployerDeployed) = _isDeployed({
@@ -1261,25 +1200,18 @@ contract Deploy is Script, Sphinx {
                 });
             }
 
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: ARB_SALT,
-                creationCode: type(JBArbitrumSucker).creationCode,
-                arguments: abi.encode(
-                    arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-                )
-            });
+            bytes memory arbSuckerArgs = abi.encode(
+                arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+            );
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: ARB_SALT, creationCode: arbSuckerCode, arguments: arbSuckerArgs});
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
-                : new JBArbitrumSucker{salt: ARB_SALT}({
-                    deployer: arbDeployer,
-                    directory: _directory,
-                    permissions: _permissions,
-                    prices: _prices,
-                    tokens: _tokens,
-                    feeProjectId: 1,
-                    registry: _suckerRegistry,
-                    trustedForwarder: _trustedForwarder
-                });
+                : JBArbitrumSucker(
+                    payable(_deployFromArtifact({
+                            salt: ARB_SALT, creationCode: arbSuckerCode, constructorArgs: arbSuckerArgs
+                        }))
+                );
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
             _arbitrumSuckerDeployer = IJBSuckerDeployer(address(arbDeployer));
@@ -1315,25 +1247,18 @@ contract Deploy is Script, Sphinx {
                 });
             }
 
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: ARB_SALT,
-                creationCode: type(JBArbitrumSucker).creationCode,
-                arguments: abi.encode(
-                    arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-                )
-            });
+            bytes memory arbSuckerArgs = abi.encode(
+                arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+            );
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: ARB_SALT, creationCode: arbSuckerCode, arguments: arbSuckerArgs});
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
-                : new JBArbitrumSucker{salt: ARB_SALT}({
-                    deployer: arbDeployer,
-                    directory: _directory,
-                    permissions: _permissions,
-                    prices: _prices,
-                    tokens: _tokens,
-                    feeProjectId: 1,
-                    registry: _suckerRegistry,
-                    trustedForwarder: _trustedForwarder
-                });
+                : JBArbitrumSucker(
+                    payable(_deployFromArtifact({
+                            salt: ARB_SALT, creationCode: arbSuckerCode, constructorArgs: arbSuckerArgs
+                        }))
+                );
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
             _arbitrumSuckerDeployer = IJBSuckerDeployer(address(arbDeployer));
@@ -1478,25 +1403,18 @@ contract Deploy is Script, Sphinx {
             );
         }
 
-        (address singletonAddress, bool singletonDeployed) = _isDeployed({
-            salt: salt,
-            creationCode: type(JBCCIPSucker).creationCode,
-            arguments: abi.encode(
-                deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-            )
-        });
+        bytes memory ccipSuckerCode = _loadCreationCode("artifacts/JBCCIPSucker.json");
+        bytes memory ccipSuckerArgs =
+            abi.encode(deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder);
+        (address singletonAddress, bool singletonDeployed) =
+            _isDeployed({salt: salt, creationCode: ccipSuckerCode, arguments: ccipSuckerArgs});
         JBCCIPSucker singleton = singletonDeployed
             ? JBCCIPSucker(payable(singletonAddress))
-            : new JBCCIPSucker{salt: salt}({
-                deployer: deployer,
-                directory: _directory,
-                permissions: _permissions,
-                prices: _prices,
-                tokens: _tokens,
-                feeProjectId: 1,
-                registry: _suckerRegistry,
-                trustedForwarder: _trustedForwarder
-            });
+            : JBCCIPSucker(
+                payable(_deployFromArtifact({
+                        salt: salt, creationCode: ccipSuckerCode, constructorArgs: ccipSuckerArgs
+                    }))
+            );
         if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
     }
 
@@ -1530,25 +1448,18 @@ contract Deploy is Script, Sphinx {
             deployer.setChainSpecificConstants(remoteChainId, remoteChainSelector, router);
         }
 
-        (address singletonAddress, bool singletonDeployed) = _isDeployed({
-            salt: salt,
-            creationCode: type(JBCCIPSucker).creationCode,
-            arguments: abi.encode(
-                deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-            )
-        });
+        bytes memory ccipSuckerCode = _loadCreationCode("artifacts/JBCCIPSucker.json");
+        bytes memory ccipSuckerArgs =
+            abi.encode(deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder);
+        (address singletonAddress, bool singletonDeployed) =
+            _isDeployed({salt: salt, creationCode: ccipSuckerCode, arguments: ccipSuckerArgs});
         JBCCIPSucker singleton = singletonDeployed
             ? JBCCIPSucker(payable(singletonAddress))
-            : new JBCCIPSucker{salt: salt}({
-                deployer: deployer,
-                directory: _directory,
-                permissions: _permissions,
-                prices: _prices,
-                tokens: _tokens,
-                feeProjectId: 1,
-                registry: _suckerRegistry,
-                trustedForwarder: _trustedForwarder
-            });
+            : JBCCIPSucker(
+                payable(_deployFromArtifact({
+                        salt: salt, creationCode: ccipSuckerCode, constructorArgs: ccipSuckerArgs
+                    }))
+            );
         if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
     }
 
@@ -1557,28 +1468,24 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployOmnichainDeployer() internal {
-        (address deployer, bool deployed) = _isDeployed({
-            salt: OMNICHAIN_DEPLOYER_SALT,
-            creationCode: type(JBOmnichainDeployer).creationCode,
-            arguments: abi.encode(
-                _suckerRegistry,
-                IJB721TiersHookDeployer(address(_hookDeployer)),
-                _permissions,
-                _projects,
-                _directory,
-                _trustedForwarder
-            )
-        });
+        bytes memory omnichainCode = _loadCreationCode("artifacts/JBOmnichainDeployer.json");
+        bytes memory omnichainArgs = abi.encode(
+            _suckerRegistry,
+            IJB721TiersHookDeployer(address(_hookDeployer)),
+            _permissions,
+            _projects,
+            _directory,
+            _trustedForwarder
+        );
+        (address deployer, bool deployed) =
+            _isDeployed({salt: OMNICHAIN_DEPLOYER_SALT, creationCode: omnichainCode, arguments: omnichainArgs});
         _omnichainDeployer = deployed
             ? JBOmnichainDeployer(deployer)
-            : new JBOmnichainDeployer{salt: OMNICHAIN_DEPLOYER_SALT}({
-                suckerRegistry: _suckerRegistry,
-                hookDeployer: IJB721TiersHookDeployer(address(_hookDeployer)),
-                permissions: _permissions,
-                projects: _projects,
-                directory: _directory,
-                trustedForwarder: _trustedForwarder
-            });
+            : JBOmnichainDeployer(
+                _deployFromArtifact({
+                    salt: OMNICHAIN_DEPLOYER_SALT, creationCode: omnichainCode, constructorArgs: omnichainArgs
+                })
+            );
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1636,36 +1543,26 @@ contract Deploy is Script, Sphinx {
 
         // Deploy the Controller — uses the omnichain deployer address.
         bytes32 coreSalt = keccak256(abi.encode(CORE_DEPLOYMENT_NONCE));
-        (address controller, bool controllerDeployed) = _isDeployed({
-            salt: coreSalt,
-            creationCode: type(JBController).creationCode,
-            arguments: abi.encode(
-                _directory,
-                _fundAccess,
-                _permissions,
-                _prices,
-                _projects,
-                _rulesets,
-                _splits,
-                _tokens,
-                address(_omnichainDeployer),
-                _trustedForwarder
-            )
-        });
+        bytes memory controllerCode = _loadCreationCode("artifacts/JBController.json");
+        bytes memory controllerArgs = abi.encode(
+            _directory,
+            _fundAccess,
+            _permissions,
+            _prices,
+            _projects,
+            _rulesets,
+            _splits,
+            _tokens,
+            address(_omnichainDeployer),
+            _trustedForwarder
+        );
+        (address controller, bool controllerDeployed) =
+            _isDeployed({salt: coreSalt, creationCode: controllerCode, arguments: controllerArgs});
         _controller = controllerDeployed
             ? JBController(controller)
-            : new JBController{salt: coreSalt}({
-                directory: _directory,
-                fundAccessLimits: _fundAccess,
-                permissions: _permissions,
-                prices: _prices,
-                projects: _projects,
-                rulesets: _rulesets,
-                splits: _splits,
-                tokens: _tokens,
-                omnichainRulesetOperator: address(_omnichainDeployer),
-                trustedForwarder: _trustedForwarder
-            });
+            : JBController(
+                _deployFromArtifact({salt: coreSalt, creationCode: controllerCode, constructorArgs: controllerArgs})
+            );
 
         if (!_directory.isAllowedToSetFirstController(address(_controller))) {
             _directory.setIsAllowedToSetFirstController(address(_controller), true);
@@ -2095,28 +1992,24 @@ contract Deploy is Script, Sphinx {
         _revProjectId = _ensureProjectExists(_REV_PROJECT_ID);
 
         // Deploy REVLoans.
-        (address revLoans, bool revLoansDeployed) = _isDeployed({
-            salt: REV_LOANS_SALT,
-            creationCode: type(REVLoans).creationCode,
-            arguments: abi.encode(
-                _controller,
-                IJBSuckerRegistry(address(_suckerRegistry)),
-                _revProjectId,
-                safeAddress(),
-                _PERMIT2,
-                _trustedForwarder
-            )
-        });
+        bytes memory revLoansCode = _loadCreationCode("artifacts/REVLoans.json");
+        bytes memory revLoansArgs = abi.encode(
+            _controller,
+            IJBSuckerRegistry(address(_suckerRegistry)),
+            _revProjectId,
+            safeAddress(),
+            _PERMIT2,
+            _trustedForwarder
+        );
+        (address revLoans, bool revLoansDeployed) =
+            _isDeployed({salt: REV_LOANS_SALT, creationCode: revLoansCode, arguments: revLoansArgs});
         _revLoans = revLoansDeployed
             ? REVLoans(payable(revLoans))
-            : new REVLoans{salt: REV_LOANS_SALT}({
-                controller: _controller,
-                suckerRegistry: IJBSuckerRegistry(address(_suckerRegistry)),
-                revId: _revProjectId,
-                owner: safeAddress(),
-                permit2: _PERMIT2,
-                trustedForwarder: _trustedForwarder
-            });
+            : REVLoans(
+                payable(_deployFromArtifact({
+                        salt: REV_LOANS_SALT, creationCode: revLoansCode, constructorArgs: revLoansArgs
+                    }))
+            );
 
         // Deploy REVHiddenTokens.
         (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed({
@@ -2157,37 +2050,30 @@ contract Deploy is Script, Sphinx {
             });
 
         // Deploy REVDeployer.
-        (address revDeployer, bool revDeployerDeployed) = _isDeployed({
-            salt: REV_DEPLOYER_SALT,
-            creationCode: type(REVDeployer).creationCode,
-            arguments: abi.encode(
-                _controller,
-                _suckerRegistry,
-                _revProjectId,
-                IJB721TiersHookDeployer(address(_hookDeployer)),
-                _ctPublisher,
-                IJBBuybackHookRegistry(address(_buybackRegistry)),
-                address(_revLoans),
-                _trustedForwarder,
-                address(_revOwner)
-            )
-        });
+        bytes memory revDeployerCode = _loadCreationCode("artifacts/REVDeployer.json");
+        bytes memory revDeployerArgs = abi.encode(
+            _controller,
+            _suckerRegistry,
+            _revProjectId,
+            IJB721TiersHookDeployer(address(_hookDeployer)),
+            _ctPublisher,
+            IJBBuybackHookRegistry(address(_buybackRegistry)),
+            address(_revLoans),
+            _trustedForwarder,
+            address(_revOwner)
+        );
+        (address revDeployer, bool revDeployerDeployed) =
+            _isDeployed({salt: REV_DEPLOYER_SALT, creationCode: revDeployerCode, arguments: revDeployerArgs});
         if (address(_revOwner.DEPLOYER()) == address(0)) {
             _revOwner.setDeployer(IREVDeployer(revDeployer));
         }
         _revDeployer = revDeployerDeployed
             ? REVDeployer(revDeployer)
-            : new REVDeployer{salt: REV_DEPLOYER_SALT}({
-                controller: _controller,
-                suckerRegistry: _suckerRegistry,
-                feeRevnetId: _revProjectId,
-                hookDeployer: IJB721TiersHookDeployer(address(_hookDeployer)),
-                publisher: _ctPublisher,
-                buybackHook: IJBBuybackHookRegistry(address(_buybackRegistry)),
-                loans: _revLoans,
-                trustedForwarder: _trustedForwarder,
-                owner: address(_revOwner)
-            });
+            : REVDeployer(
+                _deployFromArtifact({
+                    salt: REV_DEPLOYER_SALT, creationCode: revDeployerCode, constructorArgs: revDeployerArgs
+                })
+            );
 
         // Approve the deployer to configure the $REV project.
         _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
@@ -2568,10 +2454,11 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployBanny() internal {
-        if (
-            _projects.count() >= _BAN_PROJECT_ID && _projects.ownerOf(_BAN_PROJECT_ID) == safeAddress()
-                && address(_tokens.tokenOf(_BAN_PROJECT_ID)) != address(0)
-        ) {
+        // Use canonical identity gates instead of generic ownership check.
+        if (_projects.count() >= _BAN_PROJECT_ID && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)) {
+            if (!_isCanonicalBannyProject()) {
+                revert Deploy_ProjectNotCanonical(_BAN_PROJECT_ID);
+            }
             return;
         }
 
@@ -2600,23 +2487,17 @@ contract Deploy is Script, Sphinx {
                 safeAddress(),
                 _trustedForwarder
             );
-            (address resolverAddress, bool resolverDeployed) = _isDeployed({
-                salt: BAN_RESOLVER_SALT,
-                creationCode: type(Banny721TokenUriResolver).creationCode,
-                arguments: resolverArgs
-            });
+            bytes memory bannyCode = _loadCreationCode("artifacts/Banny721TokenUriResolver.json");
+            (address resolverAddress, bool resolverDeployed) =
+                _isDeployed({salt: BAN_RESOLVER_SALT, creationCode: bannyCode, arguments: resolverArgs});
             if (resolverDeployed) {
                 resolver = Banny721TokenUriResolver(resolverAddress);
             } else {
-                resolver = new Banny721TokenUriResolver{salt: BAN_RESOLVER_SALT}({
-                    bannyBody: bannyBody,
-                    defaultNecklace: defaultNecklace,
-                    defaultMouth: defaultMouth,
-                    defaultStandardEyes: defaultStandardEyes,
-                    defaultAlienEyes: defaultAlienEyes,
-                    owner: safeAddress(),
-                    trustedForwarder: _trustedForwarder
-                });
+                resolver = Banny721TokenUriResolver(
+                    _deployFromArtifact({
+                        salt: BAN_RESOLVER_SALT, creationCode: bannyCode, constructorArgs: resolverArgs
+                    })
+                );
                 resolver.setMetadata(
                     "A piece of Banny Retail.",
                     "https://retail.banny.eth.shop",
@@ -2875,17 +2756,18 @@ contract Deploy is Script, Sphinx {
             bytes memory hookArgs = abi.encode(_directory, defifaToken, baseProtocolToken);
 
             // Predict the CREATE2 address for the hook.
+            bytes memory defifaHookCode = _loadCreationCode("artifacts/DefifaHook.json");
             (address hookAddr, bool hookDeployed) =
-                _isDeployed({salt: DEFIFA_SALT, creationCode: type(DefifaHook).creationCode, arguments: hookArgs});
+                _isDeployed({salt: DEFIFA_SALT, creationCode: defifaHookCode, arguments: hookArgs});
 
             if (hookDeployed) {
                 // Re-use the already-deployed hook.
                 _defifaHook = DefifaHook(hookAddr);
             } else {
                 // Deploy the Defifa hook code origin used as a template for clones.
-                _defifaHook = new DefifaHook{salt: DEFIFA_SALT}({
-                    _directory: _directory, _defifaToken: defifaToken, _baseProtocolToken: baseProtocolToken
-                });
+                _defifaHook = DefifaHook(
+                    _deployFromArtifact({salt: DEFIFA_SALT, creationCode: defifaHookCode, constructorArgs: hookArgs})
+                );
             }
         }
 
@@ -2930,10 +2812,14 @@ contract Deploy is Script, Sphinx {
 
         // ── DefifaHookStore (dedicated store for Defifa game NFT tiers) ──
         {
+            bytes memory defifaStoreCode = _loadCreationCode("artifacts/JB721TiersHookStore.json");
             (address storeAddr, bool storeDeployed) =
-                _isDeployed({salt: DEFIFA_SALT, creationCode: type(JB721TiersHookStore).creationCode, arguments: ""});
-            _defifaHookStore =
-                storeDeployed ? JB721TiersHookStore(storeAddr) : new JB721TiersHookStore{salt: DEFIFA_SALT}();
+                _isDeployed({salt: DEFIFA_SALT, creationCode: defifaStoreCode, arguments: ""});
+            _defifaHookStore = storeDeployed
+                ? JB721TiersHookStore(storeAddr)
+                : JB721TiersHookStore(
+                    _deployFromArtifact({salt: DEFIFA_SALT, creationCode: defifaStoreCode, constructorArgs: ""})
+                );
         }
 
         // ── DefifaDeployer (factory that creates new Defifa games) ──
@@ -2951,25 +2837,20 @@ contract Deploy is Script, Sphinx {
             );
 
             // Predict the CREATE2 address for the deployer.
-            (address deployerAddr, bool deployerDeployed) = _isDeployed({
-                salt: DEFIFA_SALT, creationCode: type(DefifaDeployer).creationCode, arguments: deployerArgs
-            });
+            bytes memory defifaDeployerCode = _loadCreationCode("artifacts/DefifaDeployer.json");
+            (address deployerAddr, bool deployerDeployed) =
+                _isDeployed({salt: DEFIFA_SALT, creationCode: defifaDeployerCode, arguments: deployerArgs});
 
             if (deployerDeployed) {
                 // Re-use the already-deployed deployer.
                 _defifaDeployer = DefifaDeployer(deployerAddr);
             } else {
                 // Deploy the Defifa game factory that clones the hook and launches projects.
-                _defifaDeployer = new DefifaDeployer{salt: DEFIFA_SALT}({
-                    _hookCodeOrigin: address(_defifaHook),
-                    _tokenUriResolver: _defifaTokenUriResolver,
-                    _governor: _defifaGovernor,
-                    _controller: _controller,
-                    _registry: _addressRegistry,
-                    _defifaProjectId: _REV_PROJECT_ID,
-                    _baseProtocolProjectId: _FEE_PROJECT_ID,
-                    _hookStore: _defifaHookStore
-                });
+                _defifaDeployer = DefifaDeployer(
+                    _deployFromArtifact({
+                        salt: DEFIFA_SALT, creationCode: defifaDeployerCode, constructorArgs: deployerArgs
+                    })
+                );
 
                 // Transfer governor ownership to the deployer so it can initialize games.
                 _defifaGovernor.transferOwnership(address(_defifaDeployer));
@@ -3100,6 +2981,24 @@ contract Deploy is Script, Sphinx {
         }
     }
 
+    /// @dev Canonical identity gate for the Banny project (ID 4).
+    function _isCanonicalBannyProject() internal view returns (bool) {
+        if (!_isCanonicalRevnetProject(_BAN_PROJECT_ID, "BAN")) return false;
+        if (address(_revOwner) == address(0)) return false;
+
+        IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
+        if (address(hook) == address(0)) return false;
+        if (hook.PROJECT_ID() != _BAN_PROJECT_ID) return false;
+        if (address(hook.STORE()) != address(_hookStore)) return false;
+
+        // Verify the BANNY symbol on the 721 hook.
+        (bool success, bytes memory data) = address(hook).staticcall(abi.encodeWithSignature("symbol()"));
+        if (!success || data.length < 32) return false;
+        if (keccak256(bytes(abi.decode(data, (string)))) != keccak256(bytes("BANNY"))) return false;
+
+        return true;
+    }
+
     function _isCanonicalRevnetProject(uint256 projectId, string memory expectedSymbol) internal view returns (bool) {
         if (_projects.ownerOf(projectId) != address(_revDeployer)) return false;
         if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
@@ -3144,6 +3043,28 @@ contract Deploy is Script, Sphinx {
             salt: salt, initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)), deployer: safeAddress()
         });
         isDeployed = deployedTo.code.length != 0;
+    }
+
+    /// @dev Load creation bytecode from a pre-compiled artifact JSON file.
+    function _loadCreationCode(string memory artifactPath) internal view returns (bytes memory) {
+        string memory json = vm.readFile(artifactPath);
+        return vm.parseJsonBytes(json, ".bytecode.object");
+    }
+
+    /// @dev Deploy using CREATE2 from pre-compiled creation bytecode.
+    function _deployFromArtifact(
+        bytes32 salt,
+        bytes memory creationCode,
+        bytes memory constructorArgs
+    )
+        internal
+        returns (address addr)
+    {
+        bytes memory initCode = abi.encodePacked(creationCode, constructorArgs);
+        assembly {
+            addr := create2(0, add(initCode, 0x20), mload(initCode), salt)
+        }
+        require(addr != address(0), "CREATE2 failed");
     }
 
     function _findHookSalt(

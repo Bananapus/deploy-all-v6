@@ -62,7 +62,7 @@ abstract contract RevnetEcosystemBase is RevnetForkBase {
             positionManager,
             permit2(),
             IHooks(address(0)),
-            IJBSuckerRegistry(address(0))
+            IJBSuckerRegistry(address(SUCKER_REGISTRY))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize(0, 0);
