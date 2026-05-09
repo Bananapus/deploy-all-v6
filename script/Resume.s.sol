@@ -105,6 +105,7 @@ import {IJB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/interfaces/I
 import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
+import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
@@ -981,8 +982,18 @@ contract Resume is Script {
             );
         }
 
-        // Pin the buyback hook for project 1 (NANA) so it persists even if the default changes.
-        _buybackRegistry.setHookFor({projectId: _FEE_PROJECT_ID, hook: _buybackHook});
+        // Idempotent: pin the buyback hook for project 1 (NANA) only if not already set.
+        IJBRulesetDataHook currentProjectHook = _buybackRegistry.hookOf(_FEE_PROJECT_ID);
+        if (
+            address(currentProjectHook) == address(0)
+                || address(currentProjectHook) == address(_buybackRegistry.defaultHook())
+        ) {
+            _buybackRegistry.setHookFor({projectId: _FEE_PROJECT_ID, hook: _buybackHook});
+        } else if (address(currentProjectHook) != address(_buybackHook)) {
+            revert Resume_AddressMismatch(
+                "BuybackRegistry.hookOf(1)", address(_buybackHook), address(currentProjectHook)
+            );
+        }
 
         // Log the result.
         _logPhase({phaseId: "03d", phaseName: "Buyback Hook", allDeployed: hookDeployed});
