@@ -63,7 +63,6 @@ import {CTProjectOwner} from "@croptop/core-v6/src/CTProjectOwner.sol";
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 
 // ── Defifa ──
 import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
@@ -179,8 +178,6 @@ contract Verify is Script {
 
     // Dedicated Defifa hook store (separate from shared 721 hook store).
     JB721TiersHookStore public defifaHookStore;
-    // REVHiddenTokens contract.
-    REVHiddenTokens public revHiddenTokens;
     // Expected trusted forwarder address.
     address public expectedTrustedForwarder;
 
@@ -342,8 +339,6 @@ contract Verify is Script {
 
         // Read the dedicated Defifa hook store address (separate from shared 721 hook store).
         defifaHookStore = JB721TiersHookStore(vm.envOr({name: "VERIFY_DEFIFA_HOOK_STORE", defaultValue: address(0)}));
-        // Read the REVHiddenTokens address.
-        revHiddenTokens = REVHiddenTokens(vm.envOr({name: "VERIFY_REV_HIDDEN_TOKENS", defaultValue: address(0)}));
         // Read the expected trusted forwarder address.
         expectedTrustedForwarder = vm.envOr({name: "VERIFY_TRUSTED_FORWARDER", defaultValue: address(0)});
 
@@ -393,9 +388,6 @@ contract Verify is Script {
             require(expectedSafe != address(0), "Verify: VERIFY_SAFE required on production chain");
             require(
                 expectedTrustedForwarder != address(0), "Verify: VERIFY_TRUSTED_FORWARDER required on production chain"
-            );
-            require(
-                address(revHiddenTokens) != address(0), "Verify: VERIFY_REV_HIDDEN_TOKENS required on production chain"
             );
         }
     }
@@ -1762,13 +1754,6 @@ contract Verify is Script {
                 label: "REVOwner.SUCKER_REGISTRY == suckerRegistry",
                 critical: true
             });
-            if (address(revHiddenTokens) != address(0)) {
-                _check({
-                    condition: address(revOwner.HIDDEN_TOKENS()) == address(revHiddenTokens),
-                    label: "REVOwner.HIDDEN_TOKENS == revHiddenTokens",
-                    critical: true
-                });
-            }
         }
 
         if (address(revLoans) == address(0)) {
@@ -1798,20 +1783,6 @@ contract Verify is Script {
             _check({
                 condition: address(revLoans.PERMIT2()) != address(0),
                 label: "REVLoans.PERMIT2 is non-zero",
-                critical: true
-            });
-        }
-
-        // Verify REVHiddenTokens wiring.
-        if (address(revHiddenTokens) != address(0)) {
-            _check({
-                condition: address(revHiddenTokens.CONTROLLER()) == address(controller),
-                label: "REVHiddenTokens.CONTROLLER == controller",
-                critical: true
-            });
-            _check({
-                condition: address(revHiddenTokens.PROJECTS()) == address(projects),
-                label: "REVHiddenTokens.PROJECTS == projects",
                 critical: true
             });
         }
