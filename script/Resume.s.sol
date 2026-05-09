@@ -478,7 +478,6 @@ contract Resume is Script {
 
             // ── Phase 03e: Router Terminal ──
             _resumeRouterTerminal();
-
         }
 
         // ── Phase 03e: Cross-Chain Suckers (before LP Split Hook — LP hook needs the registry) ──
@@ -726,9 +725,8 @@ contract Resume is Script {
             (address tokens, bool tokensDeployed) = _isDeployed({
                 salt: coreSalt, creationCode: type(JBTokens).creationCode, arguments: abi.encode(_directory, token)
             });
-            _tokens = tokensDeployed
-                ? JBTokens(tokens)
-                : new JBTokens{salt: coreSalt}({directory: _directory, token: token});
+            _tokens =
+                tokensDeployed ? JBTokens(tokens) : new JBTokens{salt: coreSalt}({directory: _directory, token: token});
             allCoreDeployed = allCoreDeployed && tokensDeployed;
         }
 
@@ -748,9 +746,8 @@ contract Resume is Script {
             (address feeless, bool deployed) = _isDeployed({
                 salt: coreSalt, creationCode: type(JBFeelessAddresses).creationCode, arguments: abi.encode(_deployer)
             });
-            _feeless = deployed
-                ? JBFeelessAddresses(feeless)
-                : new JBFeelessAddresses{salt: coreSalt}({owner: _deployer});
+            _feeless =
+                deployed ? JBFeelessAddresses(feeless) : new JBFeelessAddresses{salt: coreSalt}({owner: _deployer});
             allCoreDeployed = allCoreDeployed && deployed;
         }
 
@@ -758,11 +755,8 @@ contract Resume is Script {
         {
             bytes memory terminalStoreCode = _loadCreationCode("artifacts/JBTerminalStore.json");
             bytes memory terminalStoreArgs = abi.encode(_directory, _prices, _rulesets);
-            (address terminalStore, bool deployed) = _isDeployed({
-                salt: coreSalt,
-                creationCode: terminalStoreCode,
-                arguments: terminalStoreArgs
-            });
+            (address terminalStore, bool deployed) =
+                _isDeployed({salt: coreSalt, creationCode: terminalStoreCode, arguments: terminalStoreArgs});
             _terminalStore = deployed
                 ? JBTerminalStore(terminalStore)
                 : JBTerminalStore(
@@ -779,11 +773,8 @@ contract Resume is Script {
             bytes memory terminalArgs = abi.encode(
                 _feeless, _permissions, _projects, _splits, _terminalStore, _tokens, _PERMIT2, _trustedForwarder
             );
-            (address terminal, bool deployed) = _isDeployed({
-                salt: coreSalt,
-                creationCode: terminalCode,
-                arguments: terminalArgs
-            });
+            (address terminal, bool deployed) =
+                _isDeployed({salt: coreSalt, creationCode: terminalCode, arguments: terminalArgs});
             _terminal = deployed
                 ? JBMultiTerminal(terminal)
                 : JBMultiTerminal(
@@ -825,9 +816,8 @@ contract Resume is Script {
     function _resume721Hook() internal {
         // Deploy or resolve hook store.
         bytes memory hookStoreCode = _loadCreationCode("artifacts/JB721TiersHookStore.json");
-        (address hookStore, bool hookStoreDeployed) = _isDeployed({
-            salt: HOOK_721_STORE_SALT, creationCode: hookStoreCode, arguments: ""
-        });
+        (address hookStore, bool hookStoreDeployed) =
+            _isDeployed({salt: HOOK_721_STORE_SALT, creationCode: hookStoreCode, arguments: ""});
         _hookStore = hookStoreDeployed
             ? JB721TiersHookStore(hookStore)
             : JB721TiersHookStore(
@@ -847,20 +837,10 @@ contract Resume is Script {
         // Deploy or resolve 721 hook implementation.
         bytes memory hook721Code = _loadCreationCode("artifacts/JB721TiersHook.json");
         bytes memory hook721Args = abi.encode(
-            _directory,
-            _permissions,
-            _prices,
-            _rulesets,
-            _hookStore,
-            _splits,
-            _checkpointsDeployer,
-            _trustedForwarder
+            _directory, _permissions, _prices, _rulesets, _hookStore, _splits, _checkpointsDeployer, _trustedForwarder
         );
-        (address hook721, bool hook721Deployed) = _isDeployed({
-            salt: HOOK_721_SALT,
-            creationCode: hook721Code,
-            arguments: hook721Args
-        });
+        (address hook721, bool hook721Deployed) =
+            _isDeployed({salt: HOOK_721_SALT, creationCode: hook721Code, arguments: hook721Args});
         _hook721 = hook721Deployed
             ? JB721TiersHook(hook721)
             : JB721TiersHook(
@@ -922,15 +902,11 @@ contract Resume is Script {
 
         // Mine a salt that produces an address with the correct Uniswap hook flags.
         bytes32 salt = _findHookSalt({
-            deployer: _CREATE2_FACTORY,
-            flags: flags,
-            creationCode: v4HookCode,
-            constructorArgs: v4HookArgs
+            deployer: _CREATE2_FACTORY, flags: flags, creationCode: v4HookCode, constructorArgs: v4HookArgs
         });
 
         // Check if already deployed at the deterministic address.
-        (address hook, bool deployed) =
-            _isDeployed({salt: salt, creationCode: v4HookCode, arguments: v4HookArgs});
+        (address hook, bool deployed) = _isDeployed({salt: salt, creationCode: v4HookCode, arguments: v4HookArgs});
 
         // Use existing or deploy new.
         _uniswapV4Hook = deployed
@@ -983,19 +959,14 @@ contract Resume is Script {
             IHooks(address(_uniswapV4Hook)),
             _trustedForwarder
         );
-        (address hook, bool hookDeployed) = _isDeployed({
-            salt: BUYBACK_HOOK_SALT,
-            creationCode: buybackCode,
-            arguments: buybackArgs
-        });
+        (address hook, bool hookDeployed) =
+            _isDeployed({salt: BUYBACK_HOOK_SALT, creationCode: buybackCode, arguments: buybackArgs});
         _buybackHook = hookDeployed
             ? JBBuybackHook(payable(hook))
             : JBBuybackHook(
-                payable(
-                    _deployFromArtifact({
+                payable(_deployFromArtifact({
                         salt: BUYBACK_HOOK_SALT, creationCode: buybackCode, constructorArgs: buybackArgs
-                    })
-                )
+                    }))
             );
 
         // Idempotent: set default hook only if not already set.
@@ -1048,19 +1019,14 @@ contract Resume is Script {
             address(_uniswapV4Hook),
             _trustedForwarder
         );
-        (address terminal, bool terminalDeployed) = _isDeployed({
-            salt: ROUTER_TERMINAL_SALT,
-            creationCode: routerCode,
-            arguments: routerArgs
-        });
+        (address terminal, bool terminalDeployed) =
+            _isDeployed({salt: ROUTER_TERMINAL_SALT, creationCode: routerCode, arguments: routerArgs});
         _routerTerminal = terminalDeployed
             ? JBRouterTerminal(payable(terminal))
             : JBRouterTerminal(
-                payable(
-                    _deployFromArtifact({
+                payable(_deployFromArtifact({
                         salt: ROUTER_TERMINAL_SALT, creationCode: routerCode, constructorArgs: routerArgs
-                    })
-                )
+                    }))
             );
 
         // Idempotent: set default terminal only if not already set.
@@ -1100,19 +1066,14 @@ contract Resume is Script {
             IHooks(address(_uniswapV4Hook)),
             IJBSuckerRegistry(address(_suckerRegistry))
         );
-        (address hook, bool hookDeployed) = _isDeployed({
-            salt: LP_SPLIT_HOOK_SALT,
-            creationCode: lpSplitCode,
-            arguments: lpSplitArgs
-        });
+        (address hook, bool hookDeployed) =
+            _isDeployed({salt: LP_SPLIT_HOOK_SALT, creationCode: lpSplitCode, arguments: lpSplitArgs});
         _lpSplitHook = hookDeployed
             ? JBUniswapV4LPSplitHook(payable(hook))
             : JBUniswapV4LPSplitHook(
-                payable(
-                    _deployFromArtifact({
+                payable(_deployFromArtifact({
                         salt: LP_SPLIT_HOOK_SALT, creationCode: lpSplitCode, constructorArgs: lpSplitArgs
-                    })
-                )
+                    }))
             );
 
         // Deploy or resolve the LP split hook deployer.
@@ -1209,17 +1170,14 @@ contract Resume is Script {
             bytes memory opSuckerArgs = abi.encode(
                 opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
             );
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: OP_SALT,
-                creationCode: opSuckerCode,
-                arguments: opSuckerArgs
-            });
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: OP_SALT, creationCode: opSuckerCode, arguments: opSuckerArgs});
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
                 : JBOptimismSucker(
-                    payable(
-                        _deployFromArtifact({salt: OP_SALT, creationCode: opSuckerCode, constructorArgs: opSuckerArgs})
-                    )
+                    payable(_deployFromArtifact({
+                            salt: OP_SALT, creationCode: opSuckerCode, constructorArgs: opSuckerArgs
+                        }))
                 );
             // Configure singleton in deployer if not already done.
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
@@ -1255,17 +1213,14 @@ contract Resume is Script {
             bytes memory opSuckerArgs = abi.encode(
                 opDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
             );
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: OP_SALT,
-                creationCode: opSuckerCode,
-                arguments: opSuckerArgs
-            });
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: OP_SALT, creationCode: opSuckerCode, arguments: opSuckerArgs});
             JBOptimismSucker singleton = singletonDeployed
                 ? JBOptimismSucker(payable(singletonAddress))
                 : JBOptimismSucker(
-                    payable(
-                        _deployFromArtifact({salt: OP_SALT, creationCode: opSuckerCode, constructorArgs: opSuckerArgs})
-                    )
+                    payable(_deployFromArtifact({
+                            salt: OP_SALT, creationCode: opSuckerCode, constructorArgs: opSuckerArgs
+                        }))
                 );
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
@@ -1313,19 +1268,14 @@ contract Resume is Script {
             bytes memory baseSuckerArgs = abi.encode(
                 baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
             );
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: BASE_SALT,
-                creationCode: baseSuckerCode,
-                arguments: baseSuckerArgs
-            });
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: BASE_SALT, creationCode: baseSuckerCode, arguments: baseSuckerArgs});
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
                 : JBBaseSucker(
-                    payable(
-                        _deployFromArtifact({
+                    payable(_deployFromArtifact({
                             salt: BASE_SALT, creationCode: baseSuckerCode, constructorArgs: baseSuckerArgs
-                        })
-                    )
+                        }))
                 );
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
@@ -1360,19 +1310,14 @@ contract Resume is Script {
             bytes memory baseSuckerArgs = abi.encode(
                 baseDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
             );
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: BASE_SALT,
-                creationCode: baseSuckerCode,
-                arguments: baseSuckerArgs
-            });
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: BASE_SALT, creationCode: baseSuckerCode, arguments: baseSuckerArgs});
             JBBaseSucker singleton = singletonDeployed
                 ? JBBaseSucker(payable(singletonAddress))
                 : JBBaseSucker(
-                    payable(
-                        _deployFromArtifact({
+                    payable(_deployFromArtifact({
                             salt: BASE_SALT, creationCode: baseSuckerCode, constructorArgs: baseSuckerArgs
-                        })
-                    )
+                        }))
                 );
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
@@ -1419,19 +1364,14 @@ contract Resume is Script {
             bytes memory arbSuckerArgs = abi.encode(
                 arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
             );
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: ARB_SALT,
-                creationCode: arbSuckerCode,
-                arguments: arbSuckerArgs
-            });
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: ARB_SALT, creationCode: arbSuckerCode, arguments: arbSuckerArgs});
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
                 : JBArbitrumSucker(
-                    payable(
-                        _deployFromArtifact({
+                    payable(_deployFromArtifact({
                             salt: ARB_SALT, creationCode: arbSuckerCode, constructorArgs: arbSuckerArgs
-                        })
-                    )
+                        }))
                 );
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
@@ -1473,19 +1413,14 @@ contract Resume is Script {
             bytes memory arbSuckerArgs = abi.encode(
                 arbDeployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
             );
-            (address singletonAddress, bool singletonDeployed) = _isDeployed({
-                salt: ARB_SALT,
-                creationCode: arbSuckerCode,
-                arguments: arbSuckerArgs
-            });
+            (address singletonAddress, bool singletonDeployed) =
+                _isDeployed({salt: ARB_SALT, creationCode: arbSuckerCode, arguments: arbSuckerArgs});
             JBArbitrumSucker singleton = singletonDeployed
                 ? JBArbitrumSucker(payable(singletonAddress))
                 : JBArbitrumSucker(
-                    payable(
-                        _deployFromArtifact({
+                    payable(_deployFromArtifact({
                             salt: ARB_SALT, creationCode: arbSuckerCode, constructorArgs: arbSuckerArgs
-                        })
-                    )
+                        }))
                 );
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
@@ -1629,20 +1564,16 @@ contract Resume is Script {
 
         // Deploy or resolve the CCIP sucker singleton.
         bytes memory ccipSuckerCode = _loadCreationCode("artifacts/JBCCIPSucker.json");
-        bytes memory ccipSuckerArgs = abi.encode(
-            deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-        );
-        (address singletonAddress, bool singletonDeployed) = _isDeployed({
-            salt: salt,
-            creationCode: ccipSuckerCode,
-            arguments: ccipSuckerArgs
-        });
+        bytes memory ccipSuckerArgs =
+            abi.encode(deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder);
+        (address singletonAddress, bool singletonDeployed) =
+            _isDeployed({salt: salt, creationCode: ccipSuckerCode, arguments: ccipSuckerArgs});
         JBCCIPSucker singleton = singletonDeployed
             ? JBCCIPSucker(payable(singletonAddress))
             : JBCCIPSucker(
-                payable(
-                    _deployFromArtifact({salt: salt, creationCode: ccipSuckerCode, constructorArgs: ccipSuckerArgs})
-                )
+                payable(_deployFromArtifact({
+                        salt: salt, creationCode: ccipSuckerCode, constructorArgs: ccipSuckerArgs
+                    }))
             );
         // Configure singleton in deployer if not already done.
         if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
@@ -1663,11 +1594,8 @@ contract Resume is Script {
             _directory,
             _trustedForwarder
         );
-        (address deployer, bool deployed) = _isDeployed({
-            salt: OMNICHAIN_DEPLOYER_SALT,
-            creationCode: omnichainCode,
-            arguments: omnichainArgs
-        });
+        (address deployer, bool deployed) =
+            _isDeployed({salt: OMNICHAIN_DEPLOYER_SALT, creationCode: omnichainCode, arguments: omnichainArgs});
         _omnichainDeployer = deployed
             ? JBOmnichainDeployer(deployer)
             : JBOmnichainDeployer(
@@ -1744,11 +1672,8 @@ contract Resume is Script {
             address(_omnichainDeployer),
             _trustedForwarder
         );
-        (address controller, bool controllerDeployed) = _isDeployed({
-            salt: coreSalt,
-            creationCode: controllerCode,
-            arguments: controllerArgs
-        });
+        (address controller, bool controllerDeployed) =
+            _isDeployed({salt: coreSalt, creationCode: controllerCode, arguments: controllerArgs});
         _controller = controllerDeployed
             ? JBController(controller)
             : JBController(
@@ -2195,19 +2120,14 @@ contract Resume is Script {
             _PERMIT2,
             _trustedForwarder
         );
-        (address revLoans, bool revLoansDeployed) = _isDeployed({
-            salt: REV_LOANS_SALT,
-            creationCode: revLoansCode,
-            arguments: revLoansArgs
-        });
+        (address revLoans, bool revLoansDeployed) =
+            _isDeployed({salt: REV_LOANS_SALT, creationCode: revLoansCode, arguments: revLoansArgs});
         _revLoans = revLoansDeployed
             ? REVLoans(payable(revLoans))
             : REVLoans(
-                payable(
-                    _deployFromArtifact({
+                payable(_deployFromArtifact({
                         salt: REV_LOANS_SALT, creationCode: revLoansCode, constructorArgs: revLoansArgs
-                    })
-                )
+                    }))
             );
 
         // Deploy or resolve REVHiddenTokens.
@@ -2259,11 +2179,8 @@ contract Resume is Script {
             _trustedForwarder,
             address(_revOwner)
         );
-        (address revDeployer, bool revDeployerDeployed) = _isDeployed({
-            salt: REV_DEPLOYER_SALT,
-            creationCode: revDeployerCode,
-            arguments: revDeployerArgs
-        });
+        (address revDeployer, bool revDeployerDeployed) =
+            _isDeployed({salt: REV_DEPLOYER_SALT, creationCode: revDeployerCode, arguments: revDeployerArgs});
         if (address(_revOwner.DEPLOYER()) == address(0)) {
             _revOwner.setDeployer(IREVDeployer(revDeployer));
         }
@@ -2707,10 +2624,7 @@ contract Resume is Script {
         }
 
         // Use canonical identity gates instead of generic ownership check.
-        if (
-            _projects.count() >= _BAN_PROJECT_ID
-                && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)
-        ) {
+        if (_projects.count() >= _BAN_PROJECT_ID && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)) {
             if (!_isCanonicalConfiguredProject(_BAN_PROJECT_ID)) {
                 revert Resume_ProjectNotCanonical(_BAN_PROJECT_ID);
             }
@@ -2748,11 +2662,8 @@ contract Resume is Script {
                 _deployer,
                 _trustedForwarder
             );
-            (address resolverAddress, bool resolverDeployed) = _isDeployed({
-                salt: BAN_RESOLVER_SALT,
-                creationCode: bannyCode,
-                arguments: resolverArgs
-            });
+            (address resolverAddress, bool resolverDeployed) =
+                _isDeployed({salt: BAN_RESOLVER_SALT, creationCode: bannyCode, arguments: resolverArgs});
             if (resolverDeployed) {
                 resolver = Banny721TokenUriResolver(resolverAddress);
                 // Re-initialize metadata if resolver was deployed but setMetadata was interrupted.
@@ -3097,9 +3008,8 @@ contract Resume is Script {
                 _FEE_PROJECT_ID,
                 _defifaHookStore
             );
-            (address deployerAddr, bool deployerDeployed) = _isDeployed({
-                salt: DEFIFA_SALT, creationCode: defifaDeployerCode, arguments: deployerArgs
-            });
+            (address deployerAddr, bool deployerDeployed) =
+                _isDeployed({salt: DEFIFA_SALT, creationCode: defifaDeployerCode, arguments: deployerArgs});
 
             if (deployerDeployed) {
                 _defifaDeployer = DefifaDeployer(deployerAddr);

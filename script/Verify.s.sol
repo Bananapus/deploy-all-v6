@@ -392,12 +392,10 @@ contract Verify is Script {
             );
             require(expectedSafe != address(0), "Verify: VERIFY_SAFE required on production chain");
             require(
-                expectedTrustedForwarder != address(0),
-                "Verify: VERIFY_TRUSTED_FORWARDER required on production chain"
+                expectedTrustedForwarder != address(0), "Verify: VERIFY_TRUSTED_FORWARDER required on production chain"
             );
             require(
-                address(revHiddenTokens) != address(0),
-                "Verify: VERIFY_REV_HIDDEN_TOKENS required on production chain"
+                address(revHiddenTokens) != address(0), "Verify: VERIFY_REV_HIDDEN_TOKENS required on production chain"
             );
         }
     }
@@ -1193,7 +1191,9 @@ contract Verify is Script {
                     projectId: 0,
                     pricingCurrency: JBCurrencyIds.USD,
                     unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
-                }) returns (IJBPriceFeed feed) {
+                }) returns (
+                    IJBPriceFeed feed
+                ) {
                     // Dereference through the wrapper to compare the inner aggregator.
                     try JBChainlinkV3PriceFeed(address(feed)).FEED() returns (AggregatorV3Interface innerFeed) {
                         _check({
@@ -1217,9 +1217,7 @@ contract Verify is Script {
                             });
                         } catch {
                             _check({
-                                condition: false,
-                                label: "L2 ETH/USD feed is sequencer-aware variant",
-                                critical: true
+                                condition: false, label: "L2 ETH/USD feed is sequencer-aware variant", critical: true
                             });
                         }
                     }
@@ -1544,11 +1542,7 @@ contract Verify is Script {
             });
         }
         if (address(revLoans) != address(0)) {
-            _check({
-                condition: revLoans.owner() == expectedSafe,
-                label: "REVLoans owner == safe",
-                critical: true
-            });
+            _check({condition: revLoans.owner() == expectedSafe, label: "REVLoans owner == safe", critical: true});
         }
 
         console.log("");
@@ -1872,20 +1866,14 @@ contract Verify is Script {
             IJB721TiersHook bannyHook = revOwner.tiered721HookOf(_BAN_PROJECT_ID);
             if (address(bannyHook) != address(0)) {
                 address resolver = address(hookStore.tokenUriResolverOf(address(bannyHook)));
-                _check({
-                    condition: resolver != address(0),
-                    label: "Banny hook has token URI resolver",
-                    critical: true
-                });
+                _check({condition: resolver != address(0), label: "Banny hook has token URI resolver", critical: true});
                 if (resolver != address(0)) {
                     _check({condition: resolver.code.length > 0, label: "Banny resolver has code", critical: true});
                 }
 
                 try bannyHook.contractURI() returns (string memory uri) {
                     _check({
-                        condition: bytes(uri).length > 0,
-                        label: "Banny hook contractURI is non-empty",
-                        critical: true
+                        condition: bytes(uri).length > 0, label: "Banny hook contractURI is non-empty", critical: true
                     });
                 } catch {
                     _skip("Banny hook contractURI() call failed");
@@ -1927,9 +1915,7 @@ contract Verify is Script {
             for (uint256 j; j < pairs.length; j++) {
                 _check({
                     condition: pairs[j].remote != bytes32(0),
-                    label: string.concat(
-                        names[i], " sucker pair ", vm.toString(j), " has non-zero remote"
-                    ),
+                    label: string.concat(names[i], " sucker pair ", vm.toString(j), " has non-zero remote"),
                     critical: true
                 });
             }
@@ -1951,9 +1937,7 @@ contract Verify is Script {
 
         // Terminal Permit2 wiring.
         _check({
-            condition: address(terminal.PERMIT2()) != address(0),
-            label: "Terminal.PERMIT2 is non-zero",
-            critical: true
+            condition: address(terminal.PERMIT2()) != address(0), label: "Terminal.PERMIT2 is non-zero", critical: true
         });
 
         // Router terminal WETH and Permit2 wiring.
