@@ -397,7 +397,7 @@ contract Deploy is Script, Sphinx {
     uint256 private constant _BAN_PROJECT_ID = 4;
 
     // Chain-specific addresses (set in run())
-    address private _weth;
+    address private _wrappedNativeToken;
     address private _v3Factory;
     address private _poolManager;
     address private _positionManager;
@@ -491,7 +491,7 @@ contract Deploy is Script, Sphinx {
     function _setupChainAddresses() internal {
         // Ethereum Mainnet
         if (block.chainid == 1) {
-            _weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+            _wrappedNativeToken = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // WETH
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
@@ -500,7 +500,7 @@ contract Deploy is Script, Sphinx {
         }
         // Ethereum Sepolia
         else if (block.chainid == 11_155_111) {
-            _weth = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
+            _wrappedNativeToken = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9; // WETH
             _v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
             _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
             _positionManager = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
@@ -509,7 +509,7 @@ contract Deploy is Script, Sphinx {
         }
         // Optimism
         else if (block.chainid == 10) {
-            _weth = 0x4200000000000000000000000000000000000006;
+            _wrappedNativeToken = 0x4200000000000000000000000000000000000006; // WETH
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
             _positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
@@ -519,7 +519,7 @@ contract Deploy is Script, Sphinx {
         // Optimism Sepolia
         // Keep deploy-all supported here, but skip the Uniswap-dependent stack since no PositionManager is published.
         else if (block.chainid == 11_155_420) {
-            _weth = 0x4200000000000000000000000000000000000006;
+            _wrappedNativeToken = 0x4200000000000000000000000000000000000006; // WETH
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = address(0);
@@ -528,7 +528,7 @@ contract Deploy is Script, Sphinx {
         }
         // Base
         else if (block.chainid == 8453) {
-            _weth = 0x4200000000000000000000000000000000000006;
+            _wrappedNativeToken = 0x4200000000000000000000000000000000000006; // WETH
             _v3Factory = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
             _poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
             _positionManager = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
@@ -537,7 +537,7 @@ contract Deploy is Script, Sphinx {
         }
         // Base Sepolia
         else if (block.chainid == 84_532) {
-            _weth = 0x4200000000000000000000000000000000000006;
+            _wrappedNativeToken = 0x4200000000000000000000000000000000000006; // WETH
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
             _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
             _positionManager = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
@@ -546,7 +546,7 @@ contract Deploy is Script, Sphinx {
         }
         // Arbitrum
         else if (block.chainid == 42_161) {
-            _weth = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
+            _wrappedNativeToken = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1; // WETH
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
             _positionManager = 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
@@ -555,7 +555,7 @@ contract Deploy is Script, Sphinx {
         }
         // Arbitrum Sepolia
         else if (block.chainid == 421_614) {
-            _weth = 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73;
+            _wrappedNativeToken = 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73; // WETH
             _v3Factory = 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
             _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
             _positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
@@ -788,12 +788,18 @@ contract Deploy is Script, Sphinx {
             deployer: _CREATE2_FACTORY, flags: flags, creationCode: v4HookCode, constructorArgs: constructorArgs
         });
 
-        (address hook, bool deployed) = _isDeployed({salt: salt, creationCode: v4HookCode, arguments: constructorArgs});
+        (address hook, bool deployed) =
+            _isDeployed({salt: salt, creationCode: v4HookCode, arguments: constructorArgs, deployer: _CREATE2_FACTORY});
 
         _uniswapV4Hook = deployed
             ? JBUniswapV4Hook(payable(hook))
             : JBUniswapV4Hook(
-                payable(_deployFromArtifact({salt: salt, creationCode: v4HookCode, constructorArgs: constructorArgs}))
+                payable(_deployViaFactory({
+                        factory: _CREATE2_FACTORY,
+                        salt: salt,
+                        creationCode: v4HookCode,
+                        constructorArgs: constructorArgs
+                    }))
             );
     }
 
@@ -880,7 +886,7 @@ contract Deploy is Script, Sphinx {
             _directory,
             _tokens,
             _PERMIT2,
-            IWETH9(_weth),
+            IWETH9(_wrappedNativeToken),
             IUniswapV3Factory(_v3Factory),
             IPoolManager(_poolManager),
             address(_buybackHook),
@@ -3045,6 +3051,23 @@ contract Deploy is Script, Sphinx {
         isDeployed = deployedTo.code.length != 0;
     }
 
+    /// @dev Overload that computes the CREATE2 address for an arbitrary deployer (e.g. _CREATE2_FACTORY).
+    function _isDeployed(
+        bytes32 salt,
+        bytes memory creationCode,
+        bytes memory arguments,
+        address deployer
+    )
+        internal
+        view
+        returns (address deployedTo, bool isDeployed)
+    {
+        deployedTo = vm.computeCreate2Address({
+            salt: salt, initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)), deployer: deployer
+        });
+        isDeployed = deployedTo.code.length != 0;
+    }
+
     /// @dev Load creation bytecode from a pre-compiled artifact JSON file.
     function _loadCreationCode(string memory artifactPath) internal view returns (bytes memory) {
         string memory json = vm.readFile(artifactPath);
@@ -3065,6 +3088,23 @@ contract Deploy is Script, Sphinx {
             addr := create2(0, add(initCode, 0x20), mload(initCode), salt)
         }
         require(addr != address(0), "CREATE2 failed");
+    }
+
+    /// @dev Deploy via an external CREATE2 factory (e.g. for V4 hooks that validate address flag bits).
+    function _deployViaFactory(
+        address factory,
+        bytes32 salt,
+        bytes memory creationCode,
+        bytes memory constructorArgs
+    )
+        internal
+        returns (address addr)
+    {
+        bytes memory initCode = abi.encodePacked(creationCode, constructorArgs);
+        (bool success,) = factory.call(abi.encodePacked(salt, initCode));
+        require(success, "Factory CREATE2 failed");
+        addr = vm.computeCreate2Address({salt: salt, initCodeHash: keccak256(initCode), deployer: factory});
+        require(addr.code.length != 0, "Factory CREATE2 produced no code");
     }
 
     function _findHookSalt(
