@@ -139,7 +139,7 @@ contract DeployFullStackTest is Test {
         uint256 chainId;
         uint256 forkBlock;
         // Chain-specific addresses
-        address weth;
+        address wrappedNativeToken;
         address v3Factory;
         address poolManager;
         address positionManager;
@@ -203,7 +203,7 @@ contract DeployFullStackTest is Test {
             rpcAlias: "ethereum",
             chainId: 1,
             forkBlock: 21_700_000,
-            weth: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+            wrappedNativeToken: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
             v3Factory: 0x1F98431c8aD98523631AE4a59f267346ea31F984,
             poolManager: 0x000000000004444c5dc75cB358380D2e3dE08A90,
             positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
@@ -226,7 +226,7 @@ contract DeployFullStackTest is Test {
             rpcAlias: "",
             chainId: 10,
             forkBlock: 131_000_000,
-            weth: 0x4200000000000000000000000000000000000006,
+            wrappedNativeToken: 0x4200000000000000000000000000000000000006,
             v3Factory: 0x1F98431c8aD98523631AE4a59f267346ea31F984,
             poolManager: 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3,
             positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
@@ -249,7 +249,7 @@ contract DeployFullStackTest is Test {
             rpcAlias: "",
             chainId: 8453,
             forkBlock: 26_000_000,
-            weth: 0x4200000000000000000000000000000000000006,
+            wrappedNativeToken: 0x4200000000000000000000000000000000000006,
             v3Factory: 0x33128a8fC17869897dcE68Ed026d694621f6FDfD,
             poolManager: 0x498581fF718922c3f8e6A244956aF099B2652b2b,
             positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
@@ -272,7 +272,7 @@ contract DeployFullStackTest is Test {
             rpcAlias: "",
             chainId: 42_161,
             forkBlock: 296_000_000,
-            weth: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1,
+            wrappedNativeToken: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1,
             v3Factory: 0x1F98431c8aD98523631AE4a59f267346ea31F984,
             poolManager: 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32,
             positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
@@ -406,7 +406,7 @@ contract DeployFullStackTest is Test {
             _directory,
             _tokens,
             _PERMIT2,
-            IWETH9(cfg.weth),
+            IWETH9(cfg.wrappedNativeToken),
             IUniswapV3Factory(cfg.v3Factory),
             IPoolManager(cfg.poolManager),
             address(_buybackHook),
