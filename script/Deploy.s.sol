@@ -124,7 +124,6 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 import {REVLoans, IREVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVAutoIssuance.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
@@ -236,7 +235,6 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant REV_DEPLOYER_SALT = "_REV_DEPLOYER_SALT_V6_";
     bytes32 private constant REV_OWNER_SALT = "_REV_OWNER_SALT_V6_";
     bytes32 private constant REV_LOANS_SALT = "_REV_LOANS_SALT_V6_";
-    bytes32 private constant REV_HIDDEN_TOKENS_SALT = "_REV_HIDDEN_TOKENS_SALT_V6_";
 
     // ── NANA Fee Project salts ──
     bytes32 private constant NANA_ERC20_SALT = "_NANA_ERC20_SALTV6__";
@@ -365,7 +363,6 @@ contract Deploy is Script, Sphinx {
     CTProjectOwner private _ctProjectOwner;
 
     // Revnet
-    REVHiddenTokens private _revHiddenTokens;
     REVLoans private _revLoans;
     REVOwner private _revOwner;
     REVDeployer private _revDeployer;
@@ -2017,18 +2014,6 @@ contract Deploy is Script, Sphinx {
                     }))
             );
 
-        // Deploy REVHiddenTokens.
-        (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed({
-            salt: REV_HIDDEN_TOKENS_SALT,
-            creationCode: type(REVHiddenTokens).creationCode,
-            arguments: abi.encode(_controller, _trustedForwarder)
-        });
-        _revHiddenTokens = revHiddenTokensDeployed
-            ? REVHiddenTokens(revHiddenTokens)
-            : new REVHiddenTokens{salt: REV_HIDDEN_TOKENS_SALT}({
-                controller: _controller, trustedForwarder: _trustedForwarder
-            });
-
         // Deploy REVOwner — the runtime data hook that handles pay and cash out callbacks.
         (address revOwner, bool revOwnerDeployed) = _isDeployed({
             salt: REV_OWNER_SALT,
@@ -2039,7 +2024,6 @@ contract Deploy is Script, Sphinx {
                 _revProjectId,
                 _suckerRegistry,
                 _revLoans,
-                _revHiddenTokens,
                 msg.sender
             )
         });
@@ -2051,7 +2035,6 @@ contract Deploy is Script, Sphinx {
                 feeRevnetId: _revProjectId,
                 suckerRegistry: _suckerRegistry,
                 loans: _revLoans,
-                hiddenTokens: _revHiddenTokens,
                 deployerBinder: msg.sender
             });
 

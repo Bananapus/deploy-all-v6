@@ -47,7 +47,6 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 // Revnet
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
@@ -173,15 +172,12 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             trustedForwarder: TRUSTED_FORWARDER
         });
 
-        REVHiddenTokens revHiddenTokens = new REVHiddenTokens(jbController(), TRUSTED_FORWARDER);
-
         REV_OWNER = new REVOwner(
             IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
             jbDirectory(),
             FEE_PROJECT_ID,
             SUCKER_REGISTRY,
             LOANS_CONTRACT,
-            revHiddenTokens,
             address(this)
         );
 

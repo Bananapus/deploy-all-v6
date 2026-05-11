@@ -68,6 +68,7 @@ import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 
 // ── Core Interfaces ──
 import {IJBPriceFeed} from "@bananapus/core-v6/src/interfaces/IJBPriceFeed.sol";
+import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 
@@ -156,7 +157,6 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 import {REVLoans, IREVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVAutoIssuance.sol";
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
@@ -270,7 +270,6 @@ contract Resume is Script {
     bytes32 private constant REV_SUCKER_SALT = "_REV_SUCKER_SALT_V6_";
     bytes32 private constant REV_DEPLOYER_SALT = "_REV_DEPLOYER_SALT_V6_";
     bytes32 private constant REV_LOANS_SALT = "_REV_LOANS_SALT_V6_";
-    bytes32 private constant REV_HIDDEN_TOKENS_SALT = "_REV_HIDDEN_TOKENS_SALT_V6_";
     bytes32 private constant REV_OWNER_SALT = "_REV_OWNER_SALT_V6_";
 
     // ── NANA Fee Project salts ──
@@ -395,7 +394,6 @@ contract Resume is Script {
     CTProjectOwner private _ctProjectOwner;
 
     // Revnet references.
-    REVHiddenTokens private _revHiddenTokens;
     REVLoans private _revLoans;
     REVOwner private _revOwner;
     REVDeployer private _revDeployer;
@@ -2144,16 +2142,6 @@ contract Resume is Script {
                     }))
             );
 
-        // Deploy or resolve REVHiddenTokens.
-        (address revHiddenTokens, bool revHiddenTokensDeployed) = _isDeployed({
-            salt: REV_HIDDEN_TOKENS_SALT,
-            creationCode: type(REVHiddenTokens).creationCode,
-            arguments: abi.encode(_controller, _trustedForwarder)
-        });
-        _revHiddenTokens = revHiddenTokensDeployed
-            ? REVHiddenTokens(revHiddenTokens)
-            : new REVHiddenTokens{salt: REV_HIDDEN_TOKENS_SALT}(_controller, _trustedForwarder);
-
         // Deploy or resolve REVOwner — the runtime data hook for pay and cash out callbacks.
         (address revOwner, bool revOwnerDeployed) = _isDeployed({
             salt: REV_OWNER_SALT,
@@ -2164,7 +2152,6 @@ contract Resume is Script {
                 _revProjectId,
                 _suckerRegistry,
                 _revLoans,
-                _revHiddenTokens,
                 msg.sender
             )
         });
@@ -2176,7 +2163,6 @@ contract Resume is Script {
                 _revProjectId,
                 _suckerRegistry,
                 _revLoans,
-                _revHiddenTokens,
                 msg.sender
             );
 
@@ -3212,7 +3198,7 @@ contract Resume is Script {
     }
 
     function _isCanonicalConfiguredProject(uint256 projectId) internal view returns (bool) {
-        (,, address expectedRevOwner, address expectedRevDeployer) = _expectedRevnetAddresses();
+        (, address expectedRevOwner, address expectedRevDeployer) = _expectedRevnetAddresses();
 
         if (expectedRevDeployer.code.length == 0) return false;
         if (_projects.ownerOf(projectId) != expectedRevDeployer) return false;
@@ -3253,7 +3239,7 @@ contract Resume is Script {
     function _expectedRevnetAddresses()
         internal
         view
-        returns (address revLoans, address revHiddenTokens, address revOwner, address revDeployer)
+        returns (address revLoans, address revOwner, address revDeployer)
     {
         bytes memory revLoansCode = _loadCreationCode("artifacts/REVLoans.json");
         (revLoans,) = _isDeployed({
@@ -3269,12 +3255,6 @@ contract Resume is Script {
             )
         });
 
-        (revHiddenTokens,) = _isDeployed({
-            salt: REV_HIDDEN_TOKENS_SALT,
-            creationCode: type(REVHiddenTokens).creationCode,
-            arguments: abi.encode(_controller, _trustedForwarder)
-        });
-
         (revOwner,) = _isDeployed({
             salt: REV_OWNER_SALT,
             creationCode: type(REVOwner).creationCode,
@@ -3284,7 +3264,6 @@ contract Resume is Script {
                 _REV_PROJECT_ID,
                 _suckerRegistry,
                 revLoans,
-                revHiddenTokens,
                 msg.sender
             )
         });

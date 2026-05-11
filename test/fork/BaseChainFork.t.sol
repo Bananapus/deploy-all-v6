@@ -41,7 +41,6 @@ import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 // Revnet imports for deploying a revnet on the Base fork.
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
-import {REVHiddenTokens} from "@rev-net/core-v6/src/REVHiddenTokens.sol";
 import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 import {IREVDeployer} from "@rev-net/core-v6/src/interfaces/IREVDeployer.sol";
 import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
@@ -227,9 +226,6 @@ contract BaseChainForkTest is TestBaseWorkflow {
             trustedForwarder: TRUSTED_FORWARDER
         });
 
-        // Deploy REVHiddenTokens.
-        REVHiddenTokens revHiddenTokens = new REVHiddenTokens(jbController(), TRUSTED_FORWARDER);
-
         // Deploy the REVOwner — the runtime data hook for pay and cash out callbacks.
         REV_OWNER = new REVOwner(
             IJBBuybackHookRegistry(address(BUYBACK_REGISTRY)),
@@ -237,7 +233,6 @@ contract BaseChainForkTest is TestBaseWorkflow {
             FEE_PROJECT_ID,
             SUCKER_REGISTRY,
             LOANS_CONTRACT,
-            revHiddenTokens,
             address(this)
         );
 
