@@ -1129,11 +1129,14 @@ contract Verify is Script {
             }
         }
 
-        // Check the USD/NATIVE_TOKEN feed (inverse of ETH/USD, should also be set).
+        // Check the USD/NATIVE_TOKEN feed (inverse of ETH/USD).
         IJBPriceFeed usdNativeFeed = prices.priceFeedFor(0, JBCurrencyIds.USD, JBCurrencyIds.ETH);
-        // Verify the USD/ETH feed is configured (this is the same feed as ETH/USD, just different key).
+        // The `(USD, ETH)` feed is critical: `JBPrices.pricePerUnitOf` resolves only direct, inverse, and
+        // default-project entries — it does NOT compose paths through `(USD, NATIVE)` and `(ETH, NATIVE)` to derive
+        // `(USD, ETH)`. Any ETH-base-currency project that prices in USD reverts when this feed is missing, so a
+        // missing `(USD, ETH)` is a hard DoS for those projects, not a redundancy gap.
         _check({
-            condition: address(usdNativeFeed) != address(0), label: "USD/ETH price feed is configured", critical: false
+            condition: address(usdNativeFeed) != address(0), label: "USD/ETH price feed is configured", critical: true
         });
 
         // Check the USDC/USD price feed — registered during deployment but not previously verified.

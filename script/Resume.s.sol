@@ -2332,8 +2332,11 @@ contract Resume is Script {
             return;
         }
 
-        // Skip if CPN project is already configured (has a controller set).
+        // Skip only if CPN project is already configured as the canonical CPN revnet. Matches the predicate used
+        // by `_resumeNanaRevnet` / `_resumeRevRevnet` / Banny: bare controller-existence is insufficient because an
+        // attacker who pre-configured the project would also pass that check.
         if (address(_directory.controllerOf(_cpnProjectId)) != address(0)) {
+            if (!_isCanonicalConfiguredProject(_CPN_PROJECT_ID)) revert Resume_ProjectNotCanonical(_CPN_PROJECT_ID);
             console2.log("[Phase 08a] CPN Revnet: SKIPPED (already configured)");
             _phasesSkipped++;
             return;
