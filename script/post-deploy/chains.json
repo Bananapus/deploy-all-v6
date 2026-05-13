@@ -1,0 +1,74 @@
+{
+  "format": "jb-v6-chains-1",
+  "comment": "Maps chainId → deployment metadata. `alias` matches the v5 deployments/<repo>/<alias>/ convention. `verifier` is 'etherscan' (uses v2 unified API) or 'blockscout'. Etherscan v2 endpoint: https://api.etherscan.io/v2/api with ?chainid=<id>.",
+  "chains": {
+    "1": {
+      "alias": "ethereum",
+      "verifier": "etherscan",
+      "apiUrl": "https://api.etherscan.io/v2/api",
+      "browseUrl": "https://etherscan.io"
+    },
+    "10": {
+      "alias": "optimism",
+      "verifier": "etherscan",
+      "apiUrl": "https://api.etherscan.io/v2/api",
+      "browseUrl": "https://optimistic.etherscan.io"
+    },
+    "8453": {
+      "alias": "base",
+      "verifier": "etherscan",
+      "apiUrl": "https://api.etherscan.io/v2/api",
+      "browseUrl": "https://basescan.org"
+    },
+    "42161": {
+      "alias": "arbitrum",
+      "verifier": "etherscan",
+      "apiUrl": "https://api.etherscan.io/v2/api",
+      "browseUrl": "https://arbiscan.io"
+    },
+    "11155111": {
+      "alias": "sepolia",
+      "verifier": "etherscan",
+      "apiUrl": "https://api.etherscan.io/v2/api",
+      "browseUrl": "https://sepolia.etherscan.io"
+    },
+    "11155420": {
+      "alias": "optimism_sepolia",
+      "verifier": "etherscan",
+      "apiUrl": "https://api.etherscan.io/v2/api",
+      "browseUrl": "https://sepolia-optimism.etherscan.io"
+    },
+    "84532": {
+      "alias": "base_sepolia",
+      "verifier": "etherscan",
+      "apiUrl": "https://api.etherscan.io/v2/api",
+      "browseUrl": "https://sepolia.basescan.org"
+    },
+    "421614": {
+      "alias": "arbitrum_sepolia",
+      "verifier": "etherscan",
+      "apiUrl": "https://api.etherscan.io/v2/api",
+      "browseUrl": "https://sepolia.arbiscan.io"
+    }
+  },
+  "sphinxProjectByRepo": {
+    "comment": "Maps a source-repo name to the per-repo sphinx project name used as the second path segment in deployments/<sphinxProject>/<chain>/<Contract>.json. Mirrors the v5 layout.",
+    "nana-core-v6": "nana-core-v6",
+    "nana-address-registry-v6": "nana-address-registry-v6",
+    "nana-721-hook-v6": "nana-721-hook-v6",
+    "nana-buyback-hook-v6": "nana-buyback-hook-v6",
+    "univ4-router-v6": "univ4-router-v6",
+    "nana-router-terminal-v6": "nana-router-terminal-v6",
+    "univ4-lp-split-hook-v6": "univ4-lp-split-hook-v6",
+    "nana-suckers-v6": "nana-suckers-v6",
+    "nana-omnichain-deployers-v6": "nana-omnichain-deployers-v6",
+    "croptop-core-v6": "croptop-core-v6",
+    "revnet-core-v6": "revnet-core-v6",
+    "banny-retail-v6": "banny-retail-v6",
+    "defifa": "defifa",
+    "nana-project-handles-v6": "nana-project-handles-v6",
+    "nana-distributor-v6": "nana-distributor-v6",
+    "nana-project-payer-v6": "nana-project-payer-v6",
+    "deploy-all-v6": "juicebox-v6"
+  }
+}
