@@ -891,7 +891,9 @@ contract Deploy is Script, Sphinx {
         );
 
         if (address(_buybackHook.POOL_MANAGER()) == address(0)) {
-            _buybackHook.setChainSpecificConstants(IPoolManager(_poolManager), IHooks(address(_uniswapV4Hook)));
+            _buybackHook.setChainSpecificConstants({
+                poolManager: IPoolManager(_poolManager), oracleHook: IHooks(address(_uniswapV4Hook))
+            });
         }
 
         if (address(_buybackRegistry.defaultHook()) == address(0)) {

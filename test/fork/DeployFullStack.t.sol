@@ -389,15 +389,12 @@ contract DeployFullStackTest is Test {
     function _deployBuybackHook(ChainConfig memory cfg) internal {
         _buybackRegistry = new JBBuybackHookRegistry(_permissions, _projects, _deployer, _trustedForwarder);
         _buybackHook = new JBBuybackHook(
-            _directory,
-            _permissions,
-            _prices,
-            _projects,
-            _tokens,
-            IPoolManager(cfg.poolManager),
-            IHooks(address(_uniswapV4Hook)),
-            _trustedForwarder
+            _directory, _permissions, _prices, _projects, _tokens, address(this), _trustedForwarder
         );
+        _buybackHook.setChainSpecificConstants({
+            poolManager: IPoolManager(cfg.poolManager),
+            oracleHook: IHooks(address(_uniswapV4Hook))
+        });
         _buybackRegistry.setDefaultHook(_buybackHook);
     }
 
@@ -433,7 +430,8 @@ contract DeployFullStackTest is Test {
             IJBSuckerRegistry(address(_suckerRegistry))
         );
         _lpSplitHookDeployer =
-            new JBUniswapV4LPSplitHookDeployer(_lpSplitHook, IJBAddressRegistry(address(_addressRegistry)));
+            new JBUniswapV4LPSplitHookDeployer(IJBAddressRegistry(address(_addressRegistry)), address(this));
+        _lpSplitHookDeployer.setChainSpecificConstants(_lpSplitHook);
     }
 
     /// @dev Phase 03f: Suckers. Deploys chain-appropriate suckers and the registry.

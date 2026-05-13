@@ -401,16 +401,7 @@ contract ResumeDeployHarness is IERC721Receiver {
         (address hookAddress, bool hookDeployed) = _isDeployed(
             BUYBACK_HOOK_SALT,
             type(JBBuybackHook).creationCode,
-            abi.encode(
-                directory,
-                permissions,
-                prices,
-                projects,
-                tokens,
-                IPoolManager(POOL_MANAGER),
-                IHooks(address(uniswapV4Hook)),
-                trustedForwarder
-            )
+            abi.encode(directory, permissions, prices, projects, tokens, address(this), trustedForwarder)
         );
         buybackHook = hookDeployed
             ? JBBuybackHook(payable(hookAddress))
@@ -420,10 +411,15 @@ contract ResumeDeployHarness is IERC721Receiver {
                 prices: prices,
                 projects: projects,
                 tokens: tokens,
-                poolManager: IPoolManager(POOL_MANAGER),
-                oracleHook: IHooks(address(uniswapV4Hook)),
+                deployer: address(this),
                 trustedForwarder: trustedForwarder
             });
+        if (address(buybackHook.POOL_MANAGER()) == address(0)) {
+            buybackHook.setChainSpecificConstants({
+                poolManager: IPoolManager(POOL_MANAGER),
+                oracleHook: IHooks(address(uniswapV4Hook))
+            });
+        }
 
         if (address(buybackRegistry.defaultHook()) == address(0)) {
             buybackRegistry.setDefaultHook({hook: IJBRulesetDataHook(address(buybackHook))});
@@ -514,13 +510,16 @@ contract ResumeDeployHarness is IERC721Receiver {
         (address deployerAddress, bool deployerDeployed) = _isDeployed(
             LP_SPLIT_HOOK_DEPLOYER_SALT,
             type(JBUniswapV4LPSplitHookDeployer).creationCode,
-            abi.encode(lpSplitHook, IJBAddressRegistry(address(addressRegistry)))
+            abi.encode(IJBAddressRegistry(address(addressRegistry)), address(this))
         );
         lpSplitHookDeployer = deployerDeployed
             ? JBUniswapV4LPSplitHookDeployer(deployerAddress)
             : new JBUniswapV4LPSplitHookDeployer{salt: LP_SPLIT_HOOK_DEPLOYER_SALT}(
-                lpSplitHook, IJBAddressRegistry(address(addressRegistry))
+                IJBAddressRegistry(address(addressRegistry)), address(this)
             );
+        if (address(lpSplitHookDeployer.HOOK()) == address(0)) {
+            lpSplitHookDeployer.setChainSpecificConstants(lpSplitHook);
+        }
     }
 
     function _deploySuckers() internal {
