@@ -79,7 +79,7 @@
           "0xDc6Dd6Bc601448541A4862a91De1B86291839651"
         ],
         "threshold": "2",
-        "saltNonce": "6"
+        "saltNonce": "0"
       }
     },
     "nana-core": {

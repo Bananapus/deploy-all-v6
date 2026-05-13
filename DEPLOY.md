@@ -54,9 +54,12 @@ Before running a deployment:
 4. **Confirm typeface.** The Capsules SVG font contract must be deployed at the chain-specific address in `_setupChainAddresses()`.
 5. **Dry run.** Execute against a fork first:
    ```bash
-   forge script script/Deploy.s.sol --rpc-url <RPC_URL> -vvvv
+   forge script script/Deploy.s.sol \
+     --rpc-url <RPC_URL> \
+     --sender 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5 \
+     -vvvv
    ```
-   No `--broadcast` flag = simulation only. Verify all phases complete without revert.
+   No `--broadcast` flag = simulation only. `--sender` must be the canonical Sphinx safe (also `_EXPECTED_SAFE` in `Deploy.s.sol`); without it, `REVOwner.setDeployer` reverts with `REVOwner_Unauthorized` because the binder cached at REVOwner construction differs from `msg.sender` at the wire-up call. Production runs via `npx sphinx propose` set this automatically — the override is only for raw `forge script`.
 6. **Gas estimation.** Full deploy is ~50M+ gas across all phases. Ensure the deployer has sufficient ETH/native token.
 7. **Safe address.** The deploy script uses Sphinx for multi-sig execution. Confirm `safeAddress()` returns the correct multi-sig for the target chain.
 
@@ -67,10 +70,13 @@ Deployments are executed through [Sphinx](https://sphinx.dev), which batches the
 ### Dry Run (Forge Simulation)
 
 ```bash
-forge script script/Deploy.s.sol --rpc-url <RPC_URL> -vvvv
+forge script script/Deploy.s.sol \
+  --rpc-url <RPC_URL> \
+  --sender 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5 \
+  -vvvv
 ```
 
-No `--broadcast` flag = simulation only. Verify all phases complete without revert.
+No `--broadcast` flag = simulation only. The `--sender` override impersonates the Sphinx safe for the simulation so the REVOwner wire-up call (and any other safe-gated calls) passes; production via `npx sphinx propose` handles this automatically. Verify all phases complete without revert, and that `script/post-deploy/.cache/addresses-<chainId>.json` is emitted at the end.
 
 ### Production Deploy (via Sphinx)
 

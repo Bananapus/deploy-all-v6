@@ -2827,7 +2827,7 @@ contract Deploy is Script, Sphinx {
     //  Address Dump — for post-deploy verify + artifact pipeline
     // ════════════════════════════════════════════════════════════════════
 
-    /// @notice Emit `post-deploy/.cache/addresses-<chainId>.json` mapping every
+    /// @notice Emit `script/post-deploy/.cache/addresses-<chainId>.json` mapping every
     /// deployed contract to its on-chain address. Read by post-deploy.sh to
     /// drive Etherscan verification + sphinx-format artifact emission.
     /// @dev Only emits non-zero addresses, so chains that skip phases (e.g.
@@ -2945,9 +2945,10 @@ contract Deploy is Script, Sphinx {
         vm.serializeString({objectKey: j, valueKey: "format", value: "jb-v6-addresses-1"});
         string memory out = vm.serializeUint({objectKey: j, valueKey: "chainId", value: block.chainid});
 
-        string memory outPath = string.concat("post-deploy/.cache/addresses-", vm.toString(block.chainid), ".json");
+        string memory outPath =
+            string.concat("script/post-deploy/.cache/addresses-", vm.toString(block.chainid), ".json");
         // Ensure the .cache directory exists. vm.writeJson does not auto-create.
-        vm.createDir({path: "post-deploy/.cache", recursive: true});
+        vm.createDir({path: "script/post-deploy/.cache", recursive: true});
         vm.writeJson({json: out, path: outPath});
     }
 
