@@ -428,7 +428,8 @@ contract Deploy is Script, Sphinx {
     uint256 private constant _BAN_PROJECT_ID = 4;
 
     /// @notice Canonical Banny ops EOA. Used as the auto-issuance beneficiary in all stages and inherits
-    /// the BAN split-operator role from the Sphinx Safe after Drop 1 is registered.
+    /// the BAN split-operator role + resolver ownership from the Sphinx Safe via `_finalizeBannyOwnership`
+    /// after all Banny drops have been registered.
     address private constant _BAN_OPS_OPERATOR = 0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450;
 
     // Chain-specific addresses (set in run())
@@ -525,6 +526,16 @@ contract Deploy is Script, Sphinx {
         // Phase 09b: Banny Drop 1 — registers the 47 retail items on the BAN project's 721 hook + resolver.
         // Idempotent: skipped when the hook already has the drop tiers.
         _registerBannyDrop1();
+
+        // Phase 09c: Banny Drop 2 — registers the 17 outfit items on top of Drop 1.
+        // Idempotent: skipped when the hook already has the drop tiers. Must run before
+        // `_finalizeBannyOwnership` so the Sphinx Safe still holds split-operator + resolver ownership.
+        _registerBannyDrop2();
+
+        // Phase 09d: Finalize Banny ownership — transfers resolver ownership + BAN split-operator role
+        // from the Sphinx Safe to `_BAN_OPS_OPERATOR`. Idempotent: skipped when the resolver is already
+        // owned by `_BAN_OPS_OPERATOR`.
+        _finalizeBannyOwnership();
 
         // Phase 10: Defifa — deploys the Defifa game infrastructure (hook, resolver, governor, deployer).
         _deployDefifa();
@@ -2237,8 +2248,9 @@ contract Deploy is Script, Sphinx {
                     url: "https://retail.banny.eth.shop",
                     baseUri: "https://bannyverse.infura-ipfs.io/ipfs/"
                 });
-                // Ownership transfer to `_BAN_OPS_OPERATOR` happens at the end of `_registerBannyDrop1`
-                // so this script retains owner-only authority for `setSvgHashesOf` + `setProductNames`.
+                // Ownership transfer to `_BAN_OPS_OPERATOR` happens in `_finalizeBannyOwnership` after
+                // every drop registration, so this script retains owner-only authority for
+                // `setSvgHashesOf` + `setProductNames` across all drops.
             }
         }
 
@@ -2326,10 +2338,10 @@ contract Deploy is Script, Sphinx {
         });
 
         // Initial split operator is the Sphinx Safe so this script can call `hook.adjustTiers` when
-        // registering Drop 1 (Phase 09b). Operator is transferred to `operator` (the canonical Banny
-        // ops EOA) at the end of `_registerBannyDrop1`. Auto-issuance beneficiaries below still flow
-        // to `operator`, so the initial launch mints land correctly regardless of who holds the
-        // operator role.
+        // registering every Banny drop (Phases 09b, 09c, …). Operator is transferred to `operator`
+        // (the canonical Banny ops EOA) by `_finalizeBannyOwnership` after the last drop. Auto-issuance
+        // beneficiaries below still flow to `operator`, so the initial launch mints land correctly
+        // regardless of who holds the operator role.
         REVConfig memory banConfig = REVConfig({
             description: REVDescription(
                 "Banny Network", "BAN", "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp", BAN_ERC20_SALT
@@ -2478,15 +2490,14 @@ contract Deploy is Script, Sphinx {
     /// @dev Mirrors `banny-retail-v6/script/Drop1.s.sol` so the entire BAN launch (project creation +
     /// drop registration) lands in a single Sphinx proposal. Idempotent: if the hook already has the drop
     /// tiers (maxTierId >= 4 + 47 = 51), skips. The 4-tier baseline is what `_deployBanny` sets up via
-    /// `REVDeployer.deployFor(tiered721HookConfiguration: ...)`.
+    /// `REVDeployer.deployFor(tiered721HookConfiguration: ...)`. Ownership transfers (resolver + split
+    /// operator) are deferred to `_finalizeBannyOwnership` so subsequent drops can still write.
     function _registerBannyDrop1() internal {
         IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
         IJB721TiersHookStore store = hook.STORE();
         Banny721TokenUriResolver resolver = Banny721TokenUriResolver(address(store.tokenUriResolverOf(address(hook))));
 
         // Idempotency: 4 baseline tiers + 47 drop tiers = 51. Skip if already populated.
-        // (Drop 1 includes the operator transfer at the end, so a previous successful run also moved
-        // operator off the safe — re-running would fail the `setSplitOperatorOf` permission check.)
         uint256 maxBefore = store.maxTierIdOf(address(hook));
         if (maxBefore >= 51) return;
 
@@ -2548,18 +2559,18 @@ contract Deploy is Script, Sphinx {
             category: 2
         });
         // Block chain — the first reserves-bearing tier in Drop 1. Sets the hook's
-        // `defaultReserveBeneficiaryOf` to `safeAddress()` so that every later tier in the array which has
-        // `reserveFrequency > 0 && reserveBeneficiary == address(0)` (e.g. Nerd Glasses, Investor Shades, etc.)
-        // can inherit a non-zero beneficiary. Without this, `recordAddTiers` reverts with
-        // `MissingReserveBeneficiary` at tier 4 because the default has not been set yet — Banny Vision Pro
-        // (the intended default-setter at index 7) only runs later in the sort order.
+        // `defaultReserveBeneficiaryOf` to `_BAN_OPS_OPERATOR` so that every later tier in the array which
+        // has `reserveFrequency > 0 && reserveBeneficiary == address(0)` (e.g. Nerd Glasses, Investor
+        // Shades, all of Drop 2) can inherit a non-zero beneficiary. Without this, `recordAddTiers`
+        // reverts with `MissingReserveBeneficiary` at tier 4 because the default has not been set yet —
+        // Banny Vision Pro (the intended default-setter at index 7) only runs later in the sort order.
         names[4] = "Block Chain";
         svgHashes[4] = bytes32(0x5e609d387ea091bc8884a753ddd28dd43b8ed1243b29de6e9354ef1ab109a0b9);
         products[4] = _drop1Tier({
             price: uint104(125 * (10 ** (decimals - 2))),
             initialSupply: 12,
             reserveFrequency: 12,
-            reserveBeneficiary: safeAddress(),
+            reserveBeneficiary: _BAN_OPS_OPERATOR,
             useReserveBeneficiaryAsDefault: true,
             encodedIPFSUri: bytes32(0xef6478be50575bade53e7ce4c9fb5b399643bcabed94f2111afb63e97fb9fd44),
             category: 3
@@ -2588,15 +2599,16 @@ contract Deploy is Script, Sphinx {
             encodedIPFSUri: bytes32(0x9f76cb495fd79397cba4fe3d377a5aa2fdd63df218f3b3022c6cc8e32478b494),
             category: 6
         });
-        // Banny vision pro — the only tier in Drop 1 with `useReserveBeneficiaryAsDefault: true`
+        // Banny vision pro — inherits the default reserve beneficiary already set by Block Chain
+        // (index 4). No need to re-set the default.
         names[7] = "Banny Vision Pro";
         svgHashes[7] = bytes32(0x12702d5d843aff058610a01286446401be4175c27abaaec144d8970f99db34e2);
         products[7] = _drop1Tier({
             price: uint104(1 * (10 ** decimals)),
             initialSupply: 100,
             reserveFrequency: 25,
-            reserveBeneficiary: safeAddress(),
-            useReserveBeneficiaryAsDefault: true,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
             encodedIPFSUri: bytes32(0xf01423f9dae3de4adc7e372e6902a351e2c6193a385dde90f5baf37165914831),
             category: 6
         });
@@ -3083,17 +3095,6 @@ contract Deploy is Script, Sphinx {
         }
         resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
         resolver.setProductNames({upcs: productIds, names: names});
-
-        // Hand the resolver off to the canonical Banny ops EOA. This deliberately happens AFTER
-        // `setSvgHashesOf` + `setProductNames`, which are owner-gated, so the safe must still own the
-        // resolver here. After this point, future drops + metadata edits must be authorized by
-        // `_BAN_OPS_OPERATOR`.
-        resolver.transferOwnership(_BAN_OPS_OPERATOR);
-
-        // Transfer the BAN split operator role from the Sphinx Safe (used to authorize Drop 1) to the
-        // canonical Banny ops EOA. After this, the safe no longer has ADJUST_721_TIERS / MINT_721 etc.
-        // on project 4; the Banny ops account does.
-        _revDeployer.setSplitOperatorOf({revnetId: _BAN_PROJECT_ID, newSplitOperator: _BAN_OPS_OPERATOR});
     }
 
     /// @dev Builds a JB721TierConfig with the fixed Drop-1 boilerplate (zero voting units, no discounts,
@@ -3133,6 +3134,286 @@ contract Deploy is Script, Sphinx {
             splitPercent: 0,
             splits: new JBSplit[](0)
         });
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Phase 09c: Banny Drop 2 (17 outfit items)
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @notice Adds the Drop 2 product set (17 tiered NFT items) to the BAN project's
+    /// JB721TiersHook and registers their names + SVG hashes on the Banny URI resolver.
+    /// @dev Runs after `_registerBannyDrop1` so the default reserve beneficiary set by the Block Chain
+    /// tier in Drop 1 is already in place. Idempotent: if the hook already has the drop tiers
+    /// (maxTierId >= 51 + 17 = 68), skips. Reuses the `_drop1Tier` helper since the tier-config
+    /// boilerplate is shared across drops.
+    ///
+    /// Tiers are pre-sorted by Banny resolver category number (backside=2, eyes=5, mouth=7, suit=9,
+    /// headTop=12, hand=13) so `recordAddTiers` does not revert with `InvalidCategorySortOrder`.
+    /// `reserveFrequency` encodes "1 reserved per N mints", so 5% = 20 and 10% = 10.
+    function _registerBannyDrop2() internal {
+        IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
+        IJB721TiersHookStore store = hook.STORE();
+        Banny721TokenUriResolver resolver = Banny721TokenUriResolver(address(store.tokenUriResolverOf(address(hook))));
+
+        // Idempotency: 4 baseline + 47 Drop 1 + 17 Drop 2 = 68. Skip if already populated.
+        uint256 maxBefore = store.maxTierIdOf(address(hook));
+        if (maxBefore >= 68) return;
+
+        // Sanity gate: Drop 2 may only land directly on top of Drop 1 (maxTierId == 51). If something
+        // else shifted the tier count, abort rather than mis-target the metadata writes.
+        if (maxBefore != 51) revert Deploy_BannyProjectIdMismatch(maxBefore, 51);
+
+        uint256 decimals = DECIMALS;
+        string[] memory names = new string[](17);
+        bytes32[] memory svgHashes = new bytes32[](17);
+        JB721TierConfig[] memory products = new JB721TierConfig[](17);
+
+        // Nunchucks — backside
+        names[0] = "Nunchucks";
+        svgHashes[0] = bytes32(0x3a56edaedaf6d8dfb3747251e550e071865acd2ec33c3a3f668f7bb7e1cdf58f);
+        products[0] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 2))),
+            initialSupply: 10,
+            reserveFrequency: 10,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0x623d9c0b2fd488ca8b6d93a9f20f89290989366a548e6ec7354bbd61311f0e12),
+            category: 2
+        });
+        // Fierce Eyes — eyes
+        names[1] = "Fierce Eyes";
+        svgHashes[1] = bytes32(0xc2e8e326e98529041db4f4ce89c913a5099e83fbc59e3bd00b8544a5c9ea98b2);
+        products[1] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 2))),
+            initialSupply: 50,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0xb5fd509939ccd462fbec901c3b33cda4a146fba01aec716a64f1a343d3a705a9),
+            category: 5
+        });
+        // Glassy Eyes — eyes
+        names[2] = "Glassy Eyes";
+        svgHashes[2] = bytes32(0x426213d05aeb01485f42d580000ac3cbe4ba9023f0bd477109dab85b5b361299);
+        products[2] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 2))),
+            initialSupply: 50,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0xf03b5e0420b2203a11f02f44c8ee76b9d2651fb1c0d7c756e11268abdb7f6a8c),
+            category: 5
+        });
+        // Introspective Eyes — eyes
+        names[3] = "Introspective Eyes";
+        svgHashes[3] = bytes32(0xbcc073616c70da197d643ee582afa87041b4e486ab8e69f75c82d54a7ad77faa);
+        products[3] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 1))),
+            initialSupply: 10,
+            reserveFrequency: 10,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0x5f614933b94a7f16a5fe3385a1108be31cedfabccceeadc0aa8fa1936130a44c),
+            category: 5
+        });
+        // Lashed Eyes — eyes
+        names[4] = "Lashed Eyes";
+        svgHashes[4] = bytes32(0x287e1e9929e99b96f71ac6f3b22906500c66eb9ee6774f88247bada62ad551d0);
+        products[4] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 3))),
+            initialSupply: 200,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0xe02ba7e22c248ffff774aa351c92dcf8c15d4d6d903e70474cb5524df9ade79b),
+            category: 5
+        });
+        // Surprised Eyes — eyes
+        names[5] = "Surprised Eyes";
+        svgHashes[5] = bytes32(0x7a6cc5372e20e217e427e451393cdb0541c94e56f9739be3b0737db5453e67c6);
+        products[5] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 2))),
+            initialSupply: 50,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0x48968871dd045671e3e79ccee2330afaf4b7aa5ef213324132bbba823a961276),
+            category: 5
+        });
+        // Lipstick — mouth
+        names[6] = "Lipstick";
+        svgHashes[6] = bytes32(0x0f509b77bc24068e593e2fa79efc80c507cec9ee2892791057e1dfeb6e3db4d6);
+        products[6] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 2))),
+            initialSupply: 50,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0xc42aacdb29e89590b65d7a53c9942725eff2eafb2571cb96dc2dd23346617ebe),
+            category: 7
+        });
+        // Open Mouth — mouth
+        names[7] = "Open Mouth";
+        svgHashes[7] = bytes32(0xec19f58288959a9f587ec0d6026d92d395c9b7f8f63e96312e97f91fecf7fdbc);
+        products[7] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 3))),
+            initialSupply: 50,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0xf41dd39e89039f84af3e014cc5bf35017d864233be9f7ea0972b635c28686009),
+            category: 7
+        });
+        // Kasaya — suit
+        names[8] = "Kasaya";
+        svgHashes[8] = bytes32(0xa5508a3488596ad6dfe03aca408c175781b27b640eecf80da8eadbcc33eb53e8);
+        products[8] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 1))),
+            initialSupply: 20,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0xc0b84558f47050ca7a297179497161ab6dc64cc984f41a23fc918a151c4890e1),
+            category: 9
+        });
+        // Overalls — suit
+        names[9] = "Overalls";
+        svgHashes[9] = bytes32(0xc909807ec6a464eee6ebf9154c81208f07ed161c780d954da6f839143fe664b9);
+        products[9] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 2))),
+            initialSupply: 50,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0x83b0fde0e64c98aa58e2699f49b883ebcd49461dd2ddee6e6d26f454966a70e1),
+            category: 9
+        });
+        // Chef Hat — headTop
+        names[10] = "Chef Hat";
+        svgHashes[10] = bytes32(0xb704274125c42913a61c577957981b7479be2096d0625b68bb34c96678be2323);
+        products[10] = _drop1Tier({
+            price: uint104(5 * (10 ** (decimals - 2))),
+            initialSupply: 20,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0xed52af40eca5f3d2543049a62b0c40581f9037234cd35de2e49dab0aa4767a65),
+            category: 12
+        });
+        // Green Hat — headTop
+        names[11] = "Green Hat";
+        svgHashes[11] = bytes32(0xcbc6cac1188f0026880313c476a3e0da19194ed37d77b2ee9eef177115728a27);
+        products[11] = _drop1Tier({
+            price: uint104(2 * (10 ** (decimals - 3))),
+            initialSupply: 200,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0x7c618fc124661012a9c85356faeac8aae728b7738a0b3b676b058e39931c55b9),
+            category: 12
+        });
+        // Ribbon — headTop
+        names[12] = "Ribbon";
+        svgHashes[12] = bytes32(0x12e705dd471bac110031f1c9598436eabd49908369f5ca2da0989eac73c45278);
+        products[12] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 3))),
+            initialSupply: 20,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0x52b67b4b3d1553c7f0222155bf671be6ca000c08ef162368b40f9c2509f76d0d),
+            category: 12
+        });
+        // Rick Astley Hair — headTop
+        names[13] = "Rick Astley Hair";
+        svgHashes[13] = bytes32(0x175979053cb15a342061b66c72a192bd89d9671db2f2832d79ef0864e84609ec);
+        products[13] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 1))),
+            initialSupply: 10,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0x340b99eec7b723b6d13e66af7f62e15106df3b2330c805317b8e7cb0b9369822),
+            category: 12
+        });
+        // Baguette — hand
+        names[14] = "Baguette";
+        svgHashes[14] = bytes32(0x8c4055d1b39c2cffa5ba90558908c4841dc96f5ed422a7e093d17724ae8ffaff);
+        products[14] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 3))),
+            initialSupply: 100,
+            reserveFrequency: 20,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0xbd05bdd17415f8d89764a89e0d3ef94f1feb2eafafb6583e18c2fed281303feb),
+            category: 13
+        });
+        // Fishing Pole — hand
+        names[15] = "Fishing Pole";
+        svgHashes[15] = bytes32(0x64859db152943cc966ade9053c4a7d75767fe8a179d553e8eabd863574e5ad9c);
+        products[15] = _drop1Tier({
+            price: uint104(5 * (10 ** (decimals - 2))),
+            initialSupply: 10,
+            reserveFrequency: 10,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0x56960c3eb618f4605ba50139bfa9c44a54e8884c547a1d03bc94010a03eea914),
+            category: 13
+        });
+        // Rhoads — hand
+        names[16] = "Rhoads";
+        svgHashes[16] = bytes32(0xd05fc36799ca0b7e50be8d90dd4e2e83b1ebc63876d617803beea7e7b4f8d77b);
+        products[16] = _drop1Tier({
+            price: uint104(1 * (10 ** (decimals - 1))),
+            initialSupply: 10,
+            reserveFrequency: 10,
+            reserveBeneficiary: address(0),
+            useReserveBeneficiaryAsDefault: false,
+            encodedIPFSUri: bytes32(0xf2ed45e54a2c42994dddfa5e581c898f435afb5d5b9240b84a258f0c90d43bf9),
+            category: 13
+        });
+
+        // Add the tiers. Capture the new maxTierId to derive the UPC range that received our writes.
+        hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
+        uint256 maxAfter = store.maxTierIdOf(address(hook));
+        // Drift guard: our 17 tiers must occupy exactly (maxBefore, maxAfter].
+        if (maxAfter != maxBefore + 17) revert Deploy_BannyProjectIdMismatch(maxAfter, maxBefore + 17);
+
+        uint256[] memory productIds = new uint256[](17);
+        for (uint256 i; i < 17; i++) {
+            productIds[i] = maxAfter - 16 + i;
+        }
+        resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
+        resolver.setProductNames({upcs: productIds, names: names});
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Phase 09d: Finalize Banny Ownership
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @notice Hands the Banny URI resolver and the BAN split-operator role from the Sphinx Safe to
+    /// `_BAN_OPS_OPERATOR`. Must run after every drop registration that needs owner-only writes.
+    /// @dev Idempotent: skipped when the resolver is already owned by `_BAN_OPS_OPERATOR`. Because both
+    /// transfers happen atomically in a single Sphinx proposal, the resolver owner serves as a witness
+    /// for the split-operator state too — if the resolver is no longer the safe's, both transfers
+    /// have already landed.
+    function _finalizeBannyOwnership() internal {
+        IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
+        IJB721TiersHookStore store = hook.STORE();
+        Banny721TokenUriResolver resolver = Banny721TokenUriResolver(address(store.tokenUriResolverOf(address(hook))));
+
+        // Idempotency witness: if the safe no longer owns the resolver, both transfers have run.
+        if (resolver.owner() != safeAddress()) return;
+
+        // Hand the resolver off to the canonical Banny ops EOA. This deliberately happens AFTER all
+        // drop registrations, which call owner-gated `setSvgHashesOf` + `setProductNames`. After this
+        // point, future drops + metadata edits must be authorized by `_BAN_OPS_OPERATOR`.
+        resolver.transferOwnership(_BAN_OPS_OPERATOR);
+
+        // Transfer the BAN split operator role from the Sphinx Safe to the canonical Banny ops EOA.
+        // After this, the safe no longer has ADJUST_721_TIERS / MINT_721 etc. on project 4; the Banny
+        // ops account does.
+        _revDeployer.setSplitOperatorOf({revnetId: _BAN_PROJECT_ID, newSplitOperator: _BAN_OPS_OPERATOR});
     }
 
     // ════════════════════════════════════════════════════════════════════
