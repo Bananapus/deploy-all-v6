@@ -204,6 +204,7 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant DEADLINES_SALT = keccak256("_JBDeadlinesV6_");
     bytes32 private constant USD_NATIVE_FEED_SALT = keccak256("USD_FEEDV6");
     bytes32 private constant USDC_FEED_SALT = keccak256("USDC_FEEDV6");
+    bytes32 private constant MATCHING_FEED_SALT = keccak256("_JBMatchingPriceFeedV6_");
     /// @dev Salts for external libraries pre-linked at compile time. The deterministic CREATE2
     ///      address derived from each (factory, salt, creationCode) MUST match the
     ///      `libraries = [...]` entry in the corresponding source repo's foundry.toml — otherwise
@@ -876,22 +877,22 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployBuybackHook() internal {
+        // Chain-same CREATE2: constructor inputs are byte-identical across chains. The chain-specific
+        // PoolManager + ORACLE_HOOK are wired in afterwards via the DEPLOYER-gated one-shot
+        // setChainSpecificConstants setter on the hook (mirrors JBOptimismSuckerDeployer).
         _buybackHook = JBBuybackHook(
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBBuybackHook",
                     salt: BUYBACK_HOOK_SALT,
                     ctorArgs: abi.encode(
-                        _directory,
-                        _permissions,
-                        _prices,
-                        _projects,
-                        _tokens,
-                        IPoolManager(_poolManager),
-                        IHooks(address(_uniswapV4Hook)),
-                        _trustedForwarder
+                        _directory, _permissions, _prices, _projects, _tokens, safeAddress(), _trustedForwarder
                     )
                 }))
         );
+
+        if (address(_buybackHook.POOL_MANAGER()) == address(0)) {
+            _buybackHook.setChainSpecificConstants(IPoolManager(_poolManager), IHooks(address(_uniswapV4Hook)));
+        }
 
         if (address(_buybackRegistry.defaultHook()) == address(0)) {
             _buybackRegistry.setDefaultHook({hook: _buybackHook});
@@ -969,13 +970,20 @@ contract Deploy is Script, Sphinx {
                 }))
         );
 
+        // Chain-same CREATE2: constructor inputs are byte-identical across chains. The chain-specific
+        // hook implementation is wired in afterwards via the DEPLOYER-gated one-shot
+        // setChainSpecificConstants setter (mirrors JBOptimismSuckerDeployer).
         _lpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(
             _deployPrecompiledIfNeeded({
                 artifactName: "JBUniswapV4LPSplitHookDeployer",
                 salt: LP_SPLIT_HOOK_DEPLOYER_SALT,
-                ctorArgs: abi.encode(_lpSplitHook, IJBAddressRegistry(address(_addressRegistry)))
+                ctorArgs: abi.encode(IJBAddressRegistry(address(_addressRegistry)), safeAddress())
             })
         );
+
+        if (address(_lpSplitHookDeployer.HOOK()) == address(0)) {
+            _lpSplitHookDeployer.setChainSpecificConstants(_lpSplitHook);
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1495,7 +1503,16 @@ contract Deploy is Script, Sphinx {
         IJBPriceFeed ethUsdFeed = _deployEthUsdFeed();
         IJBPriceFeed matchingFeed =
             _prices.priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)));
-        if (address(matchingFeed) == address(0)) matchingFeed = IJBPriceFeed(address(new JBMatchingPriceFeed()));
+        if (address(matchingFeed) == address(0)) {
+            // CREATE2 via the precompile pipeline (no constructor args) so the matching feed lands at the
+            // same address on every chain. Previously this used plain `new`, which depended on the safe's
+            // per-chain nonce and produced a different address each time.
+            matchingFeed = IJBPriceFeed(
+                _deployPrecompiledIfNeeded({
+                    artifactName: "JBMatchingPriceFeed", salt: MATCHING_FEED_SALT, ctorArgs: ""
+                })
+            );
+        }
 
         // All chains: native = ETH.
         _ensureDefaultPriceFeed({
