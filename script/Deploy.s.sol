@@ -637,63 +637,33 @@ contract Deploy is Script, Sphinx {
     function _deployLibraries() internal {
         // JBPayoutSplitGroupLib — DELEGATECALL'd by JBMultiTerminal.
         _deployPrecompiledIfNeeded({
-            artifactName: "JBPayoutSplitGroupLib",
-            salt: PAYOUT_SPLIT_GROUP_LIB_SALT,
-            ctorArgs: ""
+            artifactName: "JBPayoutSplitGroupLib", salt: PAYOUT_SPLIT_GROUP_LIB_SALT, ctorArgs: ""
         });
         // JB721TiersHookLib — DELEGATECALL'd by JB721TiersHook.
-        _deployPrecompiledIfNeeded({
-            artifactName: "JB721TiersHookLib",
-            salt: TIERS_HOOK_LIB_SALT,
-            ctorArgs: ""
-        });
+        _deployPrecompiledIfNeeded({artifactName: "JB721TiersHookLib", salt: TIERS_HOOK_LIB_SALT, ctorArgs: ""});
         // JBSuckerLib — DELEGATECALL'd by JBOptimismSucker / JBBaseSucker / JBArbitrumSucker /
         // JBCCIPSucker / JBSwapCCIPSucker.
-        _deployPrecompiledIfNeeded({
-            artifactName: "JBSuckerLib",
-            salt: SUCKER_LIB_SALT,
-            ctorArgs: ""
-        });
+        _deployPrecompiledIfNeeded({artifactName: "JBSuckerLib", salt: SUCKER_LIB_SALT, ctorArgs: ""});
         // JBCCIPLib — DELEGATECALL'd by JBCCIPSucker / JBSwapCCIPSucker.
-        _deployPrecompiledIfNeeded({
-            artifactName: "JBCCIPLib",
-            salt: CCIP_LIB_SALT,
-            ctorArgs: ""
-        });
+        _deployPrecompiledIfNeeded({artifactName: "JBCCIPLib", salt: CCIP_LIB_SALT, ctorArgs: ""});
         // CCIPHelper — DELEGATECALL'd by JBCCIPSucker (chain selector / router lookups).
-        _deployPrecompiledIfNeeded({
-            artifactName: "CCIPHelper",
-            salt: CCIP_HELPER_SALT,
-            ctorArgs: ""
-        });
+        _deployPrecompiledIfNeeded({artifactName: "CCIPHelper", salt: CCIP_HELPER_SALT, ctorArgs: ""});
         // JBSwapPoolLib — DELEGATECALL'd by JBSwapCCIPSucker.
-        _deployPrecompiledIfNeeded({
-            artifactName: "JBSwapPoolLib",
-            salt: SWAP_POOL_LIB_SALT,
-            ctorArgs: ""
-        });
+        _deployPrecompiledIfNeeded({artifactName: "JBSwapPoolLib", salt: SWAP_POOL_LIB_SALT, ctorArgs: ""});
         // DefifaHookLib — DELEGATECALL'd by DefifaHook + DefifaGovernor.
-        _deployPrecompiledIfNeeded({
-            artifactName: "DefifaHookLib",
-            salt: DEFIFA_HOOK_LIB_SALT,
-            ctorArgs: ""
-        });
+        _deployPrecompiledIfNeeded({artifactName: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT, ctorArgs: ""});
     }
 
     function _deployCore() internal {
         bytes32 coreSalt = keccak256(abi.encode(CORE_DEPLOYMENT_NONCE));
 
         _trustedForwarder = _deployPrecompiledIfNeeded({
-            artifactName: "ERC2771Forwarder",
-            salt: coreSalt,
-            ctorArgs: abi.encode(TRUSTED_FORWARDER_NAME)
+            artifactName: "ERC2771Forwarder", salt: coreSalt, ctorArgs: abi.encode(TRUSTED_FORWARDER_NAME)
         });
 
         _permissions = JBPermissions(
             _deployPrecompiledIfNeeded({
-                artifactName: "JBPermissions",
-                salt: coreSalt,
-                ctorArgs: abi.encode(_trustedForwarder)
+                artifactName: "JBPermissions", salt: coreSalt, ctorArgs: abi.encode(_trustedForwarder)
             })
         );
 
@@ -714,19 +684,11 @@ contract Deploy is Script, Sphinx {
         );
 
         _splits = JBSplits(
-            _deployPrecompiledIfNeeded({
-                artifactName: "JBSplits",
-                salt: coreSalt,
-                ctorArgs: abi.encode(_directory)
-            })
+            _deployPrecompiledIfNeeded({artifactName: "JBSplits", salt: coreSalt, ctorArgs: abi.encode(_directory)})
         );
 
         _rulesets = JBRulesets(
-            _deployPrecompiledIfNeeded({
-                artifactName: "JBRulesets",
-                salt: coreSalt,
-                ctorArgs: abi.encode(_directory)
-            })
+            _deployPrecompiledIfNeeded({artifactName: "JBRulesets", salt: coreSalt, ctorArgs: abi.encode(_directory)})
         );
 
         _prices = JBPrices(
@@ -739,41 +701,31 @@ contract Deploy is Script, Sphinx {
 
         JBERC20 token = JBERC20(
             _deployPrecompiledIfNeeded({
-                artifactName: "JBERC20",
-                salt: coreSalt,
-                ctorArgs: abi.encode(_permissions, _projects)
+                artifactName: "JBERC20", salt: coreSalt, ctorArgs: abi.encode(_permissions, _projects)
             })
         );
 
         _tokens = JBTokens(
             _deployPrecompiledIfNeeded({
-                artifactName: "JBTokens",
-                salt: coreSalt,
-                ctorArgs: abi.encode(_directory, token)
+                artifactName: "JBTokens", salt: coreSalt, ctorArgs: abi.encode(_directory, token)
             })
         );
 
         _fundAccess = JBFundAccessLimits(
             _deployPrecompiledIfNeeded({
-                artifactName: "JBFundAccessLimits",
-                salt: coreSalt,
-                ctorArgs: abi.encode(_directory)
+                artifactName: "JBFundAccessLimits", salt: coreSalt, ctorArgs: abi.encode(_directory)
             })
         );
 
         _feeless = JBFeelessAddresses(
             _deployPrecompiledIfNeeded({
-                artifactName: "JBFeelessAddresses",
-                salt: coreSalt,
-                ctorArgs: abi.encode(safeAddress())
+                artifactName: "JBFeelessAddresses", salt: coreSalt, ctorArgs: abi.encode(safeAddress())
             })
         );
 
         _terminalStore = JBTerminalStore(
             _deployPrecompiledIfNeeded({
-                artifactName: "JBTerminalStore",
-                salt: coreSalt,
-                ctorArgs: abi.encode(_directory, _prices, _rulesets)
+                artifactName: "JBTerminalStore", salt: coreSalt, ctorArgs: abi.encode(_directory, _prices, _rulesets)
             })
         );
 
@@ -794,11 +746,7 @@ contract Deploy is Script, Sphinx {
 
     function _deployAddressRegistry() internal {
         _addressRegistry = JBAddressRegistry(
-            _deployPrecompiledIfNeeded({
-                artifactName: "JBAddressRegistry",
-                salt: ADDRESS_REGISTRY_SALT,
-                ctorArgs: ""
-            })
+            _deployPrecompiledIfNeeded({artifactName: "JBAddressRegistry", salt: ADDRESS_REGISTRY_SALT, ctorArgs: ""})
         );
     }
 
@@ -808,11 +756,7 @@ contract Deploy is Script, Sphinx {
 
     function _deploy721Hook() internal {
         _hookStore = JB721TiersHookStore(
-            _deployPrecompiledIfNeeded({
-                artifactName: "JB721TiersHookStore",
-                salt: HOOK_721_STORE_SALT,
-                ctorArgs: ""
-            })
+            _deployPrecompiledIfNeeded({artifactName: "JB721TiersHookStore", salt: HOOK_721_STORE_SALT, ctorArgs: ""})
         );
 
         _checkpointsDeployer = JB721CheckpointsDeployer(
@@ -878,8 +822,7 @@ contract Deploy is Script, Sphinx {
             deployer: _CREATE2_FACTORY, flags: flags, creationCode: v4HookCode, constructorArgs: ctorArgs
         });
 
-        (address hook, bool already) =
-            _isDeployed({salt: salt, creationCode: v4HookCode, arguments: ctorArgs});
+        (address hook, bool already) = _isDeployed({salt: salt, creationCode: v4HookCode, arguments: ctorArgs});
 
         if (!already) {
             hook = _deployViaFactory({
@@ -911,8 +854,7 @@ contract Deploy is Script, Sphinx {
 
     function _deployBuybackHook() internal {
         _buybackHook = JBBuybackHook(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBBuybackHook",
                     salt: BUYBACK_HOOK_SALT,
                     ctorArgs: abi.encode(
@@ -925,8 +867,7 @@ contract Deploy is Script, Sphinx {
                         IHooks(address(_uniswapV4Hook)),
                         _trustedForwarder
                     )
-                })
-            )
+                }))
         );
 
         if (address(_buybackRegistry.defaultHook()) == address(0)) {
@@ -945,18 +886,15 @@ contract Deploy is Script, Sphinx {
 
     function _deployRouterTerminal() internal {
         _routerTerminalRegistry = JBRouterTerminalRegistry(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBRouterTerminalRegistry",
                     salt: ROUTER_TERMINAL_REGISTRY_SALT,
                     ctorArgs: abi.encode(_permissions, _projects, _PERMIT2, safeAddress(), _trustedForwarder)
-                })
-            )
+                }))
         );
 
         _routerTerminal = JBRouterTerminal(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBRouterTerminal",
                     salt: ROUTER_TERMINAL_SALT,
                     ctorArgs: abi.encode(
@@ -970,8 +908,7 @@ contract Deploy is Script, Sphinx {
                         address(_uniswapV4Hook),
                         _trustedForwarder
                     )
-                })
-            )
+                }))
         );
 
         if (address(_routerTerminalRegistry.defaultTerminal()) == address(0)) {
@@ -993,8 +930,7 @@ contract Deploy is Script, Sphinx {
 
     function _deployLpSplitHook() internal {
         _lpSplitHook = JBUniswapV4LPSplitHook(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBUniswapV4LPSplitHook",
                     salt: LP_SPLIT_HOOK_SALT,
                     ctorArgs: abi.encode(
@@ -1007,8 +943,7 @@ contract Deploy is Script, Sphinx {
                         IHooks(address(_uniswapV4Hook)),
                         IJBSuckerRegistry(address(_suckerRegistry))
                     )
-                })
-            )
+                }))
         );
 
         _lpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(
@@ -1076,8 +1011,7 @@ contract Deploy is Script, Sphinx {
             }
 
             JBOptimismSucker singleton = JBOptimismSucker(
-                payable(
-                    _deployPrecompiledIfNeeded({
+                payable(_deployPrecompiledIfNeeded({
                         artifactName: "JBOptimismSucker",
                         salt: OP_SALT,
                         ctorArgs: abi.encode(
@@ -1090,8 +1024,7 @@ contract Deploy is Script, Sphinx {
                             _suckerRegistry,
                             _trustedForwarder
                         )
-                    })
-                )
+                    }))
             );
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
@@ -1116,8 +1049,7 @@ contract Deploy is Script, Sphinx {
             }
 
             JBOptimismSucker singleton = JBOptimismSucker(
-                payable(
-                    _deployPrecompiledIfNeeded({
+                payable(_deployPrecompiledIfNeeded({
                         artifactName: "JBOptimismSucker",
                         salt: OP_SALT,
                         ctorArgs: abi.encode(
@@ -1130,8 +1062,7 @@ contract Deploy is Script, Sphinx {
                             _suckerRegistry,
                             _trustedForwarder
                         )
-                    })
-                )
+                    }))
             );
             if (address(opDeployer.singleton()) == address(0)) opDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(opDeployer));
@@ -1165,8 +1096,7 @@ contract Deploy is Script, Sphinx {
             }
 
             JBBaseSucker singleton = JBBaseSucker(
-                payable(
-                    _deployPrecompiledIfNeeded({
+                payable(_deployPrecompiledIfNeeded({
                         artifactName: "JBBaseSucker",
                         salt: BASE_SALT,
                         ctorArgs: abi.encode(
@@ -1179,8 +1109,7 @@ contract Deploy is Script, Sphinx {
                             _suckerRegistry,
                             _trustedForwarder
                         )
-                    })
-                )
+                    }))
             );
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
@@ -1205,8 +1134,7 @@ contract Deploy is Script, Sphinx {
             }
 
             JBBaseSucker singleton = JBBaseSucker(
-                payable(
-                    _deployPrecompiledIfNeeded({
+                payable(_deployPrecompiledIfNeeded({
                         artifactName: "JBBaseSucker",
                         salt: BASE_SALT,
                         ctorArgs: abi.encode(
@@ -1219,8 +1147,7 @@ contract Deploy is Script, Sphinx {
                             _suckerRegistry,
                             _trustedForwarder
                         )
-                    })
-                )
+                    }))
             );
             if (address(baseDeployer.singleton()) == address(0)) baseDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(baseDeployer));
@@ -1250,8 +1177,7 @@ contract Deploy is Script, Sphinx {
             }
 
             JBArbitrumSucker singleton = JBArbitrumSucker(
-                payable(
-                    _deployPrecompiledIfNeeded({
+                payable(_deployPrecompiledIfNeeded({
                         artifactName: "JBArbitrumSucker",
                         salt: ARB_SALT,
                         ctorArgs: abi.encode(
@@ -1264,8 +1190,7 @@ contract Deploy is Script, Sphinx {
                             _suckerRegistry,
                             _trustedForwarder
                         )
-                    })
-                )
+                    }))
             );
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
@@ -1296,8 +1221,7 @@ contract Deploy is Script, Sphinx {
             }
 
             JBArbitrumSucker singleton = JBArbitrumSucker(
-                payable(
-                    _deployPrecompiledIfNeeded({
+                payable(_deployPrecompiledIfNeeded({
                         artifactName: "JBArbitrumSucker",
                         salt: ARB_SALT,
                         ctorArgs: abi.encode(
@@ -1310,8 +1234,7 @@ contract Deploy is Script, Sphinx {
                             _suckerRegistry,
                             _trustedForwarder
                         )
-                    })
-                )
+                    }))
             );
             if (address(arbDeployer.singleton()) == address(0)) arbDeployer.configureSingleton(singleton);
             _preApprovedSuckerDeployers.push(address(arbDeployer));
@@ -1428,15 +1351,13 @@ contract Deploy is Script, Sphinx {
         }
 
         JBCCIPSucker singleton = JBCCIPSucker(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBCCIPSucker",
                     salt: salt,
                     ctorArgs: abi.encode(
                         deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                     )
-                })
-            )
+                }))
         );
         if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
     }
@@ -1475,15 +1396,13 @@ contract Deploy is Script, Sphinx {
         }
 
         JBSwapCCIPSucker singleton = JBSwapCCIPSucker(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBSwapCCIPSucker",
                     salt: salt,
                     ctorArgs: abi.encode(
                         deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                     )
-                })
-            )
+                }))
         );
         if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
     }
@@ -1512,15 +1431,13 @@ contract Deploy is Script, Sphinx {
         }
 
         JBCCIPSucker singleton = JBCCIPSucker(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBCCIPSucker",
                     salt: salt,
                     ctorArgs: abi.encode(
                         deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
                     )
-                })
-            )
+                }))
         );
         if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
     }
@@ -1822,8 +1739,7 @@ contract Deploy is Script, Sphinx {
 
         // Deploy REVLoans.
         _revLoans = REVLoans(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "REVLoans",
                     salt: REV_LOANS_SALT,
                     ctorArgs: abi.encode(
@@ -1834,8 +1750,7 @@ contract Deploy is Script, Sphinx {
                         _PERMIT2,
                         _trustedForwarder
                     )
-                })
-            )
+                }))
         );
 
         // Deploy REVOwner — the runtime data hook that handles pay and cash out callbacks.
@@ -1868,18 +1783,14 @@ contract Deploy is Script, Sphinx {
             address(_revOwner)
         );
         (address predictedRevDeployer,) = _isDeployed({
-            salt: REV_DEPLOYER_SALT,
-            creationCode: _loadArtifact("REVDeployer"),
-            arguments: revDeployerArgs
+            salt: REV_DEPLOYER_SALT, creationCode: _loadArtifact("REVDeployer"), arguments: revDeployerArgs
         });
         if (address(_revOwner.DEPLOYER()) == address(0)) {
             _revOwner.setDeployer(IREVDeployer(predictedRevDeployer));
         }
         _revDeployer = REVDeployer(
             _deployPrecompiledIfNeeded({
-                artifactName: "REVDeployer",
-                salt: REV_DEPLOYER_SALT,
-                ctorArgs: revDeployerArgs
+                artifactName: "REVDeployer", salt: REV_DEPLOYER_SALT, ctorArgs: revDeployerArgs
             })
         );
 
@@ -2304,9 +2215,7 @@ contract Deploy is Script, Sphinx {
             });
             resolver = Banny721TokenUriResolver(
                 _deployPrecompiledIfNeeded({
-                    artifactName: "Banny721TokenUriResolver",
-                    salt: BAN_RESOLVER_SALT,
-                    ctorArgs: resolverArgs
+                    artifactName: "Banny721TokenUriResolver", salt: BAN_RESOLVER_SALT, ctorArgs: resolverArgs
                 })
             );
             if (!resolverExisted) {
@@ -2574,29 +2483,21 @@ contract Deploy is Script, Sphinx {
         // ── DefifaTokenUriResolver (on-chain SVG renderer for game NFTs) ──
         _defifaTokenUriResolver = DefifaTokenUriResolver(
             _deployPrecompiledIfNeeded({
-                artifactName: "DefifaTokenUriResolver",
-                salt: DEFIFA_SALT,
-                ctorArgs: abi.encode(_typeface)
+                artifactName: "DefifaTokenUriResolver", salt: DEFIFA_SALT, ctorArgs: abi.encode(_typeface)
             })
         );
 
         // ── DefifaGovernor (scorecard attestation and ratification) ──
         _defifaGovernor = DefifaGovernor(
             _deployPrecompiledIfNeeded({
-                artifactName: "DefifaGovernor",
-                salt: DEFIFA_SALT,
-                ctorArgs: abi.encode(_controller, safeAddress())
+                artifactName: "DefifaGovernor", salt: DEFIFA_SALT, ctorArgs: abi.encode(_controller, safeAddress())
             })
         );
 
         // ── DefifaHookStore (dedicated store for Defifa game NFT tiers — same artifact as the
         // protocol-level hook store but a different salt produces a separate instance) ──
         _defifaHookStore = JB721TiersHookStore(
-            _deployPrecompiledIfNeeded({
-                artifactName: "JB721TiersHookStore",
-                salt: DEFIFA_SALT,
-                ctorArgs: ""
-            })
+            _deployPrecompiledIfNeeded({artifactName: "JB721TiersHookStore", salt: DEFIFA_SALT, ctorArgs: ""})
         );
 
         // ── DefifaDeployer (factory that creates new Defifa games) ──
@@ -2611,17 +2512,10 @@ contract Deploy is Script, Sphinx {
             _FEE_PROJECT_ID,
             _defifaHookStore
         );
-        (, bool deployerExisted) = _isDeployed({
-            salt: DEFIFA_SALT,
-            creationCode: _loadArtifact("DefifaDeployer"),
-            arguments: deployerArgs
-        });
+        (, bool deployerExisted) =
+            _isDeployed({salt: DEFIFA_SALT, creationCode: _loadArtifact("DefifaDeployer"), arguments: deployerArgs});
         _defifaDeployer = DefifaDeployer(
-            _deployPrecompiledIfNeeded({
-                artifactName: "DefifaDeployer",
-                salt: DEFIFA_SALT,
-                ctorArgs: deployerArgs
-            })
+            _deployPrecompiledIfNeeded({artifactName: "DefifaDeployer", salt: DEFIFA_SALT, ctorArgs: deployerArgs})
         );
         if (!deployerExisted) {
             // First-time deploy: transfer governor ownership to the new deployer so it can initialize games.
@@ -2636,32 +2530,26 @@ contract Deploy is Script, Sphinx {
     function _deployProjectHandles() internal {
         _projectHandles = JBProjectHandles(
             _deployPrecompiledIfNeeded({
-                artifactName: "JBProjectHandles",
-                salt: PROJECT_HANDLES_SALT,
-                ctorArgs: abi.encode(_trustedForwarder)
+                artifactName: "JBProjectHandles", salt: PROJECT_HANDLES_SALT, ctorArgs: abi.encode(_trustedForwarder)
             })
         );
     }
 
     function _deployDistributors() internal {
         _721Distributor = JB721Distributor(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "JB721Distributor",
                     salt: DISTRIBUTOR_721_SALT,
                     ctorArgs: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
-                })
-            )
+                }))
         );
 
         _tokenDistributor = JBTokenDistributor(
-            payable(
-                _deployPrecompiledIfNeeded({
+            payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBTokenDistributor",
                     salt: DISTRIBUTOR_TOKEN_SALT,
                     ctorArgs: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
-                })
-            )
+                }))
         );
     }
 
@@ -2798,9 +2686,7 @@ contract Deploy is Script, Sphinx {
         returns (address deployedTo, bool isDeployed)
     {
         deployedTo = vm.computeCreate2Address({
-            salt: salt,
-            initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)),
-            deployer: _CREATE2_FACTORY
+            salt: salt, initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)), deployer: _CREATE2_FACTORY
         });
         isDeployed = deployedTo.code.length != 0;
     }
@@ -2866,9 +2752,7 @@ contract Deploy is Script, Sphinx {
     {
         return IJBPriceFeed(
             _deployPrecompiledIfNeeded({
-                artifactName: "JBChainlinkV3PriceFeed",
-                salt: salt,
-                ctorArgs: abi.encode(chainlinkFeed, threshold)
+                artifactName: "JBChainlinkV3PriceFeed", salt: salt, ctorArgs: abi.encode(chainlinkFeed, threshold)
             })
         );
     }
@@ -2911,10 +2795,7 @@ contract Deploy is Script, Sphinx {
         (addr, already) = _isDeployed({salt: salt, creationCode: code, arguments: ctorArgs});
         if (!already) {
             addr = _deployViaFactory({
-                factory: _CREATE2_FACTORY,
-                salt: salt,
-                creationCode: code,
-                constructorArgs: ctorArgs
+                factory: _CREATE2_FACTORY, salt: salt, creationCode: code, constructorArgs: ctorArgs
             });
         }
     }
@@ -3018,9 +2899,7 @@ contract Deploy is Script, Sphinx {
         // JBERC20 — constructor (permissions, projects), shared with tokens.
         if (address(_permissions) != address(0) && address(_projects) != address(0)) {
             (address erc20Addr, bool erc20Deployed) = _isDeployed({
-                salt: coreSalt,
-                creationCode: type(JBERC20).creationCode,
-                arguments: abi.encode(_permissions, _projects)
+                salt: coreSalt, creationCode: type(JBERC20).creationCode, arguments: abi.encode(_permissions, _projects)
             });
             if (erc20Deployed) _serializeIfSet({key: j, name: "JBERC20", addr: erc20Addr});
         }
@@ -3046,9 +2925,7 @@ contract Deploy is Script, Sphinx {
                 // forge-lint: disable-next-line(unsafe-typecast)
                 address usdcUsd = address(
                     _prices.priceFeedFor({
-                        projectId: 0,
-                        pricingCurrency: JBCurrencyIds.USD,
-                        unitCurrency: uint32(uint160(_usdcToken))
+                        projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(_usdcToken))
                     })
                 );
                 _serializeIfSet({key: j, name: "JBChainlinkV3PriceFeed__USDC_USD", addr: usdcUsd});
@@ -3068,8 +2945,7 @@ contract Deploy is Script, Sphinx {
         vm.serializeString({objectKey: j, valueKey: "format", value: "jb-v6-addresses-1"});
         string memory out = vm.serializeUint({objectKey: j, valueKey: "chainId", value: block.chainid});
 
-        string memory outPath =
-            string.concat("post-deploy/.cache/addresses-", vm.toString(block.chainid), ".json");
+        string memory outPath = string.concat("post-deploy/.cache/addresses-", vm.toString(block.chainid), ".json");
         // Ensure the .cache directory exists. vm.writeJson does not auto-create.
         vm.createDir({path: "post-deploy/.cache", recursive: true});
         vm.writeJson({json: out, path: outPath});
@@ -3088,8 +2964,7 @@ contract Deploy is Script, Sphinx {
     }
 
     function _serializeLibrary(string memory key, string memory name, bytes32 salt) internal {
-        (address libAddr, bool isDeployed) =
-            _isDeployed({salt: salt, creationCode: _loadArtifact(name), arguments: ""});
+        (address libAddr, bool isDeployed) = _isDeployed({salt: salt, creationCode: _loadArtifact(name), arguments: ""});
         if (isDeployed) _serializeIfSet({key: key, name: name, addr: libAddr});
     }
 }
