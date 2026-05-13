@@ -11,8 +11,14 @@ node_modules/
 # Dotenv file
 .env
 
-# Deployments (local artifacts)
+# Deployments (post-deploy.sh writes here; keep deployments/juicebox-v6/ committed
+# so addresses/ABIs are shippable; ignore any stray deployment directories).
 deployments/
+!deployments/juicebox-v6/
+!deployments/juicebox-v6/**
+
+# Post-deploy pipeline state (regenerable per chain).
+script/post-deploy/.cache/
 
 # OS files
 .DS_Store

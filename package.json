@@ -28,7 +28,15 @@
     "script/"
   ],
   "scripts": {
-    "build": "forge build"
+    "build": "forge build",
+    "artifacts": "./script/build-artifacts.sh",
+    "deploy:propose:testnets": "npx sphinx propose script/Deploy.s.sol --networks testnets",
+    "deploy:propose:mainnets": "npx sphinx propose script/Deploy.s.sol --networks mainnets",
+    "deploy:post": "./script/post-deploy.sh",
+    "deploy:post:testnets": "./script/post-deploy.sh --chains=all-testnets",
+    "deploy:post:mainnets": "./script/post-deploy.sh --chains=all-mainnets",
+    "deploy:post:verify-only": "./script/post-deploy.sh --chains=all-testnets --skip-artifacts --skip-distribute",
+    "deploy:post:artifacts-only": "./script/post-deploy.sh --chains=all-testnets --skip-verify"
   },
   "dependencies": {
     "@arbitrum/nitro-contracts": "3.2.0",
@@ -39,11 +47,11 @@
     "@bananapus/core-v6": "^0.0.44",
     "@bananapus/distributor-v6": "^0.0.13",
     "@bananapus/omnichain-deployers-v6": "^0.0.39",
-    "@bananapus/permission-ids-v6": "^0.0.24",
+    "@bananapus/permission-ids-v6": "^0.0.25",
     "@bananapus/project-handles-v6": "^0.0.8",
     "@bananapus/project-payer-v6": "^0.0.7",
     "@bananapus/router-terminal-v6": "^0.0.36",
-    "@bananapus/suckers-v6": "^0.0.37",
+    "@bananapus/suckers-v6": "^0.0.40",
     "@bananapus/univ4-lp-split-hook-v6": "^0.0.31",
     "@bananapus/univ4-router-v6": "^0.0.23",
     "@bannynet/core-v6": "^0.0.26",
