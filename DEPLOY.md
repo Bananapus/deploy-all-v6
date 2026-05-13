@@ -6,16 +6,18 @@ Operator guide for deploying, resuming, and verifying the Juicebox V6 ecosystem.
 
 | Chain | ID | Uniswap V4 | Suckers |
 |---|---|---|---|
-| Ethereum Mainnet | 1 | Yes | OP, Base, Arb, CCIP |
-| Ethereum Sepolia | 11155111 | Yes | OP Sepolia, Base Sepolia, Arb Sepolia |
-| Optimism | 10 | Yes | Ethereum |
-| Optimism Sepolia | 11155420 | Partial (no PositionManager) | Ethereum Sepolia |
-| Base | 8453 | Yes | Ethereum |
-| Base Sepolia | 84532 | Yes | Ethereum Sepolia |
-| Arbitrum One | 42161 | Yes | Ethereum |
-| Arbitrum Sepolia | 421614 | Yes | Ethereum Sepolia |
+| Ethereum Mainnet | 1 | Yes | OP, Base, Arb, CCIP, Swap CCIP |
+| Ethereum Sepolia | 11155111 | Yes | OP Sepolia, Base Sepolia, Arb Sepolia, CCIP, Swap CCIP |
+| Optimism | 10 | Yes | Ethereum, CCIP, Swap CCIP |
+| Optimism Sepolia | 11155420 | Partial (no PositionManager) | Ethereum Sepolia, CCIP, Swap CCIP |
+| Base | 8453 | Yes | Ethereum, CCIP, Swap CCIP |
+| Base Sepolia | 84532 | Yes | Ethereum Sepolia, CCIP, Swap CCIP |
+| Arbitrum One | 42161 | Yes | Ethereum, CCIP, Swap CCIP |
+| Arbitrum Sepolia | 421614 | Yes | Ethereum Sepolia, CCIP, Swap CCIP |
 
 Chains without a PositionManager skip the Uniswap-dependent stack (buyback hook, router terminal, LP split hook, revnet). Core protocol + 721 hook + suckers + croptop still deploy.
+
+The canonical deployment allowlists standard OP, Base, Arbitrum, CCIP, and `JBSwapCCIPSucker` deployers. Initial project configs still use the standard native bridge deployers unless a manifest explicitly selects a swap CCIP deployer, but the swap deployers and singletons are deployed and configured from day one.
 
 ## Deployment Phases
 
@@ -29,8 +31,8 @@ The deploy script (`script/Deploy.s.sol`) executes 11 phases in strict order:
 | 03b | Uniswap V4 Router Hook | JBUniswapV4Hook (requires PoolManager) |
 | 03c | Buyback Hook | JBBuybackHookRegistry (requires V3Factory) |
 | 03d | Router Terminal | JBRouterTerminal, JBRouterTerminalRegistry |
-| 03e | LP Split Hook | JBUniswapV4LPSplitHook (requires PositionManager) |
-| 03f | Cross-Chain Suckers | JBSuckerRegistry + per-bridge deployers (OP, Base, Arb, CCIP) |
+| 03e | Cross-Chain Suckers | JBSuckerRegistry + per-bridge deployers (OP, Base, Arb, CCIP, Swap CCIP) |
+| 03f | LP Split Hook | JBUniswapV4LPSplitHook (requires PositionManager and SuckerRegistry) |
 | 04 | Omnichain Deployer | JBOmnichainDeployer |
 | 05 | Periphery | Controller, Price Feeds (ETH/USD, USDC/USD, sequencer-aware on L2), Deadline hooks |
 | 06 | Croptop | CTDeployer, CTPublisher, CTProjectOwner; creates CPN project (ID 2) |
@@ -73,11 +75,16 @@ No `--broadcast` flag = simulation only. Verify all phases complete without reve
 ### Production Deploy (via Sphinx)
 
 ```bash
-npx sphinx propose --testnets   # for testnets
-npx sphinx propose --mainnets   # for production
+pnpm artifacts                                # pre-compile every contract in its source repo
+pnpm deploy:propose:testnets                  # → npx sphinx propose --networks testnets
+# (or:)
+pnpm deploy:propose:mainnets                  # → npx sphinx propose --networks mainnets
+
+# After safe signers approve + Sphinx executes on-chain:
+ETHERSCAN_API_KEY=... pnpm deploy:post:testnets   # verify + emit + distribute
 ```
 
-Sphinx compiles the deploy script, simulates it, and proposes the resulting transactions to the multi-sig safe. Safe signers must approve the proposal before execution.
+Sphinx compiles the deploy script, simulates it, and proposes the resulting transactions to the multi-sig safe. Safe signers must approve the proposal before execution. Verification and artifact emission are then handled locally by `post-deploy.sh` (see [Post-Deploy: Verification + Artifact Emission](#post-deploy-verification--artifact-emission) below).
 
 > **Note:** Sphinx replays `new Contract{salt: ...}(...)` through the canonical CREATE2 deployer (`0x4e59b44847b379578588920cA78FbF26c0B4956C`). The `_isDeployed` helper must compute addresses using this factory as the deployer (not `safeAddress()`) for Uniswap V4 hook deployments where address flags matter.
 
@@ -104,6 +111,48 @@ Key points:
 **Resume.s.sol** is executed directly via `forge script --broadcast`. The operator (one of the Safe signers) runs the resume from the Safe using `vm.startBroadcast(safeAddress())`. This requires the operator to have signing authority on the Safe.
 
 **Verify.s.sol** is read-only and requires no broadcast. It reads deployed state and validates wiring.
+
+### Post-Deploy: Verification + Artifact Emission
+
+**Sphinx's auto-verification and auto-artifact pipeline are intentionally bypassed in v6.** Every contract that Deploy.s.sol routes through `_loadCreationCode` + `_deployFromArtifact` is pre-compiled in its source repo with that repo's own foundry profile (`via_ir` + `optimizerRuns`), then deployed via raw bytecode. Sphinx's bundled verifier doesn't know about that pre-compile step and would submit the wrong settings to Etherscan. Instead, v6 ships a local pipeline at `script/post-deploy.sh`.
+
+After a successful `npx sphinx propose` + safe-signer approval + on-chain execution, run:
+
+```bash
+export ETHERSCAN_API_KEY=...        # single key for Etherscan v2 unified API
+./script/post-deploy.sh --chains=all-testnets   # or all-mainnets, or a CSV like ethereum,optimism
+```
+
+What it does, per chain:
+
+1. **Dump addresses.** Runs `forge script Deploy.s.sol --rpc-url $RPC_<CHAIN>` (no broadcast) to compute every deployed contract's CREATE2 address and emit `script/post-deploy/.cache/addresses-<chainId>.json`.
+2. **Verify on Etherscan.** Shells out to `forge verify-contract` from each contract's **source repo** so the right `foundry.toml` (with the right `via_ir` / `optimizerRuns`) is used. Retries transient failures (rate limits, 5xx, "pending in queue") with exponential backoff (1s → 60s, up to 10 attempts). Permanent failures (source mismatch, compiler mismatch) are logged per-contract; other contracts continue.
+3. **Emit artifacts.** Produces v5-compatible `sphinx-sol-ct-artifact-1` JSON per contract (same schema as `nana-core-v5/deployments/...`, **minus** `merkleRoot` since we're not Sphinx-managed). Fields: `address`, `sourceName`, `contractName`, `chainId` (hex), `abi`, `args`, `solcInputHash`, `receipt`, `bytecode`, `deployedBytecode`, `metadata`, `gitCommit`, `history`. Tab-indented to match v5 byte-for-byte.
+4. **Distribute.** Copies each artifact to:
+   - `deploy-all-v6/deployments/juicebox-v6/<chain_alias>/<Contract>.json` (aggregator)
+   - `<repo>/deployments/<sphinxProject>/<chain_alias>/<Contract>.json` (per-repo, mirrors v5)
+
+All four steps are idempotent. Reruns skip already-verified contracts via `.cache/status-<chainId>.json`. The compile-settings manifest is at `artifacts/artifacts.manifest.json` (regenerated by `./script/build-artifacts.sh`).
+
+#### Required env vars
+
+- `ETHERSCAN_API_KEY` — one key, used for every chain via the Etherscan v2 unified API (sign up at https://etherscan.io/myapikey).
+- `RPC_<CHAIN>` — one per chain processed. `RPC_ETHEREUM_MAINNET`, `RPC_OPTIMISM_MAINNET`, `RPC_BASE_MAINNET`, `RPC_ARBITRUM_MAINNET`, plus the `_SEPOLIA` variants for testnets.
+
+#### Granular control
+
+```bash
+./script/post-deploy.sh --chains=sepolia                       # one chain
+./script/post-deploy.sh --chains=base,arbitrum                 # subset
+./script/post-deploy.sh --skip-verify                          # artifact emit + distribute only
+./script/post-deploy.sh --skip-artifacts --skip-distribute     # verify only
+./script/post-deploy.sh --chains=sepolia --dry-run             # show what would happen
+```
+
+#### Limitations (current scope)
+
+- **Per-route CCIP sucker instances** (e.g. `JBCCIPSucker__OP`, `JBSwapCCIPSucker__Base`) are not yet emitted to `addresses-<chainId>.json` because they aren't tracked in Deploy.s.sol's state variables. They will be added in the next iteration alongside the all-precompile refactor of `Deploy.s.sol`. For now, the pipeline emits the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USDC/USD price feeds.
+- **No Blockscout fallback yet.** All supported chains are on Etherscan v2. Blockscout-only chains will need a `chains.json` entry with `"verifier": "blockscout"` + a Sourcify fallback.
 
 ### Project Identity Verification
 
@@ -215,11 +264,26 @@ export VERIFY_PROJECT_PAYER_DEPLOYER=0x...
 
 Optional manifest variables for stricter verification:
 ```bash
-export VERIFY_SUCKER_DEPLOYER_COUNT=4       # Expected number of allowed sucker deployers
-export VERIFY_SUCKER_PAIRS_1=2              # Expected sucker pair count for project 1
-export VERIFY_SUCKER_PAIRS_2=2              # Expected sucker pair count for project 2
-export VERIFY_SUCKER_PAIRS_3=2              # Expected sucker pair count for project 3
-export VERIFY_SUCKER_PAIRS_4=2              # Expected sucker pair count for project 4
+# Ethereum mainnet / Sepolia:
+# - 3 standard canonical project deployers: OP, Base, Arb
+# - 3 CCIP deployers allowlisted for OP, Base, Arb routes
+# - 3 Swap CCIP deployers allowlisted for OP, Base, Arb routes
+export VERIFY_SUCKER_DEPLOYER_COUNT=9
+export VERIFY_SUCKER_PAIRS_1=3
+export VERIFY_SUCKER_PAIRS_2=3
+export VERIFY_SUCKER_PAIRS_3=3
+export VERIFY_SUCKER_PAIRS_4=3
+
+# Optimism / Base / Arbitrum mainnets and testnets:
+# - 1 standard canonical project deployer back to Ethereum
+# - 3 CCIP deployers allowlisted for Ethereum and the two sibling L2s
+# - 3 Swap CCIP deployers allowlisted for Ethereum and the two sibling L2s
+# export VERIFY_SUCKER_DEPLOYER_COUNT=7
+# export VERIFY_SUCKER_PAIRS_1=1
+# export VERIFY_SUCKER_PAIRS_2=1
+# export VERIFY_SUCKER_PAIRS_3=1
+# export VERIFY_SUCKER_PAIRS_4=1
+
 export VERIFY_CONFIG_HASH_1=0x...           # Expected revnet config hash for project 1
 export VERIFY_CONFIG_HASH_2=0x...           # Expected revnet config hash for project 2
 export VERIFY_CONFIG_HASH_3=0x...           # Expected revnet config hash for project 3

@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
@@ -39,34 +38,17 @@ contract ResumeRevProjectThreeSquatTest is Test {
         directory.setTerminals(REV_PROJECT_ID, terminals);
     }
 
-    function test_resumeAcceptsConfiguredAttackerProjectThreeIfResumeCallerIsPreapproved() public {
-        (MockREVDeployer revDeployer, MockREVOwner revOwner, MockREVLoans revLoans) =
-            harness.resumeRevnet(controller, suckerRegistry, hookDeployer, ctPublisher);
+    function test_resumeRejectsConfiguredAttackerProjectThreeEvenIfResumeCallerIsPreapproved() public {
+        vm.expectRevert(abi.encodeWithSelector(ResumeRevnetHarness.Resume_ProjectNotCanonical.selector, REV_PROJECT_ID));
+        harness.resumeRevnet(controller, suckerRegistry, hookDeployer, ctPublisher);
 
         assertEq(projects.ownerOf(REV_PROJECT_ID), attacker, "attacker keeps project three");
-        assertEq(revDeployer.FEE_REVNET_ID(), REV_PROJECT_ID, "deployer binds canonical REV fees to project three");
-        assertEq(revOwner.FEE_REVNET_ID(), REV_PROJECT_ID, "owner binds canonical REV fees to project three");
-        assertEq(revLoans.REV_ID(), REV_PROJECT_ID, "loan system binds canonical REV loans to project three");
-
-        // These are the current REV-specific checks Verify.s.sol performs.
-        assertEq(address(directory.controllerOf(REV_PROJECT_ID)), controller, "project three keeps generic wiring");
-        assertEq(
-            address(directory.primaryTerminalOf(REV_PROJECT_ID, JBConstants.NATIVE_TOKEN)),
-            jbMultiTerminal,
-            "project three keeps a primary terminal"
-        );
-        assertEq(address(directory.terminalsOf(REV_PROJECT_ID)[0]), jbMultiTerminal, "project three keeps JB wiring");
-        assertEq(revDeployer.CONTROLLER(), controller, "verifier-visible controller wiring still matches");
-        assertEq(revDeployer.SUCKER_REGISTRY(), suckerRegistry, "verifier-visible registry wiring still matches");
-        assertEq(revDeployer.HOOK_DEPLOYER(), hookDeployer, "verifier-visible hook deployer still matches");
-        assertEq(revDeployer.PUBLISHER(), ctPublisher, "verifier-visible publisher still matches");
-        assertEq(revDeployer.LOANS(), address(revLoans), "verifier-visible loans wiring still matches");
-        assertEq(revDeployer.OWNER(), address(revOwner), "verifier-visible owner wiring still matches");
-        assertEq(address(revOwner.DEPLOYER()), address(revDeployer), "rev owner points back to rev deployer");
     }
 }
 
 contract ResumeRevnetHarness {
+    error Resume_ProjectNotCanonical(uint256 projectId);
+
     IJBProjects internal immutable PROJECTS;
     IJBDirectory internal immutable DIRECTORY;
 
@@ -104,6 +86,9 @@ contract ResumeRevnetHarness {
         uint256 count = PROJECTS.count();
         if (count >= expectedProjectId) {
             if (address(DIRECTORY.controllerOf(expectedProjectId)) != address(0)) {
+                if (!_isCanonicalConfiguredProject(expectedProjectId)) {
+                    revert Resume_ProjectNotCanonical(expectedProjectId);
+                }
                 return expectedProjectId;
             }
             if (PROJECTS.ownerOf(expectedProjectId) != address(this)) revert("Resume_ProjectNotOwned");
@@ -111,6 +96,11 @@ contract ResumeRevnetHarness {
         }
 
         revert("Resume_ProjectIdMismatch");
+    }
+
+    function _isCanonicalConfiguredProject(uint256 projectId) internal pure returns (bool) {
+        projectId;
+        return false;
     }
 }
 

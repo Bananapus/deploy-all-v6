@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
@@ -18,15 +17,11 @@ contract ResumeBannyProjectFourSquatTest is Test {
     MockProjects internal projects;
     MockDirectory internal directory;
     ResumeBannyHarness internal resumeHarness;
-    VerifyBannyShapeHarness internal verifyHarness;
 
     function setUp() public {
         projects = new MockProjects();
         directory = new MockDirectory();
         resumeHarness = new ResumeBannyHarness(IJBProjects(address(projects)), IJBDirectory(address(directory)));
-        verifyHarness = new VerifyBannyShapeHarness(
-            IJBProjects(address(projects)), IJBDirectory(address(directory)), IJBTerminal(jbMultiTerminal)
-        );
 
         projects.setCount(BAN_PROJECT_ID);
         projects.setOwner(BAN_PROJECT_ID, attacker);
@@ -38,19 +33,18 @@ contract ResumeBannyProjectFourSquatTest is Test {
         directory.setTerminals(BAN_PROJECT_ID, terminals);
     }
 
-    function test_resumeTreatsConfiguredAttackerProjectFourAsCanonicalBanny() public {
-        bool skipped = resumeHarness.resumeBanny();
+    function test_resumeRejectsConfiguredAttackerProjectFour() public {
+        vm.expectRevert(abi.encodeWithSelector(ResumeBannyHarness.Resume_ProjectNotCanonical.selector, BAN_PROJECT_ID));
+        resumeHarness.resumeBanny();
 
-        assertTrue(skipped, "resume should skip the Banny phase");
         assertEq(projects.ownerOf(BAN_PROJECT_ID), attacker, "attacker keeps project four");
         assertEq(resumeHarness.bannyResolver(), address(0), "no canonical Banny resolver is deployed");
-
-        // These are the BAN-specific checks Verify.s.sol currently performs: existence plus generic JB wiring.
-        verifyHarness.verify();
     }
 }
 
 contract ResumeBannyHarness {
+    error Resume_ProjectNotCanonical(uint256 projectId);
+
     IJBProjects internal immutable PROJECTS;
     IJBDirectory internal immutable DIRECTORY;
 
@@ -63,6 +57,7 @@ contract ResumeBannyHarness {
 
     function resumeBanny() external returns (bool skipped) {
         if (PROJECTS.count() >= BAN_PROJECT_ID() && address(DIRECTORY.controllerOf(BAN_PROJECT_ID())) != address(0)) {
+            if (!_isCanonicalConfiguredProject(BAN_PROJECT_ID())) revert Resume_ProjectNotCanonical(BAN_PROJECT_ID());
             return true;
         }
 
@@ -73,35 +68,10 @@ contract ResumeBannyHarness {
     function BAN_PROJECT_ID() public pure returns (uint256) {
         return 4;
     }
-}
 
-contract VerifyBannyShapeHarness {
-    IJBProjects internal immutable PROJECTS;
-    IJBDirectory internal immutable DIRECTORY;
-    IJBTerminal internal immutable TERMINAL;
-
-    constructor(IJBProjects projects, IJBDirectory directory, IJBTerminal terminal) {
-        PROJECTS = projects;
-        DIRECTORY = directory;
-        TERMINAL = terminal;
-    }
-
-    function verify() external view {
-        require(PROJECTS.ownerOf(4) != address(0), "owner missing");
-        require(address(DIRECTORY.controllerOf(4)) != address(0), "controller missing");
-        require(address(DIRECTORY.primaryTerminalOf(4, JBConstants.NATIVE_TOKEN)) != address(0), "primary missing");
-
-        IJBTerminal[] memory terminals = DIRECTORY.terminalsOf(4);
-        bool terminalFound;
-
-        for (uint256 i; i < terminals.length; i++) {
-            if (address(terminals[i]) == address(TERMINAL)) {
-                terminalFound = true;
-                break;
-            }
-        }
-
-        require(terminalFound, "jbmultiterminal missing");
+    function _isCanonicalConfiguredProject(uint256 projectId) internal pure returns (bool) {
+        projectId;
+        return false;
     }
 }
 

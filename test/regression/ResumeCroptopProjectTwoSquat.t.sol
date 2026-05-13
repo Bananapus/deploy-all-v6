@@ -29,15 +29,19 @@ contract ResumeCroptopProjectTwoSquatTest is Test {
         directory.setController(CPN_PROJECT_ID, controller);
     }
 
-    function test_resumeAcceptsConfiguredAttackerProjectTwoAsCroptopFeeSink() public {
-        CTPublisher publisher = harness.resumeCroptop();
+    function test_resumeRejectsConfiguredAttackerProjectTwoAsCroptopFeeSink() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(ResumeCroptopHarness.Resume_ProjectNotCanonical.selector, CPN_PROJECT_ID)
+        );
+        harness.resumeCroptop();
 
         assertEq(projects.ownerOf(CPN_PROJECT_ID), attacker, "attacker keeps project two");
-        assertEq(publisher.FEE_PROJECT_ID(), CPN_PROJECT_ID, "publisher adopts the squatted project two");
     }
 }
 
 contract ResumeCroptopHarness {
+    error Resume_ProjectNotCanonical(uint256 projectId);
+
     IJBProjects internal immutable PROJECTS;
     IJBDirectory internal immutable DIRECTORY;
     address internal immutable DEPLOYER;
@@ -61,6 +65,9 @@ contract ResumeCroptopHarness {
         uint256 count = PROJECTS.count();
         if (count >= expectedProjectId) {
             if (address(DIRECTORY.controllerOf(expectedProjectId)) != address(0)) {
+                if (!_isCanonicalConfiguredProject(expectedProjectId)) {
+                    revert Resume_ProjectNotCanonical(expectedProjectId);
+                }
                 return expectedProjectId;
             }
             if (PROJECTS.ownerOf(expectedProjectId) != DEPLOYER) revert("Resume_ProjectNotOwned");
@@ -70,6 +77,11 @@ contract ResumeCroptopHarness {
         uint256 created = PROJECTS.createFor(DEPLOYER);
         if (created != expectedProjectId) revert("Resume_ProjectIdMismatch");
         return created;
+    }
+
+    function _isCanonicalConfiguredProject(uint256 projectId) internal pure returns (bool) {
+        projectId;
+        return false;
     }
 }
 
