@@ -181,6 +181,8 @@ Rehearsal flow (only for local testing on a fork):
 
 Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so the deployed runtime code is byte-equal to the artifact's `deployedBytecode.object`. This lets the verifier compare `extcodehash` directly against the artifact's runtime code hash; without `bytecode_hash = "none"`, solc embeds a per-build IPFS metadata hash in the trailing bytes which makes two byte-identical source compiles produce different on-chain code hashes.
 
+`./script/build-artifacts.sh` runs `forge clean` in each source repo before its `forge build` step, so a stale `out/*.json` from a previous compilation cannot be picked up. After the build, before copying the artifact, the script also verifies that (a) the source file exists at the path declared in `CONTRACTS`, and (b) the copied artifact's `metadata.settings.compilationTarget` binds the expected `(sourcePath, contractName)` pair. Any mismatch is a hard error.
+
 #### Limitations (current scope)
 
 - **Per-route CCIP sucker instances** (e.g. `JBCCIPSucker__OP`, `JBSwapCCIPSucker__Base`) are not yet emitted to `addresses-<chainId>.json` because they aren't tracked in Deploy.s.sol's state variables. They will be added in the next iteration alongside the all-precompile refactor of `Deploy.s.sol`. For now, the pipeline emits the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USDC/USD price feeds.
