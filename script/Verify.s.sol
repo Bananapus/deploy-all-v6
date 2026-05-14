@@ -1594,6 +1594,76 @@ contract Verify is Script {
                 label: "Projects.trustedForwarder == expected",
                 critical: true
             });
+            // JBPermissions is itself ERC-2771 aware — its forwarder address is baked at construction
+            // and never reset. If it diverges from the canonical forwarder, the protocol routes
+            // meta-tx through two different relayers and trust assumptions silently break.
+            _check({
+                condition: permissions.trustedForwarder() == expectedTrustedForwarder,
+                label: "Permissions.trustedForwarder == expected",
+                critical: true
+            });
+        }
+
+        // JBOmnichainDeployer's immutable DIRECTORY auth input must match the canonical directory.
+        // Without this check, a noncanonical omnichain deployer that routes against a different
+        // directory could still pass every other wiring check.
+        if (address(omnichainDeployer) != address(0)) {
+            _check({
+                condition: address(omnichainDeployer.DIRECTORY()) == address(directory),
+                label: "OmnichainDeployer.DIRECTORY == directory",
+                critical: true
+            });
+            // PERMISSIONS() pointer must match the canonical registry — a deployer pointed at a
+            // forked registry could otherwise mint projects with privileges the canonical operator
+            // never granted.
+            _check({
+                condition: address(omnichainDeployer.PERMISSIONS()) == address(permissions),
+                label: "OmnichainDeployer.PERMISSIONS == permissions",
+                critical: true
+            });
+        }
+        if (address(suckerRegistry) != address(0)) {
+            _check({
+                condition: address(suckerRegistry.PERMISSIONS()) == address(permissions),
+                label: "SuckerRegistry.PERMISSIONS == permissions",
+                critical: true
+            });
+        }
+        // hookDeployer and hookProjectDeployer don't extend JBPermissioned themselves — they
+        // deploy hook clones whose PERMISSIONS pointer is verified at clone time, not on the
+        // deployer. The clones inherit from JBPermissioned via the hook implementation, which is
+        // identity-checked separately (CN).
+
+        // Optional periphery — only check if loaded on this chain.
+        if (address(buybackRegistry) != address(0)) {
+            _check({
+                condition: address(buybackRegistry.PERMISSIONS()) == address(permissions),
+                label: "BuybackRegistry.PERMISSIONS == permissions",
+                critical: true
+            });
+        }
+        // routerTerminal doesn't extend JBPermissioned directly — it composes the registry.
+        // routerTerminalRegistry is the permissioned surface; check it instead when present.
+        if (address(routerTerminalRegistry) != address(0)) {
+            _check({
+                condition: address(routerTerminalRegistry.PERMISSIONS()) == address(permissions),
+                label: "RouterTerminalRegistry.PERMISSIONS == permissions",
+                critical: true
+            });
+        }
+        if (address(revDeployer) != address(0)) {
+            _check({
+                condition: address(revDeployer.PERMISSIONS()) == address(permissions),
+                label: "REVDeployer.PERMISSIONS == permissions",
+                critical: true
+            });
+        }
+        if (address(revLoans) != address(0)) {
+            _check({
+                condition: address(revLoans.PERMISSIONS()) == address(permissions),
+                label: "REVLoans.PERMISSIONS == permissions",
+                critical: true
+            });
         }
 
         console.log("");
