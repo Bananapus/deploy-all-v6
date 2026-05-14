@@ -3859,8 +3859,14 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JBRouterTerminal", addr: address(_routerTerminal)});
         _serializeIfSet({key: j, name: "JBSuckerRegistry", addr: address(_suckerRegistry)});
         _serializeIfSet({key: j, name: "JBOptimismSuckerDeployer", addr: address(_optimismSuckerDeployer)});
+        _serializeSingletonFromDeployer({key: j, name: "JBOptimismSucker", deployer: address(_optimismSuckerDeployer)});
         _serializeIfSet({key: j, name: "JBBaseSuckerDeployer", addr: address(_baseSuckerDeployer)});
+        _serializeSingletonFromDeployer({key: j, name: "JBBaseSucker", deployer: address(_baseSuckerDeployer)});
         _serializeIfSet({key: j, name: "JBArbitrumSuckerDeployer", addr: address(_arbitrumSuckerDeployer)});
+        _serializeSingletonFromDeployer({key: j, name: "JBArbitrumSucker", deployer: address(_arbitrumSuckerDeployer)});
+        // Per-route CCIP and SwapCCIP deployers + their singletons. The standard 3 above are also
+        // pushed into _preApprovedSuckerDeployers; skip them since they're already emitted.
+        _serializeCCIPRouteDeployers({key: j});
         _serializeIfSet({key: j, name: "JBOmnichainDeployer", addr: address(_omnichainDeployer)});
         _serializeIfSet({key: j, name: "CTPublisher", addr: address(_ctPublisher)});
         _serializeIfSet({key: j, name: "CTDeployer", addr: address(_ctDeployer)});
@@ -3962,5 +3968,63 @@ contract Deploy is Script, Sphinx {
     function _serializeLibrary(string memory key, string memory name, bytes32 salt) internal {
         (address libAddr, bool isDeployed) = _isDeployed({salt: salt, creationCode: _loadArtifact(name), arguments: ""});
         if (isDeployed) _serializeIfSet({key: key, name: name, addr: libAddr});
+    }
+
+    /// Reads `deployer.singleton()` via low-level staticcall (works across the
+    /// concrete deployer types without importing each interface separately) and
+    /// serializes it if non-zero. Used for emitting JBOptimismSucker / JBBaseSucker /
+    /// JBArbitrumSucker / JBCCIPSucker / JBSwapCCIPSucker implementation addresses
+    /// alongside their deployers so the post-deploy verifier and artifact emitter
+    /// can prove the implementation bytecode matches the published artifact.
+    function _serializeSingletonFromDeployer(string memory key, string memory name, address deployer) internal {
+        if (deployer == address(0)) return;
+        (bool ok, bytes memory data) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
+        if (!ok || data.length < 32) return;
+        address singleton = abi.decode(data, (address));
+        if (singleton == address(0)) return;
+        vm.serializeAddress({objectKey: key, valueKey: name, value: singleton});
+    }
+
+    /// Iterates `_preApprovedSuckerDeployers`, skipping the three standard
+    /// per-source-chain deployers (already emitted via state vars), and emits
+    /// each CCIP / SwapCCIP route deployer plus its singleton with a remote-
+    /// chain suffix. Without this, post-deploy verification cannot prove the
+    /// per-route deployer or singleton bytecode matches the published artifact.
+    function _serializeCCIPRouteDeployers(string memory key) internal {
+        for (uint256 i; i < _preApprovedSuckerDeployers.length; i++) {
+            address d = _preApprovedSuckerDeployers[i];
+            if (d == address(_optimismSuckerDeployer)) continue;
+            if (d == address(_baseSuckerDeployer)) continue;
+            if (d == address(_arbitrumSuckerDeployer)) continue;
+
+            (bool okId, bytes memory idData) = d.staticcall(abi.encodeWithSignature("ccipRemoteChainId()"));
+            if (!okId || idData.length < 32) continue;
+            uint256 remoteId = abi.decode(idData, (uint256));
+            string memory suffix = _chainIdToRouteSuffix(remoteId);
+
+            (bool okBridge, bytes memory bridgeData) = d.staticcall(abi.encodeWithSignature("bridgeToken()"));
+            bool isSwap = okBridge && bridgeData.length >= 32 && abi.decode(bridgeData, (address)) != address(0);
+
+            string memory deployerName =
+                string.concat(isSwap ? "JBSwapCCIPSuckerDeployer" : "JBCCIPSuckerDeployer", "__", suffix);
+            string memory singletonName = string.concat(isSwap ? "JBSwapCCIPSucker" : "JBCCIPSucker", "__", suffix);
+            vm.serializeAddress({objectKey: key, valueKey: deployerName, value: d});
+            _serializeSingletonFromDeployer({key: key, name: singletonName, deployer: d});
+        }
+    }
+
+    /// Maps a known production / testnet chain id to a short routing suffix used
+    /// in the addresses dump (e.g. `JBCCIPSucker__OP`). Unknown chain ids fall
+    /// back to a base-10 string so the entry remains unique and traceable.
+    function _chainIdToRouteSuffix(uint256 chainId) internal pure returns (string memory) {
+        if (chainId == 1) return "ETH";
+        if (chainId == 11_155_111) return "ETH_SEP";
+        if (chainId == 10) return "OP";
+        if (chainId == 11_155_420) return "OP_SEP";
+        if (chainId == 8453) return "BASE";
+        if (chainId == 84_532) return "BASE_SEP";
+        if (chainId == 42_161) return "ARB";
+        if (chainId == 421_614) return "ARB_SEP";
+        return vm.toString(chainId);
     }
 }
