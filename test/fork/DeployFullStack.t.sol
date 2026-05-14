@@ -410,7 +410,7 @@ contract DeployFullStackTest is Test {
             univ4Hook: address(_uniswapV4Hook)
         });
         _routerTerminalRegistry.setDefaultTerminal(_routerTerminal);
-        _feeless.setFeelessAddress(address(_routerTerminal), true);
+        // Router is intentionally NOT marked globally feeless — the global grant was dropped.
     }
 
     /// @dev Phase 03e: LP split hook. Mirrors Deploy._deployLpSplitHook().
@@ -959,9 +959,9 @@ contract DeployFullStackTest is Test {
             address(_routerTerminal),
             string.concat(chainName, ": Router default terminal mismatch")
         );
-        assertTrue(
+        assertFalse(
             _feeless.isFeelessFor({addr: address(_routerTerminal), projectId: 0}),
-            string.concat(chainName, ": Router terminal not feeless")
+            string.concat(chainName, ": Router terminal must NOT be globally feeless")
         );
 
         // LP split hook deployer.

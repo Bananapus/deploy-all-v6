@@ -30,7 +30,9 @@ contract RouterTerminalRouteVerifierGapTest is Test {
             primaryNativeTerminal_: primaryNativeTerminal,
             unexpectedTerminal_: address(0)
         });
-        MockFeelessAddresses feelessAddresses = new MockFeelessAddresses({feeless_: routerTerminal});
+        // Router must NOT be globally feeless (the global grant was dropped) — feed an unrelated
+        // feeless address so isFeelessFor(router) returns false.
+        MockFeelessAddresses feelessAddresses = new MockFeelessAddresses({feeless_: address(0)});
 
         VerifyRouterTerminalRouteHarness harness = new VerifyRouterTerminalRouteHarness();
         harness.setRouteMocks({
@@ -59,6 +61,42 @@ contract RouterTerminalRouteVerifierGapTest is Test {
         harness.verifyRoutes();
     }
 
+    function test_hookRegistriesVerifierRejectsGloballyFeelessRouterTerminal() public {
+        address routerTerminal = address(new MockCodeBearingContract());
+        address primaryNativeTerminal = address(new MockCodeBearingContract());
+        address hookDeployer = address(new MockCodeBearingContract());
+        address hookStore = address(new MockCodeBearingContract());
+        MockHookProjectDeployer hookProjectDeployer = new MockHookProjectDeployer({hookDeployer_: hookDeployer});
+
+        MockRouterTerminalRegistry registry =
+            new MockRouterTerminalRegistry({defaultTerminal_: routerTerminal, resolvedTerminal_: routerTerminal});
+        MockDirectory directory = new MockDirectory({
+            listedTerminal_: address(registry),
+            primaryNativeTerminal_: primaryNativeTerminal,
+            unexpectedTerminal_: address(0)
+        });
+        // Mock the router terminal as still globally feeless — the verifier must reject this
+        // because the global grant was dropped in deploy.
+        MockFeelessAddresses feelessAddresses = new MockFeelessAddresses({feeless_: routerTerminal});
+
+        VerifyRouterTerminalRouteHarness harness = new VerifyRouterTerminalRouteHarness();
+        harness.setRouteMocks({
+            routerTerminalRegistry_: address(registry),
+            routerTerminal_: routerTerminal,
+            directory_: address(directory),
+            terminal_: primaryNativeTerminal,
+            feelessAddresses_: address(feelessAddresses),
+            hookDeployer_: hookDeployer,
+            hookStore_: hookStore,
+            hookProjectDeployer_: address(hookProjectDeployer)
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(Verify.Verify_CriticalCheckFailed.selector, "RouterTerminal is NOT globally feeless")
+        );
+        harness.verifyHookRegistries();
+    }
+
     function test_routeVerifierRejectsUnexpectedCanonicalProjectTerminals() public {
         address routerTerminal = address(new MockCodeBearingContract());
         address primaryNativeTerminal = address(new MockCodeBearingContract());
@@ -78,7 +116,7 @@ contract RouterTerminalRouteVerifierGapTest is Test {
             routerTerminal_: routerTerminal,
             directory_: address(directory),
             terminal_: primaryNativeTerminal,
-            feelessAddresses_: address(new MockFeelessAddresses({feeless_: routerTerminal})),
+            feelessAddresses_: address(new MockFeelessAddresses({feeless_: address(0)})),
             hookDeployer_: address(new MockCodeBearingContract()),
             hookStore_: address(new MockCodeBearingContract()),
             hookProjectDeployer_: address(
