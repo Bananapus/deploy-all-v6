@@ -38,7 +38,7 @@ contract CoreSupportSingletonVerifierGapTest is Test {
     CoreSupportMockController internal controller;
     CoreSupportMockTerminal internal terminal;
 
-    function test_coreSupportVerifierAcceptsNoncanonicalImplementations() public {
+    function test_coreSupportVerifierRejectsNoncanonicalImplementations() public {
         _deploySupportMocks();
 
         CoreSupportMockTokenImplementation tokenImplementation =
@@ -92,10 +92,10 @@ contract CoreSupportSingletonVerifierGapTest is Test {
             suckerRegistry_: address(suckerRegistry)
         });
 
-        // The verifier proves support-contract addresses are wired through the
-        // controller, terminal, store, ownership, token implementation, and
-        // forwarder checks. It does not prove these support singletons are the
-        // deploy-all core artifacts or audited runtime bytecode.
+        // CO fix (Decision A): the verifier now asserts every core+support singleton's runtime
+        // bytecode equals its artifact's deployedBytecode. The mocks above do not match the
+        // audited artifacts, so the verifier rejects at the first identity check.
+        vm.expectRevert();
         harness.verifyCoreSupportSurfaces();
     }
 

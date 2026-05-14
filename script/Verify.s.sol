@@ -29,6 +29,7 @@ import {JBChainlinkV3SequencerPriceFeed} from "@bananapus/core-v6/src/JBChainlin
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
+import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
@@ -94,6 +95,13 @@ contract Verify is Script {
 
     // Reverts when a critical wiring check fails.
     error Verify_CriticalCheckFailed(string reason);
+
+    /// Foundry's parseJson requires struct fields in alphabetical order to match JSON keys.
+    /// `{length, start}` for `{start, length}` JSON.
+    struct ImmutableRange {
+        uint256 length;
+        uint256 start;
+    }
 
     // ════════════════════════════════════════════════════════════════════
     //  Contract Addresses — set by the caller via constructor args or
@@ -482,8 +490,51 @@ contract Verify is Script {
                     critical: true
                 });
             }
+
+            // BS: CPN (Croptop) also gets a 721 hook recorded at project 2. The pre-fix verifier
+            // ignored it entirely; an attacker-deployed CPN hook (wrong PROJECT_ID, wrong store,
+            // wrong symbol) survived. Same identity shape as Banny.
+            IJB721TiersHook cpnHook = revOwner.tiered721HookOf(_CPN_PROJECT_ID);
+            _check({
+                condition: address(cpnHook) != address(0), label: "CPN(2) has Croptop 721 hook recorded", critical: true
+            });
+            if (address(cpnHook) != address(0)) {
+                _check({
+                    condition: cpnHook.PROJECT_ID() == _CPN_PROJECT_ID,
+                    label: "CPN hook PROJECT_ID == 2",
+                    critical: true
+                });
+                _check({
+                    condition: address(cpnHook.STORE()) == address(hookStore),
+                    label: "CPN hook uses canonical 721 store",
+                    critical: true
+                });
+                _check({
+                    condition: _metadataSymbolIs({token: address(cpnHook), expected: "CPN"}),
+                    label: "CPN hook symbol == CPN",
+                    critical: true
+                });
+
+                // BS: CPN posting criteria for categories 0-4 must be configured (non-zero packed
+                // allowance). Exact value-equality is deferred to a follow-up env-driven check;
+                // the on-chain assertion proves the CTPublisher has registered criteria for the
+                // canonical category set rather than leaving them unset (which would let any
+                // poster onto an unconfigured category with default zero-permission semantics).
+                if (address(ctPublisher) != address(0)) {
+                    for (uint256 cat; cat <= 4; cat++) {
+                        (uint256 minPrice,,,,) = ctPublisher.allowanceFor(address(cpnHook), cat);
+                        _check({
+                            condition: minPrice > 0,
+                            label: string.concat(
+                                "CPN posting criteria category ", vm.toString(cat), " configured (minPrice > 0)"
+                            ),
+                            critical: true
+                        });
+                    }
+                }
+            }
         } else {
-            _skip("Banny 721 hook identity checks (REVOwner not configured)");
+            _skip("Banny / CPN 721 hook identity checks (REVOwner not configured)");
         }
     }
 
@@ -555,10 +606,13 @@ contract Verify is Script {
         for (uint256 i; i < projectCount; i++) {
             // Read the controller set for this project in the directory.
             IERC165 projectController = directory.controllerOf(projectIds[i]);
-            // Verify a controller is actually set (non-zero address).
+            // CH fix: require the controller pointer to equal the canonical controller, not just
+            // be non-zero. A noncanonical controller would otherwise pass and silently authorize
+            // ruleset queues / token mints / payout calls that the canonical operator never
+            // approved.
             _check({
-                condition: address(projectController) != address(0),
-                label: string.concat(labels[i], " has controller set"),
+                condition: address(projectController) == address(controller),
+                label: string.concat(labels[i], " controller == canonical JBController"),
                 critical: true
             });
 
@@ -570,6 +624,37 @@ contract Verify is Script {
                 label: string.concat(labels[i], " has primary terminal for native token"),
                 critical: true
             });
+
+            // CQ fix: assert the live accounting context for the native token matches the
+            // expected shape (token sentinel + 18 decimals + native currency id). A wrong
+            // accounting context — e.g. decimals=6 because the deployer mis-configured a USD
+            // currency — silently mis-scales every cash-out and pay on that project.
+            try terminal.accountingContextForTokenOf(projectIds[i], JBConstants.NATIVE_TOKEN) returns (
+                JBAccountingContext memory ctx
+            ) {
+                _check({
+                    condition: ctx.token == JBConstants.NATIVE_TOKEN,
+                    label: string.concat(labels[i], " native accounting context token == NATIVE_TOKEN"),
+                    critical: true
+                });
+                _check({
+                    condition: ctx.decimals == 18,
+                    label: string.concat(labels[i], " native accounting context decimals == 18"),
+                    critical: true
+                });
+                // The native currency id is `uint32(uint160(NATIVE_TOKEN))` per JBAccountingContext.
+                _check({
+                    condition: ctx.currency == uint32(uint160(JBConstants.NATIVE_TOKEN)),
+                    label: string.concat(labels[i], " native accounting context currency == NATIVE_TOKEN id"),
+                    critical: true
+                });
+            } catch {
+                _check({
+                    condition: false,
+                    label: string.concat(labels[i], " terminal exposes accountingContextForTokenOf"),
+                    critical: true
+                });
+            }
 
             // Read the full list of terminals for this project.
             IJBTerminal[] memory terminals = directory.terminalsOf(projectIds[i]);
@@ -1395,12 +1480,17 @@ contract Verify is Script {
             for (uint256 i; i < parts.length; i++) {
                 address deployer = vm.parseAddress(parts[i]);
                 if (deployer != address(0)) {
+                    // BK: each listed deployer must actually be allowed in the registry.
                     bool allowed = suckerRegistry.suckerDeployerIsAllowed(deployer);
                     _check({
                         condition: allowed,
                         label: string.concat("Sucker deployer ", vm.toString(deployer), " is allowed"),
                         critical: true
                     });
+                    // CP: each listed deployer must be a real deployer with canonical wiring.
+                    // Without these checks, a non-executable EOA or a deployer admined by an
+                    // attacker-controlled Safe could survive in the allowlist undetected.
+                    _verifySuckerDeployerCanonicalWiring(deployer);
                 }
             }
         } else {
@@ -1451,7 +1541,110 @@ contract Verify is Script {
             }
         }
 
+        // BK known gap: JBSuckerRegistry has no enumeration of its allowed-deployer set, so the
+        // on-chain verifier cannot prove the absence of unexpected allowed deployers. Operators
+        // must reconcile against the `SuckerDeployerSetAllowed` event log off-chain. The
+        // VERIFY_SUCKER_DEPLOYER_COUNT check above provides a sanity gate; the event-log
+        // reconciliation is documented in DEPLOY.md.
+        console.log("  [INFO] BK: no on-chain enumeration of sucker-deployer allowlist - reconcile off-chain");
+
         console.log("");
+    }
+
+    /// CP: for each env-listed sucker deployer, assert it is a real, canonically-wired deployer.
+    /// Checks:
+    ///   - has code (not an EOA / non-executable address)
+    ///   - LAYER_SPECIFIC_CONFIGURATOR == expectedSafe (admin gate)
+    ///   - singleton() returns an address with code
+    ///   - DIRECTORY / TOKENS / PERMISSIONS match the canonical core singletons
+    /// Without these, an empty EOA or an attacker-admined deployer can sit in the allowlist
+    /// looking like a legitimate route while routing through unverified wiring.
+    function _verifySuckerDeployerCanonicalWiring(address deployer) internal {
+        _check({
+            condition: deployer.code.length > 0,
+            label: string.concat("Sucker deployer ", vm.toString(deployer), " has code"),
+            critical: true
+        });
+        if (deployer.code.length == 0) return;
+
+        // LAYER_SPECIFIC_CONFIGURATOR is the admin Safe — must equal the canonical expected Safe
+        // when one is configured (production chains). Non-production runs without expectedSafe
+        // just verify it's non-zero.
+        (bool okConfig, bytes memory configData) =
+            deployer.staticcall(abi.encodeWithSignature("LAYER_SPECIFIC_CONFIGURATOR()"));
+        if (okConfig && configData.length >= 32) {
+            address configurator = abi.decode(configData, (address));
+            if (expectedSafe != address(0)) {
+                _check({
+                    condition: configurator == expectedSafe,
+                    label: string.concat(
+                        "Sucker deployer ", vm.toString(deployer), ".LAYER_SPECIFIC_CONFIGURATOR == safe"
+                    ),
+                    critical: true
+                });
+            } else {
+                _check({
+                    condition: configurator != address(0),
+                    label: string.concat(
+                        "Sucker deployer ", vm.toString(deployer), ".LAYER_SPECIFIC_CONFIGURATOR is non-zero"
+                    ),
+                    critical: true
+                });
+            }
+        } else {
+            _check({
+                condition: false,
+                label: string.concat(
+                    "Sucker deployer ", vm.toString(deployer), " exposes LAYER_SPECIFIC_CONFIGURATOR()"
+                ),
+                critical: true
+            });
+        }
+
+        // singleton() must be a real implementation contract — not an EOA, not address(0). The
+        // exact-identity check is part of BR's emission work (the singleton appears in the address
+        // dump and gets verified separately via artifact identity in CK/CM).
+        (bool okSing, bytes memory singData) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
+        if (okSing && singData.length >= 32) {
+            address singleton = abi.decode(singData, (address));
+            _check({
+                condition: singleton != address(0) && singleton.code.length > 0,
+                label: string.concat("Sucker deployer ", vm.toString(deployer), ".singleton has code"),
+                critical: true
+            });
+        } else {
+            _check({
+                condition: false,
+                label: string.concat("Sucker deployer ", vm.toString(deployer), " exposes singleton()"),
+                critical: true
+            });
+        }
+
+        // DIRECTORY / TOKENS / PERMISSIONS must match the canonical core singletons.
+        (bool okDir, bytes memory dirData) = deployer.staticcall(abi.encodeWithSignature("DIRECTORY()"));
+        if (okDir && dirData.length >= 32) {
+            _check({
+                condition: abi.decode(dirData, (address)) == address(directory),
+                label: string.concat("Sucker deployer ", vm.toString(deployer), ".DIRECTORY == directory"),
+                critical: true
+            });
+        }
+        (bool okTok, bytes memory tokData) = deployer.staticcall(abi.encodeWithSignature("TOKENS()"));
+        if (okTok && tokData.length >= 32) {
+            _check({
+                condition: abi.decode(tokData, (address)) == address(tokens),
+                label: string.concat("Sucker deployer ", vm.toString(deployer), ".TOKENS == tokens"),
+                critical: true
+            });
+        }
+        (bool okPerm, bytes memory permData) = deployer.staticcall(abi.encodeWithSignature("PERMISSIONS()"));
+        if (okPerm && permData.length >= 32) {
+            _check({
+                condition: abi.decode(permData, (address)) == address(permissions),
+                label: string.concat("Sucker deployer ", vm.toString(deployer), ".PERMISSIONS == permissions"),
+                critical: true
+            });
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1482,6 +1675,55 @@ contract Verify is Script {
                     label: string.concat(labels[i], " terminal list includes RouterTerminalRegistry"),
                     critical: true
                 });
+
+                // BL: require the registry to resolve each canonical project to the canonical
+                // router terminal. Without this, the registry could route project N through a
+                // forked router (different fee handling, different beneficiary resolution) while
+                // still passing the "registry in terminal list" check.
+                if (address(routerTerminal) != address(0)) {
+                    (bool ok, bytes memory data) = address(routerTerminalRegistry)
+                        .staticcall(abi.encodeWithSignature("terminalOf(uint256)", projectIds[i]));
+                    if (ok && data.length >= 32) {
+                        _check({
+                            condition: abi.decode(data, (address)) == address(routerTerminal),
+                            label: string.concat(
+                                labels[i], " RouterTerminalRegistry.terminalOf == canonical RouterTerminal"
+                            ),
+                            critical: true
+                        });
+                    } else {
+                        _check({
+                            condition: false,
+                            label: string.concat(labels[i], " RouterTerminalRegistry exposes terminalOf(uint256)"),
+                            critical: true
+                        });
+                    }
+                }
+
+                // BL: exact terminal-list membership. The canonical deployment installs exactly
+                // two terminals: JBMultiTerminal + JBRouterTerminalRegistry. Anything else in the
+                // list is either a stale leftover or a malicious injection. Refusing extras is
+                // the audit's "exact list" gate.
+                _check({
+                    condition: terminals.length == 2,
+                    label: string.concat(labels[i], " terminal list has exactly 2 entries"),
+                    critical: true
+                });
+                if (terminals.length == 2) {
+                    bool hasMulti;
+                    bool hasRegistry;
+                    for (uint256 j; j < 2; j++) {
+                        if (address(terminals[j]) == address(terminal)) hasMulti = true;
+                        if (address(terminals[j]) == address(routerTerminalRegistry)) hasRegistry = true;
+                    }
+                    _check({
+                        condition: hasMulti && hasRegistry,
+                        label: string.concat(
+                            labels[i], " terminal list == {JBMultiTerminal, JBRouterTerminalRegistry}"
+                        ),
+                        critical: true
+                    });
+                }
             }
 
             // Verify all canonical projects' primary terminal for native token is the JBMultiTerminal.
@@ -1616,6 +1858,15 @@ contract Verify is Script {
         _check({
             condition: address(tokenImpl).code.length > 0, label: "JBERC20 implementation has code", critical: true
         });
+
+        // CJ: assert the JBERC20 implementation bytecode matches the published artifact.
+        _requireArtifactIdentity({artifactName: "JBERC20", deployed: address(tokenImpl), label: "JBERC20 impl"});
+
+        // Decision A: run the implementation-identity sweep for every audited contract group.
+        // Coverage: CK / CL / CM / CN / CO / CI / BE / BF / BH / BJ. Skips when an artifact file
+        // is missing so partial-coverage chains still get a clear log; production-chain build
+        // pipeline regenerates the manifest so the artifacts are always present.
+        _verifyImplementationIdentities();
 
         // Verify the implementation's PROJECTS() matches canonical projects contract.
         if (address(tokenImpl).code.length > 0) {
@@ -2143,32 +2394,41 @@ contract Verify is Script {
             return;
         }
 
-        // Verify all 4 projects have a config hash recorded.
+        // BI: require exact expected config hashes on every canonical project on production chains.
+        // Per-project env vars VERIFY_CONFIG_HASH_{1..4} take precedence (matches the audit's
+        // recommendation); the legacy VERIFY_CONFIG_HASHES CSV is still accepted for backwards
+        // compatibility. On production chains, missing or zero expected hashes are critical.
         uint256[4] memory pids = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
         string[4] memory names = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
+        string[4] memory envVars =
+            ["VERIFY_CONFIG_HASH_1", "VERIFY_CONFIG_HASH_2", "VERIFY_CONFIG_HASH_3", "VERIFY_CONFIG_HASH_4"];
+
+        bytes32[4] memory expectedHashes = _loadExpectedConfigHashes(envVars);
+        bool isProductionChain =
+            (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+
         for (uint256 i; i < 4; i++) {
-            bytes32 configHash = revDeployer.hashedEncodedConfigurationOf(pids[i]);
+            bytes32 actual = revDeployer.hashedEncodedConfigurationOf(pids[i]);
             _check({
-                condition: configHash != bytes32(0),
+                condition: actual != bytes32(0),
                 label: string.concat(names[i], " has non-zero config hash"),
                 critical: true
             });
-        }
 
-        // Verify env-provided expected config hashes match deployed config hashes (if provided).
-        string memory expectedHashesCsv = vm.envOr("VERIFY_CONFIG_HASHES", string(""));
-        if (bytes(expectedHashesCsv).length > 0) {
-            string[] memory hashes = vm.split(expectedHashesCsv, ",");
-            for (uint256 i; i < hashes.length && i < 4; i++) {
-                bytes32 expected = vm.parseBytes32(hashes[i]);
-                if (expected != bytes32(0)) {
-                    bytes32 actual = revDeployer.hashedEncodedConfigurationOf(pids[i]);
-                    _check({
-                        condition: actual == expected,
-                        label: string.concat(names[i], " config hash matches expected"),
-                        critical: true
-                    });
-                }
+            if (expectedHashes[i] != bytes32(0)) {
+                _check({
+                    condition: actual == expectedHashes[i],
+                    label: string.concat(names[i], " config hash == expected"),
+                    critical: true
+                });
+            } else if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: string.concat(names[i], " expected config hash MUST be set on production via ", envVars[i]),
+                    critical: true
+                });
+            } else {
+                _skip(string.concat(names[i], " expected config hash not provided (", envVars[i], " unset)"));
             }
         }
 
@@ -2222,15 +2482,62 @@ contract Verify is Script {
                 critical: true
             });
 
-            // Verify each pair has a non-zero remote.
+            // BC: per-pair runtime sanity — each pair's local sucker must have code, must be
+            // registered with the canonical sucker registry, and must expose a non-zero remote
+            // chain id alongside the non-zero remote address. Without these, a malformed entry
+            // (zero remote chain id, EOA local, unregistered sucker) survives just because the
+            // count happens to match.
             for (uint256 j; j < pairs.length; j++) {
+                string memory pairLabel = string.concat(names[i], " sucker pair ", vm.toString(j));
                 _check({
                     condition: pairs[j].remote != bytes32(0),
-                    label: string.concat(names[i], " sucker pair ", vm.toString(j), " has non-zero remote"),
+                    label: string.concat(pairLabel, " has non-zero remote"),
                     critical: true
                 });
+                address local = pairs[j].local;
+                _check({
+                    condition: local != address(0) && local.code.length > 0,
+                    label: string.concat(pairLabel, " local sucker has code"),
+                    critical: true
+                });
+                if (local.code.length == 0) continue;
+
+                // Local sucker must be registered under the canonical project ID.
+                (bool okIsOf, bytes memory isOfData) = address(suckerRegistry)
+                    .staticcall(abi.encodeWithSignature("isSuckerOf(uint256,address)", pids[i], local));
+                if (okIsOf && isOfData.length >= 32) {
+                    _check({
+                        condition: abi.decode(isOfData, (bool)),
+                        label: string.concat(pairLabel, " local is registered as a sucker of the project"),
+                        critical: true
+                    });
+                }
+
+                // Local sucker must expose a non-zero remote chain id. Format mismatches
+                // (uint vs bytes32, missing getter) are surfaced as a critical failure rather
+                // than silent skip — the canonical sucker types all expose this.
+                (bool okChainId, bytes memory chainIdData) = local.staticcall(abi.encodeWithSignature("peerChainId()"));
+                if (okChainId && chainIdData.length >= 32) {
+                    _check({
+                        condition: abi.decode(chainIdData, (uint256)) != 0,
+                        label: string.concat(pairLabel, " peerChainId is non-zero"),
+                        critical: true
+                    });
+                } else {
+                    _check({
+                        condition: false,
+                        label: string.concat(pairLabel, " local sucker exposes peerChainId()"),
+                        critical: true
+                    });
+                }
             }
         }
+
+        // BC known gap: exact-manifest equality (each pair's expected remote address, remote
+        // chain id, and per-token mapping) requires per-route env vars or an off-chain manifest.
+        // The on-chain verifier proves no malformed pair survives; per-route expected values are
+        // a follow-up that the BC PR description points to.
+        console.log("  [INFO] BC: per-pair runtime sanity asserted; exact-manifest follow-up via env vars");
 
         if (!anySuckerChecks) {
             _skip("Sucker manifest checks (VERIFY_SUCKER_PAIRS_* not set)");
@@ -2313,6 +2620,29 @@ contract Verify is Script {
         console.log("");
     }
 
+    /// BI helper: loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
+    /// Falls back to the legacy VERIFY_CONFIG_HASHES CSV when individual vars are unset, for
+    /// backwards compatibility with existing operator scripts.
+    function _loadExpectedConfigHashes(string[4] memory envVars) internal view returns (bytes32[4] memory hashes) {
+        // Per-project env vars take precedence.
+        for (uint256 i; i < 4; i++) {
+            string memory v = vm.envOr({name: envVars[i], defaultValue: string("")});
+            if (bytes(v).length > 0) {
+                hashes[i] = vm.parseBytes32(v);
+            }
+        }
+        // Fall back to the legacy CSV for any slots not filled above.
+        string memory csv = vm.envOr({name: "VERIFY_CONFIG_HASHES", defaultValue: string("")});
+        if (bytes(csv).length > 0) {
+            string[] memory parts = vm.split(csv, ",");
+            for (uint256 i; i < parts.length && i < 4; i++) {
+                if (hashes[i] == bytes32(0) && bytes(parts[i]).length > 0) {
+                    hashes[i] = vm.parseBytes32(parts[i]);
+                }
+            }
+        }
+    }
+
     /// Returns the canonical Permit2 singleton address for this chain. Permit2 is deployed at the
     /// same CREATE2 address on every supported chain. Returns address(0) on unsupported chains.
     function _expectedPermit2() internal view returns (address) {
@@ -2382,6 +2712,202 @@ contract Verify is Script {
             return keccak256(bytes(actual)) == keccak256(bytes(expected));
         } catch {
             return false;
+        }
+    }
+
+    /// Decision A sweep across every audited group. Each call asserts the deployed runtime
+    /// bytecode equals the artifact's deployedBytecode. Logs INFO and skips gracefully when the
+    /// artifact file is missing (e.g. partial-coverage testnet) or the contract is not loaded
+    /// (e.g. optional Phase 11 periphery on testnet).
+    ///
+    /// Coverage:
+    /// - CK: JBProjects, JBDirectory, JBController, JBMultiTerminal, JBTerminalStore
+    /// - CO: JBFundAccessLimits, JBTokens, JBPrices, JBRulesets, JBSplits, JBFeelessAddresses,
+    ///       JBPermissions
+    /// - CL: REVDeployer, REVOwner, REVLoans
+    /// - CM: JBOmnichainDeployer, JBSuckerRegistry
+    /// - CN: JB721TiersHookDeployer/Store/ProjectDeployer, JBBuybackHookRegistry,
+    ///       JBRouterTerminalRegistry
+    /// - CI: CTPublisher, CTDeployer, CTProjectOwner
+    /// - BE: JBBuybackHook (default hook implementation)
+    /// - BF: JB721TiersHook (base hook implementation)
+    /// - BH: JBProjectHandles, JB721Distributor, JBTokenDistributor, JBProjectPayerDeployer
+    /// - BJ: JBAddressRegistry, DefifaDeployer + sub-targets (HOOK_CODE_ORIGIN,
+    ///       TOKEN_URI_RESOLVER, GOVERNOR)
+    function _verifyImplementationIdentities() internal {
+        console.log("--- Decision A: Implementation Identity (artifact bytecode parity) ---");
+
+        // CK: core singletons
+        _requireArtifactIdentity("JBProjects", address(projects), "JBProjects");
+        _requireArtifactIdentity("JBDirectory", address(directory), "JBDirectory");
+        _requireArtifactIdentity("JBController", address(controller), "JBController");
+        _requireArtifactIdentity("JBMultiTerminal", address(terminal), "JBMultiTerminal");
+        _requireArtifactIdentity("JBTerminalStore", address(terminalStore), "JBTerminalStore");
+
+        // CO: core support
+        _requireArtifactIdentity("JBFundAccessLimits", address(fundAccessLimits), "JBFundAccessLimits");
+        _requireArtifactIdentity("JBTokens", address(tokens), "JBTokens");
+        _requireArtifactIdentity("JBPrices", address(prices), "JBPrices");
+        _requireArtifactIdentity("JBRulesets", address(rulesets), "JBRulesets");
+        _requireArtifactIdentity("JBSplits", address(splits), "JBSplits");
+        _requireArtifactIdentity("JBFeelessAddresses", address(feelessAddresses), "JBFeelessAddresses");
+        _requireArtifactIdentity("JBPermissions", address(permissions), "JBPermissions");
+
+        // CL: Revnet stack
+        _requireArtifactIdentity("REVDeployer", address(revDeployer), "REVDeployer");
+        _requireArtifactIdentity("REVOwner", address(revOwner), "REVOwner");
+        _requireArtifactIdentity("REVLoans", address(revLoans), "REVLoans");
+
+        // CM: omnichain
+        _requireArtifactIdentity("JBOmnichainDeployer", address(omnichainDeployer), "JBOmnichainDeployer");
+        _requireArtifactIdentity("JBSuckerRegistry", address(suckerRegistry), "JBSuckerRegistry");
+
+        // CN: hook & registry singletons
+        _requireArtifactIdentity("JB721TiersHookDeployer", address(hookDeployer), "JB721TiersHookDeployer");
+        _requireArtifactIdentity("JB721TiersHookStore", address(hookStore), "JB721TiersHookStore");
+        _requireArtifactIdentity(
+            "JB721TiersHookProjectDeployer", address(hookProjectDeployer), "JB721TiersHookProjectDeployer"
+        );
+        _requireArtifactIdentity("JBBuybackHookRegistry", address(buybackRegistry), "JBBuybackHookRegistry");
+        _requireArtifactIdentity(
+            "JBRouterTerminalRegistry", address(routerTerminalRegistry), "JBRouterTerminalRegistry"
+        );
+
+        // CI: Croptop
+        _requireArtifactIdentity("CTPublisher", address(ctPublisher), "CTPublisher");
+        _requireArtifactIdentity("CTDeployer", address(ctDeployer), "CTDeployer");
+        _requireArtifactIdentity("CTProjectOwner", address(ctProjectOwner), "CTProjectOwner");
+
+        // BE: buyback hook default implementation (via registry getter)
+        if (address(buybackRegistry) != address(0)) {
+            (bool ok, bytes memory data) = address(buybackRegistry).staticcall(abi.encodeWithSignature("defaultHook()"));
+            if (ok && data.length >= 32) {
+                _requireArtifactIdentity("JBBuybackHook", abi.decode(data, (address)), "JBBuybackHook default");
+            }
+        }
+
+        // BF: 721 tiers hook base implementation (via low-level call so the interface return-type
+        // mismatch between JB721TiersHookDeployer.HOOK() and IJB721TiersHook doesn't bite).
+        {
+            (bool okHook, bytes memory hookData) = address(hookDeployer).staticcall(abi.encodeWithSignature("HOOK()"));
+            if (okHook && hookData.length >= 32) {
+                _requireArtifactIdentity("JB721TiersHook", abi.decode(hookData, (address)), "JB721TiersHook base impl");
+            }
+        }
+
+        // BH: Phase 11 periphery
+        _requireArtifactIdentity("JBProjectHandles", address(projectHandles), "JBProjectHandles");
+        _requireArtifactIdentity("JB721Distributor", address(distributor721), "JB721Distributor");
+        _requireArtifactIdentity("JBTokenDistributor", address(tokenDistributor), "JBTokenDistributor");
+        _requireArtifactIdentity("JBProjectPayerDeployer", address(projectPayerDeployer), "JBProjectPayerDeployer");
+
+        // BJ: Defifa + AddressRegistry
+        _requireArtifactIdentity("JBAddressRegistry", addressRegistry, "JBAddressRegistry");
+        _requireArtifactIdentity("DefifaDeployer", address(defifaDeployer), "DefifaDeployer");
+        if (address(defifaDeployer) != address(0)) {
+            (bool okOrigin, bytes memory originData) =
+                address(defifaDeployer).staticcall(abi.encodeWithSignature("HOOK_CODE_ORIGIN()"));
+            if (okOrigin && originData.length >= 32) {
+                _requireArtifactIdentity("DefifaHook", abi.decode(originData, (address)), "DefifaHook code origin");
+            }
+            (bool okResolver, bytes memory resolverData) =
+                address(defifaDeployer).staticcall(abi.encodeWithSignature("TOKEN_URI_RESOLVER()"));
+            if (okResolver && resolverData.length >= 32) {
+                _requireArtifactIdentity(
+                    "DefifaTokenUriResolver", abi.decode(resolverData, (address)), "DefifaTokenUriResolver"
+                );
+            }
+            (bool okGov, bytes memory govData) =
+                address(defifaDeployer).staticcall(abi.encodeWithSignature("GOVERNOR()"));
+            if (okGov && govData.length >= 32) {
+                _requireArtifactIdentity("DefifaGovernor", abi.decode(govData, (address)), "DefifaGovernor");
+            }
+        }
+
+        console.log("");
+    }
+
+    /// Decision A: assert deployed runtime bytecode at `addr` is structurally identical to the
+    /// published artifact's `deployedBytecode`, with all immutable-reference byte ranges masked
+    /// to zero on both sides. The mask ranges are read from the artifact's
+    /// `deployedBytecode.immutableReferences` (a map of AST-ID -> [{start, length}, ...]).
+    ///
+    /// The constructor of any contract using Solidity `immutable` keywords writes the immutable
+    /// value into runtime bytecode at compiler-chosen offsets. The artifact carries zero bytes
+    /// at those positions; a real deployment carries the constructor-injected values. Raw
+    /// `extcodehash` equality fails for any such contract — but the bytes OUTSIDE those ranges
+    /// are byte-equal between artifact and live, which is what proves the audited source was
+    /// compiled and deployed.
+    ///
+    /// Requires `bytecode_hash = "none"` (BW). Skips with a logged note when the artifact is
+    /// missing so partial-coverage chains still produce a clear log line.
+    function _requireArtifactIdentity(string memory artifactName, address deployed, string memory label) internal {
+        if (deployed == address(0)) {
+            _skip(string.concat(label, ": skipped (deployed address is zero)"));
+            return;
+        }
+        string memory artifactPath = string.concat("artifacts/", artifactName, ".json");
+        string memory json;
+        try vm.readFile(artifactPath) returns (string memory j) {
+            json = j;
+        } catch {
+            _skip(string.concat(label, ": artifact unavailable at ", artifactPath));
+            return;
+        }
+        bytes memory artifactBytecode;
+        try vm.parseJsonBytes(json, ".deployedBytecode.object") returns (bytes memory bc) {
+            artifactBytecode = bc;
+        } catch {
+            _skip(string.concat(label, ": artifact has no .deployedBytecode.object"));
+            return;
+        }
+
+        bytes memory liveBytecode = deployed.code;
+        _check({
+            condition: liveBytecode.length == artifactBytecode.length,
+            label: string.concat(label, ": runtime length == artifact length"),
+            critical: true
+        });
+        if (liveBytecode.length != artifactBytecode.length) return;
+
+        // Mask immutable-reference ranges in both sides.
+        _zeroImmutableRanges(artifactBytecode, json);
+        _zeroImmutableRanges(liveBytecode, json);
+
+        _check({
+            condition: keccak256(liveBytecode) == keccak256(artifactBytecode),
+            label: string.concat(label, ": runtime bytecode == artifact (immutable-masked)"),
+            critical: true
+        });
+    }
+
+    /// Zeroes every immutable-reference byte range in `bytecode`, in place. Iterates the artifact's
+    /// `deployedBytecode.immutableReferences` map (keyed by AST ID, value an array of
+    /// `{start, length}` ranges). The key order doesn't matter; the ranges are byte-aligned.
+    function _zeroImmutableRanges(bytes memory bytecode, string memory artifactJson) internal view {
+        string[] memory keys;
+        try vm.parseJsonKeys(artifactJson, ".deployedBytecode.immutableReferences") returns (string[] memory k) {
+            keys = k;
+        } catch {
+            return; // No immutableReferences field — nothing to mask.
+        }
+        for (uint256 i; i < keys.length; i++) {
+            string memory keyPath = string.concat(".deployedBytecode.immutableReferences.", keys[i]);
+            // The value is an array of `{start, length}` objects. Foundry's parseJson requires
+            // struct fields in alphabetical order — so we decode as `ImmutableRange[]` with
+            // fields ordered `length` then `start`.
+            try vm.parseJson(artifactJson, keyPath) returns (bytes memory rangeBytes) {
+                ImmutableRange[] memory ranges = abi.decode(rangeBytes, (ImmutableRange[]));
+                for (uint256 j; j < ranges.length; j++) {
+                    uint256 start = ranges[j].start;
+                    uint256 len = ranges[j].length;
+                    for (uint256 k; k < len && start + k < bytecode.length; k++) {
+                        bytecode[start + k] = 0;
+                    }
+                }
+            } catch {
+                // Skip ranges we can't parse — defensive against artifact-format changes.
+            }
         }
     }
 
