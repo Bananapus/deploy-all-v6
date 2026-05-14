@@ -1760,6 +1760,15 @@ contract Verify is Script {
             condition: address(tokenImpl).code.length > 0, label: "JBERC20 implementation has code", critical: true
         });
 
+        // CJ: assert the JBERC20 implementation bytecode matches the published artifact.
+        _requireArtifactIdentity({artifactName: "JBERC20", deployed: address(tokenImpl), label: "JBERC20 impl"});
+
+        // Decision A: run the implementation-identity sweep for every audited contract group.
+        // Coverage: CK / CL / CM / CN / CO / CI / BE / BF / BH / BJ. Skips when an artifact file
+        // is missing so partial-coverage chains still get a clear log; production-chain build
+        // pipeline regenerates the manifest so the artifacts are always present.
+        _verifyImplementationIdentities();
+
         // Verify the implementation's PROJECTS() matches canonical projects contract.
         if (address(tokenImpl).code.length > 0) {
             try JBERC20(address(tokenImpl)).PROJECTS() returns (IJBProjects implProjects) {
@@ -2557,6 +2566,146 @@ contract Verify is Script {
             return keccak256(bytes(actual)) == keccak256(bytes(expected));
         } catch {
             return false;
+        }
+    }
+
+    /// Decision A sweep across every audited group. Each call asserts the deployed runtime
+    /// bytecode equals the artifact's deployedBytecode. Logs INFO and skips gracefully when the
+    /// artifact file is missing (e.g. partial-coverage testnet) or the contract is not loaded
+    /// (e.g. optional Phase 11 periphery on testnet).
+    ///
+    /// Coverage:
+    /// - CK: JBProjects, JBDirectory, JBController, JBMultiTerminal, JBTerminalStore
+    /// - CO: JBFundAccessLimits, JBTokens, JBPrices, JBRulesets, JBSplits, JBFeelessAddresses,
+    ///       JBPermissions
+    /// - CL: REVDeployer, REVOwner, REVLoans
+    /// - CM: JBOmnichainDeployer, JBSuckerRegistry
+    /// - CN: JB721TiersHookDeployer/Store/ProjectDeployer, JBBuybackHookRegistry,
+    ///       JBRouterTerminalRegistry
+    /// - CI: CTPublisher, CTDeployer, CTProjectOwner
+    /// - BE: JBBuybackHook (default hook implementation)
+    /// - BF: JB721TiersHook (base hook implementation)
+    /// - BH: JBProjectHandles, JB721Distributor, JBTokenDistributor, JBProjectPayerDeployer
+    /// - BJ: JBAddressRegistry, DefifaDeployer + sub-targets (HOOK_CODE_ORIGIN,
+    ///       TOKEN_URI_RESOLVER, GOVERNOR)
+    function _verifyImplementationIdentities() internal {
+        console.log("--- Decision A: Implementation Identity (artifact bytecode parity) ---");
+
+        // CK: core singletons
+        _requireArtifactIdentity("JBProjects", address(projects), "JBProjects");
+        _requireArtifactIdentity("JBDirectory", address(directory), "JBDirectory");
+        _requireArtifactIdentity("JBController", address(controller), "JBController");
+        _requireArtifactIdentity("JBMultiTerminal", address(terminal), "JBMultiTerminal");
+        _requireArtifactIdentity("JBTerminalStore", address(terminalStore), "JBTerminalStore");
+
+        // CO: core support
+        _requireArtifactIdentity("JBFundAccessLimits", address(fundAccessLimits), "JBFundAccessLimits");
+        _requireArtifactIdentity("JBTokens", address(tokens), "JBTokens");
+        _requireArtifactIdentity("JBPrices", address(prices), "JBPrices");
+        _requireArtifactIdentity("JBRulesets", address(rulesets), "JBRulesets");
+        _requireArtifactIdentity("JBSplits", address(splits), "JBSplits");
+        _requireArtifactIdentity("JBFeelessAddresses", address(feelessAddresses), "JBFeelessAddresses");
+        _requireArtifactIdentity("JBPermissions", address(permissions), "JBPermissions");
+
+        // CL: Revnet stack
+        _requireArtifactIdentity("REVDeployer", address(revDeployer), "REVDeployer");
+        _requireArtifactIdentity("REVOwner", address(revOwner), "REVOwner");
+        _requireArtifactIdentity("REVLoans", address(revLoans), "REVLoans");
+
+        // CM: omnichain
+        _requireArtifactIdentity("JBOmnichainDeployer", address(omnichainDeployer), "JBOmnichainDeployer");
+        _requireArtifactIdentity("JBSuckerRegistry", address(suckerRegistry), "JBSuckerRegistry");
+
+        // CN: hook & registry singletons
+        _requireArtifactIdentity("JB721TiersHookDeployer", address(hookDeployer), "JB721TiersHookDeployer");
+        _requireArtifactIdentity("JB721TiersHookStore", address(hookStore), "JB721TiersHookStore");
+        _requireArtifactIdentity(
+            "JB721TiersHookProjectDeployer", address(hookProjectDeployer), "JB721TiersHookProjectDeployer"
+        );
+        _requireArtifactIdentity("JBBuybackHookRegistry", address(buybackRegistry), "JBBuybackHookRegistry");
+        _requireArtifactIdentity(
+            "JBRouterTerminalRegistry", address(routerTerminalRegistry), "JBRouterTerminalRegistry"
+        );
+
+        // CI: Croptop
+        _requireArtifactIdentity("CTPublisher", address(ctPublisher), "CTPublisher");
+        _requireArtifactIdentity("CTDeployer", address(ctDeployer), "CTDeployer");
+        _requireArtifactIdentity("CTProjectOwner", address(ctProjectOwner), "CTProjectOwner");
+
+        // BE: buyback hook default implementation (via registry getter)
+        if (address(buybackRegistry) != address(0)) {
+            (bool ok, bytes memory data) = address(buybackRegistry).staticcall(abi.encodeWithSignature("defaultHook()"));
+            if (ok && data.length >= 32) {
+                _requireArtifactIdentity("JBBuybackHook", abi.decode(data, (address)), "JBBuybackHook default");
+            }
+        }
+
+        // BF: 721 tiers hook base implementation (via low-level call so the interface return-type
+        // mismatch between JB721TiersHookDeployer.HOOK() and IJB721TiersHook doesn't bite).
+        {
+            (bool okHook, bytes memory hookData) = address(hookDeployer).staticcall(abi.encodeWithSignature("HOOK()"));
+            if (okHook && hookData.length >= 32) {
+                _requireArtifactIdentity("JB721TiersHook", abi.decode(hookData, (address)), "JB721TiersHook base impl");
+            }
+        }
+
+        // BH: Phase 11 periphery
+        _requireArtifactIdentity("JBProjectHandles", address(projectHandles), "JBProjectHandles");
+        _requireArtifactIdentity("JB721Distributor", address(distributor721), "JB721Distributor");
+        _requireArtifactIdentity("JBTokenDistributor", address(tokenDistributor), "JBTokenDistributor");
+        _requireArtifactIdentity("JBProjectPayerDeployer", address(projectPayerDeployer), "JBProjectPayerDeployer");
+
+        // BJ: Defifa + AddressRegistry
+        _requireArtifactIdentity("JBAddressRegistry", addressRegistry, "JBAddressRegistry");
+        _requireArtifactIdentity("DefifaDeployer", address(defifaDeployer), "DefifaDeployer");
+        if (address(defifaDeployer) != address(0)) {
+            (bool okOrigin, bytes memory originData) =
+                address(defifaDeployer).staticcall(abi.encodeWithSignature("HOOK_CODE_ORIGIN()"));
+            if (okOrigin && originData.length >= 32) {
+                _requireArtifactIdentity("DefifaHook", abi.decode(originData, (address)), "DefifaHook code origin");
+            }
+            (bool okResolver, bytes memory resolverData) =
+                address(defifaDeployer).staticcall(abi.encodeWithSignature("TOKEN_URI_RESOLVER()"));
+            if (okResolver && resolverData.length >= 32) {
+                _requireArtifactIdentity(
+                    "DefifaTokenUriResolver", abi.decode(resolverData, (address)), "DefifaTokenUriResolver"
+                );
+            }
+            (bool okGov, bytes memory govData) =
+                address(defifaDeployer).staticcall(abi.encodeWithSignature("GOVERNOR()"));
+            if (okGov && govData.length >= 32) {
+                _requireArtifactIdentity("DefifaGovernor", abi.decode(govData, (address)), "DefifaGovernor");
+            }
+        }
+
+        console.log("");
+    }
+
+    /// Decision A: assert deployed runtime bytecode at `addr` matches the published artifact's
+    /// deployedBytecode. Used by every implementation-identity finding
+    /// (CJ/CK/CL/CM/CN/CO/BE/BF/BH/BJ/CI). Requires `bytecode_hash = "none"` in each source repo's
+    /// foundry.toml (BW landed this across all 17 source repos in Phase 1). Skips with a logged
+    /// note when the artifact file is missing so adoption can be staged.
+    function _requireArtifactIdentity(string memory artifactName, address deployed, string memory label) internal {
+        if (deployed == address(0)) {
+            _skip(string.concat(label, ": skipped (deployed address is zero)"));
+            return;
+        }
+        string memory artifactPath = string.concat("artifacts/", artifactName, ".json");
+        try vm.readFile(artifactPath) returns (string memory j) {
+            bytes memory deployedBytecode = vm.parseJsonBytes(j, ".deployedBytecode.object");
+            bytes32 expected = keccak256(deployedBytecode);
+            bytes32 actual;
+            assembly {
+                actual := extcodehash(deployed)
+            }
+            _check({
+                condition: actual == expected,
+                label: string.concat(label, ": runtime bytecode == artifact deployedBytecode"),
+                critical: true
+            });
+        } catch {
+            _skip(string.concat(label, ": artifact unavailable at ", artifactPath));
         }
     }
 
