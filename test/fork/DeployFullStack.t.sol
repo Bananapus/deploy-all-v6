@@ -419,15 +419,17 @@ contract DeployFullStackTest is Test {
             address(_directory),
             _permissions,
             address(_tokens),
-            IPoolManager(cfg.poolManager),
-            IPositionManager(cfg.positionManager),
             IAllowanceTransfer(address(_PERMIT2)),
-            IHooks(address(_uniswapV4Hook)),
             IJBSuckerRegistry(address(_suckerRegistry))
         );
         _lpSplitHookDeployer =
             new JBUniswapV4LPSplitHookDeployer(IJBAddressRegistry(address(_addressRegistry)), address(this));
-        _lpSplitHookDeployer.setChainSpecificConstants(_lpSplitHook);
+        _lpSplitHookDeployer.setChainSpecificConstants({
+            hook: _lpSplitHook,
+            poolManager: IPoolManager(cfg.poolManager),
+            positionManager: IPositionManager(cfg.positionManager),
+            oracleHook: IHooks(address(_uniswapV4Hook))
+        });
     }
 
     /// @dev Phase 03f: Suckers. Deploys chain-appropriate suckers and the registry.

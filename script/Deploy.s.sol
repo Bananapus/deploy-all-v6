@@ -959,6 +959,9 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployLpSplitHook() internal {
+        // Chain-same CREATE2 for the implementation: the chain-specific Uniswap V4 addresses (PoolManager,
+        // PositionManager, oracle hook) are no longer ctor args — each clone receives them through the deployer
+        // factory's `deployHookFor`, which passes them into `initialize` from the factory's storage.
         _lpSplitHook = JBUniswapV4LPSplitHook(
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBUniswapV4LPSplitHook",
@@ -967,18 +970,15 @@ contract Deploy is Script, Sphinx {
                         address(_directory),
                         _permissions,
                         address(_tokens),
-                        IPoolManager(_poolManager),
-                        IPositionManager(_positionManager),
                         IAllowanceTransfer(address(_PERMIT2)),
-                        IHooks(address(_uniswapV4Hook)),
                         IJBSuckerRegistry(address(_suckerRegistry))
                     )
                 }))
         );
 
-        // Chain-same CREATE2: constructor inputs are byte-identical across chains. The chain-specific
-        // hook implementation is wired in afterwards via the DEPLOYER-gated one-shot
-        // setChainSpecificConstants setter (mirrors JBOptimismSuckerDeployer).
+        // Chain-same CREATE2 for the deployer factory: ctor takes only chain-same inputs. The implementation +
+        // chain-specific V4 addresses are wired afterwards via the DEPLOYER-gated one-shot setChainSpecificConstants
+        // setter; the factory uses these stored values when initializing each freshly cloned hook.
         _lpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(
             _deployPrecompiledIfNeeded({
                 artifactName: "JBUniswapV4LPSplitHookDeployer",
@@ -988,7 +988,12 @@ contract Deploy is Script, Sphinx {
         );
 
         if (address(_lpSplitHookDeployer.HOOK()) == address(0)) {
-            _lpSplitHookDeployer.setChainSpecificConstants(_lpSplitHook);
+            _lpSplitHookDeployer.setChainSpecificConstants({
+                hook: _lpSplitHook,
+                poolManager: IPoolManager(_poolManager),
+                positionManager: IPositionManager(_positionManager),
+                oracleHook: IHooks(address(_uniswapV4Hook))
+            });
         }
     }
 

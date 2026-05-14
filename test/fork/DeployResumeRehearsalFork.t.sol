@@ -510,7 +510,8 @@ contract InstrumentedDeployer is IERC721Receiver {
     }
 
     function _deployLpSplitHook() internal {
-        // Deploy or resolve LP split hook.
+        // Deploy or resolve LP split hook (chain-same ctor inputs; chain-specific V4 addresses are wired via the
+        // factory's setChainSpecificConstants and passed into each clone by `deployHookFor`).
         (address h, bool hD) = _isDeployed(
             LP_SPLIT_HOOK_SALT,
             type(JBUniswapV4LPSplitHook).creationCode,
@@ -518,10 +519,7 @@ contract InstrumentedDeployer is IERC721Receiver {
                 address(directory),
                 permissions,
                 address(tokens),
-                IPoolManager(POOL_MANAGER),
-                IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook)),
                 IJBSuckerRegistry(address(suckerRegistry))
             )
         );
@@ -531,14 +529,11 @@ contract InstrumentedDeployer is IERC721Receiver {
                 address(directory),
                 permissions,
                 address(tokens),
-                IPoolManager(POOL_MANAGER),
-                IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook)),
                 IJBSuckerRegistry(address(suckerRegistry))
             );
 
-        // Deploy or resolve LP split hook deployer (chain-same ctor inputs; HOOK wired below).
+        // Deploy or resolve LP split hook deployer (chain-same ctor inputs; HOOK + V4 addresses wired below).
         (address d, bool dD) = _isDeployed(
             LP_SPLIT_HOOK_DEPLOYER_SALT,
             type(JBUniswapV4LPSplitHookDeployer).creationCode,
@@ -550,7 +545,12 @@ contract InstrumentedDeployer is IERC721Receiver {
                 IJBAddressRegistry(address(addressRegistry)), address(this)
             );
         if (address(lpSplitHookDeployer.HOOK()) == address(0)) {
-            lpSplitHookDeployer.setChainSpecificConstants(lpSplitHook);
+            lpSplitHookDeployer.setChainSpecificConstants({
+                hook: lpSplitHook,
+                poolManager: IPoolManager(POOL_MANAGER),
+                positionManager: IPositionManager(POSITION_MANAGER),
+                oracleHook: IHooks(address(uniswapV4Hook))
+            });
         }
     }
 

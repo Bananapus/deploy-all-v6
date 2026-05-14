@@ -52,7 +52,7 @@
     "@bananapus/project-payer-v6": "^0.0.7",
     "@bananapus/router-terminal-v6": "^0.0.42",
     "@bananapus/suckers-v6": "^0.0.40",
-    "@bananapus/univ4-lp-split-hook-v6": "^0.0.37",
+    "@bananapus/univ4-lp-split-hook-v6": "^0.0.38",
     "@bananapus/univ4-router-v6": "^0.0.23",
     "@bannynet/core-v6": "^0.0.26",
     "@chainlink/contracts": "1.5.0",

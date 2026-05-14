@@ -474,6 +474,7 @@ contract ResumeDeployHarness is IERC721Receiver {
     }
 
     function _deployLpSplitHook() internal {
+        // Chain-same ctor inputs; V4 addresses wired via the factory below.
         (address hookAddress, bool hookDeployed) = _isDeployed(
             LP_SPLIT_HOOK_SALT,
             type(JBUniswapV4LPSplitHook).creationCode,
@@ -481,10 +482,7 @@ contract ResumeDeployHarness is IERC721Receiver {
                 address(directory),
                 permissions,
                 address(tokens),
-                IPoolManager(POOL_MANAGER),
-                IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook)),
                 IJBSuckerRegistry(address(suckerRegistry))
             )
         );
@@ -494,10 +492,7 @@ contract ResumeDeployHarness is IERC721Receiver {
                 address(directory),
                 permissions,
                 address(tokens),
-                IPoolManager(POOL_MANAGER),
-                IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook)),
                 IJBSuckerRegistry(address(suckerRegistry))
             );
 
@@ -512,7 +507,12 @@ contract ResumeDeployHarness is IERC721Receiver {
                 IJBAddressRegistry(address(addressRegistry)), address(this)
             );
         if (address(lpSplitHookDeployer.HOOK()) == address(0)) {
-            lpSplitHookDeployer.setChainSpecificConstants(lpSplitHook);
+            lpSplitHookDeployer.setChainSpecificConstants({
+                hook: lpSplitHook,
+                poolManager: IPoolManager(POOL_MANAGER),
+                positionManager: IPositionManager(POSITION_MANAGER),
+                oracleHook: IHooks(address(uniswapV4Hook))
+            });
         }
     }
 
