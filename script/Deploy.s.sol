@@ -3948,6 +3948,23 @@ contract Deploy is Script, Sphinx {
             _serializeIfSet({key: j, name: "JBMatchingPriceFeed", addr: ethMatching});
         }
 
+        // Canonical project ERC-20 token clones (NANA/CPN/REV/BAN) live behind
+        // `_tokens.tokenOf(projectId)` and share the JBERC20 implementation bytecode but each clone
+        // has a unique address that must be in the dump for post-deploy verification.
+        if (address(_tokens) != address(0)) {
+            _serializeProjectErc20({key: j, suffix: "ProjectNANA", projectId: _FEE_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectCPN", projectId: _CPN_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectREV", projectId: _REV_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectBAN", projectId: _BAN_PROJECT_ID});
+        }
+
+        // Canonical 721 hook clones (CPN, BAN) live behind `_revOwner.tiered721HookOf(projectId)`.
+        // They share the JB721TiersHook implementation bytecode; each clone has its own address.
+        if (address(_revOwner) != address(0)) {
+            _serializeProject721Hook({key: j, suffix: "ProjectCPN", projectId: _CPN_PROJECT_ID});
+            _serializeProject721Hook({key: j, suffix: "ProjectBAN", projectId: _BAN_PROJECT_ID});
+        }
+
         // ── Metadata ──
         vm.serializeString({objectKey: j, valueKey: "format", value: "jb-v6-addresses-1"});
         string memory out = vm.serializeUint({objectKey: j, valueKey: "chainId", value: block.chainid});
@@ -4038,6 +4055,26 @@ contract Deploy is Script, Sphinx {
             vm.serializeAddress({objectKey: key, valueKey: deployerName, value: d});
             _serializeSingletonFromDeployer({key: key, name: singletonName, deployer: d});
         }
+    }
+
+    /// Emits the canonical project's ERC-20 clone address from
+    /// `_tokens.tokenOf(projectId)` under `JBERC20__<suffix>`. Skips if the
+    /// project has not deployed its token yet (returns address(0)).
+    function _serializeProjectErc20(string memory key, string memory suffix, uint256 projectId) internal {
+        address token = address(_tokens.tokenOf(projectId));
+        if (token == address(0)) return;
+        vm.serializeAddress({objectKey: key, valueKey: string.concat("JBERC20__", suffix), value: token});
+    }
+
+    /// Emits the canonical project's 721 hook clone address from
+    /// `_revOwner.tiered721HookOf(projectId)` under `JB721TiersHook__<suffix>`.
+    /// Skips if the project has no tiered-721 hook (e.g. fee project, REV).
+    function _serializeProject721Hook(string memory key, string memory suffix, uint256 projectId) internal {
+        IJB721TiersHook hook = _revOwner.tiered721HookOf(projectId);
+        if (address(hook) == address(0)) return;
+        vm.serializeAddress({
+            objectKey: key, valueKey: string.concat("JB721TiersHook__", suffix), value: address(hook)
+        });
     }
 
     /// Maps a known production / testnet chain id to a short routing suffix used
