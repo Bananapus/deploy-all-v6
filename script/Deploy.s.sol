@@ -3904,18 +3904,24 @@ contract Deploy is Script, Sphinx {
         _serializeLibrary({key: j, name: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT});
 
         // JBERC20 — constructor (permissions, projects), shared with tokens.
+        // The address is derived from the COPIED artifact bytecode (the same one Deploy.s.sol uses
+        // for deployment), not from local `type(JBERC20).creationCode`. Without this, source drift
+        // between the local checkout and the published artifact causes the address dump to point
+        // at a different CREATE2 address than the contract actually deployed.
         if (address(_permissions) != address(0) && address(_projects) != address(0)) {
             (address erc20Addr, bool erc20Deployed) = _isDeployed({
-                salt: coreSalt, creationCode: type(JBERC20).creationCode, arguments: abi.encode(_permissions, _projects)
+                salt: coreSalt,
+                creationCode: _loadArtifact("JBERC20"),
+                arguments: abi.encode(_permissions, _projects)
             });
             if (erc20Deployed) _serializeIfSet({key: j, name: "JBERC20", addr: erc20Addr});
         }
 
-        // Deadlines — no constructor args, salt = DEADLINES_SALT.
-        _serializeDeadline({key: j, name: "JBDeadline3Hours", creationCode: type(JBDeadline3Hours).creationCode});
-        _serializeDeadline({key: j, name: "JBDeadline1Day", creationCode: type(JBDeadline1Day).creationCode});
-        _serializeDeadline({key: j, name: "JBDeadline3Days", creationCode: type(JBDeadline3Days).creationCode});
-        _serializeDeadline({key: j, name: "JBDeadline7Days", creationCode: type(JBDeadline7Days).creationCode});
+        // Deadlines — no constructor args, salt = DEADLINES_SALT. Same artifact-vs-local concern.
+        _serializeDeadline({key: j, name: "JBDeadline3Hours", creationCode: _loadArtifact("JBDeadline3Hours")});
+        _serializeDeadline({key: j, name: "JBDeadline1Day", creationCode: _loadArtifact("JBDeadline1Day")});
+        _serializeDeadline({key: j, name: "JBDeadline3Days", creationCode: _loadArtifact("JBDeadline3Days")});
+        _serializeDeadline({key: j, name: "JBDeadline7Days", creationCode: _loadArtifact("JBDeadline7Days")});
 
         // Price feeds — query the prices registry directly.
         if (address(_prices) != address(0)) {
@@ -3926,7 +3932,11 @@ contract Deploy is Script, Sphinx {
                     unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
                 })
             );
-            _serializeIfSet({key: j, name: "JBChainlinkV3PriceFeed__ETH_USD", addr: ethUsd});
+            // On L2s (Optimism / Base / Arbitrum + sepolias) the deployed feed is the sequencer-aware
+            // variant whose runtime bytecode differs from `JBChainlinkV3PriceFeed.json`. Naming the
+            // emitted entry by the actual artifact type lets the post-deploy verifier and artifact
+            // emitter resolve the correct artifact via the `__` strip rule rather than guessing.
+            _serializePriceFeed({key: j, suffix: "ETH_USD", feed: ethUsd});
 
             if (_usdcToken != address(0)) {
                 // forge-lint: disable-next-line(unsafe-typecast)
@@ -3935,7 +3945,7 @@ contract Deploy is Script, Sphinx {
                         projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(_usdcToken))
                     })
                 );
-                _serializeIfSet({key: j, name: "JBChainlinkV3PriceFeed__USDC_USD", addr: usdcUsd});
+                _serializePriceFeed({key: j, suffix: "USDC_USD", feed: usdcUsd});
             }
 
             address ethMatching = address(
@@ -4055,6 +4065,19 @@ contract Deploy is Script, Sphinx {
             vm.serializeAddress({objectKey: key, valueKey: deployerName, value: d});
             _serializeSingletonFromDeployer({key: key, name: singletonName, deployer: d});
         }
+    }
+
+    /// Detects whether a deployed price feed is the L2 sequencer-aware variant and emits it under
+    /// the matching artifact name (`JBChainlinkV3SequencerPriceFeed__<suffix>` vs the plain
+    /// `JBChainlinkV3PriceFeed__<suffix>`). The sequencer-aware variant exposes a `SEQUENCER_FEED()`
+    /// getter that the standard variant does not. We use a low-level staticcall so this single
+    /// helper works for both shapes without needing two interfaces in scope.
+    function _serializePriceFeed(string memory key, string memory suffix, address feed) internal {
+        if (feed == address(0)) return;
+        (bool ok, bytes memory data) = feed.staticcall(abi.encodeWithSignature("SEQUENCER_FEED()"));
+        bool isSequencer = ok && data.length >= 32 && abi.decode(data, (address)) != address(0);
+        string memory base = isSequencer ? "JBChainlinkV3SequencerPriceFeed" : "JBChainlinkV3PriceFeed";
+        vm.serializeAddress({objectKey: key, valueKey: string.concat(base, "__", suffix), value: feed});
     }
 
     /// Emits the canonical project's ERC-20 clone address from
