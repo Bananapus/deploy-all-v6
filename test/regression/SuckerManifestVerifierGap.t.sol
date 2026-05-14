@@ -35,7 +35,7 @@ contract SuckerManifestVerifierGapTest is Test {
         harness.verifySuckerManifest();
     }
 
-    function test_suckerManifestVerifierAcceptsPairWithDisabledNativeTokenMapping() public {
+    function test_suckerManifestVerifierRejectsPairWithDisabledNativeTokenMapping() public {
         MockSucker local = new MockSucker({
             peer_: bytes32(uint256(uint160(makeAddr("remote sucker")))),
             peerChainId_: 10,
@@ -58,8 +58,14 @@ contract SuckerManifestVerifierGapTest is Test {
         JBRemoteToken memory remoteToken = local.remoteTokenFor(JBConstants.NATIVE_TOKEN);
         assertFalse(remoteToken.enabled, "native-token mapping is disabled");
 
-        // Category 19 never checks the local sucker's token mapping, so the pair passes even
-        // though the canonical native-token bridge path is disabled.
+        // BC residual fix: Category 19 now reads remoteTokenFor(NATIVE_TOKEN).enabled and
+        // rejects when the mapping is disabled.
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                "NANA(1) sucker pair 0 native-token remote mapping is enabled"
+            )
+        );
         harness.verifySuckerManifest();
     }
 
