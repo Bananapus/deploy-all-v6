@@ -1675,6 +1675,55 @@ contract Verify is Script {
                     label: string.concat(labels[i], " terminal list includes RouterTerminalRegistry"),
                     critical: true
                 });
+
+                // BL: require the registry to resolve each canonical project to the canonical
+                // router terminal. Without this, the registry could route project N through a
+                // forked router (different fee handling, different beneficiary resolution) while
+                // still passing the "registry in terminal list" check.
+                if (address(routerTerminal) != address(0)) {
+                    (bool ok, bytes memory data) = address(routerTerminalRegistry)
+                        .staticcall(abi.encodeWithSignature("terminalOf(uint256)", projectIds[i]));
+                    if (ok && data.length >= 32) {
+                        _check({
+                            condition: abi.decode(data, (address)) == address(routerTerminal),
+                            label: string.concat(
+                                labels[i], " RouterTerminalRegistry.terminalOf == canonical RouterTerminal"
+                            ),
+                            critical: true
+                        });
+                    } else {
+                        _check({
+                            condition: false,
+                            label: string.concat(labels[i], " RouterTerminalRegistry exposes terminalOf(uint256)"),
+                            critical: true
+                        });
+                    }
+                }
+
+                // BL: exact terminal-list membership. The canonical deployment installs exactly
+                // two terminals: JBMultiTerminal + JBRouterTerminalRegistry. Anything else in the
+                // list is either a stale leftover or a malicious injection. Refusing extras is
+                // the audit's "exact list" gate.
+                _check({
+                    condition: terminals.length == 2,
+                    label: string.concat(labels[i], " terminal list has exactly 2 entries"),
+                    critical: true
+                });
+                if (terminals.length == 2) {
+                    bool hasMulti;
+                    bool hasRegistry;
+                    for (uint256 j; j < 2; j++) {
+                        if (address(terminals[j]) == address(terminal)) hasMulti = true;
+                        if (address(terminals[j]) == address(routerTerminalRegistry)) hasRegistry = true;
+                    }
+                    _check({
+                        condition: hasMulti && hasRegistry,
+                        label: string.concat(
+                            labels[i], " terminal list == {JBMultiTerminal, JBRouterTerminalRegistry}"
+                        ),
+                        critical: true
+                    });
+                }
             }
 
             // Verify all canonical projects' primary terminal for native token is the JBMultiTerminal.
@@ -2433,15 +2482,62 @@ contract Verify is Script {
                 critical: true
             });
 
-            // Verify each pair has a non-zero remote.
+            // BC: per-pair runtime sanity — each pair's local sucker must have code, must be
+            // registered with the canonical sucker registry, and must expose a non-zero remote
+            // chain id alongside the non-zero remote address. Without these, a malformed entry
+            // (zero remote chain id, EOA local, unregistered sucker) survives just because the
+            // count happens to match.
             for (uint256 j; j < pairs.length; j++) {
+                string memory pairLabel = string.concat(names[i], " sucker pair ", vm.toString(j));
                 _check({
                     condition: pairs[j].remote != bytes32(0),
-                    label: string.concat(names[i], " sucker pair ", vm.toString(j), " has non-zero remote"),
+                    label: string.concat(pairLabel, " has non-zero remote"),
                     critical: true
                 });
+                address local = pairs[j].local;
+                _check({
+                    condition: local != address(0) && local.code.length > 0,
+                    label: string.concat(pairLabel, " local sucker has code"),
+                    critical: true
+                });
+                if (local.code.length == 0) continue;
+
+                // Local sucker must be registered under the canonical project ID.
+                (bool okIsOf, bytes memory isOfData) = address(suckerRegistry)
+                    .staticcall(abi.encodeWithSignature("isSuckerOf(uint256,address)", pids[i], local));
+                if (okIsOf && isOfData.length >= 32) {
+                    _check({
+                        condition: abi.decode(isOfData, (bool)),
+                        label: string.concat(pairLabel, " local is registered as a sucker of the project"),
+                        critical: true
+                    });
+                }
+
+                // Local sucker must expose a non-zero remote chain id. Format mismatches
+                // (uint vs bytes32, missing getter) are surfaced as a critical failure rather
+                // than silent skip — the canonical sucker types all expose this.
+                (bool okChainId, bytes memory chainIdData) = local.staticcall(abi.encodeWithSignature("peerChainId()"));
+                if (okChainId && chainIdData.length >= 32) {
+                    _check({
+                        condition: abi.decode(chainIdData, (uint256)) != 0,
+                        label: string.concat(pairLabel, " peerChainId is non-zero"),
+                        critical: true
+                    });
+                } else {
+                    _check({
+                        condition: false,
+                        label: string.concat(pairLabel, " local sucker exposes peerChainId()"),
+                        critical: true
+                    });
+                }
             }
         }
+
+        // BC known gap: exact-manifest equality (each pair's expected remote address, remote
+        // chain id, and per-token mapping) requires per-route env vars or an off-chain manifest.
+        // The on-chain verifier proves no malformed pair survives; per-route expected values are
+        // a follow-up that the BC PR description points to.
+        console.log("  [INFO] BC: per-pair runtime sanity asserted; exact-manifest follow-up via env vars");
 
         if (!anySuckerChecks) {
             _skip("Sucker manifest checks (VERIFY_SUCKER_PAIRS_* not set)");
