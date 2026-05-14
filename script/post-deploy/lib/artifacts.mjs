@@ -58,6 +58,14 @@ if (!fs.existsSync(addressesPath)) die(`Missing addresses file: ${addressesPath}
 const addresses = readJson({path: addressesPath});
 
 const outDir = args['out-dir'] ? path.resolve(args['out-dir']) : path.join(CACHE_DIR, `artifacts-${CHAIN_ID}`);
+// Prune any artifact files from a previous run so distribution only sees JSONs
+// produced in this invocation. Without this, a target that was emitted in a
+// previous run but is missing from the current address dump (e.g. renamed,
+// removed) would still be picked up by distribute.mjs's readdirSync and copied
+// to deployments/ with stale content.
+if (fs.existsSync(outDir)) {
+  fs.rmSync(outDir, { recursive: true, force: true });
+}
 fs.mkdirSync(outDir, { recursive: true });
 
 const targets = Object.entries(addresses)

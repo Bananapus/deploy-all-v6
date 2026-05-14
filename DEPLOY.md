@@ -183,6 +183,8 @@ Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so th
 
 `./script/build-artifacts.sh` runs `forge clean` in each source repo before its `forge build` step, so a stale `out/*.json` from a previous compilation cannot be picked up. After the build, before copying the artifact, the script also verifies that (a) the source file exists at the path declared in `CONTRACTS`, and (b) the copied artifact's `metadata.settings.compilationTarget` binds the expected `(sourcePath, contractName)` pair. Any mismatch is a hard error.
 
+`artifacts.mjs` prunes `post-deploy/.cache/artifacts-<chainId>/` before writing each run's targets, and `distribute.mjs` derives its target list from the current `addresses-<chainId>.json` dump (not from `readdirSync` on the cache). Each artifact's `address` and `chainId` are validated against the current target before the file is copied to `deployments/`. Together these guarantee that the canonical published JSON tree never receives a stale file from a previous run. `post-deploy.sh` also skips distribution for any chain whose artifact emission failed.
+
 #### Limitations (current scope)
 
 - **Per-route CCIP sucker instances** (e.g. `JBCCIPSucker__OP`, `JBSwapCCIPSucker__Base`) are not yet emitted to `addresses-<chainId>.json` because they aren't tracked in Deploy.s.sol's state variables. They will be added in the next iteration alongside the all-precompile refactor of `Deploy.s.sol`. For now, the pipeline emits the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USDC/USD price feeds.

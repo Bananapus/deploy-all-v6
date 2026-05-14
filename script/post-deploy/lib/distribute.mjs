@@ -41,28 +41,72 @@ const sphinxProjectByRepo = chainsCfg.sphinxProjectByRepo;
 const inDir = args['in-dir'] ? path.resolve(args['in-dir']) : path.join(CACHE_DIR, `artifacts-${CHAIN_ID}`);
 if (!fs.existsSync(inDir)) die(`No input artifacts dir: ${inDir} (run artifacts.mjs first)`);
 
-const files = fs.readdirSync(inDir).filter((f) => f.endsWith('.json'));
-console.log(`Distributing ${files.length} artifact(s) for chain ${CHAIN_ID} (${chain.alias})${DRY_RUN ? ' [DRY RUN]' : ''}`);
+// Derive the expected target set from the CURRENT addresses-<chainId>.json dump
+// rather than from readdirSync(inDir). If a stale artifact survives in the cache
+// (from a previous run with different targets), it will simply not appear in
+// this dump and therefore not be distributed. This is the BV gate: distribution
+// is keyed off the current deployment, not whatever happens to be on disk.
+const expectedChainIdHex = `0x${Number(CHAIN_ID).toString(16)}`;
+const addressesPath = path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
+if (!fs.existsSync(addressesPath)) {
+  die(`No address dump for chain ${CHAIN_ID}: ${addressesPath} (run forge script Deploy.s.sol first)`);
+}
+const addresses = readJson({path: addressesPath});
+const targets = Object.entries(addresses)
+  .filter(([k, v]) => k !== 'format' && k !== 'chainId' && typeof v === 'string' && v.startsWith('0x'))
+  .map(([name, addr]) => ({ name, address: String(addr).toLowerCase() }));
+
+console.log(`Distributing ${targets.length} artifact(s) for chain ${CHAIN_ID} (${chain.alias})${DRY_RUN ? ' [DRY RUN]' : ''}`);
 
 let writeCount = 0;
 let skipCount = 0;
 
-for (const file of files) {
-  const contractName = file.replace(/\.json$/, '');
-  const baseName = contractName.split('__')[0];
+for (const target of targets) {
+  const file = `${target.name}.json`;
+  const baseName = target.name.split('__')[0];
   const manifestEntry = manifest.contracts[baseName];
   if (!manifestEntry) {
-    console.warn(`  SKIP    ${contractName}: not in manifest`);
+    console.warn(`  SKIP    ${target.name}: not in manifest`);
     skipCount += 1;
     continue;
   }
   const sphinxProject = sphinxProjectByRepo[manifestEntry.repo];
   if (!sphinxProject) {
-    console.warn(`  SKIP    ${contractName}: no sphinxProject mapping for repo ${manifestEntry.repo}`);
+    console.warn(`  SKIP    ${target.name}: no sphinxProject mapping for repo ${manifestEntry.repo}`);
     skipCount += 1;
     continue;
   }
   const sourcePath = path.join(inDir, file);
+  if (!fs.existsSync(sourcePath)) {
+    console.warn(`  SKIP    ${target.name}: artifact missing in ${path.relative(DEPLOY_ROOT, inDir)} (artifact emission failed?)`);
+    skipCount += 1;
+    continue;
+  }
+  // Validate the artifact binds the CURRENT target address+chain. A stale file
+  // with the same name but a previous run's address would otherwise sneak
+  // through and overwrite the canonical published JSON.
+  let artifactJson;
+  try {
+    artifactJson = readJson({path: sourcePath});
+  } catch (err) {
+    console.warn(`  SKIP    ${target.name}: artifact JSON is unreadable: ${err.message}`);
+    skipCount += 1;
+    continue;
+  }
+  if (String(artifactJson.address || '').toLowerCase() !== target.address) {
+    console.warn(
+      `  SKIP    ${target.name}: artifact.address ${artifactJson.address} != current target ${target.address}`
+    );
+    skipCount += 1;
+    continue;
+  }
+  if (String(artifactJson.chainId || '').toLowerCase() !== expectedChainIdHex) {
+    console.warn(
+      `  SKIP    ${target.name}: artifact.chainId ${artifactJson.chainId} != current chain ${expectedChainIdHex}`
+    );
+    skipCount += 1;
+    continue;
+  }
 
   // Aggregator destination — always written.
   const aggregatorPath = path.join(DEPLOY_ROOT, 'deployments', 'juicebox-v6', chain.alias, file);
@@ -71,9 +115,8 @@ for (const file of files) {
   const repoDir = manifestEntry.repo === 'deploy-all-v6' ? DEPLOY_ROOT : path.join(MONOREPO_ROOT, manifestEntry.repo);
   const perRepoPath = path.join(repoDir, 'deployments', sphinxProject, chain.alias, file);
 
-  for (const dest of [aggregatorPath, perRepoPath]) {
-    // Don't write to the same path twice (deploy-all-v6 owns both).
-    if (dest === aggregatorPath && perRepoPath === aggregatorPath) continue;
+  let written = 0;
+  for (const dest of new Set([aggregatorPath, perRepoPath])) {
     if (DRY_RUN) {
       console.log(`  would write  ${path.relative(MONOREPO_ROOT, dest)}`);
     } else {
@@ -81,8 +124,9 @@ for (const file of files) {
       fs.copyFileSync(sourcePath, dest);
     }
     writeCount += 1;
+    written += 1;
   }
-  if (!DRY_RUN) console.log(`  ✓ ${contractName}.json → 2 destinations`);
+  if (!DRY_RUN) console.log(`  ✓ ${target.name}.json → ${written} destination${written === 1 ? '' : 's'}`);
 }
 
 console.log(`Done. ${writeCount} write(s), ${skipCount} skip(s).`);
