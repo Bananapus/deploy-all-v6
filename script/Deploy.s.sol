@@ -3847,6 +3847,9 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JBAddressRegistry", addr: address(_addressRegistry)});
         _serializeIfSet({key: j, name: "JB721TiersHookStore", addr: address(_hookStore)});
         _serializeIfSet({key: j, name: "JB721CheckpointsDeployer", addr: address(_checkpointsDeployer)});
+        _serializeImplementationFromDeployer({
+            key: j, name: "JB721Checkpoints", deployer: address(_checkpointsDeployer)
+        });
         _serializeIfSet({key: j, name: "JB721TiersHook", addr: address(_hook721)});
         _serializeIfSet({key: j, name: "JB721TiersHookDeployer", addr: address(_hookDeployer)});
         _serializeIfSet({key: j, name: "JB721TiersHookProjectDeployer", addr: address(_hookProjectDeployer)});
@@ -3883,6 +3886,9 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JB721Distributor", addr: address(_721Distributor)});
         _serializeIfSet({key: j, name: "JBTokenDistributor", addr: address(_tokenDistributor)});
         _serializeIfSet({key: j, name: "JBProjectPayerDeployer", addr: address(_projectPayerDeployer)});
+        _serializeImplementationFromDeployer({
+            key: j, name: "JBProjectPayer", deployer: address(_projectPayerDeployer)
+        });
 
         // ── Single-instance contracts not held in state vars ──
         // Computed via _isDeployed against the canonical CREATE2 factory (since the
@@ -3977,12 +3983,33 @@ contract Deploy is Script, Sphinx {
     /// alongside their deployers so the post-deploy verifier and artifact emitter
     /// can prove the implementation bytecode matches the published artifact.
     function _serializeSingletonFromDeployer(string memory key, string memory name, address deployer) internal {
+        _serializeAddressFromDeployer({key: key, name: name, deployer: deployer, signature: "singleton()"});
+    }
+
+    /// Constructor-created clone implementations (JBProjectPayer, JB721Checkpoints) live behind
+    /// `IMPLEMENTATION()` on their deployers. Emitting them keeps the post-deploy verifier and
+    /// artifact emitter able to prove the clone targets match the published artifact.
+    function _serializeImplementationFromDeployer(string memory key, string memory name, address deployer) internal {
+        _serializeAddressFromDeployer({key: key, name: name, deployer: deployer, signature: "IMPLEMENTATION()"});
+    }
+
+    /// Reads `deployer.<signature>` via low-level staticcall and serializes the returned address if
+    /// non-zero. Used by the sucker-singleton and clone-implementation serializers above so a
+    /// single shared helper covers both getter shapes.
+    function _serializeAddressFromDeployer(
+        string memory key,
+        string memory name,
+        address deployer,
+        string memory signature
+    )
+        internal
+    {
         if (deployer == address(0)) return;
-        (bool ok, bytes memory data) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
+        (bool ok, bytes memory data) = deployer.staticcall(abi.encodeWithSignature(signature));
         if (!ok || data.length < 32) return;
-        address singleton = abi.decode(data, (address));
-        if (singleton == address(0)) return;
-        vm.serializeAddress({objectKey: key, valueKey: name, value: singleton});
+        address impl = abi.decode(data, (address));
+        if (impl == address(0)) return;
+        vm.serializeAddress({objectKey: key, valueKey: name, value: impl});
     }
 
     /// Iterates `_preApprovedSuckerDeployers`, skipping the three standard

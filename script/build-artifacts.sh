@@ -101,6 +101,7 @@ CONTRACTS=(
   "nana-721-hook-v6:JB721TiersHookLib:src/libraries/JB721TiersHookLib.sol"
   "nana-721-hook-v6:JB721TiersHookStore:src/JB721TiersHookStore.sol"
   "nana-721-hook-v6:JB721TiersHook:src/JB721TiersHook.sol"
+  "nana-721-hook-v6:JB721Checkpoints:src/JB721Checkpoints.sol"
   "nana-721-hook-v6:JB721CheckpointsDeployer:src/JB721CheckpointsDeployer.sol"
   "nana-721-hook-v6:JB721TiersHookDeployer:src/JB721TiersHookDeployer.sol"
   "nana-721-hook-v6:JB721TiersHookProjectDeployer:src/JB721TiersHookProjectDeployer.sol"
@@ -168,6 +169,7 @@ CONTRACTS=(
   "nana-distributor-v6:JBTokenDistributor:src/JBTokenDistributor.sol"
 
   # ── nana-project-payer-v6 ──
+  "nana-project-payer-v6:JBProjectPayer:src/JBProjectPayer.sol"
   "nana-project-payer-v6:JBProjectPayerDeployer:src/JBProjectPayerDeployer.sol"
 
   # ── deploy-all-v6 itself (OpenZeppelin's ERC2771Forwarder, compiled here) ──
