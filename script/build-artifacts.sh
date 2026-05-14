@@ -101,6 +101,7 @@ CONTRACTS=(
   "nana-721-hook-v6:JB721TiersHookLib:src/libraries/JB721TiersHookLib.sol"
   "nana-721-hook-v6:JB721TiersHookStore:src/JB721TiersHookStore.sol"
   "nana-721-hook-v6:JB721TiersHook:src/JB721TiersHook.sol"
+  "nana-721-hook-v6:JB721Checkpoints:src/JB721Checkpoints.sol"
   "nana-721-hook-v6:JB721CheckpointsDeployer:src/JB721CheckpointsDeployer.sol"
   "nana-721-hook-v6:JB721TiersHookDeployer:src/JB721TiersHookDeployer.sol"
   "nana-721-hook-v6:JB721TiersHookProjectDeployer:src/JB721TiersHookProjectDeployer.sol"
@@ -168,6 +169,7 @@ CONTRACTS=(
   "nana-distributor-v6:JBTokenDistributor:src/JBTokenDistributor.sol"
 
   # ── nana-project-payer-v6 ──
+  "nana-project-payer-v6:JBProjectPayer:src/JBProjectPayer.sol"
   "nana-project-payer-v6:JBProjectPayerDeployer:src/JBProjectPayerDeployer.sol"
 
   # ── deploy-all-v6 itself (OpenZeppelin's ERC2771Forwarder, compiled here) ──
@@ -189,6 +191,15 @@ build_repo() {
     return 0
   fi
   echo "Building $repo..."
+  # `forge clean` so a stale artifact from a previous compilation (different
+  # source state, different settings) cannot survive into this run's manifest.
+  # Without this, e.g. a `git pull` that updates source files but leaves
+  # `out/*.json` untouched would silently publish out-of-date artifacts.
+  (cd "$repo_dir" && forge clean 2>&1) || {
+    echo "ERROR: forge clean failed for $repo"
+    BUILT_REPOS[$repo]=1
+    return 1
+  }
   if [[ "$repo" == "deploy-all-v6" ]]; then
     # Build everything in deploy-all-v6 (includes ERC2771Forwarder via node_modules).
     (cd "$repo_dir" && forge build --skip test 2>&1) || {
@@ -242,12 +253,34 @@ for entry in "${CONTRACTS[@]}"; do
     continue
   fi
 
+  # The source file must actually exist in the source repo, otherwise the
+  # manifest entry is pointing to a path that doesn't compile in this checkout
+  # (and any matching out/*.json would be from a previous source state).
+  if [[ ! -f "$repo_dir/$src_path" ]]; then
+    echo "ERROR: source file missing: $repo_dir/$src_path"
+    errors=$((errors + 1))
+    continue
+  fi
+
   # Locate the Forge artifact. Output is: out/<basename(src_path)>/<ContractName>.json
   src_filename="$(basename "$src_path")"
   artifact="$repo_dir/out/$src_filename/$contract.json"
 
   if [[ ! -f "$artifact" ]]; then
     echo "ERROR: artifact not found: $artifact"
+    errors=$((errors + 1))
+    continue
+  fi
+
+  # Verify the artifact's metadata.settings.compilationTarget binds the
+  # expected sourcePath → contractName pair. If forge clean ran above this
+  # should always hold, but the check defends against any future bypass of
+  # the clean step (e.g. --skip flags, CI cache layers, manual edits).
+  compilation_target=$(jq -r --arg path "$src_path" --arg name "$contract" '
+    (.metadata | (if type == "string" then fromjson else . end)).settings.compilationTarget[$path] // ""
+  ' "$artifact" 2>/dev/null)
+  if [[ "$compilation_target" != "$contract" ]]; then
+    echo "ERROR: $contract.json compilationTarget=\"$compilation_target\", expected \"$contract\" (source=$src_path)"
     errors=$((errors + 1))
     continue
   fi
@@ -429,6 +462,26 @@ done
 
 echo ""
 echo "Linked $linked_total artifact(s) with library placeholders."
+
+# ── Phase 3: persist library addresses in the manifest ───────────────────
+# Surface the deterministic CREATE2 addresses + source paths so verify.mjs
+# can pass `--libraries <path>:<LibName>:<addr>` for every dependent contract.
+# Without this, forge verify-contract attempts to re-link against unknown
+# placeholders and Etherscan rejects the verification.
+LIBRARIES_JSON="{}"
+for libname in "${!LIB_ADDR_HEX[@]}"; do
+  src_path=$(jq -r ".contracts.\"$libname\".sourcePath" "$MANIFEST")
+  addr_hex="${LIB_ADDR_HEX[$libname]}"
+  LIBRARIES_JSON=$(jq -n \
+    --argjson existing "$LIBRARIES_JSON" \
+    --arg name "$libname" \
+    --arg path "$src_path" \
+    --arg addr "0x$addr_hex" \
+    '$existing + {($name): {sourcePath: $path, address: $addr}}'
+  )
+done
+tmp=$(mktemp)
+jq --argjson libs "$LIBRARIES_JSON" '. + {libraries: $libs}' "$MANIFEST" > "$tmp" && mv "$tmp" "$MANIFEST"
 
 # Sanity check: confirm no unlinked `__$...$__` placeholders survive.
 unlinked=0
