@@ -115,8 +115,12 @@ async function buildArtifact({target}) {
   const receipt = await getTxReceipt({txHash: creation.txHash});
   if (!receipt) throw new Error(`no receipt for ${creation.txHash}`);
 
-  // Constructor args = tx input minus salt(32 bytes) minus creation bytecode.
-  const txInput = await getTxInput({txHash: creation.txHash});
+  // Constructor args = factory-call input minus salt(32 bytes) minus creation bytecode. Under
+  // Sphinx/Safe deployment the OUTER tx input is the Safe.execTransaction wrapper, which contains
+  // ABI bytes that would otherwise be appended to the sliced args. Recovering from the internal
+  // call to the deterministic CREATE2 factory bypasses the wrapper entirely.
+  const factoryInput = await getFactoryCallInput({txHash: creation.txHash});
+  const txInput = factoryInput || await getTxInput({txHash: creation.txHash});
   const ctorArgsHex = sliceConstructorArgs({txInput, creationCodeHex: forgeArtifact.bytecode.object});
   const argsDecoded = decodeConstructorArgs({abi: forgeArtifact.abi, ctorArgsHex});
 
@@ -178,6 +182,39 @@ async function getTxInput({txHash}) {
     if (body.result?.input) return body.result.input;
     throw transientError({message: `eth_getTransactionByHash: no input`});
   }});
+}
+
+// The canonical deterministic CREATE2 factory used by every artifact deploy path.
+const CREATE2_FACTORY = '0x4e59b44847b379578588920ca78fbf26c0b4956c';
+
+/// Returns the internal call's `input` for the CREATE2 factory invocation inside `txHash`, or
+/// null if no such internal call exists (non-Sphinx deployments). The factory's input is
+/// `0x + salt(32 bytes) + creationCode + constructorArgs`, which `sliceConstructorArgs` slices
+/// cleanly without picking up wrapper ABI bytes from the outer Safe.execTransaction.
+async function getFactoryCallInput({txHash}) {
+  try {
+    return await withRetry({fn: async () => {
+      const url = `${chain.apiUrl}?chainid=${CHAIN_ID}&module=account&action=txlistinternal&txhash=${txHash}&apikey=${ETHERSCAN_KEY}`;
+      const res = await fetchWithTimeout({url});
+      const body = await parseJsonOrThrow({res});
+      if (body.status !== '1' || !Array.isArray(body.result)) {
+        const msg = String(body.message || body.result || 'unknown');
+        if (/rate limit|throttle|max calls/i.test(msg)) throw transientError({message: `rate limited: ${msg}`});
+        return null;
+      }
+      const factoryCall = body.result.find(
+        (entry) =>
+          String(entry?.to || '').toLowerCase() === CREATE2_FACTORY
+          && typeof entry?.input === 'string'
+          && entry.input.length > 2
+      );
+      return factoryCall?.input || null;
+    }});
+  } catch (err) {
+    // Non-fatal: fall back to outer tx input. The outer path still works for non-Sphinx deploys.
+    if (err?.transient) throw err;
+    return null;
+  }
 }
 
 function sliceConstructorArgs({txInput, creationCodeHex}) {
