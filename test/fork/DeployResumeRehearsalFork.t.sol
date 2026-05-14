@@ -448,8 +448,7 @@ contract InstrumentedDeployer is IERC721Receiver {
             });
         if (address(buybackHook.POOL_MANAGER()) == address(0)) {
             buybackHook.setChainSpecificConstants({
-                poolManager: IPoolManager(POOL_MANAGER),
-                oracleHook: IHooks(address(uniswapV4Hook))
+                poolManager: IPoolManager(POOL_MANAGER), oracleHook: IHooks(address(uniswapV4Hook))
             });
         }
 

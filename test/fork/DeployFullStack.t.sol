@@ -388,12 +388,10 @@ contract DeployFullStackTest is Test {
     /// @dev Phase 03c: Buyback Hook. Mirrors Deploy._deployBuybackHook().
     function _deployBuybackHook(ChainConfig memory cfg) internal {
         _buybackRegistry = new JBBuybackHookRegistry(_permissions, _projects, _deployer, _trustedForwarder);
-        _buybackHook = new JBBuybackHook(
-            _directory, _permissions, _prices, _projects, _tokens, address(this), _trustedForwarder
-        );
+        _buybackHook =
+            new JBBuybackHook(_directory, _permissions, _prices, _projects, _tokens, address(this), _trustedForwarder);
         _buybackHook.setChainSpecificConstants({
-            poolManager: IPoolManager(cfg.poolManager),
-            oracleHook: IHooks(address(_uniswapV4Hook))
+            poolManager: IPoolManager(cfg.poolManager), oracleHook: IHooks(address(_uniswapV4Hook))
         });
         _buybackRegistry.setDefaultHook(_buybackHook);
     }

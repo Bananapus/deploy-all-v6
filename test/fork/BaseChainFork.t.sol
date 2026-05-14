@@ -205,8 +205,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
             jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), address(this), address(0)
         );
         BUYBACK_HOOK.setChainSpecificConstants({
-            poolManager: IPoolManager(BASE_POOL_MANAGER),
-            oracleHook: IHooks(address(oracleHook))
+            poolManager: IPoolManager(BASE_POOL_MANAGER), oracleHook: IHooks(address(oracleHook))
         });
 
         // Deploy and configure buyback hook registry with the hook as default.
