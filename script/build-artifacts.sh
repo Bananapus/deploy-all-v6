@@ -101,6 +101,7 @@ CONTRACTS=(
   "nana-721-hook-v6:JB721TiersHookLib:src/libraries/JB721TiersHookLib.sol"
   "nana-721-hook-v6:JB721TiersHookStore:src/JB721TiersHookStore.sol"
   "nana-721-hook-v6:JB721TiersHook:src/JB721TiersHook.sol"
+  "nana-721-hook-v6:JB721Checkpoints:src/JB721Checkpoints.sol"
   "nana-721-hook-v6:JB721CheckpointsDeployer:src/JB721CheckpointsDeployer.sol"
   "nana-721-hook-v6:JB721TiersHookDeployer:src/JB721TiersHookDeployer.sol"
   "nana-721-hook-v6:JB721TiersHookProjectDeployer:src/JB721TiersHookProjectDeployer.sol"
@@ -168,6 +169,7 @@ CONTRACTS=(
   "nana-distributor-v6:JBTokenDistributor:src/JBTokenDistributor.sol"
 
   # ── nana-project-payer-v6 ──
+  "nana-project-payer-v6:JBProjectPayer:src/JBProjectPayer.sol"
   "nana-project-payer-v6:JBProjectPayerDeployer:src/JBProjectPayerDeployer.sol"
 
   # ── deploy-all-v6 itself (OpenZeppelin's ERC2771Forwarder, compiled here) ──
@@ -460,6 +462,26 @@ done
 
 echo ""
 echo "Linked $linked_total artifact(s) with library placeholders."
+
+# ── Phase 3: persist library addresses in the manifest ───────────────────
+# Surface the deterministic CREATE2 addresses + source paths so verify.mjs
+# can pass `--libraries <path>:<LibName>:<addr>` for every dependent contract.
+# Without this, forge verify-contract attempts to re-link against unknown
+# placeholders and Etherscan rejects the verification.
+LIBRARIES_JSON="{}"
+for libname in "${!LIB_ADDR_HEX[@]}"; do
+  src_path=$(jq -r ".contracts.\"$libname\".sourcePath" "$MANIFEST")
+  addr_hex="${LIB_ADDR_HEX[$libname]}"
+  LIBRARIES_JSON=$(jq -n \
+    --argjson existing "$LIBRARIES_JSON" \
+    --arg name "$libname" \
+    --arg path "$src_path" \
+    --arg addr "0x$addr_hex" \
+    '$existing + {($name): {sourcePath: $path, address: $addr}}'
+  )
+done
+tmp=$(mktemp)
+jq --argjson libs "$LIBRARIES_JSON" '. + {libraries: $libs}' "$MANIFEST" > "$tmp" && mv "$tmp" "$MANIFEST"
 
 # Sanity check: confirm no unlinked `__$...$__` placeholders survive.
 unlinked=0
