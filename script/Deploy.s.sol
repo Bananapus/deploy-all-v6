@@ -948,10 +948,6 @@ contract Deploy is Script, Sphinx {
                 address(_routerTerminal), address(_routerTerminalRegistry.defaultTerminal())
             );
         }
-
-        if (!_feeless.isFeelessFor({addr: address(_routerTerminal), projectId: 0})) {
-            _feeless.setFeelessAddress({addr: address(_routerTerminal), flag: true});
-        }
     }
 
     // ════════════════════════════════════════════════════════════════════

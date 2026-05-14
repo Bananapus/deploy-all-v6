@@ -468,9 +468,6 @@ contract ResumeDeployHarness is IERC721Receiver {
         if (address(routerTerminalRegistry.defaultTerminal()) == address(0)) {
             routerTerminalRegistry.setDefaultTerminal({terminal: IJBTerminal(address(routerTerminal))});
         }
-        if (!feeless.isFeelessFor({addr: address(routerTerminal), projectId: 0})) {
-            feeless.setFeelessAddress({addr: address(routerTerminal), flag: true});
-        }
     }
 
     function _deployLpSplitHook() internal {
@@ -799,9 +796,9 @@ contract ResumeDeployForkTest is Test {
         assertEq(harness.projects().ownerOf(3), address(harness), "project 3 owner");
         assertTrue(harness.suckerRegistry().suckerDeployerIsAllowed(address(0x1001)), "deployer 1 not allowlisted");
         assertTrue(harness.suckerRegistry().suckerDeployerIsAllowed(address(0x1002)), "deployer 2 not allowlisted");
-        assertTrue(
+        assertFalse(
             harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}),
-            "router terminal not feeless"
+            "router terminal must NOT be globally feeless"
         );
         assertTrue(
             address(harness.prices().priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN))))
@@ -838,9 +835,9 @@ contract ResumeDeployForkTest is Test {
             address(harness.routerTerminal()),
             "router terminal not preserved"
         );
-        assertTrue(
+        assertFalse(
             harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}),
-            "router terminal not feeless"
+            "router terminal must NOT be globally feeless"
         );
         assertEq(address(harness.uniswapV4Hook()), harness.expectedUniswapV4HookAddress(), "hook address drifted");
         assertEq(

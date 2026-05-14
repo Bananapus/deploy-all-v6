@@ -500,12 +500,9 @@ contract InstrumentedDeployer is IERC721Receiver {
             });
         }
 
-        // Idempotent: set default terminal and feeless.
+        // Idempotent: set default terminal. The router is intentionally NOT marked globally feeless.
         if (address(routerTerminalRegistry.defaultTerminal()) == address(0)) {
             routerTerminalRegistry.setDefaultTerminal({terminal: IJBTerminal(address(routerTerminal))});
-        }
-        if (!feeless.isFeelessFor({addr: address(routerTerminal), projectId: 0})) {
-            feeless.setFeelessAddress({addr: address(routerTerminal), flag: true});
         }
     }
 
@@ -814,9 +811,9 @@ contract DeployResumeRehearsalForkTest is Test {
             harness.directory().isAllowedToSetFirstController(address(harness.controller())),
             "controller not allowlisted in directory"
         );
-        assertTrue(
+        assertFalse(
             harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}),
-            "routerTerminal not feeless"
+            "routerTerminal must NOT be globally feeless"
         );
         assertEq(harness.projects().count(), 3, "unexpected project count");
     }
@@ -959,9 +956,9 @@ contract DeployResumeRehearsalForkTest is Test {
             harness.directory().isAllowedToSetFirstController(address(harness.controller())),
             "controller not allowlisted after resume"
         );
-        assertTrue(
+        assertFalse(
             harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}),
-            "routerTerminal not feeless"
+            "routerTerminal must NOT be globally feeless"
         );
         assertEq(
             address(harness.buybackRegistry().defaultHook()),

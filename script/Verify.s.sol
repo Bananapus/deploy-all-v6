@@ -934,10 +934,12 @@ contract Verify is Script {
                     critical: true
                 });
 
-                // Verify the router terminal is marked as feeless.
+                // Also verify the router terminal is NOT globally feeless. We dropped the global feeless
+                // grant: the router was forwarding fees from arbitrary projects on its own balance, which
+                // is too broad. Per-project feeless wiring (if needed) is the explicit path going forward.
                 _check({
-                    condition: feelessAddresses.isFeelessFor({addr: address(routerTerminal), projectId: 0}),
-                    label: "RouterTerminal is feeless",
+                    condition: !feelessAddresses.isFeelessFor({addr: address(routerTerminal), projectId: 0}),
+                    label: "RouterTerminal is NOT globally feeless",
                     critical: true
                 });
             }
