@@ -24,6 +24,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { utils as ethersUtils } from 'ethers';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const POST_DEPLOY_DIR = path.resolve(__dirname, '..');
@@ -239,44 +241,29 @@ function decodeConstructorArgs({abi, ctorArgsHex}) {
   const ctor = (abi || []).find((f) => f?.type === 'constructor');
   if (!ctor?.inputs?.length) return [];
 
+  // Use ethers' full ABI decoder so dynamic types (string, bytes, dynamic arrays, nested
+  // structs) are followed via their tail offsets rather than emitting raw 32-byte head pointers.
   try {
-    // Lightweight ABI decoder for primitives. Defer complex types to raw hex.
     const types = ctor.inputs.map((i) => i.type);
-    return decodePrimitivesAbi({types, dataHex: ctorArgsHex});
+    const decoded = ethersUtils.defaultAbiCoder.decode(types, `0x${ctorArgsHex}`);
+    return Array.from(decoded).map((value) => _coerceForJson(value));
   } catch {
     return [`0x${ctorArgsHex}`];
   }
 }
 
-/**
- * Minimal head-only ABI decoder. Handles address / uintN / intN / bool / bytesN /
- * static-length tuples. Returns raw hex for dynamic types since we don't ship
- * a full ABI decoder here. Good enough for verify-readable output.
- */
-function decodePrimitivesAbi({types, dataHex}) {
-  const out = [];
-  let offset = 0;
-  for (const t of types) {
-    if (offset + 64 > dataHex.length) {
-      out.push(`0x${dataHex.slice(offset)}`);
-      break;
-    }
-    const word = dataHex.slice(offset, offset + 64);
-    offset += 64;
-    if (t === 'address') {
-      out.push(`0x${word.slice(24)}`);
-    } else if (t === 'bool') {
-      out.push(word.endsWith('1'));
-    } else if (/^uint\d*$/.test(t) || /^int\d*$/.test(t)) {
-      out.push(BigInt(`0x${word}`).toString());
-    } else if (/^bytes\d+$/.test(t)) {
-      const bytes = Number(t.slice(5));
-      out.push(`0x${word.slice(0, bytes * 2)}`);
-    } else {
-      out.push(`0x${word}`); // tuple head / dynamic pointer / unsupported
-    }
+/// ethers returns BigNumber instances for uint/int and a Result tuple for complex shapes. Coerce
+/// to JSON-friendly primitives: BigNumber → decimal string, BigInt → decimal string, Result → array,
+/// everything else passes through unchanged.
+function _coerceForJson(value) {
+  if (value && typeof value === 'object') {
+    if (typeof value.toBigInt === 'function') return value.toBigInt().toString(); // ethers BigNumber
+    if (Array.isArray(value)) return value.map(_coerceForJson);
+    // ethers Result is iterable and array-like; spread + recurse.
+    if (typeof value[Symbol.iterator] === 'function') return Array.from(value).map(_coerceForJson);
   }
-  return out;
+  if (typeof value === 'bigint') return value.toString();
+  return value;
 }
 
 // ════════════════════════════════════════════════════════════════════════
