@@ -1395,12 +1395,17 @@ contract Verify is Script {
             for (uint256 i; i < parts.length; i++) {
                 address deployer = vm.parseAddress(parts[i]);
                 if (deployer != address(0)) {
+                    // BK: each listed deployer must actually be allowed in the registry.
                     bool allowed = suckerRegistry.suckerDeployerIsAllowed(deployer);
                     _check({
                         condition: allowed,
                         label: string.concat("Sucker deployer ", vm.toString(deployer), " is allowed"),
                         critical: true
                     });
+                    // CP: each listed deployer must be a real deployer with canonical wiring.
+                    // Without these checks, a non-executable EOA or a deployer admined by an
+                    // attacker-controlled Safe could survive in the allowlist undetected.
+                    _verifySuckerDeployerCanonicalWiring(deployer);
                 }
             }
         } else {
@@ -1451,7 +1456,110 @@ contract Verify is Script {
             }
         }
 
+        // BK known gap: JBSuckerRegistry has no enumeration of its allowed-deployer set, so the
+        // on-chain verifier cannot prove the absence of unexpected allowed deployers. Operators
+        // must reconcile against the `SuckerDeployerSetAllowed` event log off-chain. The
+        // VERIFY_SUCKER_DEPLOYER_COUNT check above provides a sanity gate; the event-log
+        // reconciliation is documented in DEPLOY.md.
+        console.log("  [INFO] BK: no on-chain enumeration of sucker-deployer allowlist - reconcile off-chain");
+
         console.log("");
+    }
+
+    /// CP: for each env-listed sucker deployer, assert it is a real, canonically-wired deployer.
+    /// Checks:
+    ///   - has code (not an EOA / non-executable address)
+    ///   - LAYER_SPECIFIC_CONFIGURATOR == expectedSafe (admin gate)
+    ///   - singleton() returns an address with code
+    ///   - DIRECTORY / TOKENS / PERMISSIONS match the canonical core singletons
+    /// Without these, an empty EOA or an attacker-admined deployer can sit in the allowlist
+    /// looking like a legitimate route while routing through unverified wiring.
+    function _verifySuckerDeployerCanonicalWiring(address deployer) internal {
+        _check({
+            condition: deployer.code.length > 0,
+            label: string.concat("Sucker deployer ", vm.toString(deployer), " has code"),
+            critical: true
+        });
+        if (deployer.code.length == 0) return;
+
+        // LAYER_SPECIFIC_CONFIGURATOR is the admin Safe — must equal the canonical expected Safe
+        // when one is configured (production chains). Non-production runs without expectedSafe
+        // just verify it's non-zero.
+        (bool okConfig, bytes memory configData) =
+            deployer.staticcall(abi.encodeWithSignature("LAYER_SPECIFIC_CONFIGURATOR()"));
+        if (okConfig && configData.length >= 32) {
+            address configurator = abi.decode(configData, (address));
+            if (expectedSafe != address(0)) {
+                _check({
+                    condition: configurator == expectedSafe,
+                    label: string.concat(
+                        "Sucker deployer ", vm.toString(deployer), ".LAYER_SPECIFIC_CONFIGURATOR == safe"
+                    ),
+                    critical: true
+                });
+            } else {
+                _check({
+                    condition: configurator != address(0),
+                    label: string.concat(
+                        "Sucker deployer ", vm.toString(deployer), ".LAYER_SPECIFIC_CONFIGURATOR is non-zero"
+                    ),
+                    critical: true
+                });
+            }
+        } else {
+            _check({
+                condition: false,
+                label: string.concat(
+                    "Sucker deployer ", vm.toString(deployer), " exposes LAYER_SPECIFIC_CONFIGURATOR()"
+                ),
+                critical: true
+            });
+        }
+
+        // singleton() must be a real implementation contract — not an EOA, not address(0). The
+        // exact-identity check is part of BR's emission work (the singleton appears in the address
+        // dump and gets verified separately via artifact identity in CK/CM).
+        (bool okSing, bytes memory singData) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
+        if (okSing && singData.length >= 32) {
+            address singleton = abi.decode(singData, (address));
+            _check({
+                condition: singleton != address(0) && singleton.code.length > 0,
+                label: string.concat("Sucker deployer ", vm.toString(deployer), ".singleton has code"),
+                critical: true
+            });
+        } else {
+            _check({
+                condition: false,
+                label: string.concat("Sucker deployer ", vm.toString(deployer), " exposes singleton()"),
+                critical: true
+            });
+        }
+
+        // DIRECTORY / TOKENS / PERMISSIONS must match the canonical core singletons.
+        (bool okDir, bytes memory dirData) = deployer.staticcall(abi.encodeWithSignature("DIRECTORY()"));
+        if (okDir && dirData.length >= 32) {
+            _check({
+                condition: abi.decode(dirData, (address)) == address(directory),
+                label: string.concat("Sucker deployer ", vm.toString(deployer), ".DIRECTORY == directory"),
+                critical: true
+            });
+        }
+        (bool okTok, bytes memory tokData) = deployer.staticcall(abi.encodeWithSignature("TOKENS()"));
+        if (okTok && tokData.length >= 32) {
+            _check({
+                condition: abi.decode(tokData, (address)) == address(tokens),
+                label: string.concat("Sucker deployer ", vm.toString(deployer), ".TOKENS == tokens"),
+                critical: true
+            });
+        }
+        (bool okPerm, bytes memory permData) = deployer.staticcall(abi.encodeWithSignature("PERMISSIONS()"));
+        if (okPerm && permData.length >= 32) {
+            _check({
+                condition: abi.decode(permData, (address)) == address(permissions),
+                label: string.concat("Sucker deployer ", vm.toString(deployer), ".PERMISSIONS == permissions"),
+                critical: true
+            });
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
