@@ -2286,32 +2286,41 @@ contract Verify is Script {
             return;
         }
 
-        // Verify all 4 projects have a config hash recorded.
+        // BI: require exact expected config hashes on every canonical project on production chains.
+        // Per-project env vars VERIFY_CONFIG_HASH_{1..4} take precedence (matches the audit's
+        // recommendation); the legacy VERIFY_CONFIG_HASHES CSV is still accepted for backwards
+        // compatibility. On production chains, missing or zero expected hashes are critical.
         uint256[4] memory pids = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
         string[4] memory names = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
+        string[4] memory envVars =
+            ["VERIFY_CONFIG_HASH_1", "VERIFY_CONFIG_HASH_2", "VERIFY_CONFIG_HASH_3", "VERIFY_CONFIG_HASH_4"];
+
+        bytes32[4] memory expectedHashes = _loadExpectedConfigHashes(envVars);
+        bool isProductionChain =
+            (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+
         for (uint256 i; i < 4; i++) {
-            bytes32 configHash = revDeployer.hashedEncodedConfigurationOf(pids[i]);
+            bytes32 actual = revDeployer.hashedEncodedConfigurationOf(pids[i]);
             _check({
-                condition: configHash != bytes32(0),
+                condition: actual != bytes32(0),
                 label: string.concat(names[i], " has non-zero config hash"),
                 critical: true
             });
-        }
 
-        // Verify env-provided expected config hashes match deployed config hashes (if provided).
-        string memory expectedHashesCsv = vm.envOr("VERIFY_CONFIG_HASHES", string(""));
-        if (bytes(expectedHashesCsv).length > 0) {
-            string[] memory hashes = vm.split(expectedHashesCsv, ",");
-            for (uint256 i; i < hashes.length && i < 4; i++) {
-                bytes32 expected = vm.parseBytes32(hashes[i]);
-                if (expected != bytes32(0)) {
-                    bytes32 actual = revDeployer.hashedEncodedConfigurationOf(pids[i]);
-                    _check({
-                        condition: actual == expected,
-                        label: string.concat(names[i], " config hash matches expected"),
-                        critical: true
-                    });
-                }
+            if (expectedHashes[i] != bytes32(0)) {
+                _check({
+                    condition: actual == expectedHashes[i],
+                    label: string.concat(names[i], " config hash == expected"),
+                    critical: true
+                });
+            } else if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: string.concat(names[i], " expected config hash MUST be set on production via ", envVars[i]),
+                    critical: true
+                });
+            } else {
+                _skip(string.concat(names[i], " expected config hash not provided (", envVars[i], " unset)"));
             }
         }
 
@@ -2454,6 +2463,29 @@ contract Verify is Script {
         });
 
         console.log("");
+    }
+
+    /// BI helper: loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
+    /// Falls back to the legacy VERIFY_CONFIG_HASHES CSV when individual vars are unset, for
+    /// backwards compatibility with existing operator scripts.
+    function _loadExpectedConfigHashes(string[4] memory envVars) internal view returns (bytes32[4] memory hashes) {
+        // Per-project env vars take precedence.
+        for (uint256 i; i < 4; i++) {
+            string memory v = vm.envOr({name: envVars[i], defaultValue: string("")});
+            if (bytes(v).length > 0) {
+                hashes[i] = vm.parseBytes32(v);
+            }
+        }
+        // Fall back to the legacy CSV for any slots not filled above.
+        string memory csv = vm.envOr({name: "VERIFY_CONFIG_HASHES", defaultValue: string("")});
+        if (bytes(csv).length > 0) {
+            string[] memory parts = vm.split(csv, ",");
+            for (uint256 i; i < parts.length && i < 4; i++) {
+                if (hashes[i] == bytes32(0) && bytes(parts[i]).length > 0) {
+                    hashes[i] = vm.parseBytes32(parts[i]);
+                }
+            }
+        }
     }
 
     /// Returns the canonical Permit2 singleton address for this chain. Permit2 is deployed at the
