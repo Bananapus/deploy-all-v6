@@ -5,6 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 
 // ── Core ──
 import {JBPermissions} from "@bananapus/core-v6/src/JBPermissions.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
 import {JBProjects} from "@bananapus/core-v6/src/JBProjects.sol";
 import {JBPrices} from "@bananapus/core-v6/src/JBPrices.sol";
 import {JBRulesets} from "@bananapus/core-v6/src/JBRulesets.sol";
@@ -1666,7 +1667,122 @@ contract Verify is Script {
             });
         }
 
+        // P: assert the runtime permission grants the canonical deployment is supposed to create.
+        _verifyPermissionGrants();
+
         console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 14b: Permission Grants (P)
+    // ════════════════════════════════════════════════════════════════════
+
+    /// Asserts the canonical runtime permission grants. Three classes:
+    ///   1. Wildcard (projectId=0) grants made by REVDeployer's constructor:
+    ///        - operator=REVLoans,         permId=USE_ALLOWANCE
+    ///        - operator=buyback registry, permId=SET_BUYBACK_POOL
+    ///      account=REVDeployer in both cases.
+    ///   2. Per-revnet split-operator grants made by REVDeployer when each revnet is launched.
+    ///      Verified for projects {2 CPN, 3 REV, 4 BAN} when their split operator env var is set.
+    ///   3. (Gap) No "extra grants" gate — JBPermissions has no enumeration, so the verifier
+    ///      cannot prove the absence of unexpected grants on chain. Operators must rely on
+    ///      off-chain event-log reconciliation against `OperatorPermissionsSet` until a future
+    ///      protocol change exposes enumeration. The gap is logged below.
+    function _verifyPermissionGrants() internal {
+        if (address(revDeployer) == address(0) || address(revLoans) == address(0)) {
+            console.log("  [SKIP] REV stack not loaded on this chain - permission grants check skipped");
+            _skipped += 1;
+            return;
+        }
+
+        // Wildcard 1: REVLoans USE_ALLOWANCE on any revnet, granted by REVDeployer in its ctor.
+        _check({
+            condition: permissions.hasPermission({
+                operator: address(revLoans),
+                account: address(revDeployer),
+                projectId: 0,
+                permissionId: JBPermissionIds.USE_ALLOWANCE,
+                includeRoot: true,
+                includeWildcardProjectId: true
+            }),
+            label: "Permissions: REVLoans wildcard USE_ALLOWANCE granted by REVDeployer",
+            critical: true
+        });
+
+        // Wildcard 2: buyback registry SET_BUYBACK_POOL on any revnet, granted by REVDeployer.
+        if (address(buybackRegistry) != address(0)) {
+            _check({
+                condition: permissions.hasPermission({
+                    operator: address(buybackRegistry),
+                    account: address(revDeployer),
+                    projectId: 0,
+                    permissionId: JBPermissionIds.SET_BUYBACK_POOL,
+                    includeRoot: true,
+                    includeWildcardProjectId: true
+                }),
+                label: "Permissions: BuybackRegistry wildcard SET_BUYBACK_POOL granted by REVDeployer",
+                critical: true
+            });
+        }
+
+        // Per-revnet split-operator grants. The split operator is configured at revnet launch and
+        // exposed via VERIFY_SPLIT_OPERATOR_{2,3,4} env vars. When set, the verifier asserts the
+        // operator has the 9 canonical split-operator permissions on its revnet.
+        _verifySplitOperatorGrantsFor({
+            envVar: "VERIFY_SPLIT_OPERATOR_2", projectId: _CPN_PROJECT_ID, label: "Project 2 (CPN)"
+        });
+        _verifySplitOperatorGrantsFor({
+            envVar: "VERIFY_SPLIT_OPERATOR_3", projectId: _REV_PROJECT_ID, label: "Project 3 (REV)"
+        });
+        _verifySplitOperatorGrantsFor({
+            envVar: "VERIFY_SPLIT_OPERATOR_4", projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN)"
+        });
+
+        // Known gap (logged, not failed): exhaustive "no extra grants" verification requires either
+        // an enumerable JBPermissions or off-chain event-log reconciliation against
+        // `OperatorPermissionsSet`. The on-chain verifier proves positive grants only.
+        console.log("  [INFO] No on-chain enumeration - see DEPLOY.md for off-chain grant reconciliation");
+    }
+
+    /// Asserts the 9 canonical split-operator permissions on `projectId` for the operator named by
+    /// `envVar`. Skips silently when the env var is not set (testnets, partial chains).
+    function _verifySplitOperatorGrantsFor(string memory envVar, uint256 projectId, string memory label) internal {
+        address operator = vm.envOr({name: envVar, defaultValue: address(0)});
+        if (operator == address(0)) {
+            console.log(string.concat("  [SKIP] ", envVar, " unset - split-operator grants for ", label, " skipped"));
+            _skipped += 1;
+            return;
+        }
+        uint8[9] memory expectedPermissions = [
+            JBPermissionIds.SET_SPLIT_GROUPS,
+            JBPermissionIds.SET_BUYBACK_POOL,
+            JBPermissionIds.SET_BUYBACK_TWAP,
+            JBPermissionIds.SET_PROJECT_URI,
+            JBPermissionIds.SUCKER_SAFETY,
+            JBPermissionIds.SET_BUYBACK_HOOK,
+            JBPermissionIds.SET_ROUTER_TERMINAL,
+            JBPermissionIds.SET_TOKEN_METADATA,
+            JBPermissionIds.SIGN_FOR_ERC20
+        ];
+        for (uint256 i; i < expectedPermissions.length; i++) {
+            _check({
+                condition: permissions.hasPermission({
+                    operator: operator,
+                    account: address(revDeployer),
+                    projectId: uint64(projectId),
+                    permissionId: expectedPermissions[i],
+                    includeRoot: true,
+                    includeWildcardProjectId: true
+                }),
+                label: string.concat(
+                    "Permissions: ",
+                    label,
+                    " split-operator has permission ",
+                    vm.toString(uint256(expectedPermissions[i]))
+                ),
+                critical: true
+            });
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
