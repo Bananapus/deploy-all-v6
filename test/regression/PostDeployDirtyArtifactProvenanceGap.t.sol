@@ -18,9 +18,7 @@ contract PostDeployDirtyArtifactProvenanceGapTest is Test {
         // build-artifacts.sh — gate exists, REHEARSAL flag parsed, dirty repos fail by default.
         assertTrue(_contains(buildSource, "REHEARSAL=0"), "build script declares REHEARSAL flag default");
         assertTrue(_contains(buildSource, "--rehearsal) REHEARSAL=1"), "build script parses --rehearsal flag");
-        assertTrue(
-            _contains(buildSource, "Dirty-source gate"), "build script has explicit dirty-source gate section"
-        );
+        assertTrue(_contains(buildSource, "Dirty-source gate"), "build script has explicit dirty-source gate section");
         assertTrue(
             _contains(buildSource, "source repo(s) have uncommitted changes"),
             "build script errors when dirty without --rehearsal"

@@ -28,15 +28,11 @@ contract PostDeployLibraryVerificationGapTest is Test {
             "library addresses are persisted to the manifest"
         );
         assertTrue(_contains(buildSource, "LIBRARIES_JSON"), "library addresses accumulated for manifest emission");
-        assertTrue(
-            _contains(buildSource, "{libraries: $libs}"), "manifest is extended with a top-level libraries map"
-        );
+        assertTrue(_contains(buildSource, "{libraries: $libs}"), "manifest is extended with a top-level libraries map");
 
         assertTrue(_contains(defifaHookArtifact, "\"linkReferences\""), "DefifaHook has external library links");
         assertTrue(_contains(defifaHookArtifact, "\"DefifaHookLib\""), "DefifaHook links DefifaHookLib");
-        assertFalse(
-            _contains(defifaHookArtifact, "__$"), "copied deployment artifact has patched library placeholders"
-        );
+        assertFalse(_contains(defifaHookArtifact, "__$"), "copied deployment artifact has patched library placeholders");
 
         // verify.mjs reads manifest.libraries and passes --libraries flags to forge.
         assertTrue(

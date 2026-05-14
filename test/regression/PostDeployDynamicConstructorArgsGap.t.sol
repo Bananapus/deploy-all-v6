@@ -56,13 +56,10 @@ contract PostDeployDynamicConstructorArgsGapTest is Test {
             "decoder delegates to ethers AbiCoder for tail-following"
         );
         assertTrue(
-            _contains(artifactsSource, "import { utils as ethersUtils } from 'ethers'"),
-            "decoder imports ethers utils"
+            _contains(artifactsSource, "import { utils as ethersUtils } from 'ethers'"), "decoder imports ethers utils"
         );
         assertFalse(_contains(artifactsSource, "Minimal head-only ABI decoder"), "old head-only decoder removed");
-        assertFalse(
-            _contains(artifactsSource, "decodePrimitivesAbi"), "old head-only decoder helper removed"
-        );
+        assertFalse(_contains(artifactsSource, "decodePrimitivesAbi"), "old head-only decoder helper removed");
     }
 
     function test_headOnlyDecoderEmitsOffsetsForStringConstructorArgs() public pure {

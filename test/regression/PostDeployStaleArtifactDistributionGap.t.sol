@@ -51,12 +51,10 @@ contract PostDeployStaleArtifactDistributionGapTest is Test {
 
         // post-deploy.sh skips distribution when artifact emission failed.
         assertTrue(
-            _contains(postDeploySource, "artifact_failed=0"),
-            "post-deploy declares per-chain artifact-failed flag"
+            _contains(postDeploySource, "artifact_failed=0"), "post-deploy declares per-chain artifact-failed flag"
         );
         assertTrue(
-            _contains(postDeploySource, "artifact_failed=1"),
-            "post-deploy sets the flag when artifact emission fails"
+            _contains(postDeploySource, "artifact_failed=1"), "post-deploy sets the flag when artifact emission fails"
         );
         assertTrue(
             _contains(postDeploySource, "\"$SKIP_DISTRIBUTE\" -eq 0 && \"$artifact_failed\" -eq 0"),

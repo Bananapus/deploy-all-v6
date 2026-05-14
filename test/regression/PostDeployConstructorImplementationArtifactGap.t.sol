@@ -52,8 +52,7 @@ contract PostDeployConstructorImplementationArtifactGapTest is Test {
             "Verify.s.sol recognizes the ProjectPayer implementation as a live contract"
         );
         assertTrue(
-            _contains(verifySource, "ProjectPayer implementation has code"),
-            "Verify.s.sol checks implementation code"
+            _contains(verifySource, "ProjectPayer implementation has code"), "Verify.s.sol checks implementation code"
         );
 
         // build-artifacts.sh now compiles + copies the implementation artifacts.

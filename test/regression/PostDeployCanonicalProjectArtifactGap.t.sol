@@ -23,23 +23,14 @@ contract PostDeployCanonicalProjectArtifactGapTest is Test {
 
         // _dumpAddresses now invokes the canonical-project helpers and queries tokenOf / tiered721HookOf.
         assertTrue(_contains(dumpSource, 'name: "JBERC20"'), "shared ERC-20 implementation is still emitted");
+        assertTrue(_contains(dumpSource, "_serializeProjectErc20"), "address dump invokes the canonical ERC-20 helper");
         assertTrue(
-            _contains(dumpSource, "_serializeProjectErc20"), "address dump invokes the canonical ERC-20 helper"
+            _contains(dumpSource, "_serializeProject721Hook"), "address dump invokes the canonical 721 hook helper"
         );
-        assertTrue(
-            _contains(dumpSource, "_serializeProject721Hook"),
-            "address dump invokes the canonical 721 hook helper"
-        );
-        assertTrue(
-            _contains(dumpSource, '"ProjectNANA"'), "NANA token clone is emitted with ProjectNANA suffix"
-        );
-        assertTrue(
-            _contains(dumpSource, '"ProjectCPN"'), "CPN token + hook clones are emitted with ProjectCPN suffix"
-        );
+        assertTrue(_contains(dumpSource, '"ProjectNANA"'), "NANA token clone is emitted with ProjectNANA suffix");
+        assertTrue(_contains(dumpSource, '"ProjectCPN"'), "CPN token + hook clones are emitted with ProjectCPN suffix");
         assertTrue(_contains(dumpSource, '"ProjectREV"'), "REV token clone is emitted with ProjectREV suffix");
-        assertTrue(
-            _contains(dumpSource, '"ProjectBAN"'), "BAN token + hook clones are emitted with ProjectBAN suffix"
-        );
+        assertTrue(_contains(dumpSource, '"ProjectBAN"'), "BAN token + hook clones are emitted with ProjectBAN suffix");
 
         // Helper bodies actually call the live registry getters.
         assertTrue(

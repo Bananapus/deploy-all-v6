@@ -26,11 +26,9 @@ contract PostDeploySequencerFeedArtifactGapTest is Test {
             _contains(deploySource, "_serializePriceFeed({key: j, suffix: \"USDC_USD\""),
             "USDC_USD feed routed through sequencer-aware helper"
         );
+        assertTrue(_contains(deploySource, "function _serializePriceFeed"), "_serializePriceFeed helper is defined");
         assertTrue(
-            _contains(deploySource, "function _serializePriceFeed"), "_serializePriceFeed helper is defined"
-        );
-        assertTrue(
-            _contains(deploySource, 'SEQUENCER_FEED()'), "helper detects sequencer variant via SEQUENCER_FEED() getter"
+            _contains(deploySource, "SEQUENCER_FEED()"), "helper detects sequencer variant via SEQUENCER_FEED() getter"
         );
         assertTrue(
             _contains(deploySource, '"JBChainlinkV3SequencerPriceFeed" : "JBChainlinkV3PriceFeed"'),

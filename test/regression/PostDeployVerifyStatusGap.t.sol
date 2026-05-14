@@ -21,9 +21,7 @@ contract PostDeployVerifyStatusGapTest is Test {
         );
 
         // Missing manifest entries fail closed unless explicitly allowlisted.
-        assertTrue(
-            _contains(verifySource, "VERIFY_SKIP_ALLOWLIST"), "missing-manifest skip allowlist is declared"
-        );
+        assertTrue(_contains(verifySource, "VERIFY_SKIP_ALLOWLIST"), "missing-manifest skip allowlist is declared");
         assertTrue(
             _contains(verifySource, "VERIFY_SKIP_ALLOWLIST.has(target.name)"),
             "missing manifest entries check the allowlist"
@@ -59,9 +57,7 @@ contract PostDeployVerifyStatusGapTest is Test {
         assertTrue(_contains(cachedStatusBlock, "cur.chainId"), "cached chainId is now part of the cache key");
         assertTrue(_contains(cachedStatusBlock, "cur.sourcePath"), "cached sourcePath is now part of the cache key");
         assertTrue(_contains(cachedStatusBlock, "cur.gitCommit"), "cached gitCommit is now part of the cache key");
-        assertTrue(
-            _contains(cachedStatusBlock, "cache-busted"), "identity mismatches log a cache bust and re-verify"
-        );
+        assertTrue(_contains(cachedStatusBlock, "cache-busted"), "identity mismatches log a cache bust and re-verify");
 
         // On successful verify, the status entry now stores the full identity tuple.
         assertTrue(_contains(verifySource, "chainId: CHAIN_ID,"), "status records chainId");

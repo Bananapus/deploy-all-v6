@@ -91,13 +91,9 @@ contract PostDeploySuckerArtifactGapTest is Test {
             "docs no longer note missing sucker route emissions"
         );
         assertTrue(
-            _contains(docs, "Per-route CCIP / SwapCCIP suckers"),
-            "docs describe the new per-route emission scheme"
+            _contains(docs, "Per-route CCIP / SwapCCIP suckers"), "docs describe the new per-route emission scheme"
         );
-        assertTrue(
-            _contains(docs, "JBCCIPSucker__<RouteSuffix>"),
-            "docs document the per-route naming suffix"
-        );
+        assertTrue(_contains(docs, "JBCCIPSucker__<RouteSuffix>"), "docs document the per-route naming suffix");
     }
 
     function _section(

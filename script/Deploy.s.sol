@@ -3886,9 +3886,7 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JB721Distributor", addr: address(_721Distributor)});
         _serializeIfSet({key: j, name: "JBTokenDistributor", addr: address(_tokenDistributor)});
         _serializeIfSet({key: j, name: "JBProjectPayerDeployer", addr: address(_projectPayerDeployer)});
-        _serializeImplementationFromDeployer({
-            key: j, name: "JBProjectPayer", deployer: address(_projectPayerDeployer)
-        });
+        _serializeImplementationFromDeployer({key: j, name: "JBProjectPayer", deployer: address(_projectPayerDeployer)});
 
         // ── Single-instance contracts not held in state vars ──
         // Computed via _isDeployed against the canonical CREATE2 factory (since the
@@ -3910,9 +3908,7 @@ contract Deploy is Script, Sphinx {
         // at a different CREATE2 address than the contract actually deployed.
         if (address(_permissions) != address(0) && address(_projects) != address(0)) {
             (address erc20Addr, bool erc20Deployed) = _isDeployed({
-                salt: coreSalt,
-                creationCode: _loadArtifact("JBERC20"),
-                arguments: abi.encode(_permissions, _projects)
+                salt: coreSalt, creationCode: _loadArtifact("JBERC20"), arguments: abi.encode(_permissions, _projects)
             });
             if (erc20Deployed) _serializeIfSet({key: j, name: "JBERC20", addr: erc20Addr});
         }
@@ -4095,9 +4091,7 @@ contract Deploy is Script, Sphinx {
     function _serializeProject721Hook(string memory key, string memory suffix, uint256 projectId) internal {
         IJB721TiersHook hook = _revOwner.tiered721HookOf(projectId);
         if (address(hook) == address(0)) return;
-        vm.serializeAddress({
-            objectKey: key, valueKey: string.concat("JB721TiersHook__", suffix), value: address(hook)
-        });
+        vm.serializeAddress({objectKey: key, valueKey: string.concat("JB721TiersHook__", suffix), value: address(hook)});
     }
 
     /// Maps a known production / testnet chain id to a short routing suffix used

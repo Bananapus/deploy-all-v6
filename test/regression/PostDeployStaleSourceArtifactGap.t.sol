@@ -36,9 +36,7 @@ contract PostDeployStaleSourceArtifactGapTest is Test {
         // The new validation checks: source file present + metadata target matches expectation.
         // These live just above the copy block, so check them in the surrounding region.
         string memory validationRegion = _section({
-            haystack: buildSource,
-            startNeedle: "if [[ ! -d \"$repo_dir\" ]]",
-            endNeedle: "# Compose manifest entry"
+            haystack: buildSource, startNeedle: "if [[ ! -d \"$repo_dir\" ]]", endNeedle: "# Compose manifest entry"
         });
         assertTrue(
             _contains(validationRegion, "if [[ ! -f \"$repo_dir/$src_path\" ]]"),
