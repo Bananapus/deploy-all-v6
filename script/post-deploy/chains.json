@@ -1,51 +1,59 @@
 {
   "format": "jb-v6-chains-1",
-  "comment": "Maps chainId → deployment metadata. `alias` matches the v5 deployments/<repo>/<alias>/ convention. `verifier` is 'etherscan' (uses v2 unified API) or 'blockscout'. Etherscan v2 endpoint: https://api.etherscan.io/v2/api with ?chainid=<id>.",
+  "comment": "Maps chainId → deployment metadata. `alias` matches the v5 deployments/<repo>/<alias>/ convention. `verifier` is 'etherscan' (uses v2 unified API) or 'blockscout'. Etherscan v2 endpoint: https://api.etherscan.io/v2/api with ?chainid=<id>. `production: true` chains refuse rehearsal/dirty artifact runs unless --rehearsal is explicitly passed.",
   "chains": {
     "1": {
       "alias": "ethereum",
+      "production": true,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
       "browseUrl": "https://etherscan.io"
     },
     "10": {
       "alias": "optimism",
+      "production": true,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
       "browseUrl": "https://optimistic.etherscan.io"
     },
     "8453": {
       "alias": "base",
+      "production": true,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
       "browseUrl": "https://basescan.org"
     },
     "42161": {
       "alias": "arbitrum",
+      "production": true,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
       "browseUrl": "https://arbiscan.io"
     },
     "11155111": {
       "alias": "sepolia",
+      "production": false,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
       "browseUrl": "https://sepolia.etherscan.io"
     },
     "11155420": {
       "alias": "optimism_sepolia",
+      "production": false,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
       "browseUrl": "https://sepolia-optimism.etherscan.io"
     },
     "84532": {
       "alias": "base_sepolia",
+      "production": false,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
       "browseUrl": "https://sepolia.basescan.org"
     },
     "421614": {
       "alias": "arbitrum_sepolia",
+      "production": false,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
       "browseUrl": "https://sepolia.arbiscan.io"

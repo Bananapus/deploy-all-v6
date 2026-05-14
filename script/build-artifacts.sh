@@ -5,8 +5,16 @@
 # settings + source repo + git commit, used by the post-deploy verify and
 # artifact-emit pipeline.
 #
-# Usage:  ./script/build-artifacts.sh
+# Usage:  ./script/build-artifacts.sh [--rehearsal]
 # Run from the deploy-all-v6 root directory.
+#
+# Flags:
+#   --rehearsal   Allow source repos to be dirty (uncommitted changes). Without
+#                 this flag, a dirty source tree is a hard error so production
+#                 artifact builds cannot be published with unknown local edits.
+#                 With this flag, the manifest stamps gitDirty:true and every
+#                 downstream production-chain step (verify, artifact emit) will
+#                 refuse to run unless the same --rehearsal flag is passed.
 #
 # Requires: forge, jq, git.
 
@@ -17,6 +25,15 @@ DEPLOY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MONO_ROOT="$(cd "$DEPLOY_ROOT/.." && pwd)"
 ARTIFACTS_DIR="$DEPLOY_ROOT/artifacts"
 MANIFEST="$ARTIFACTS_DIR/artifacts.manifest.json"
+
+REHEARSAL=0
+for arg in "$@"; do
+  case "$arg" in
+    --rehearsal) REHEARSAL=1 ;;
+    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    *) echo "ERROR: unknown flag '$arg' (try --help)"; exit 2 ;;
+  esac
+done
 
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required (brew install jq)"; exit 1; }
 command -v forge >/dev/null 2>&1 || { echo "ERROR: forge is required (foundry)"; exit 1; }
@@ -276,10 +293,46 @@ for entry in "${CONTRACTS[@]}"; do
   fi
 done
 
+# ── Dirty-source gate ─────────────────────────────────────────────────────
+# Production artifact builds must be reproducible from a clean source tree.
+# Without --rehearsal, any dirty repo is a hard failure. With --rehearsal, we
+# print a loud warning and stamp gitDirty:true in the manifest so downstream
+# production-chain verification/emit refuses to publish the resulting artifacts.
+DIRTY_REPOS=()
+for repo in "${!REPO_DIRTY[@]}"; do
+  if [[ "${REPO_DIRTY[$repo]}" == "true" ]]; then
+    DIRTY_REPOS+=("$repo")
+  fi
+done
+
+ANY_DIRTY="false"
+if [[ ${#DIRTY_REPOS[@]} -gt 0 ]]; then
+  ANY_DIRTY="true"
+  if [[ "$REHEARSAL" -eq 0 ]]; then
+    echo ""
+    echo "ERROR: source repo(s) have uncommitted changes:"
+    for r in "${DIRTY_REPOS[@]}"; do echo "  - $r"; done
+    echo ""
+    echo "Production artifact builds must be reproducible from a clean tree."
+    echo "Either commit/stash the changes, or re-run with --rehearsal to build"
+    echo "a marked-dirty rehearsal artifact set (production verify/emit will"
+    echo "still refuse to publish it)."
+    exit 1
+  fi
+  echo ""
+  echo "════════════════════════════════════════════════════════════════════"
+  echo " WARNING: rehearsal build — source repo(s) have uncommitted changes:"
+  for r in "${DIRTY_REPOS[@]}"; do echo "   - $r"; done
+  echo " Artifacts will be stamped gitDirty:true and production verify/emit"
+  echo " will refuse to publish them. Use only for fork rehearsal."
+  echo "════════════════════════════════════════════════════════════════════"
+  echo ""
+fi
+
 # ── Write the manifest sidecar ────────────────────────────────────────────
 GENERATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-printf '{\n  "format": "jb-v6-artifacts-manifest-1",\n  "generatedAt": "%s",\n  "monorepoRoot": "%s",\n  "contracts": {%s}\n}\n' \
-  "$GENERATED_AT" "$MONO_ROOT" "$MANIFEST_ENTRIES" \
+printf '{\n  "format": "jb-v6-artifacts-manifest-1",\n  "generatedAt": "%s",\n  "monorepoRoot": "%s",\n  "gitDirty": %s,\n  "rehearsal": %s,\n  "contracts": {%s}\n}\n' \
+  "$GENERATED_AT" "$MONO_ROOT" "$ANY_DIRTY" "$([[ $REHEARSAL -eq 1 ]] && echo true || echo false)" "$MANIFEST_ENTRIES" \
   | jq '.' > "$MANIFEST"
 
 # ── Phase 2: deferred library linking ─────────────────────────────────────

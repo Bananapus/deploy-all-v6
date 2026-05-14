@@ -133,7 +133,7 @@ What it does, per chain:
 
 1. **Dump addresses.** Runs `forge script Deploy.s.sol --rpc-url $RPC_<CHAIN>` (no broadcast) to compute every deployed contract's CREATE2 address and emit `script/post-deploy/.cache/addresses-<chainId>.json`.
 2. **Verify on Etherscan.** Shells out to `forge verify-contract` from each contract's **source repo** so the right `foundry.toml` (with the right `via_ir` / `optimizerRuns`) is used. Retries transient failures (rate limits, 5xx, "pending in queue") with exponential backoff (1s → 60s, up to 10 attempts). Permanent failures (source mismatch, compiler mismatch) are logged per-contract; other contracts continue.
-3. **Emit artifacts.** Produces v5-compatible `sphinx-sol-ct-artifact-1` JSON per contract (same schema as `nana-core-v5/deployments/...`, **minus** `merkleRoot` since we're not Sphinx-managed). Fields: `address`, `sourceName`, `contractName`, `chainId` (hex), `abi`, `args`, `solcInputHash`, `receipt`, `bytecode`, `deployedBytecode`, `metadata`, `gitCommit`, `history`. Tab-indented to match v5 byte-for-byte.
+3. **Emit artifacts.** Produces v5-compatible `sphinx-sol-ct-artifact-1` JSON per contract (same schema as `nana-core-v5/deployments/...`, **minus** `merkleRoot` since we're not Sphinx-managed). Fields: `address`, `sourceName`, `contractName`, `chainId` (hex), `abi`, `args`, `solcInputHash`, `receipt`, `bytecode`, `deployedBytecode`, `metadata`, `gitCommit`, `gitDirty`, `history`. Tab-indented to match v5 byte-for-byte (gitDirty surfaces source-tree provenance per artifact, not just in the sidecar manifest).
 4. **Distribute.** Copies each artifact to:
    - `deploy-all-v6/deployments/juicebox-v6/<chain_alias>/<Contract>.json` (aggregator)
    - `<repo>/deployments/<sphinxProject>/<chain_alias>/<Contract>.json` (per-repo, mirrors v5)
@@ -153,7 +153,33 @@ All four steps are idempotent. Reruns skip already-verified contracts via `.cach
 ./script/post-deploy.sh --skip-verify                          # artifact emit + distribute only
 ./script/post-deploy.sh --skip-artifacts --skip-distribute     # verify only
 ./script/post-deploy.sh --chains=sepolia --dry-run             # show what would happen
+./script/post-deploy.sh --chains=sepolia --rehearsal           # allow gitDirty manifest on prod chains
 ```
+
+#### Source provenance gate (`--rehearsal`)
+
+Production artifact builds must be reproducible from a clean source tree. Without acknowledgment, both `./script/build-artifacts.sh` and `./script/post-deploy.sh` (and the underlying `verify.mjs` / `artifacts.mjs`) refuse to proceed when any source repo has uncommitted changes, since the published artifacts would be unverifiable.
+
+- **`./script/build-artifacts.sh`** scans every source repo. If any are dirty, it exits non-zero with the list of dirty repos. Re-run with `--rehearsal` to build a marked-dirty rehearsal artifact set (manifest top-level `"gitDirty": true`, every emitted artifact stamped `"gitDirty": true`).
+- **`./script/post-deploy.sh`** (and the underlying `verify.mjs` + `artifacts.mjs`) consult the manifest's `gitDirty` flag and the chain's `production` flag in `script/post-deploy/chains.json`. If both are true and `--rehearsal` is not passed, the chain is skipped before any Etherscan call. Testnets (`sepolia`, `optimism_sepolia`, `base_sepolia`, `arbitrum_sepolia`) have `production: false` and are unaffected.
+
+Required production-chain rehearsal flow:
+
+```bash
+./script/build-artifacts.sh                          # fails if anything dirty
+./script/post-deploy.sh --chains=all-mainnets        # fails if manifest gitDirty
+```
+
+Rehearsal flow (only for local testing on a fork):
+
+```bash
+./script/build-artifacts.sh --rehearsal              # stamps gitDirty in manifest + artifacts
+./script/post-deploy.sh --chains=ethereum --rehearsal
+```
+
+`gitDirty: true` entries are also surfaced inside every emitted artifact JSON (not just the sidecar manifest), so any downstream consumer of `deployments/<repo>/<chain>/<Contract>.json` can detect non-canonical builds without cross-referencing the manifest.
+
+Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so the deployed runtime code is byte-equal to the artifact's `deployedBytecode.object`. This lets the verifier compare `extcodehash` directly against the artifact's runtime code hash; without `bytecode_hash = "none"`, solc embeds a per-build IPFS metadata hash in the trailing bytes which makes two byte-identical source compiles produce different on-chain code hashes.
 
 #### Limitations (current scope)
 

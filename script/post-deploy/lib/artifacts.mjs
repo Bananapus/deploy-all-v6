@@ -43,6 +43,16 @@ const chainsCfg = readJson({path: path.join(POST_DEPLOY_DIR, 'chains.json')});
 const chain = chainsCfg.chains[CHAIN_ID];
 if (!chain) die(`Unknown chainId ${CHAIN_ID}`);
 
+// Dirty-source gate: refuse to emit artifacts for production chains when the
+// manifest was built from a dirty source tree. --rehearsal acknowledges non-production use.
+if (manifest.gitDirty && chain.production && !args.rehearsal) {
+  die(
+    `Refusing to emit artifacts for production chain ${CHAIN_ID} (${chain.alias}): ` +
+    `artifact manifest was built from a dirty source tree. ` +
+    `Rebuild with a clean tree (./script/build-artifacts.sh) or pass --rehearsal.`
+  );
+}
+
 const addressesPath = path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
 if (!fs.existsSync(addressesPath)) die(`Missing addresses file: ${addressesPath}`);
 const addresses = readJson({path: addressesPath});
@@ -119,6 +129,7 @@ async function buildArtifact({target}) {
     deployedBytecode: forgeArtifact.deployedBytecode.object,
     metadata: metadataString,
     gitCommit: manifestEntry.gitCommit || 'unknown',
+    gitDirty: Boolean(manifestEntry.gitDirty),
     history: []
   };
 }

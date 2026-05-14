@@ -52,6 +52,16 @@ const chainsCfg = readJson(path.join(POST_DEPLOY_DIR, 'chains.json'));
 const chain = chainsCfg.chains[CHAIN_ID];
 if (!chain) die(`Unknown chainId ${CHAIN_ID} (not in chains.json)`);
 
+// Dirty-source gate: refuse to verify on production chains when the manifest
+// was built from a dirty source tree. --rehearsal acknowledges non-production use.
+if (manifest.gitDirty && chain.production && !args.rehearsal) {
+  die(
+    `Refusing to verify on production chain ${CHAIN_ID} (${chain.alias}): ` +
+    `artifact manifest was built from a dirty source tree. ` +
+    `Rebuild with a clean tree (./script/build-artifacts.sh) or pass --rehearsal.`
+  );
+}
+
 const addressesPath = path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
 if (!fs.existsSync(addressesPath)) {
   die(`Missing addresses file: ${addressesPath}\nRun the address dump first (forge script Deploy.s.sol --rpc-url ...).`);
