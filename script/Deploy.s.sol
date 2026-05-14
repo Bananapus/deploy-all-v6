@@ -3904,18 +3904,24 @@ contract Deploy is Script, Sphinx {
         _serializeLibrary({key: j, name: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT});
 
         // JBERC20 — constructor (permissions, projects), shared with tokens.
+        // The address is derived from the COPIED artifact bytecode (the same one Deploy.s.sol uses
+        // for deployment), not from local `type(JBERC20).creationCode`. Without this, source drift
+        // between the local checkout and the published artifact causes the address dump to point
+        // at a different CREATE2 address than the contract actually deployed.
         if (address(_permissions) != address(0) && address(_projects) != address(0)) {
             (address erc20Addr, bool erc20Deployed) = _isDeployed({
-                salt: coreSalt, creationCode: type(JBERC20).creationCode, arguments: abi.encode(_permissions, _projects)
+                salt: coreSalt,
+                creationCode: _loadArtifact("JBERC20"),
+                arguments: abi.encode(_permissions, _projects)
             });
             if (erc20Deployed) _serializeIfSet({key: j, name: "JBERC20", addr: erc20Addr});
         }
 
-        // Deadlines — no constructor args, salt = DEADLINES_SALT.
-        _serializeDeadline({key: j, name: "JBDeadline3Hours", creationCode: type(JBDeadline3Hours).creationCode});
-        _serializeDeadline({key: j, name: "JBDeadline1Day", creationCode: type(JBDeadline1Day).creationCode});
-        _serializeDeadline({key: j, name: "JBDeadline3Days", creationCode: type(JBDeadline3Days).creationCode});
-        _serializeDeadline({key: j, name: "JBDeadline7Days", creationCode: type(JBDeadline7Days).creationCode});
+        // Deadlines — no constructor args, salt = DEADLINES_SALT. Same artifact-vs-local concern.
+        _serializeDeadline({key: j, name: "JBDeadline3Hours", creationCode: _loadArtifact("JBDeadline3Hours")});
+        _serializeDeadline({key: j, name: "JBDeadline1Day", creationCode: _loadArtifact("JBDeadline1Day")});
+        _serializeDeadline({key: j, name: "JBDeadline3Days", creationCode: _loadArtifact("JBDeadline3Days")});
+        _serializeDeadline({key: j, name: "JBDeadline7Days", creationCode: _loadArtifact("JBDeadline7Days")});
 
         // Price feeds — query the prices registry directly.
         if (address(_prices) != address(0)) {
@@ -3926,7 +3932,11 @@ contract Deploy is Script, Sphinx {
                     unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
                 })
             );
-            _serializeIfSet({key: j, name: "JBChainlinkV3PriceFeed__ETH_USD", addr: ethUsd});
+            // On L2s (Optimism / Base / Arbitrum + sepolias) the deployed feed is the sequencer-aware
+            // variant whose runtime bytecode differs from `JBChainlinkV3PriceFeed.json`. Naming the
+            // emitted entry by the actual artifact type lets the post-deploy verifier and artifact
+            // emitter resolve the correct artifact via the `__` strip rule rather than guessing.
+            _serializePriceFeed({key: j, suffix: "ETH_USD", feed: ethUsd});
 
             if (_usdcToken != address(0)) {
                 // forge-lint: disable-next-line(unsafe-typecast)
@@ -3935,7 +3945,7 @@ contract Deploy is Script, Sphinx {
                         projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(_usdcToken))
                     })
                 );
-                _serializeIfSet({key: j, name: "JBChainlinkV3PriceFeed__USDC_USD", addr: usdcUsd});
+                _serializePriceFeed({key: j, suffix: "USDC_USD", feed: usdcUsd});
             }
 
             address ethMatching = address(
@@ -3946,6 +3956,23 @@ contract Deploy is Script, Sphinx {
                 })
             );
             _serializeIfSet({key: j, name: "JBMatchingPriceFeed", addr: ethMatching});
+        }
+
+        // Canonical project ERC-20 token clones (NANA/CPN/REV/BAN) live behind
+        // `_tokens.tokenOf(projectId)` and share the JBERC20 implementation bytecode but each clone
+        // has a unique address that must be in the dump for post-deploy verification.
+        if (address(_tokens) != address(0)) {
+            _serializeProjectErc20({key: j, suffix: "ProjectNANA", projectId: _FEE_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectCPN", projectId: _CPN_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectREV", projectId: _REV_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectBAN", projectId: _BAN_PROJECT_ID});
+        }
+
+        // Canonical 721 hook clones (CPN, BAN) live behind `_revOwner.tiered721HookOf(projectId)`.
+        // They share the JB721TiersHook implementation bytecode; each clone has its own address.
+        if (address(_revOwner) != address(0)) {
+            _serializeProject721Hook({key: j, suffix: "ProjectCPN", projectId: _CPN_PROJECT_ID});
+            _serializeProject721Hook({key: j, suffix: "ProjectBAN", projectId: _BAN_PROJECT_ID});
         }
 
         // ── Metadata ──
@@ -4038,6 +4065,39 @@ contract Deploy is Script, Sphinx {
             vm.serializeAddress({objectKey: key, valueKey: deployerName, value: d});
             _serializeSingletonFromDeployer({key: key, name: singletonName, deployer: d});
         }
+    }
+
+    /// Detects whether a deployed price feed is the L2 sequencer-aware variant and emits it under
+    /// the matching artifact name (`JBChainlinkV3SequencerPriceFeed__<suffix>` vs the plain
+    /// `JBChainlinkV3PriceFeed__<suffix>`). The sequencer-aware variant exposes a `SEQUENCER_FEED()`
+    /// getter that the standard variant does not. We use a low-level staticcall so this single
+    /// helper works for both shapes without needing two interfaces in scope.
+    function _serializePriceFeed(string memory key, string memory suffix, address feed) internal {
+        if (feed == address(0)) return;
+        (bool ok, bytes memory data) = feed.staticcall(abi.encodeWithSignature("SEQUENCER_FEED()"));
+        bool isSequencer = ok && data.length >= 32 && abi.decode(data, (address)) != address(0);
+        string memory base = isSequencer ? "JBChainlinkV3SequencerPriceFeed" : "JBChainlinkV3PriceFeed";
+        vm.serializeAddress({objectKey: key, valueKey: string.concat(base, "__", suffix), value: feed});
+    }
+
+    /// Emits the canonical project's ERC-20 clone address from
+    /// `_tokens.tokenOf(projectId)` under `JBERC20__<suffix>`. Skips if the
+    /// project has not deployed its token yet (returns address(0)).
+    function _serializeProjectErc20(string memory key, string memory suffix, uint256 projectId) internal {
+        address token = address(_tokens.tokenOf(projectId));
+        if (token == address(0)) return;
+        vm.serializeAddress({objectKey: key, valueKey: string.concat("JBERC20__", suffix), value: token});
+    }
+
+    /// Emits the canonical project's 721 hook clone address from
+    /// `_revOwner.tiered721HookOf(projectId)` under `JB721TiersHook__<suffix>`.
+    /// Skips if the project has no tiered-721 hook (e.g. fee project, REV).
+    function _serializeProject721Hook(string memory key, string memory suffix, uint256 projectId) internal {
+        IJB721TiersHook hook = _revOwner.tiered721HookOf(projectId);
+        if (address(hook) == address(0)) return;
+        vm.serializeAddress({
+            objectKey: key, valueKey: string.concat("JB721TiersHook__", suffix), value: address(hook)
+        });
     }
 
     /// Maps a known production / testnet chain id to a short routing suffix used
