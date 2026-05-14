@@ -43,6 +43,10 @@ contract BannyManifestVerifierGapTest is Test {
         MockBannyHook bannyHook =
             new MockBannyHook({hookStore_: address(hookStore), contractUri_: "wrong-contract-uri"});
         MockRevOwner revOwner = new MockRevOwner(address(bannyHook));
+        // BS gate now requires the CPN hook to be wired with PROJECT_ID==2 / STORE==hookStore /
+        // symbol=="CPN". This test targets Banny manifest behaviour, so satisfy BS with a minimal
+        // mock so we reach the Banny assertions.
+        revOwner.setCpnHook(address(new MockCpnHookForBs(address(hookStore))));
 
         assertEq(resolver.owner(), wrongOwner, "test uses wrong resolver owner");
         assertEq(resolver.trustedForwarder(), wrongForwarder, "test uses wrong forwarder");
@@ -122,13 +126,22 @@ contract MockRevDeployer {
 
 contract MockRevOwner {
     address internal immutable _bannyHook;
+    address internal _cpnHook;
 
     constructor(address bannyHook_) {
         _bannyHook = bannyHook_;
     }
 
+    /// BS-added setter: the CPN hook is required by the verifier; tests that target Banny-only
+    /// behaviour set a satisfying CPN mock through this so they don't trip the new BS gate.
+    function setCpnHook(address cpnHook_) external {
+        _cpnHook = cpnHook_;
+    }
+
     function tiered721HookOf(uint256 projectId) external view returns (address) {
-        return projectId == 4 ? _bannyHook : address(0);
+        if (projectId == 4) return _bannyHook;
+        if (projectId == 2) return _cpnHook;
+        return address(0);
     }
 }
 
@@ -181,6 +194,25 @@ contract MockBannyHook is MockToken {
 
     function contractURI() external view returns (string memory) {
         return _contractUri;
+    }
+}
+
+/// CPN hook mock matching the BS gate's expectations (PROJECT_ID == 2, canonical store, "CPN"
+/// symbol). Used by sibling tests that target Banny manifest behaviour but now need a CPN hook
+/// in place to reach the Banny assertions.
+contract MockCpnHookForBs is MockToken {
+    address internal immutable _hookStore;
+
+    constructor(address hookStore_) MockToken("CPN") {
+        _hookStore = hookStore_;
+    }
+
+    function PROJECT_ID() external pure returns (uint256) {
+        return 2;
+    }
+
+    function STORE() external view returns (address) {
+        return _hookStore;
     }
 }
 

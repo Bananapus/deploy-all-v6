@@ -21,13 +21,12 @@ contract TokenImplementationVerifierGapTest is Test {
         VerifyTokenImplementationHarness harness = new VerifyTokenImplementationHarness();
         harness.setTokenMocks({tokens_: address(maliciousTokens), projects_: projects, permissions_: permissions});
 
-        // CJ fix (Decision A): Category 12 now asserts the clone target's runtime bytecode equals
-        // the JBERC20 artifact's deployedBytecode. The mock implementation has different code, so
-        // the verifier rejects.
+        // CJ fix (Decision A): the mock JBERC20 implementation has unrelated code, so the
+        // length-equality check fires first. Any Decision-A reject is sufficient for the test;
+        // we just need to confirm noncanonical implementations are rejected.
         vm.expectRevert(
             abi.encodeWithSelector(
-                Verify.Verify_CriticalCheckFailed.selector,
-                "JBERC20 impl: runtime bytecode == artifact deployedBytecode"
+                Verify.Verify_CriticalCheckFailed.selector, "JBERC20 impl: runtime length == artifact length"
             )
         );
         harness.verifyTokenImplementation();

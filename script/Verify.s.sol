@@ -96,6 +96,13 @@ contract Verify is Script {
     // Reverts when a critical wiring check fails.
     error Verify_CriticalCheckFailed(string reason);
 
+    /// Foundry's parseJson requires struct fields in alphabetical order to match JSON keys.
+    /// `{length, start}` for `{start, length}` JSON.
+    struct ImmutableRange {
+        uint256 length;
+        uint256 start;
+    }
+
     // ════════════════════════════════════════════════════════════════════
     //  Contract Addresses — set by the caller via constructor args or
     //  environment variables. Using public storage so `run()` can read
@@ -483,8 +490,51 @@ contract Verify is Script {
                     critical: true
                 });
             }
+
+            // BS: CPN (Croptop) also gets a 721 hook recorded at project 2. The pre-fix verifier
+            // ignored it entirely; an attacker-deployed CPN hook (wrong PROJECT_ID, wrong store,
+            // wrong symbol) survived. Same identity shape as Banny.
+            IJB721TiersHook cpnHook = revOwner.tiered721HookOf(_CPN_PROJECT_ID);
+            _check({
+                condition: address(cpnHook) != address(0), label: "CPN(2) has Croptop 721 hook recorded", critical: true
+            });
+            if (address(cpnHook) != address(0)) {
+                _check({
+                    condition: cpnHook.PROJECT_ID() == _CPN_PROJECT_ID,
+                    label: "CPN hook PROJECT_ID == 2",
+                    critical: true
+                });
+                _check({
+                    condition: address(cpnHook.STORE()) == address(hookStore),
+                    label: "CPN hook uses canonical 721 store",
+                    critical: true
+                });
+                _check({
+                    condition: _metadataSymbolIs({token: address(cpnHook), expected: "CPN"}),
+                    label: "CPN hook symbol == CPN",
+                    critical: true
+                });
+
+                // BS: CPN posting criteria for categories 0-4 must be configured (non-zero packed
+                // allowance). Exact value-equality is deferred to a follow-up env-driven check;
+                // the on-chain assertion proves the CTPublisher has registered criteria for the
+                // canonical category set rather than leaving them unset (which would let any
+                // poster onto an unconfigured category with default zero-permission semantics).
+                if (address(ctPublisher) != address(0)) {
+                    for (uint256 cat; cat <= 4; cat++) {
+                        (uint256 minPrice,,,,) = ctPublisher.allowanceFor(address(cpnHook), cat);
+                        _check({
+                            condition: minPrice > 0,
+                            label: string.concat(
+                                "CPN posting criteria category ", vm.toString(cat), " configured (minPrice > 0)"
+                            ),
+                            critical: true
+                        });
+                    }
+                }
+            }
         } else {
-            _skip("Banny 721 hook identity checks (REVOwner not configured)");
+            _skip("Banny / CPN 721 hook identity checks (REVOwner not configured)");
         }
     }
 
@@ -2681,31 +2731,87 @@ contract Verify is Script {
         console.log("");
     }
 
-    /// Decision A: assert deployed runtime bytecode at `addr` matches the published artifact's
-    /// deployedBytecode. Used by every implementation-identity finding
-    /// (CJ/CK/CL/CM/CN/CO/BE/BF/BH/BJ/CI). Requires `bytecode_hash = "none"` in each source repo's
-    /// foundry.toml (BW landed this across all 17 source repos in Phase 1). Skips with a logged
-    /// note when the artifact file is missing so adoption can be staged.
+    /// Decision A: assert deployed runtime bytecode at `addr` is structurally identical to the
+    /// published artifact's `deployedBytecode`, with all immutable-reference byte ranges masked
+    /// to zero on both sides. The mask ranges are read from the artifact's
+    /// `deployedBytecode.immutableReferences` (a map of AST-ID -> [{start, length}, ...]).
+    ///
+    /// The constructor of any contract using Solidity `immutable` keywords writes the immutable
+    /// value into runtime bytecode at compiler-chosen offsets. The artifact carries zero bytes
+    /// at those positions; a real deployment carries the constructor-injected values. Raw
+    /// `extcodehash` equality fails for any such contract — but the bytes OUTSIDE those ranges
+    /// are byte-equal between artifact and live, which is what proves the audited source was
+    /// compiled and deployed.
+    ///
+    /// Requires `bytecode_hash = "none"` (BW). Skips with a logged note when the artifact is
+    /// missing so partial-coverage chains still produce a clear log line.
     function _requireArtifactIdentity(string memory artifactName, address deployed, string memory label) internal {
         if (deployed == address(0)) {
             _skip(string.concat(label, ": skipped (deployed address is zero)"));
             return;
         }
         string memory artifactPath = string.concat("artifacts/", artifactName, ".json");
+        string memory json;
         try vm.readFile(artifactPath) returns (string memory j) {
-            bytes memory deployedBytecode = vm.parseJsonBytes(j, ".deployedBytecode.object");
-            bytes32 expected = keccak256(deployedBytecode);
-            bytes32 actual;
-            assembly {
-                actual := extcodehash(deployed)
-            }
-            _check({
-                condition: actual == expected,
-                label: string.concat(label, ": runtime bytecode == artifact deployedBytecode"),
-                critical: true
-            });
+            json = j;
         } catch {
             _skip(string.concat(label, ": artifact unavailable at ", artifactPath));
+            return;
+        }
+        bytes memory artifactBytecode;
+        try vm.parseJsonBytes(json, ".deployedBytecode.object") returns (bytes memory bc) {
+            artifactBytecode = bc;
+        } catch {
+            _skip(string.concat(label, ": artifact has no .deployedBytecode.object"));
+            return;
+        }
+
+        bytes memory liveBytecode = deployed.code;
+        _check({
+            condition: liveBytecode.length == artifactBytecode.length,
+            label: string.concat(label, ": runtime length == artifact length"),
+            critical: true
+        });
+        if (liveBytecode.length != artifactBytecode.length) return;
+
+        // Mask immutable-reference ranges in both sides.
+        _zeroImmutableRanges(artifactBytecode, json);
+        _zeroImmutableRanges(liveBytecode, json);
+
+        _check({
+            condition: keccak256(liveBytecode) == keccak256(artifactBytecode),
+            label: string.concat(label, ": runtime bytecode == artifact (immutable-masked)"),
+            critical: true
+        });
+    }
+
+    /// Zeroes every immutable-reference byte range in `bytecode`, in place. Iterates the artifact's
+    /// `deployedBytecode.immutableReferences` map (keyed by AST ID, value an array of
+    /// `{start, length}` ranges). The key order doesn't matter; the ranges are byte-aligned.
+    function _zeroImmutableRanges(bytes memory bytecode, string memory artifactJson) internal view {
+        string[] memory keys;
+        try vm.parseJsonKeys(artifactJson, ".deployedBytecode.immutableReferences") returns (string[] memory k) {
+            keys = k;
+        } catch {
+            return; // No immutableReferences field — nothing to mask.
+        }
+        for (uint256 i; i < keys.length; i++) {
+            string memory keyPath = string.concat(".deployedBytecode.immutableReferences.", keys[i]);
+            // The value is an array of `{start, length}` objects. Foundry's parseJson requires
+            // struct fields in alphabetical order — so we decode as `ImmutableRange[]` with
+            // fields ordered `length` then `start`.
+            try vm.parseJson(artifactJson, keyPath) returns (bytes memory rangeBytes) {
+                ImmutableRange[] memory ranges = abi.decode(rangeBytes, (ImmutableRange[]));
+                for (uint256 j; j < ranges.length; j++) {
+                    uint256 start = ranges[j].start;
+                    uint256 len = ranges[j].length;
+                    for (uint256 k; k < len && start + k < bytecode.length; k++) {
+                        bytecode[start + k] = 0;
+                    }
+                }
+            } catch {
+                // Skip ranges we can't parse — defensive against artifact-format changes.
+            }
         }
     }
 
