@@ -24,6 +24,7 @@
 #   ./script/post-deploy.sh --skip-verify                        # artifact emit + distribute only
 #   ./script/post-deploy.sh --skip-artifacts                     # verify only
 #   ./script/post-deploy.sh --dry-run                            # show what would happen
+#   ./script/post-deploy.sh --rehearsal                          # allow gitDirty manifest on prod chains
 #
 # Env vars (required):
 #   ETHERSCAN_API_KEY       single key for Etherscan v2 unified API
@@ -57,7 +58,7 @@ SKIP_VERIFY=0
 SKIP_ARTIFACTS=0
 SKIP_DISTRIBUTE=0
 DRY_RUN=0
-ALLOW_DIRTY=0
+REHEARSAL=0
 
 for arg in "$@"; do
   case "$arg" in
@@ -66,7 +67,7 @@ for arg in "$@"; do
     --skip-artifacts) SKIP_ARTIFACTS=1 ;;
     --skip-distribute) SKIP_DISTRIBUTE=1 ;;
     --dry-run) DRY_RUN=1 ;;
-    --allow-dirty) ALLOW_DIRTY=1 ;;
+    --rehearsal) REHEARSAL=1 ;;
     -h|--help)
       sed -n '2,40p' "$0"
       exit 0
@@ -85,6 +86,11 @@ command -v jq >/dev/null || { echo "ERROR: jq required (brew install jq)"; exit 
 [[ -d "$ARTIFACTS_DIR" ]] || { echo "ERROR: artifacts/ missing. Run ./script/build-artifacts.sh first."; exit 2; }
 [[ -f "$ARTIFACTS_DIR/artifacts.manifest.json" ]] || { echo "ERROR: artifacts.manifest.json missing."; exit 2; }
 [[ -f "$CHAINS_JSON" ]] || { echo "ERROR: chains.json missing."; exit 2; }
+
+# Dirty-source preflight: if the manifest is gitDirty and any chain in this run
+# is production, refuse to proceed unless --rehearsal is passed. This is a
+# defense-in-depth check; verify.mjs and artifacts.mjs enforce the same gate.
+MANIFEST_DIRTY="$(jq -r '.gitDirty // false' "$ARTIFACTS_DIR/artifacts.manifest.json")"
 
 if [[ "$SKIP_VERIFY" -eq 0 ]]; then
   [[ -n "${ETHERSCAN_API_KEY:-}" ]] || {
@@ -147,6 +153,15 @@ for alias in $CHAINS_LIST; do
     continue
   fi
 
+  # Dirty-source preflight: refuse production chains with dirty manifest unless --rehearsal.
+  chain_production="$(jq -r --arg cid "$chain_id" '.chains[$cid].production // false' "$CHAINS_JSON")"
+  if [[ "$MANIFEST_DIRTY" == "true" && "$chain_production" == "true" && "$REHEARSAL" -eq 0 ]]; then
+    echo "  SKIP — production chain $alias refuses dirty manifest. Rebuild clean or pass --rehearsal."
+    GLOBAL_FAIL=1
+    SUMMARY+="  $alias: SKIP (dirty manifest)\n"
+    continue
+  fi
+
   rpc_env="$(alias_to_rpc_env "$alias")"
   rpc="${!rpc_env:-}"
   if [[ -z "$rpc" ]]; then
@@ -186,11 +201,14 @@ for alias in $CHAINS_LIST; do
     echo "    (skipped — dry-run)"
   fi
 
+  rehearsal_flag=""
+  [[ "$REHEARSAL" -eq 1 ]] && rehearsal_flag="--rehearsal"
+
   # ── Step 2: verify each contract on Etherscan ──
   if [[ "$SKIP_VERIFY" -eq 0 ]]; then
     echo "  [2/4] Verifying on Etherscan..."
     if [[ "$DRY_RUN" -eq 0 ]]; then
-      node "$POST_DEPLOY_DIR/lib/verify.mjs" --chain "$chain_id" || {
+      node "$POST_DEPLOY_DIR/lib/verify.mjs" --chain "$chain_id" $rehearsal_flag || {
         echo "    Some contracts failed verification. Continuing to artifact emission."
         GLOBAL_FAIL=1
       }
@@ -202,12 +220,14 @@ for alias in $CHAINS_LIST; do
   fi
 
   # ── Step 3: emit sphinx-format artifacts ──
+  artifact_failed=0
   if [[ "$SKIP_ARTIFACTS" -eq 0 ]]; then
     echo "  [3/4] Emitting artifacts..."
     if [[ "$DRY_RUN" -eq 0 ]]; then
-      node "$POST_DEPLOY_DIR/lib/artifacts.mjs" --chain "$chain_id" || {
-        echo "    Some artifacts failed to generate."
+      node "$POST_DEPLOY_DIR/lib/artifacts.mjs" --chain "$chain_id" $rehearsal_flag || {
+        echo "    Some artifacts failed to generate; skipping distribution for this chain."
         GLOBAL_FAIL=1
+        artifact_failed=1
       }
     else
       echo "    (skipped — dry-run)"
@@ -217,7 +237,11 @@ for alias in $CHAINS_LIST; do
   fi
 
   # ── Step 4: fan out to per-repo deployments/ ──
-  if [[ "$SKIP_DISTRIBUTE" -eq 0 ]]; then
+  # Skip distribution if artifact emission failed — otherwise we would copy
+  # stale cached JSON from a previous run into the canonical deployments/
+  # tree. distribute.mjs also gates on the current address dump, but this
+  # outer skip is defense in depth.
+  if [[ "$SKIP_DISTRIBUTE" -eq 0 && "$artifact_failed" -eq 0 ]]; then
     echo "  [4/4] Distributing artifacts..."
     extra=""
     [[ "$DRY_RUN" -eq 1 ]] && extra="--dry-run"
@@ -225,6 +249,8 @@ for alias in $CHAINS_LIST; do
       echo "    Some artifacts failed to distribute."
       GLOBAL_FAIL=1
     }
+  elif [[ "$artifact_failed" -eq 1 ]]; then
+    echo "  [4/4] (skipped — artifact emission failed)"
   else
     echo "  [4/4] (skip-distribute)"
   fi

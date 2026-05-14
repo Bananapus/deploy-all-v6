@@ -3847,6 +3847,9 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JBAddressRegistry", addr: address(_addressRegistry)});
         _serializeIfSet({key: j, name: "JB721TiersHookStore", addr: address(_hookStore)});
         _serializeIfSet({key: j, name: "JB721CheckpointsDeployer", addr: address(_checkpointsDeployer)});
+        _serializeImplementationFromDeployer({
+            key: j, name: "JB721Checkpoints", deployer: address(_checkpointsDeployer)
+        });
         _serializeIfSet({key: j, name: "JB721TiersHook", addr: address(_hook721)});
         _serializeIfSet({key: j, name: "JB721TiersHookDeployer", addr: address(_hookDeployer)});
         _serializeIfSet({key: j, name: "JB721TiersHookProjectDeployer", addr: address(_hookProjectDeployer)});
@@ -3859,8 +3862,14 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JBRouterTerminal", addr: address(_routerTerminal)});
         _serializeIfSet({key: j, name: "JBSuckerRegistry", addr: address(_suckerRegistry)});
         _serializeIfSet({key: j, name: "JBOptimismSuckerDeployer", addr: address(_optimismSuckerDeployer)});
+        _serializeSingletonFromDeployer({key: j, name: "JBOptimismSucker", deployer: address(_optimismSuckerDeployer)});
         _serializeIfSet({key: j, name: "JBBaseSuckerDeployer", addr: address(_baseSuckerDeployer)});
+        _serializeSingletonFromDeployer({key: j, name: "JBBaseSucker", deployer: address(_baseSuckerDeployer)});
         _serializeIfSet({key: j, name: "JBArbitrumSuckerDeployer", addr: address(_arbitrumSuckerDeployer)});
+        _serializeSingletonFromDeployer({key: j, name: "JBArbitrumSucker", deployer: address(_arbitrumSuckerDeployer)});
+        // Per-route CCIP and SwapCCIP deployers + their singletons. The standard 3 above are also
+        // pushed into _preApprovedSuckerDeployers; skip them since they're already emitted.
+        _serializeCCIPRouteDeployers({key: j});
         _serializeIfSet({key: j, name: "JBOmnichainDeployer", addr: address(_omnichainDeployer)});
         _serializeIfSet({key: j, name: "CTPublisher", addr: address(_ctPublisher)});
         _serializeIfSet({key: j, name: "CTDeployer", addr: address(_ctDeployer)});
@@ -3877,6 +3886,7 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JB721Distributor", addr: address(_721Distributor)});
         _serializeIfSet({key: j, name: "JBTokenDistributor", addr: address(_tokenDistributor)});
         _serializeIfSet({key: j, name: "JBProjectPayerDeployer", addr: address(_projectPayerDeployer)});
+        _serializeImplementationFromDeployer({key: j, name: "JBProjectPayer", deployer: address(_projectPayerDeployer)});
 
         // ── Single-instance contracts not held in state vars ──
         // Computed via _isDeployed against the canonical CREATE2 factory (since the
@@ -3892,18 +3902,22 @@ contract Deploy is Script, Sphinx {
         _serializeLibrary({key: j, name: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT});
 
         // JBERC20 — constructor (permissions, projects), shared with tokens.
+        // The address is derived from the COPIED artifact bytecode (the same one Deploy.s.sol uses
+        // for deployment), not from local `type(JBERC20).creationCode`. Without this, source drift
+        // between the local checkout and the published artifact causes the address dump to point
+        // at a different CREATE2 address than the contract actually deployed.
         if (address(_permissions) != address(0) && address(_projects) != address(0)) {
             (address erc20Addr, bool erc20Deployed) = _isDeployed({
-                salt: coreSalt, creationCode: type(JBERC20).creationCode, arguments: abi.encode(_permissions, _projects)
+                salt: coreSalt, creationCode: _loadArtifact("JBERC20"), arguments: abi.encode(_permissions, _projects)
             });
             if (erc20Deployed) _serializeIfSet({key: j, name: "JBERC20", addr: erc20Addr});
         }
 
-        // Deadlines — no constructor args, salt = DEADLINES_SALT.
-        _serializeDeadline({key: j, name: "JBDeadline3Hours", creationCode: type(JBDeadline3Hours).creationCode});
-        _serializeDeadline({key: j, name: "JBDeadline1Day", creationCode: type(JBDeadline1Day).creationCode});
-        _serializeDeadline({key: j, name: "JBDeadline3Days", creationCode: type(JBDeadline3Days).creationCode});
-        _serializeDeadline({key: j, name: "JBDeadline7Days", creationCode: type(JBDeadline7Days).creationCode});
+        // Deadlines — no constructor args, salt = DEADLINES_SALT. Same artifact-vs-local concern.
+        _serializeDeadline({key: j, name: "JBDeadline3Hours", creationCode: _loadArtifact("JBDeadline3Hours")});
+        _serializeDeadline({key: j, name: "JBDeadline1Day", creationCode: _loadArtifact("JBDeadline1Day")});
+        _serializeDeadline({key: j, name: "JBDeadline3Days", creationCode: _loadArtifact("JBDeadline3Days")});
+        _serializeDeadline({key: j, name: "JBDeadline7Days", creationCode: _loadArtifact("JBDeadline7Days")});
 
         // Price feeds — query the prices registry directly.
         if (address(_prices) != address(0)) {
@@ -3914,7 +3928,11 @@ contract Deploy is Script, Sphinx {
                     unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
                 })
             );
-            _serializeIfSet({key: j, name: "JBChainlinkV3PriceFeed__ETH_USD", addr: ethUsd});
+            // On L2s (Optimism / Base / Arbitrum + sepolias) the deployed feed is the sequencer-aware
+            // variant whose runtime bytecode differs from `JBChainlinkV3PriceFeed.json`. Naming the
+            // emitted entry by the actual artifact type lets the post-deploy verifier and artifact
+            // emitter resolve the correct artifact via the `__` strip rule rather than guessing.
+            _serializePriceFeed({key: j, suffix: "ETH_USD", feed: ethUsd});
 
             if (_usdcToken != address(0)) {
                 // forge-lint: disable-next-line(unsafe-typecast)
@@ -3923,7 +3941,7 @@ contract Deploy is Script, Sphinx {
                         projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(_usdcToken))
                     })
                 );
-                _serializeIfSet({key: j, name: "JBChainlinkV3PriceFeed__USDC_USD", addr: usdcUsd});
+                _serializePriceFeed({key: j, suffix: "USDC_USD", feed: usdcUsd});
             }
 
             address ethMatching = address(
@@ -3934,6 +3952,23 @@ contract Deploy is Script, Sphinx {
                 })
             );
             _serializeIfSet({key: j, name: "JBMatchingPriceFeed", addr: ethMatching});
+        }
+
+        // Canonical project ERC-20 token clones (NANA/CPN/REV/BAN) live behind
+        // `_tokens.tokenOf(projectId)` and share the JBERC20 implementation bytecode but each clone
+        // has a unique address that must be in the dump for post-deploy verification.
+        if (address(_tokens) != address(0)) {
+            _serializeProjectErc20({key: j, suffix: "ProjectNANA", projectId: _FEE_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectCPN", projectId: _CPN_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectREV", projectId: _REV_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectBAN", projectId: _BAN_PROJECT_ID});
+        }
+
+        // Canonical 721 hook clones (CPN, BAN) live behind `_revOwner.tiered721HookOf(projectId)`.
+        // They share the JB721TiersHook implementation bytecode; each clone has its own address.
+        if (address(_revOwner) != address(0)) {
+            _serializeProject721Hook({key: j, suffix: "ProjectCPN", projectId: _CPN_PROJECT_ID});
+            _serializeProject721Hook({key: j, suffix: "ProjectBAN", projectId: _BAN_PROJECT_ID});
         }
 
         // ── Metadata ──
@@ -3962,5 +3997,115 @@ contract Deploy is Script, Sphinx {
     function _serializeLibrary(string memory key, string memory name, bytes32 salt) internal {
         (address libAddr, bool isDeployed) = _isDeployed({salt: salt, creationCode: _loadArtifact(name), arguments: ""});
         if (isDeployed) _serializeIfSet({key: key, name: name, addr: libAddr});
+    }
+
+    /// Reads `deployer.singleton()` via low-level staticcall (works across the
+    /// concrete deployer types without importing each interface separately) and
+    /// serializes it if non-zero. Used for emitting JBOptimismSucker / JBBaseSucker /
+    /// JBArbitrumSucker / JBCCIPSucker / JBSwapCCIPSucker implementation addresses
+    /// alongside their deployers so the post-deploy verifier and artifact emitter
+    /// can prove the implementation bytecode matches the published artifact.
+    function _serializeSingletonFromDeployer(string memory key, string memory name, address deployer) internal {
+        _serializeAddressFromDeployer({key: key, name: name, deployer: deployer, signature: "singleton()"});
+    }
+
+    /// Constructor-created clone implementations (JBProjectPayer, JB721Checkpoints) live behind
+    /// `IMPLEMENTATION()` on their deployers. Emitting them keeps the post-deploy verifier and
+    /// artifact emitter able to prove the clone targets match the published artifact.
+    function _serializeImplementationFromDeployer(string memory key, string memory name, address deployer) internal {
+        _serializeAddressFromDeployer({key: key, name: name, deployer: deployer, signature: "IMPLEMENTATION()"});
+    }
+
+    /// Reads `deployer.<signature>` via low-level staticcall and serializes the returned address if
+    /// non-zero. Used by the sucker-singleton and clone-implementation serializers above so a
+    /// single shared helper covers both getter shapes.
+    function _serializeAddressFromDeployer(
+        string memory key,
+        string memory name,
+        address deployer,
+        string memory signature
+    )
+        internal
+    {
+        if (deployer == address(0)) return;
+        (bool ok, bytes memory data) = deployer.staticcall(abi.encodeWithSignature(signature));
+        if (!ok || data.length < 32) return;
+        address impl = abi.decode(data, (address));
+        if (impl == address(0)) return;
+        vm.serializeAddress({objectKey: key, valueKey: name, value: impl});
+    }
+
+    /// Iterates `_preApprovedSuckerDeployers`, skipping the three standard
+    /// per-source-chain deployers (already emitted via state vars), and emits
+    /// each CCIP / SwapCCIP route deployer plus its singleton with a remote-
+    /// chain suffix. Without this, post-deploy verification cannot prove the
+    /// per-route deployer or singleton bytecode matches the published artifact.
+    function _serializeCCIPRouteDeployers(string memory key) internal {
+        for (uint256 i; i < _preApprovedSuckerDeployers.length; i++) {
+            address d = _preApprovedSuckerDeployers[i];
+            if (d == address(_optimismSuckerDeployer)) continue;
+            if (d == address(_baseSuckerDeployer)) continue;
+            if (d == address(_arbitrumSuckerDeployer)) continue;
+
+            (bool okId, bytes memory idData) = d.staticcall(abi.encodeWithSignature("ccipRemoteChainId()"));
+            if (!okId || idData.length < 32) continue;
+            uint256 remoteId = abi.decode(idData, (uint256));
+            string memory suffix = _chainIdToRouteSuffix(remoteId);
+
+            (bool okBridge, bytes memory bridgeData) = d.staticcall(abi.encodeWithSignature("bridgeToken()"));
+            bool isSwap = okBridge && bridgeData.length >= 32 && abi.decode(bridgeData, (address)) != address(0);
+
+            string memory deployerName =
+                string.concat(isSwap ? "JBSwapCCIPSuckerDeployer" : "JBCCIPSuckerDeployer", "__", suffix);
+            string memory singletonName = string.concat(isSwap ? "JBSwapCCIPSucker" : "JBCCIPSucker", "__", suffix);
+            vm.serializeAddress({objectKey: key, valueKey: deployerName, value: d});
+            _serializeSingletonFromDeployer({key: key, name: singletonName, deployer: d});
+        }
+    }
+
+    /// Detects whether a deployed price feed is the L2 sequencer-aware variant and emits it under
+    /// the matching artifact name (`JBChainlinkV3SequencerPriceFeed__<suffix>` vs the plain
+    /// `JBChainlinkV3PriceFeed__<suffix>`). The sequencer-aware variant exposes a `SEQUENCER_FEED()`
+    /// getter that the standard variant does not. We use a low-level staticcall so this single
+    /// helper works for both shapes without needing two interfaces in scope.
+    function _serializePriceFeed(string memory key, string memory suffix, address feed) internal {
+        if (feed == address(0)) return;
+        (bool ok, bytes memory data) = feed.staticcall(abi.encodeWithSignature("SEQUENCER_FEED()"));
+        bool isSequencer = ok && data.length >= 32 && abi.decode(data, (address)) != address(0);
+        string memory base = isSequencer ? "JBChainlinkV3SequencerPriceFeed" : "JBChainlinkV3PriceFeed";
+        vm.serializeAddress({objectKey: key, valueKey: string.concat(base, "__", suffix), value: feed});
+    }
+
+    /// Emits the canonical project's ERC-20 clone address from
+    /// `_tokens.tokenOf(projectId)` under `JBERC20__<suffix>`. Skips if the
+    /// project has not deployed its token yet (returns address(0)).
+    function _serializeProjectErc20(string memory key, string memory suffix, uint256 projectId) internal {
+        address token = address(_tokens.tokenOf(projectId));
+        if (token == address(0)) return;
+        vm.serializeAddress({objectKey: key, valueKey: string.concat("JBERC20__", suffix), value: token});
+    }
+
+    /// Emits the canonical project's 721 hook clone address from
+    /// `_revOwner.tiered721HookOf(projectId)` under `JB721TiersHook__<suffix>`.
+    /// Skips if the project has no tiered-721 hook (e.g. fee project, REV).
+    function _serializeProject721Hook(string memory key, string memory suffix, uint256 projectId) internal {
+        IJB721TiersHook hook = _revOwner.tiered721HookOf(projectId);
+        if (address(hook) == address(0)) return;
+        vm.serializeAddress({objectKey: key, valueKey: string.concat("JB721TiersHook__", suffix), value: address(hook)});
+    }
+
+    /// Maps a known production / testnet chain id to a short routing suffix used
+    /// in the addresses dump (e.g. `JBCCIPSucker__OP`). Unknown chain ids fall
+    /// back to a base-10 string so the entry remains unique and traceable.
+    function _chainIdToRouteSuffix(uint256 chainId) internal pure returns (string memory) {
+        if (chainId == 1) return "ETH";
+        if (chainId == 11_155_111) return "ETH_SEP";
+        if (chainId == 10) return "OP";
+        if (chainId == 11_155_420) return "OP_SEP";
+        if (chainId == 8453) return "BASE";
+        if (chainId == 84_532) return "BASE_SEP";
+        if (chainId == 42_161) return "ARB";
+        if (chainId == 421_614) return "ARB_SEP";
+        return vm.toString(chainId);
     }
 }

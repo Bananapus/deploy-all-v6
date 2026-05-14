@@ -133,7 +133,7 @@ What it does, per chain:
 
 1. **Dump addresses.** Runs `forge script Deploy.s.sol --rpc-url $RPC_<CHAIN>` (no broadcast) to compute every deployed contract's CREATE2 address and emit `script/post-deploy/.cache/addresses-<chainId>.json`.
 2. **Verify on Etherscan.** Shells out to `forge verify-contract` from each contract's **source repo** so the right `foundry.toml` (with the right `via_ir` / `optimizerRuns`) is used. Retries transient failures (rate limits, 5xx, "pending in queue") with exponential backoff (1s → 60s, up to 10 attempts). Permanent failures (source mismatch, compiler mismatch) are logged per-contract; other contracts continue.
-3. **Emit artifacts.** Produces v5-compatible `sphinx-sol-ct-artifact-1` JSON per contract (same schema as `nana-core-v5/deployments/...`, **minus** `merkleRoot` since we're not Sphinx-managed). Fields: `address`, `sourceName`, `contractName`, `chainId` (hex), `abi`, `args`, `solcInputHash`, `receipt`, `bytecode`, `deployedBytecode`, `metadata`, `gitCommit`, `history`. Tab-indented to match v5 byte-for-byte.
+3. **Emit artifacts.** Produces v5-compatible `sphinx-sol-ct-artifact-1` JSON per contract (same schema as `nana-core-v5/deployments/...`, **minus** `merkleRoot` since we're not Sphinx-managed). Fields: `address`, `sourceName`, `contractName`, `chainId` (hex), `abi`, `args`, `solcInputHash`, `receipt`, `bytecode`, `deployedBytecode`, `metadata`, `gitCommit`, `gitDirty`, `history`. Tab-indented to match v5 byte-for-byte (gitDirty surfaces source-tree provenance per artifact, not just in the sidecar manifest).
 4. **Distribute.** Copies each artifact to:
    - `deploy-all-v6/deployments/juicebox-v6/<chain_alias>/<Contract>.json` (aggregator)
    - `<repo>/deployments/<sphinxProject>/<chain_alias>/<Contract>.json` (per-repo, mirrors v5)
@@ -153,11 +153,43 @@ All four steps are idempotent. Reruns skip already-verified contracts via `.cach
 ./script/post-deploy.sh --skip-verify                          # artifact emit + distribute only
 ./script/post-deploy.sh --skip-artifacts --skip-distribute     # verify only
 ./script/post-deploy.sh --chains=sepolia --dry-run             # show what would happen
+./script/post-deploy.sh --chains=sepolia --rehearsal           # allow gitDirty manifest on prod chains
 ```
+
+#### Source provenance gate (`--rehearsal`)
+
+Production artifact builds must be reproducible from a clean source tree. Without acknowledgment, both `./script/build-artifacts.sh` and `./script/post-deploy.sh` (and the underlying `verify.mjs` / `artifacts.mjs`) refuse to proceed when any source repo has uncommitted changes, since the published artifacts would be unverifiable.
+
+- **`./script/build-artifacts.sh`** scans every source repo. If any are dirty, it exits non-zero with the list of dirty repos. Re-run with `--rehearsal` to build a marked-dirty rehearsal artifact set (manifest top-level `"gitDirty": true`, every emitted artifact stamped `"gitDirty": true`).
+- **`./script/post-deploy.sh`** (and the underlying `verify.mjs` + `artifacts.mjs`) consult the manifest's `gitDirty` flag and the chain's `production` flag in `script/post-deploy/chains.json`. If both are true and `--rehearsal` is not passed, the chain is skipped before any Etherscan call. Testnets (`sepolia`, `optimism_sepolia`, `base_sepolia`, `arbitrum_sepolia`) have `production: false` and are unaffected.
+
+Required production-chain rehearsal flow:
+
+```bash
+./script/build-artifacts.sh                          # fails if anything dirty
+./script/post-deploy.sh --chains=all-mainnets        # fails if manifest gitDirty
+```
+
+Rehearsal flow (only for local testing on a fork):
+
+```bash
+./script/build-artifacts.sh --rehearsal              # stamps gitDirty in manifest + artifacts
+./script/post-deploy.sh --chains=ethereum --rehearsal
+```
+
+`gitDirty: true` entries are also surfaced inside every emitted artifact JSON (not just the sidecar manifest), so any downstream consumer of `deployments/<repo>/<chain>/<Contract>.json` can detect non-canonical builds without cross-referencing the manifest.
+
+Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so the deployed runtime code is byte-equal to the artifact's `deployedBytecode.object`. This lets the verifier compare `extcodehash` directly against the artifact's runtime code hash; without `bytecode_hash = "none"`, solc embeds a per-build IPFS metadata hash in the trailing bytes which makes two byte-identical source compiles produce different on-chain code hashes.
+
+`./script/build-artifacts.sh` runs `forge clean` in each source repo before its `forge build` step, so a stale `out/*.json` from a previous compilation cannot be picked up. After the build, before copying the artifact, the script also verifies that (a) the source file exists at the path declared in `CONTRACTS`, and (b) the copied artifact's `metadata.settings.compilationTarget` binds the expected `(sourcePath, contractName)` pair. Any mismatch is a hard error.
+
+`artifacts.mjs` prunes `post-deploy/.cache/artifacts-<chainId>/` before writing each run's targets, and `distribute.mjs` derives its target list from the current `addresses-<chainId>.json` dump (not from `readdirSync` on the cache). Each artifact's `address` and `chainId` are validated against the current target before the file is copied to `deployments/`. Together these guarantee that the canonical published JSON tree never receives a stale file from a previous run. `post-deploy.sh` also skips distribution for any chain whose artifact emission failed.
 
 #### Limitations (current scope)
 
-- **Per-route CCIP sucker instances** (e.g. `JBCCIPSucker__OP`, `JBSwapCCIPSucker__Base`) are not yet emitted to `addresses-<chainId>.json` because they aren't tracked in Deploy.s.sol's state variables. They will be added in the next iteration alongside the all-precompile refactor of `Deploy.s.sol`. For now, the pipeline emits the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USDC/USD price feeds.
+- **Constructor-created clone implementations** (`JBProjectPayer` behind `JBProjectPayerDeployer.IMPLEMENTATION()`, `JB721Checkpoints` behind `JB721CheckpointsDeployer.IMPLEMENTATION()`) are emitted alongside their deployers so the verifier can prove the clone target bytecode matches the published artifact. Both are compiled and copied by `build-artifacts.sh` from their source repos.
+- **Canonical project ERC-20 token clones** (`JBERC20__ProjectNANA`, `JBERC20__ProjectCPN`, `JBERC20__ProjectREV`, `JBERC20__ProjectBAN`) and **canonical project 721 hook clones** (`JB721TiersHook__ProjectCPN`, `JB721TiersHook__ProjectBAN`) are queried from `_tokens.tokenOf(projectId)` and `_revOwner.tiered721HookOf(projectId)` at dump time. Each clone shares the implementation bytecode but has its own deployed address; emitting both lets the post-deploy verifier prove every canonical project token/hook on chain matches its published artifact.
+- **Per-route CCIP / SwapCCIP suckers** are emitted to `addresses-<chainId>.json` with a remote-chain suffix: `JBCCIPSucker__<RouteSuffix>`, `JBCCIPSuckerDeployer__<RouteSuffix>`, `JBSwapCCIPSucker__<RouteSuffix>`, `JBSwapCCIPSuckerDeployer__<RouteSuffix>` (where `<RouteSuffix>` is `ETH`, `OP`, `BASE`, `ARB`, or their `_SEP` variants). The standard per-source-chain singletons (`JBOptimismSucker`, `JBBaseSucker`, `JBArbitrumSucker`) and deployers are emitted without a suffix. The pipeline emits the full singleton implementation address for every pre-approved sucker deployer so the verifier can prove the implementation bytecode matches the published artifact. Together with the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USDC/USD price feeds emitted by the base dump, this covers the full deployment surface.
 - **No Blockscout fallback yet.** All supported chains are on Etherscan v2. Blockscout-only chains will need a `chains.json` entry with `"verifier": "blockscout"` + a Sourcify fallback.
 
 ### Project Identity Verification

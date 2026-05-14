@@ -5,8 +5,16 @@
 # settings + source repo + git commit, used by the post-deploy verify and
 # artifact-emit pipeline.
 #
-# Usage:  ./script/build-artifacts.sh
+# Usage:  ./script/build-artifacts.sh [--rehearsal]
 # Run from the deploy-all-v6 root directory.
+#
+# Flags:
+#   --rehearsal   Allow source repos to be dirty (uncommitted changes). Without
+#                 this flag, a dirty source tree is a hard error so production
+#                 artifact builds cannot be published with unknown local edits.
+#                 With this flag, the manifest stamps gitDirty:true and every
+#                 downstream production-chain step (verify, artifact emit) will
+#                 refuse to run unless the same --rehearsal flag is passed.
 #
 # Requires: forge, jq, git.
 
@@ -17,6 +25,15 @@ DEPLOY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MONO_ROOT="$(cd "$DEPLOY_ROOT/.." && pwd)"
 ARTIFACTS_DIR="$DEPLOY_ROOT/artifacts"
 MANIFEST="$ARTIFACTS_DIR/artifacts.manifest.json"
+
+REHEARSAL=0
+for arg in "$@"; do
+  case "$arg" in
+    --rehearsal) REHEARSAL=1 ;;
+    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    *) echo "ERROR: unknown flag '$arg' (try --help)"; exit 2 ;;
+  esac
+done
 
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required (brew install jq)"; exit 1; }
 command -v forge >/dev/null 2>&1 || { echo "ERROR: forge is required (foundry)"; exit 1; }
@@ -84,6 +101,7 @@ CONTRACTS=(
   "nana-721-hook-v6:JB721TiersHookLib:src/libraries/JB721TiersHookLib.sol"
   "nana-721-hook-v6:JB721TiersHookStore:src/JB721TiersHookStore.sol"
   "nana-721-hook-v6:JB721TiersHook:src/JB721TiersHook.sol"
+  "nana-721-hook-v6:JB721Checkpoints:src/JB721Checkpoints.sol"
   "nana-721-hook-v6:JB721CheckpointsDeployer:src/JB721CheckpointsDeployer.sol"
   "nana-721-hook-v6:JB721TiersHookDeployer:src/JB721TiersHookDeployer.sol"
   "nana-721-hook-v6:JB721TiersHookProjectDeployer:src/JB721TiersHookProjectDeployer.sol"
@@ -151,6 +169,7 @@ CONTRACTS=(
   "nana-distributor-v6:JBTokenDistributor:src/JBTokenDistributor.sol"
 
   # ── nana-project-payer-v6 ──
+  "nana-project-payer-v6:JBProjectPayer:src/JBProjectPayer.sol"
   "nana-project-payer-v6:JBProjectPayerDeployer:src/JBProjectPayerDeployer.sol"
 
   # ── deploy-all-v6 itself (OpenZeppelin's ERC2771Forwarder, compiled here) ──
@@ -172,6 +191,15 @@ build_repo() {
     return 0
   fi
   echo "Building $repo..."
+  # `forge clean` so a stale artifact from a previous compilation (different
+  # source state, different settings) cannot survive into this run's manifest.
+  # Without this, e.g. a `git pull` that updates source files but leaves
+  # `out/*.json` untouched would silently publish out-of-date artifacts.
+  (cd "$repo_dir" && forge clean 2>&1) || {
+    echo "ERROR: forge clean failed for $repo"
+    BUILT_REPOS[$repo]=1
+    return 1
+  }
   if [[ "$repo" == "deploy-all-v6" ]]; then
     # Build everything in deploy-all-v6 (includes ERC2771Forwarder via node_modules).
     (cd "$repo_dir" && forge build --skip test 2>&1) || {
@@ -225,12 +253,34 @@ for entry in "${CONTRACTS[@]}"; do
     continue
   fi
 
+  # The source file must actually exist in the source repo, otherwise the
+  # manifest entry is pointing to a path that doesn't compile in this checkout
+  # (and any matching out/*.json would be from a previous source state).
+  if [[ ! -f "$repo_dir/$src_path" ]]; then
+    echo "ERROR: source file missing: $repo_dir/$src_path"
+    errors=$((errors + 1))
+    continue
+  fi
+
   # Locate the Forge artifact. Output is: out/<basename(src_path)>/<ContractName>.json
   src_filename="$(basename "$src_path")"
   artifact="$repo_dir/out/$src_filename/$contract.json"
 
   if [[ ! -f "$artifact" ]]; then
     echo "ERROR: artifact not found: $artifact"
+    errors=$((errors + 1))
+    continue
+  fi
+
+  # Verify the artifact's metadata.settings.compilationTarget binds the
+  # expected sourcePath → contractName pair. If forge clean ran above this
+  # should always hold, but the check defends against any future bypass of
+  # the clean step (e.g. --skip flags, CI cache layers, manual edits).
+  compilation_target=$(jq -r --arg path "$src_path" --arg name "$contract" '
+    (.metadata | (if type == "string" then fromjson else . end)).settings.compilationTarget[$path] // ""
+  ' "$artifact" 2>/dev/null)
+  if [[ "$compilation_target" != "$contract" ]]; then
+    echo "ERROR: $contract.json compilationTarget=\"$compilation_target\", expected \"$contract\" (source=$src_path)"
     errors=$((errors + 1))
     continue
   fi
@@ -276,10 +326,46 @@ for entry in "${CONTRACTS[@]}"; do
   fi
 done
 
+# ── Dirty-source gate ─────────────────────────────────────────────────────
+# Production artifact builds must be reproducible from a clean source tree.
+# Without --rehearsal, any dirty repo is a hard failure. With --rehearsal, we
+# print a loud warning and stamp gitDirty:true in the manifest so downstream
+# production-chain verification/emit refuses to publish the resulting artifacts.
+DIRTY_REPOS=()
+for repo in "${!REPO_DIRTY[@]}"; do
+  if [[ "${REPO_DIRTY[$repo]}" == "true" ]]; then
+    DIRTY_REPOS+=("$repo")
+  fi
+done
+
+ANY_DIRTY="false"
+if [[ ${#DIRTY_REPOS[@]} -gt 0 ]]; then
+  ANY_DIRTY="true"
+  if [[ "$REHEARSAL" -eq 0 ]]; then
+    echo ""
+    echo "ERROR: source repo(s) have uncommitted changes:"
+    for r in "${DIRTY_REPOS[@]}"; do echo "  - $r"; done
+    echo ""
+    echo "Production artifact builds must be reproducible from a clean tree."
+    echo "Either commit/stash the changes, or re-run with --rehearsal to build"
+    echo "a marked-dirty rehearsal artifact set (production verify/emit will"
+    echo "still refuse to publish it)."
+    exit 1
+  fi
+  echo ""
+  echo "════════════════════════════════════════════════════════════════════"
+  echo " WARNING: rehearsal build — source repo(s) have uncommitted changes:"
+  for r in "${DIRTY_REPOS[@]}"; do echo "   - $r"; done
+  echo " Artifacts will be stamped gitDirty:true and production verify/emit"
+  echo " will refuse to publish them. Use only for fork rehearsal."
+  echo "════════════════════════════════════════════════════════════════════"
+  echo ""
+fi
+
 # ── Write the manifest sidecar ────────────────────────────────────────────
 GENERATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-printf '{\n  "format": "jb-v6-artifacts-manifest-1",\n  "generatedAt": "%s",\n  "monorepoRoot": "%s",\n  "contracts": {%s}\n}\n' \
-  "$GENERATED_AT" "$MONO_ROOT" "$MANIFEST_ENTRIES" \
+printf '{\n  "format": "jb-v6-artifacts-manifest-1",\n  "generatedAt": "%s",\n  "monorepoRoot": "%s",\n  "gitDirty": %s,\n  "rehearsal": %s,\n  "contracts": {%s}\n}\n' \
+  "$GENERATED_AT" "$MONO_ROOT" "$ANY_DIRTY" "$([[ $REHEARSAL -eq 1 ]] && echo true || echo false)" "$MANIFEST_ENTRIES" \
   | jq '.' > "$MANIFEST"
 
 # ── Phase 2: deferred library linking ─────────────────────────────────────
@@ -376,6 +462,26 @@ done
 
 echo ""
 echo "Linked $linked_total artifact(s) with library placeholders."
+
+# ── Phase 3: persist library addresses in the manifest ───────────────────
+# Surface the deterministic CREATE2 addresses + source paths so verify.mjs
+# can pass `--libraries <path>:<LibName>:<addr>` for every dependent contract.
+# Without this, forge verify-contract attempts to re-link against unknown
+# placeholders and Etherscan rejects the verification.
+LIBRARIES_JSON="{}"
+for libname in "${!LIB_ADDR_HEX[@]}"; do
+  src_path=$(jq -r ".contracts.\"$libname\".sourcePath" "$MANIFEST")
+  addr_hex="${LIB_ADDR_HEX[$libname]}"
+  LIBRARIES_JSON=$(jq -n \
+    --argjson existing "$LIBRARIES_JSON" \
+    --arg name "$libname" \
+    --arg path "$src_path" \
+    --arg addr "0x$addr_hex" \
+    '$existing + {($name): {sourcePath: $path, address: $addr}}'
+  )
+done
+tmp=$(mktemp)
+jq --argjson libs "$LIBRARIES_JSON" '. + {libraries: $libs}' "$MANIFEST" > "$tmp" && mv "$tmp" "$MANIFEST"
 
 # Sanity check: confirm no unlinked `__$...$__` placeholders survive.
 unlinked=0

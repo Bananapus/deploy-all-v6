@@ -52,6 +52,16 @@ const chainsCfg = readJson(path.join(POST_DEPLOY_DIR, 'chains.json'));
 const chain = chainsCfg.chains[CHAIN_ID];
 if (!chain) die(`Unknown chainId ${CHAIN_ID} (not in chains.json)`);
 
+// Dirty-source gate: refuse to verify on production chains when the manifest
+// was built from a dirty source tree. --rehearsal acknowledges non-production use.
+if (manifest.gitDirty && chain.production && !args.rehearsal) {
+  die(
+    `Refusing to verify on production chain ${CHAIN_ID} (${chain.alias}): ` +
+    `artifact manifest was built from a dirty source tree. ` +
+    `Rebuild with a clean tree (./script/build-artifacts.sh) or pass --rehearsal.`
+  );
+}
+
 const addressesPath = path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
 if (!fs.existsSync(addressesPath)) {
   die(`Missing addresses file: ${addressesPath}\nRun the address dump first (forge script Deploy.s.sol --rpc-url ...).`);
@@ -79,26 +89,53 @@ if (targets.length === 0) {
 
 console.log(`Verifying ${targets.length} contract(s) on chain ${CHAIN_ID} (${chain.alias}).`);
 
+// Explicit allowlist of address-dump entries that may legitimately be skipped without failing the
+// chain. Empty by default — every entry in addresses-<chainId>.json must verify successfully.
+// Add a name here only if there is a documented reason it has no published artifact yet.
+const VERIFY_SKIP_ALLOWLIST = new Set();
+
 // ── Drive verification, contract by contract (Etherscan rate limit: ~5 req/s on free tier) ──
 let permanentFailures = 0;
+let skipFailures = 0;
 for (const target of targets) {
   // Strip route suffix (e.g., "__ETH_USD") for manifest lookup.
   const baseName = target.name.split('__')[0];
   const entry = manifest.contracts[baseName];
   if (!entry) {
-    console.warn(`  SKIP    ${target.name}: not in manifest`);
+    if (VERIFY_SKIP_ALLOWLIST.has(target.name)) {
+      console.warn(`  SKIP    ${target.name}: not in manifest (allowlisted)`);
+    } else {
+      console.error(`  ✗       ${target.name}: not in manifest (no published artifact)`);
+      skipFailures += 1;
+    }
     continue;
   }
   const cur = status.contracts[target.name] || {};
-  if (cur.status === 'verified') {
+  // Cached "verified" only counts when the cache matches the current address, chain, and source.
+  // A bare `status === "verified"` would silently accept the cache from a previous run that
+  // targeted a different deployment of the same contract name.
+  if (
+    cur.status === 'verified' &&
+    String(cur.address || '').toLowerCase() === target.address &&
+    String(cur.chainId || '') === CHAIN_ID &&
+    cur.sourcePath === entry.sourcePath &&
+    cur.gitCommit === entry.gitCommit
+  ) {
     console.log(`  cached  ${target.name}: already verified`);
     continue;
+  }
+  if (cur.status === 'verified') {
+    // Cache hit but identity-mismatched — bust it and re-verify.
+    console.warn(`  cache-busted  ${target.name}: cached identity does not match current target`);
   }
   try {
     await verifyOne({ target, entry, baseName });
     status.contracts[target.name] = {
       status: 'verified',
       address: target.address,
+      chainId: CHAIN_ID,
+      sourcePath: entry.sourcePath,
+      gitCommit: entry.gitCommit,
       verifiedAt: new Date().toISOString()
     };
     persistStatus();
@@ -130,8 +167,12 @@ for (const target of targets) {
 
 console.log('');
 const verifiedCount = Object.values(status.contracts).filter((s) => s.status === 'verified').length;
-console.log(`Chain ${CHAIN_ID} summary: ${verifiedCount} verified, ${permanentFailures} permanent failures.`);
-process.exit(permanentFailures > 0 ? 1 : 0);
+console.log(
+  `Chain ${CHAIN_ID} summary: ${verifiedCount} verified, ${permanentFailures} permanent failures, ${skipFailures} unverifiable-skips.`
+);
+// Exit nonzero on either failure category: silent skips of current address entries are treated
+// as critical the same way actual permanent failures are.
+process.exit(permanentFailures + skipFailures > 0 ? 1 : 0);
 
 // ════════════════════════════════════════════════════════════════════════
 //  Helpers
@@ -175,6 +216,17 @@ async function verifyOne({ target, entry, baseName }) {
   if (entry.viaIr) forgeArgs.push('--via-ir');
   if (ctorArgsHex.length > 0) {
     forgeArgs.push('--constructor-args', `0x${ctorArgsHex}`);
+  }
+  // Pass every published library `--libraries <path>:<LibName>:<address>`. forge tolerates extra
+  // library specs that the target source doesn't actually link against; this avoids needing to
+  // parse the artifact's linkReferences for every contract. Without these, Etherscan re-compiles
+  // the source with unresolved placeholders and rejects the verification.
+  if (manifest.libraries && typeof manifest.libraries === 'object') {
+    for (const [libName, libEntry] of Object.entries(manifest.libraries)) {
+      if (libEntry?.sourcePath && libEntry?.address) {
+        forgeArgs.push('--libraries', `${libEntry.sourcePath}:${libName}:${libEntry.address}`);
+      }
+    }
   }
 
   // Run forge with retry on transient failures.

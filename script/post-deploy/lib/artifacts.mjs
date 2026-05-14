@@ -24,6 +24,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { utils as ethersUtils } from 'ethers';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const POST_DEPLOY_DIR = path.resolve(__dirname, '..');
@@ -43,11 +45,29 @@ const chainsCfg = readJson({path: path.join(POST_DEPLOY_DIR, 'chains.json')});
 const chain = chainsCfg.chains[CHAIN_ID];
 if (!chain) die(`Unknown chainId ${CHAIN_ID}`);
 
+// Dirty-source gate: refuse to emit artifacts for production chains when the
+// manifest was built from a dirty source tree. --rehearsal acknowledges non-production use.
+if (manifest.gitDirty && chain.production && !args.rehearsal) {
+  die(
+    `Refusing to emit artifacts for production chain ${CHAIN_ID} (${chain.alias}): ` +
+    `artifact manifest was built from a dirty source tree. ` +
+    `Rebuild with a clean tree (./script/build-artifacts.sh) or pass --rehearsal.`
+  );
+}
+
 const addressesPath = path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
 if (!fs.existsSync(addressesPath)) die(`Missing addresses file: ${addressesPath}`);
 const addresses = readJson({path: addressesPath});
 
 const outDir = args['out-dir'] ? path.resolve(args['out-dir']) : path.join(CACHE_DIR, `artifacts-${CHAIN_ID}`);
+// Prune any artifact files from a previous run so distribution only sees JSONs
+// produced in this invocation. Without this, a target that was emitted in a
+// previous run but is missing from the current address dump (e.g. renamed,
+// removed) would still be picked up by distribute.mjs's readdirSync and copied
+// to deployments/ with stale content.
+if (fs.existsSync(outDir)) {
+  fs.rmSync(outDir, { recursive: true, force: true });
+}
 fs.mkdirSync(outDir, { recursive: true });
 
 const targets = Object.entries(addresses)
@@ -97,8 +117,12 @@ async function buildArtifact({target}) {
   const receipt = await getTxReceipt({txHash: creation.txHash});
   if (!receipt) throw new Error(`no receipt for ${creation.txHash}`);
 
-  // Constructor args = tx input minus salt(32 bytes) minus creation bytecode.
-  const txInput = await getTxInput({txHash: creation.txHash});
+  // Constructor args = factory-call input minus salt(32 bytes) minus creation bytecode. Under
+  // Sphinx/Safe deployment the OUTER tx input is the Safe.execTransaction wrapper, which contains
+  // ABI bytes that would otherwise be appended to the sliced args. Recovering from the internal
+  // call to the deterministic CREATE2 factory bypasses the wrapper entirely.
+  const factoryInput = await getFactoryCallInput({txHash: creation.txHash});
+  const txInput = factoryInput || await getTxInput({txHash: creation.txHash});
   const ctorArgsHex = sliceConstructorArgs({txInput, creationCodeHex: forgeArtifact.bytecode.object});
   const argsDecoded = decodeConstructorArgs({abi: forgeArtifact.abi, ctorArgsHex});
 
@@ -119,6 +143,7 @@ async function buildArtifact({target}) {
     deployedBytecode: forgeArtifact.deployedBytecode.object,
     metadata: metadataString,
     gitCommit: manifestEntry.gitCommit || 'unknown',
+    gitDirty: Boolean(manifestEntry.gitDirty),
     history: []
   };
 }
@@ -161,6 +186,39 @@ async function getTxInput({txHash}) {
   }});
 }
 
+// The canonical deterministic CREATE2 factory used by every artifact deploy path.
+const CREATE2_FACTORY = '0x4e59b44847b379578588920ca78fbf26c0b4956c';
+
+/// Returns the internal call's `input` for the CREATE2 factory invocation inside `txHash`, or
+/// null if no such internal call exists (non-Sphinx deployments). The factory's input is
+/// `0x + salt(32 bytes) + creationCode + constructorArgs`, which `sliceConstructorArgs` slices
+/// cleanly without picking up wrapper ABI bytes from the outer Safe.execTransaction.
+async function getFactoryCallInput({txHash}) {
+  try {
+    return await withRetry({fn: async () => {
+      const url = `${chain.apiUrl}?chainid=${CHAIN_ID}&module=account&action=txlistinternal&txhash=${txHash}&apikey=${ETHERSCAN_KEY}`;
+      const res = await fetchWithTimeout({url});
+      const body = await parseJsonOrThrow({res});
+      if (body.status !== '1' || !Array.isArray(body.result)) {
+        const msg = String(body.message || body.result || 'unknown');
+        if (/rate limit|throttle|max calls/i.test(msg)) throw transientError({message: `rate limited: ${msg}`});
+        return null;
+      }
+      const factoryCall = body.result.find(
+        (entry) =>
+          String(entry?.to || '').toLowerCase() === CREATE2_FACTORY
+          && typeof entry?.input === 'string'
+          && entry.input.length > 2
+      );
+      return factoryCall?.input || null;
+    }});
+  } catch (err) {
+    // Non-fatal: fall back to outer tx input. The outer path still works for non-Sphinx deploys.
+    if (err?.transient) throw err;
+    return null;
+  }
+}
+
 function sliceConstructorArgs({txInput, creationCodeHex}) {
   const input = txInput.startsWith('0x') ? txInput.slice(2) : txInput;
   const creation = creationCodeHex.startsWith('0x') ? creationCodeHex.slice(2) : creationCodeHex;
@@ -183,44 +241,29 @@ function decodeConstructorArgs({abi, ctorArgsHex}) {
   const ctor = (abi || []).find((f) => f?.type === 'constructor');
   if (!ctor?.inputs?.length) return [];
 
+  // Use ethers' full ABI decoder so dynamic types (string, bytes, dynamic arrays, nested
+  // structs) are followed via their tail offsets rather than emitting raw 32-byte head pointers.
   try {
-    // Lightweight ABI decoder for primitives. Defer complex types to raw hex.
     const types = ctor.inputs.map((i) => i.type);
-    return decodePrimitivesAbi({types, dataHex: ctorArgsHex});
+    const decoded = ethersUtils.defaultAbiCoder.decode(types, `0x${ctorArgsHex}`);
+    return Array.from(decoded).map((value) => _coerceForJson(value));
   } catch {
     return [`0x${ctorArgsHex}`];
   }
 }
 
-/**
- * Minimal head-only ABI decoder. Handles address / uintN / intN / bool / bytesN /
- * static-length tuples. Returns raw hex for dynamic types since we don't ship
- * a full ABI decoder here. Good enough for verify-readable output.
- */
-function decodePrimitivesAbi({types, dataHex}) {
-  const out = [];
-  let offset = 0;
-  for (const t of types) {
-    if (offset + 64 > dataHex.length) {
-      out.push(`0x${dataHex.slice(offset)}`);
-      break;
-    }
-    const word = dataHex.slice(offset, offset + 64);
-    offset += 64;
-    if (t === 'address') {
-      out.push(`0x${word.slice(24)}`);
-    } else if (t === 'bool') {
-      out.push(word.endsWith('1'));
-    } else if (/^uint\d*$/.test(t) || /^int\d*$/.test(t)) {
-      out.push(BigInt(`0x${word}`).toString());
-    } else if (/^bytes\d+$/.test(t)) {
-      const bytes = Number(t.slice(5));
-      out.push(`0x${word.slice(0, bytes * 2)}`);
-    } else {
-      out.push(`0x${word}`); // tuple head / dynamic pointer / unsupported
-    }
+/// ethers returns BigNumber instances for uint/int and a Result tuple for complex shapes. Coerce
+/// to JSON-friendly primitives: BigNumber → decimal string, BigInt → decimal string, Result → array,
+/// everything else passes through unchanged.
+function _coerceForJson(value) {
+  if (value && typeof value === 'object') {
+    if (typeof value.toBigInt === 'function') return value.toBigInt().toString(); // ethers BigNumber
+    if (Array.isArray(value)) return value.map(_coerceForJson);
+    // ethers Result is iterable and array-like; spread + recurse.
+    if (typeof value[Symbol.iterator] === 'function') return Array.from(value).map(_coerceForJson);
   }
-  return out;
+  if (typeof value === 'bigint') return value.toString();
+  return value;
 }
 
 // ════════════════════════════════════════════════════════════════════════
