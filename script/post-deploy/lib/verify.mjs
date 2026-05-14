@@ -186,6 +186,17 @@ async function verifyOne({ target, entry, baseName }) {
   if (ctorArgsHex.length > 0) {
     forgeArgs.push('--constructor-args', `0x${ctorArgsHex}`);
   }
+  // Pass every published library `--libraries <path>:<LibName>:<address>`. forge tolerates extra
+  // library specs that the target source doesn't actually link against; this avoids needing to
+  // parse the artifact's linkReferences for every contract. Without these, Etherscan re-compiles
+  // the source with unresolved placeholders and rejects the verification.
+  if (manifest.libraries && typeof manifest.libraries === 'object') {
+    for (const [libName, libEntry] of Object.entries(manifest.libraries)) {
+      if (libEntry?.sourcePath && libEntry?.address) {
+        forgeArgs.push('--libraries', `${libEntry.sourcePath}:${libName}:${libEntry.address}`);
+      }
+    }
+  }
 
   // Run forge with retry on transient failures.
   await withRetry(async () => {

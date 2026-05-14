@@ -463,6 +463,26 @@ done
 echo ""
 echo "Linked $linked_total artifact(s) with library placeholders."
 
+# ── Phase 3: persist library addresses in the manifest ───────────────────
+# Surface the deterministic CREATE2 addresses + source paths so verify.mjs
+# can pass `--libraries <path>:<LibName>:<addr>` for every dependent contract.
+# Without this, forge verify-contract attempts to re-link against unknown
+# placeholders and Etherscan rejects the verification.
+LIBRARIES_JSON="{}"
+for libname in "${!LIB_ADDR_HEX[@]}"; do
+  src_path=$(jq -r ".contracts.\"$libname\".sourcePath" "$MANIFEST")
+  addr_hex="${LIB_ADDR_HEX[$libname]}"
+  LIBRARIES_JSON=$(jq -n \
+    --argjson existing "$LIBRARIES_JSON" \
+    --arg name "$libname" \
+    --arg path "$src_path" \
+    --arg addr "0x$addr_hex" \
+    '$existing + {($name): {sourcePath: $path, address: $addr}}'
+  )
+done
+tmp=$(mktemp)
+jq --argjson libs "$LIBRARIES_JSON" '. + {libraries: $libs}' "$MANIFEST" > "$tmp" && mv "$tmp" "$MANIFEST"
+
 # Sanity check: confirm no unlinked `__$...$__` placeholders survive.
 unlinked=0
 for f in "$ARTIFACTS_DIR"/*.json; do
