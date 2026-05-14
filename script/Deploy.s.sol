@@ -919,23 +919,27 @@ contract Deploy is Script, Sphinx {
                 }))
         );
 
+        // Chain-same CREATE2: constructor inputs are byte-identical across chains. The chain-specific
+        // wrapped-native-token, V3 factory, V4 PoolManager, and V4 hook are wired in afterwards via the
+        // DEPLOYER-gated one-shot setChainSpecificConstants setter on the terminal (mirrors JBBuybackHook).
         _routerTerminal = JBRouterTerminal(
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBRouterTerminal",
                     salt: ROUTER_TERMINAL_SALT,
                     ctorArgs: abi.encode(
-                        _directory,
-                        _tokens,
-                        _PERMIT2,
-                        IWETH9(_wrappedNativeToken),
-                        IUniswapV3Factory(_v3Factory),
-                        IPoolManager(_poolManager),
-                        address(_buybackHook),
-                        address(_uniswapV4Hook),
-                        _trustedForwarder
+                        _directory, _tokens, _PERMIT2, address(_buybackHook), _trustedForwarder, safeAddress()
                     )
                 }))
         );
+
+        if (address(_routerTerminal.WRAPPED_NATIVE_TOKEN()) == address(0)) {
+            _routerTerminal.setChainSpecificConstants({
+                wrappedNativeToken: IWETH9(_wrappedNativeToken),
+                factory: IUniswapV3Factory(_v3Factory),
+                poolManager: IPoolManager(_poolManager),
+                univ4Hook: address(_uniswapV4Hook)
+            });
+        }
 
         if (address(_routerTerminalRegistry.defaultTerminal()) == address(0)) {
             _routerTerminalRegistry.setDefaultTerminal({terminal: _routerTerminal});

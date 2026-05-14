@@ -403,16 +403,14 @@ contract DeployFullStackTest is Test {
         _routerTerminalRegistry =
             new JBRouterTerminalRegistry(_permissions, _projects, _PERMIT2, _deployer, _trustedForwarder);
         _routerTerminal = new JBRouterTerminal(
-            _directory,
-            _tokens,
-            _PERMIT2,
-            IWETH9(cfg.wrappedNativeToken),
-            IUniswapV3Factory(cfg.v3Factory),
-            IPoolManager(cfg.poolManager),
-            address(_buybackHook),
-            address(_uniswapV4Hook),
-            _trustedForwarder
+            _directory, _tokens, _PERMIT2, address(_buybackHook), _trustedForwarder, address(this)
         );
+        _routerTerminal.setChainSpecificConstants({
+            wrappedNativeToken: IWETH9(cfg.wrappedNativeToken),
+            factory: IUniswapV3Factory(cfg.v3Factory),
+            poolManager: IPoolManager(cfg.poolManager),
+            univ4Hook: address(_uniswapV4Hook)
+        });
         _routerTerminalRegistry.setDefaultTerminal(_routerTerminal);
         _feeless.setFeelessAddress(address(_routerTerminal), true);
     }

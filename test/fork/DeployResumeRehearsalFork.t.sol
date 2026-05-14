@@ -476,21 +476,11 @@ contract InstrumentedDeployer is IERC721Receiver {
                 trustedForwarder: trustedForwarder
             });
 
-        // Deploy or resolve router terminal.
+        // Deploy or resolve router terminal (chain-same ctor inputs; chain-specific constants wired below).
         (address t, bool tD) = _isDeployed(
             ROUTER_TERMINAL_SALT,
             type(JBRouterTerminal).creationCode,
-            abi.encode(
-                directory,
-                tokens,
-                _PERMIT2,
-                IWETH9(WETH),
-                IUniswapV3Factory(V3_FACTORY),
-                IPoolManager(POOL_MANAGER),
-                address(buybackHook),
-                address(uniswapV4Hook),
-                trustedForwarder
-            )
+            abi.encode(directory, tokens, _PERMIT2, address(buybackHook), trustedForwarder, address(this))
         );
         routerTerminal = tD
             ? JBRouterTerminal(payable(t))
@@ -498,13 +488,18 @@ contract InstrumentedDeployer is IERC721Receiver {
                 directory: directory,
                 tokens: tokens,
                 permit2: _PERMIT2,
-                weth: IWETH9(WETH),
+                buybackHook: address(buybackHook),
+                trustedForwarder: trustedForwarder,
+                deployer: address(this)
+            });
+        if (address(routerTerminal.WRAPPED_NATIVE_TOKEN()) == address(0)) {
+            routerTerminal.setChainSpecificConstants({
+                wrappedNativeToken: IWETH9(WETH),
                 factory: IUniswapV3Factory(V3_FACTORY),
                 poolManager: IPoolManager(POOL_MANAGER),
-                buybackHook: address(buybackHook),
-                univ4Hook: address(uniswapV4Hook),
-                trustedForwarder: trustedForwarder
+                univ4Hook: address(uniswapV4Hook)
             });
+        }
 
         // Idempotent: set default terminal and feeless.
         if (address(routerTerminalRegistry.defaultTerminal()) == address(0)) {
