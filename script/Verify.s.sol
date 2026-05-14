@@ -142,6 +142,8 @@ contract Verify is Script {
     JB721TiersHookDeployer public hookDeployer;
     // The 721 project deployer wrapping the hook deployer.
     JB721TiersHookProjectDeployer public hookProjectDeployer;
+    // The 721 checkpoints deployer that owns the checkpoints clone implementation.
+    JB721CheckpointsDeployer public checkpointsDeployer;
 
     // -- Buyback Hook --
     // The buyback hook registry that resolves hooks per project.
@@ -199,7 +201,6 @@ contract Verify is Script {
     JBTokenDistributor public tokenDistributor;
     // Project payer clone deployer.
     JBProjectPayerDeployer public projectPayerDeployer;
-
     // ════════════════════════════════════════════════════════════════════
     //  Counters — track pass/fail for summary
     // ════════════════════════════════════════════════════════════════════
@@ -308,6 +309,9 @@ contract Verify is Script {
         hookDeployer = JB721TiersHookDeployer(vm.envAddress("VERIFY_HOOK_DEPLOYER"));
         // Read the 721 hook project deployer address from env.
         hookProjectDeployer = JB721TiersHookProjectDeployer(vm.envAddress("VERIFY_HOOK_PROJECT_DEPLOYER"));
+        // Read the 721 checkpoints deployer address from env (optional until manifests are updated).
+        checkpointsDeployer =
+            JB721CheckpointsDeployer(vm.envOr({name: "VERIFY_721_CHECKPOINTS_DEPLOYER", defaultValue: address(0)}));
 
         // Read the buyback hook registry address from env (address(0) if not deployed on this chain).
         buybackRegistry = JBBuybackHookRegistry(vm.envOr({name: "VERIFY_BUYBACK_REGISTRY", defaultValue: address(0)}));
@@ -358,6 +362,8 @@ contract Verify is Script {
             JBTokenDistributor(payable(vm.envOr({name: "VERIFY_TOKEN_DISTRIBUTOR", defaultValue: address(0)})));
         projectPayerDeployer =
             JBProjectPayerDeployer(vm.envOr({name: "VERIFY_PROJECT_PAYER_DEPLOYER", defaultValue: address(0)}));
+        checkpointsDeployer =
+            JB721CheckpointsDeployer(vm.envOr({name: "VERIFY_CHECKPOINTS_DEPLOYER", defaultValue: address(0)}));
 
         // On production chains, require the full deployment stack.
         // Testnets may omit optional components, but mainnet and major L2s must fail-closed.
@@ -515,20 +521,41 @@ contract Verify is Script {
                     critical: true
                 });
 
-                // BS: CPN posting criteria for categories 0-4 must be configured (non-zero packed
-                // allowance). Exact value-equality is deferred to a follow-up env-driven check;
-                // the on-chain assertion proves the CTPublisher has registered criteria for the
-                // canonical category set rather than leaving them unset (which would let any
-                // poster onto an unconfigured category with default zero-permission semantics).
+                // BS: CPN posting criteria for categories 0-4 must be configured. The on-chain
+                // assertion proves the CTPublisher has registered criteria for the canonical
+                // category set rather than leaving them unset (which would let any poster onto
+                // an unconfigured category with default zero-permission semantics).
+                //
+                // BS residual: when env vars are provided, also assert exact value equality on
+                // every criterion. Env shape (per category 0-4):
+                //   VERIFY_CPN_MIN_PRICE_<cat>          uint
+                //   VERIFY_CPN_MIN_SUPPLY_<cat>         uint
+                //   VERIFY_CPN_MAX_SUPPLY_<cat>         uint
+                //   VERIFY_CPN_MAX_SPLIT_PERCENT_<cat>  uint
+                //   VERIFY_CPN_ALLOWED_ADDRESSES_<cat>  "0x..,0x.." CSV (empty = no allowlist)
                 if (address(ctPublisher) != address(0)) {
                     for (uint256 cat; cat <= 4; cat++) {
-                        (uint256 minPrice,,,,) = ctPublisher.allowanceFor(address(cpnHook), cat);
+                        (
+                            uint256 minPrice,
+                            uint256 minSupply,
+                            uint256 maxSupply,
+                            uint256 maxSplitPct,
+                            address[] memory allowed
+                        ) = ctPublisher.allowanceFor(address(cpnHook), cat);
                         _check({
                             condition: minPrice > 0,
                             label: string.concat(
                                 "CPN posting criteria category ", vm.toString(cat), " configured (minPrice > 0)"
                             ),
                             critical: true
+                        });
+                        _verifyCpnCriterionExact({
+                            cat: cat,
+                            minPrice: minPrice,
+                            minSupply: minSupply,
+                            maxSupply: maxSupply,
+                            maxSplitPct: maxSplitPct,
+                            allowed: allowed
                         });
                     }
                 }
@@ -2530,6 +2557,34 @@ contract Verify is Script {
                         critical: true
                     });
                 }
+
+                // BC residual: native-token bridge mapping must be enabled. A pair where the
+                // native-token mapping is intentionally disabled (or emergency-hatch-stuck) is
+                // structurally indistinguishable from a properly-deployed pair on the count +
+                // remote checks, but the native cross-chain transfer path is dead for end users.
+                // The audit explicitly called this out: "disabled native-token mapping still
+                // passes" in the BC residual list.
+                (bool okMap, bytes memory mapData) =
+                    local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", JBConstants.NATIVE_TOKEN));
+                if (okMap && mapData.length >= 32) {
+                    // JBRemoteToken layout: { enabled, emergencyHatch, minGas, addr } — the first
+                    // 32-byte slot holds `enabled` as the right-aligned bool.
+                    bool nativeEnabled;
+                    assembly {
+                        nativeEnabled := iszero(iszero(mload(add(mapData, 0x20))))
+                    }
+                    _check({
+                        condition: nativeEnabled,
+                        label: string.concat(pairLabel, " native-token remote mapping is enabled"),
+                        critical: true
+                    });
+                } else {
+                    _check({
+                        condition: false,
+                        label: string.concat(pairLabel, " local sucker exposes remoteTokenFor(address)"),
+                        critical: true
+                    });
+                }
             }
         }
 
@@ -2617,7 +2672,158 @@ contract Verify is Script {
             critical: true
         });
 
+        // BA residual: Defifa typeface. DefifaTokenUriResolver.TYPEFACE() must equal the per-chain
+        // canonical typeface contract. The resolver SVGs read on-chain glyphs from this typeface;
+        // a wrong typeface ships incorrect or attacker-controlled imagery for every Defifa NFT.
+        address expectedTypeface = _expectedDefifaTypeface();
+        if (address(defifaDeployer) != address(0) && expectedTypeface != address(0)) {
+            (bool okResolver, bytes memory resolverData) =
+                address(defifaDeployer).staticcall(abi.encodeWithSignature("TOKEN_URI_RESOLVER()"));
+            if (okResolver && resolverData.length >= 32) {
+                address resolver = abi.decode(resolverData, (address));
+                if (resolver != address(0)) {
+                    (bool okType, bytes memory typeData) = resolver.staticcall(abi.encodeWithSignature("TYPEFACE()"));
+                    if (okType && typeData.length >= 32) {
+                        _check({
+                            condition: abi.decode(typeData, (address)) == expectedTypeface,
+                            label: "DefifaTokenUriResolver.TYPEFACE == canonical Capsules typeface",
+                            critical: true
+                        });
+                    } else {
+                        _check({condition: false, label: "DefifaTokenUriResolver exposes TYPEFACE()", critical: true});
+                    }
+                }
+            }
+        }
+
+        // BA residual: Uniswap stack provenance — V3 factory, V4 PoolManager, V4 PositionManager.
+        // The buyback hook reads pool state from these to price the buyback route, and the
+        // LP-split hook deposits liquidity into them. A forked V3/V4 deployment with attacker-
+        // controlled fee/observation semantics survives without these checks.
+        address expectedV3Factory = _expectedV3Factory();
+        address expectedV4PoolManager = _expectedV4PoolManager();
+        if (address(_uniswapV4Hook()) != address(0)) {
+            if (expectedV4PoolManager != address(0)) {
+                (bool okPM, bytes memory pmData) =
+                    address(_uniswapV4Hook()).staticcall(abi.encodeWithSignature("poolManager()"));
+                if (okPM && pmData.length >= 32) {
+                    _check({
+                        condition: abi.decode(pmData, (address)) == expectedV4PoolManager,
+                        label: "JBUniswapV4Hook.poolManager == canonical V4 PoolManager",
+                        critical: true
+                    });
+                }
+            }
+        }
+        if (address(buybackRegistry) != address(0) && expectedV3Factory != address(0)) {
+            (bool okHook, bytes memory hookData) =
+                address(buybackRegistry).staticcall(abi.encodeWithSignature("defaultHook()"));
+            if (okHook && hookData.length >= 32) {
+                address bh = abi.decode(hookData, (address));
+                if (bh != address(0)) {
+                    (bool okFac, bytes memory facData) = bh.staticcall(abi.encodeWithSignature("UNISWAP_V3_FACTORY()"));
+                    if (okFac && facData.length >= 32) {
+                        _check({
+                            condition: abi.decode(facData, (address)) == expectedV3Factory,
+                            label: "JBBuybackHook.UNISWAP_V3_FACTORY == canonical V3 factory",
+                            critical: true
+                        });
+                    }
+                }
+            }
+        }
+
         console.log("");
+    }
+
+    /// Stub: returns the registered Uniswap V4 hook address. Used by the BA external-address
+    /// sweep to chain into V4 PoolManager identity. Reads from the loaded buyback registry
+    /// rather than introducing a new state var — the registry's defaultHook on production
+    /// chains is the V4 hook.
+    function _uniswapV4Hook() internal view returns (address) {
+        if (address(buybackRegistry) == address(0)) return address(0);
+        (bool ok, bytes memory data) = address(buybackRegistry).staticcall(abi.encodeWithSignature("defaultHook()"));
+        if (!ok || data.length < 32) return address(0);
+        return abi.decode(data, (address));
+    }
+
+    function _checkpointsDeployer() internal view returns (address) {
+        return address(checkpointsDeployer);
+    }
+
+    /// BS residual: when VERIFY_CPN_* env vars are set for a category, assert exact equality on
+    /// each criterion field. Skips per-field when its env var is unset so operators can opt in
+    /// incrementally. The on-chain "minPrice > 0" sanity check above remains the always-on gate.
+    function _verifyCpnCriterionExact(
+        uint256 cat,
+        uint256 minPrice,
+        uint256 minSupply,
+        uint256 maxSupply,
+        uint256 maxSplitPct,
+        address[] memory allowed
+    )
+        internal
+    {
+        string memory minPriceVar = string.concat("VERIFY_CPN_MIN_PRICE_", vm.toString(cat));
+        string memory minSupplyVar = string.concat("VERIFY_CPN_MIN_SUPPLY_", vm.toString(cat));
+        string memory maxSupplyVar = string.concat("VERIFY_CPN_MAX_SUPPLY_", vm.toString(cat));
+        string memory maxSplitVar = string.concat("VERIFY_CPN_MAX_SPLIT_PERCENT_", vm.toString(cat));
+        string memory allowedVar = string.concat("VERIFY_CPN_ALLOWED_ADDRESSES_", vm.toString(cat));
+
+        string memory raw;
+        raw = vm.envOr({name: minPriceVar, defaultValue: string("")});
+        if (bytes(raw).length > 0) {
+            _check({
+                condition: minPrice == vm.parseUint(raw),
+                label: string.concat("CPN category ", vm.toString(cat), " minPrice == expected"),
+                critical: true
+            });
+        }
+        raw = vm.envOr({name: minSupplyVar, defaultValue: string("")});
+        if (bytes(raw).length > 0) {
+            _check({
+                condition: minSupply == vm.parseUint(raw),
+                label: string.concat("CPN category ", vm.toString(cat), " minSupply == expected"),
+                critical: true
+            });
+        }
+        raw = vm.envOr({name: maxSupplyVar, defaultValue: string("")});
+        if (bytes(raw).length > 0) {
+            _check({
+                condition: maxSupply == vm.parseUint(raw),
+                label: string.concat("CPN category ", vm.toString(cat), " maxSupply == expected"),
+                critical: true
+            });
+        }
+        raw = vm.envOr({name: maxSplitVar, defaultValue: string("")});
+        if (bytes(raw).length > 0) {
+            _check({
+                condition: maxSplitPct == vm.parseUint(raw),
+                label: string.concat("CPN category ", vm.toString(cat), " maxSplitPercent == expected"),
+                critical: true
+            });
+        }
+        raw = vm.envOr({name: allowedVar, defaultValue: string("")});
+        if (bytes(raw).length > 0) {
+            // Empty CSV literal "" (handled above) skips. Non-empty: each entry must be parseable;
+            // require lengths match and elements equal in order. The canonical CPN config sets an
+            // empty allowed-addresses list, so the most common operator setting is `""` (skip).
+            string[] memory parts = vm.split(raw, ",");
+            _check({
+                condition: allowed.length == parts.length,
+                label: string.concat("CPN category ", vm.toString(cat), " allowed-addresses length == expected"),
+                critical: true
+            });
+            for (uint256 i; i < parts.length && i < allowed.length; i++) {
+                _check({
+                    condition: allowed[i] == vm.parseAddress(parts[i]),
+                    label: string.concat(
+                        "CPN category ", vm.toString(cat), " allowed[", vm.toString(i), "] == expected"
+                    ),
+                    critical: true
+                });
+            }
+        }
     }
 
     /// BI helper: loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
@@ -2654,6 +2860,48 @@ contract Verify is Script {
         ) {
             return 0x000000000022D473030F116dDEE9F6B43aC78BA3;
         }
+        return address(0);
+    }
+
+    /// Returns the per-chain canonical Capsules typeface address used by DefifaTokenUriResolver.
+    /// Mirrors Deploy.s.sol's chain-specific `_typeface` assignments.
+    function _expectedDefifaTypeface() internal view returns (address) {
+        if (block.chainid == 1) return 0xA77b7D93E79f1E6B4f77FaB29d9ef85733A3D44A;
+        if (block.chainid == 11_155_111) return 0x8C420d3388C882F40d263714d7A6e2c8DB93905F;
+        if (block.chainid == 10) return 0xe160e47928907894F97a0DC025c61D64E862fEAa;
+        if (block.chainid == 11_155_420) return 0xe160e47928907894F97a0DC025c61D64E862fEAa;
+        if (block.chainid == 8453) return 0x3DE45A14ea0fe24037D6363Ae71Ef18F336D1C27;
+        if (block.chainid == 84_532) return 0xEb269d9F0850CEf5e3aB0F9718fb79c466720784;
+        if (block.chainid == 42_161) return 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
+        if (block.chainid == 421_614) return 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
+        return address(0);
+    }
+
+    /// Returns the per-chain canonical Uniswap V3 factory address. Mirrors Deploy.s.sol's
+    /// chain-specific `_v3Factory` assignments.
+    function _expectedV3Factory() internal view returns (address) {
+        if (block.chainid == 1) return 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+        if (block.chainid == 11_155_111) return 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
+        if (block.chainid == 10) return 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+        if (block.chainid == 11_155_420) return 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+        if (block.chainid == 8453) return 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
+        if (block.chainid == 84_532) return 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+        if (block.chainid == 42_161) return 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+        if (block.chainid == 421_614) return 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
+        return address(0);
+    }
+
+    /// Returns the per-chain canonical Uniswap V4 PoolManager address. Mirrors Deploy.s.sol's
+    /// chain-specific `_poolManager` assignments.
+    function _expectedV4PoolManager() internal view returns (address) {
+        if (block.chainid == 1) return 0x000000000004444c5dc75cB358380D2e3dE08A90;
+        if (block.chainid == 11_155_111) return 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
+        if (block.chainid == 10) return 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
+        if (block.chainid == 11_155_420) return 0x000000000004444c5dc75cB358380D2e3dE08A90;
+        if (block.chainid == 8453) return 0x498581fF718922c3f8e6A244956aF099B2652b2b;
+        if (block.chainid == 84_532) return 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
+        if (block.chainid == 42_161) return 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
+        if (block.chainid == 421_614) return 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
         return address(0);
     }
 
@@ -2800,6 +3048,30 @@ contract Verify is Script {
         _requireArtifactIdentity("JB721Distributor", address(distributor721), "JB721Distributor");
         _requireArtifactIdentity("JBTokenDistributor", address(tokenDistributor), "JBTokenDistributor");
         _requireArtifactIdentity("JBProjectPayerDeployer", address(projectPayerDeployer), "JBProjectPayerDeployer");
+
+        // BH residual: the JBProjectPayer implementation behind JBProjectPayerDeployer.IMPLEMENTATION
+        // also needs identity. Deployer-only identity proves the FACTORY is canonical but not the
+        // CLONE TARGET — and every JBProjectPayer clone delegates to that implementation.
+        if (address(projectPayerDeployer) != address(0)) {
+            (bool okImpl, bytes memory implData) =
+                address(projectPayerDeployer).staticcall(abi.encodeWithSignature("IMPLEMENTATION()"));
+            if (okImpl && implData.length >= 32) {
+                _requireArtifactIdentity("JBProjectPayer", abi.decode(implData, (address)), "JBProjectPayer clone impl");
+            }
+        }
+
+        // BF residual: the JB721Checkpoints implementation behind JB721CheckpointsDeployer.IMPLEMENTATION
+        // is the analogous case for the 721 checkpoint module. Deployer-only identity (covered in CN)
+        // is insufficient; the clone target needs its own check.
+        if (address(_checkpointsDeployer()) != address(0)) {
+            (bool okImpl, bytes memory implData) =
+                _checkpointsDeployer().staticcall(abi.encodeWithSignature("IMPLEMENTATION()"));
+            if (okImpl && implData.length >= 32) {
+                _requireArtifactIdentity(
+                    "JB721Checkpoints", abi.decode(implData, (address)), "JB721Checkpoints clone impl"
+                );
+            }
+        }
 
         // BJ: Defifa + AddressRegistry
         _requireArtifactIdentity("JBAddressRegistry", addressRegistry, "JBAddressRegistry");
