@@ -29,6 +29,7 @@ import {JBChainlinkV3SequencerPriceFeed} from "@bananapus/core-v6/src/JBChainlin
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {AggregatorV2V3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
+import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
@@ -555,10 +556,13 @@ contract Verify is Script {
         for (uint256 i; i < projectCount; i++) {
             // Read the controller set for this project in the directory.
             IERC165 projectController = directory.controllerOf(projectIds[i]);
-            // Verify a controller is actually set (non-zero address).
+            // CH fix: require the controller pointer to equal the canonical controller, not just
+            // be non-zero. A noncanonical controller would otherwise pass and silently authorize
+            // ruleset queues / token mints / payout calls that the canonical operator never
+            // approved.
             _check({
-                condition: address(projectController) != address(0),
-                label: string.concat(labels[i], " has controller set"),
+                condition: address(projectController) == address(controller),
+                label: string.concat(labels[i], " controller == canonical JBController"),
                 critical: true
             });
 
@@ -570,6 +574,37 @@ contract Verify is Script {
                 label: string.concat(labels[i], " has primary terminal for native token"),
                 critical: true
             });
+
+            // CQ fix: assert the live accounting context for the native token matches the
+            // expected shape (token sentinel + 18 decimals + native currency id). A wrong
+            // accounting context — e.g. decimals=6 because the deployer mis-configured a USD
+            // currency — silently mis-scales every cash-out and pay on that project.
+            try terminal.accountingContextForTokenOf(projectIds[i], JBConstants.NATIVE_TOKEN) returns (
+                JBAccountingContext memory ctx
+            ) {
+                _check({
+                    condition: ctx.token == JBConstants.NATIVE_TOKEN,
+                    label: string.concat(labels[i], " native accounting context token == NATIVE_TOKEN"),
+                    critical: true
+                });
+                _check({
+                    condition: ctx.decimals == 18,
+                    label: string.concat(labels[i], " native accounting context decimals == 18"),
+                    critical: true
+                });
+                // The native currency id is `uint32(uint160(NATIVE_TOKEN))` per JBAccountingContext.
+                _check({
+                    condition: ctx.currency == uint32(uint160(JBConstants.NATIVE_TOKEN)),
+                    label: string.concat(labels[i], " native accounting context currency == NATIVE_TOKEN id"),
+                    critical: true
+                });
+            } catch {
+                _check({
+                    condition: false,
+                    label: string.concat(labels[i], " terminal exposes accountingContextForTokenOf"),
+                    critical: true
+                });
+            }
 
             // Read the full list of terminals for this project.
             IJBTerminal[] memory terminals = directory.terminalsOf(projectIds[i]);
