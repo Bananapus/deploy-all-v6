@@ -1174,57 +1174,208 @@ contract Verify is Script {
             }
         }
 
-        // Verify oracle provenance — ensure the protocol is using the expected Chainlink feeds.
-        {
-            address expectedEthUsdAggregator;
-            if (block.chainid == 1) expectedEthUsdAggregator = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
-            else if (block.chainid == 10) expectedEthUsdAggregator = 0x13e3Ee699D1909E989722E753853AE30b17e08c5;
-            else if (block.chainid == 8453) expectedEthUsdAggregator = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70;
-            else if (block.chainid == 42_161) expectedEthUsdAggregator = 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612;
-
-            if (expectedEthUsdAggregator != address(0)) {
-                try prices.priceFeedFor({
-                    projectId: 0,
-                    pricingCurrency: JBCurrencyIds.USD,
-                    unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
-                }) returns (
-                    IJBPriceFeed feed
-                ) {
-                    // Dereference through the wrapper to compare the inner aggregator.
-                    try JBChainlinkV3PriceFeed(address(feed)).FEED() returns (AggregatorV3Interface innerFeed) {
-                        _check({
-                            condition: address(innerFeed) == expectedEthUsdAggregator,
-                            label: "ETH/USD inner aggregator matches expected Chainlink feed",
-                            critical: true
-                        });
-                    } catch {
-                        _check({condition: false, label: "ETH/USD feed wrapper does not expose FEED()", critical: true});
-                    }
-
-                    // On L2 chains, verify the sequencer-aware variant is used.
-                    if (block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161) {
-                        try JBChainlinkV3SequencerPriceFeed(address(feed)).SEQUENCER_FEED() returns (
-                            AggregatorV2V3Interface sequencerFeed
-                        ) {
-                            _check({
-                                condition: address(sequencerFeed) != address(0),
-                                label: "L2 ETH/USD feed has sequencer feed set",
-                                critical: true
-                            });
-                        } catch {
-                            _check({
-                                condition: false, label: "L2 ETH/USD feed is sequencer-aware variant", critical: true
-                            });
-                        }
-                    }
-                } catch {
-                    _skip("ETH/USD oracle provenance (feed lookup reverted)");
-                }
-            }
-        }
+        // BG: oracle exactness. The audit calls for asserting not just the aggregator address but
+        // also THRESHOLD(), SEQUENCER_FEED() (per L2), and GRACE_PERIOD_TIME() (per L2) against
+        // the canonical Deploy.s.sol values. Without these the verifier accepts any sequencer-aware
+        // wrapper whose getters happen to return plausible values.
+        _verifyEthUsdOracleExactness();
+        _verifyUsdcUsdOracleExactness({usdc: usdc});
 
         // Log a blank line for readability.
         console.log("");
+    }
+
+    /// BG: assert the deployed ETH/USD feed wraps the canonical Chainlink aggregator with the
+    /// expected THRESHOLD, and on L2s the canonical SEQUENCER_FEED + GRACE_PERIOD_TIME.
+    function _verifyEthUsdOracleExactness() internal {
+        (address expectedAggregator, uint256 expectedThreshold, address expectedSequencerFeed, uint256 expectedGrace) =
+            _expectedEthUsdOracle();
+        if (expectedAggregator == address(0)) {
+            _skip("ETH/USD oracle exactness (unsupported chain)");
+            return;
+        }
+        try prices.priceFeedFor({
+            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        }) returns (
+            IJBPriceFeed feed
+        ) {
+            try JBChainlinkV3PriceFeed(address(feed)).FEED() returns (AggregatorV3Interface innerFeed) {
+                _check({
+                    condition: address(innerFeed) == expectedAggregator,
+                    label: "ETH/USD: FEED matches expected Chainlink aggregator",
+                    critical: true
+                });
+            } catch {
+                _check({condition: false, label: "ETH/USD feed wrapper does not expose FEED()", critical: true});
+            }
+            try JBChainlinkV3PriceFeed(address(feed)).THRESHOLD() returns (uint256 threshold) {
+                _check({
+                    condition: threshold == expectedThreshold,
+                    label: "ETH/USD: THRESHOLD matches deploy-time staleness window",
+                    critical: true
+                });
+            } catch {
+                _check({condition: false, label: "ETH/USD feed wrapper does not expose THRESHOLD()", critical: true});
+            }
+            if (expectedSequencerFeed != address(0)) {
+                try JBChainlinkV3SequencerPriceFeed(address(feed)).SEQUENCER_FEED() returns (
+                    AggregatorV2V3Interface sequencerFeed
+                ) {
+                    _check({
+                        condition: address(sequencerFeed) == expectedSequencerFeed,
+                        label: "ETH/USD: SEQUENCER_FEED matches expected L2 sequencer feed",
+                        critical: true
+                    });
+                } catch {
+                    _check({
+                        condition: false,
+                        label: "ETH/USD feed is not the sequencer-aware variant on this L2",
+                        critical: true
+                    });
+                }
+                try JBChainlinkV3SequencerPriceFeed(address(feed)).GRACE_PERIOD_TIME() returns (uint256 grace) {
+                    _check({
+                        condition: grace == expectedGrace,
+                        label: "ETH/USD: GRACE_PERIOD_TIME matches deploy-time L2 grace",
+                        critical: true
+                    });
+                } catch {
+                    _check({
+                        condition: false,
+                        label: "ETH/USD feed does not expose GRACE_PERIOD_TIME on this L2",
+                        critical: true
+                    });
+                }
+            }
+        } catch {
+            _skip("ETH/USD oracle exactness (feed lookup reverted)");
+        }
+    }
+
+    /// BG: same shape as `_verifyEthUsdOracleExactness` for the USDC/USD feed. Per-chain USDC
+    /// address is already in scope from the parent function — pass it through so we don't
+    /// re-derive it.
+    function _verifyUsdcUsdOracleExactness(address usdc) internal {
+        if (usdc == address(0)) return;
+        (address expectedAggregator, uint256 expectedThreshold, address expectedSequencerFeed, uint256 expectedGrace) =
+            _expectedUsdcUsdOracle();
+        if (expectedAggregator == address(0)) {
+            _skip("USDC/USD oracle exactness (unsupported chain)");
+            return;
+        }
+        // forge-lint: disable-next-line(unsafe-typecast)
+        try prices.priceFeedFor({
+            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(usdc))
+        }) returns (
+            IJBPriceFeed feed
+        ) {
+            try JBChainlinkV3PriceFeed(address(feed)).FEED() returns (AggregatorV3Interface innerFeed) {
+                _check({
+                    condition: address(innerFeed) == expectedAggregator,
+                    label: "USDC/USD: FEED matches expected Chainlink aggregator",
+                    critical: true
+                });
+            } catch {
+                _check({condition: false, label: "USDC/USD feed wrapper does not expose FEED()", critical: true});
+            }
+            try JBChainlinkV3PriceFeed(address(feed)).THRESHOLD() returns (uint256 threshold) {
+                _check({
+                    condition: threshold == expectedThreshold,
+                    label: "USDC/USD: THRESHOLD matches deploy-time staleness window",
+                    critical: true
+                });
+            } catch {
+                _check({condition: false, label: "USDC/USD feed wrapper does not expose THRESHOLD()", critical: true});
+            }
+            if (expectedSequencerFeed != address(0)) {
+                try JBChainlinkV3SequencerPriceFeed(address(feed)).SEQUENCER_FEED() returns (
+                    AggregatorV2V3Interface sequencerFeed
+                ) {
+                    _check({
+                        condition: address(sequencerFeed) == expectedSequencerFeed,
+                        label: "USDC/USD: SEQUENCER_FEED matches expected L2 sequencer feed",
+                        critical: true
+                    });
+                } catch {
+                    _check({
+                        condition: false,
+                        label: "USDC/USD feed is not the sequencer-aware variant on this L2",
+                        critical: true
+                    });
+                }
+                try JBChainlinkV3SequencerPriceFeed(address(feed)).GRACE_PERIOD_TIME() returns (uint256 grace) {
+                    _check({
+                        condition: grace == expectedGrace,
+                        label: "USDC/USD: GRACE_PERIOD_TIME matches deploy-time L2 grace",
+                        critical: true
+                    });
+                } catch {
+                    _check({
+                        condition: false,
+                        label: "USDC/USD feed does not expose GRACE_PERIOD_TIME on this L2",
+                        critical: true
+                    });
+                }
+            }
+        } catch {
+            _skip("USDC/USD oracle exactness (feed lookup reverted)");
+        }
+    }
+
+    /// Returns the canonical ETH/USD oracle params for this chain, mirroring Deploy.s.sol's
+    /// _deployEthUsdFeed. Returns (0, 0, 0, 0) on unsupported chains so the caller can skip.
+    /// Sequencer feed + grace period are zero on L1s; non-zero implies L2 sequencer-aware variant.
+    function _expectedEthUsdOracle()
+        internal
+        view
+        returns (address aggregator, uint256 threshold, address sequencerFeed, uint256 gracePeriod)
+    {
+        if (block.chainid == 1) {
+            return (0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419, 3600, address(0), 0);
+        } else if (block.chainid == 11_155_111) {
+            return (0x694AA1769357215DE4FAC081bf1f309aDC325306, 3600, address(0), 0);
+        } else if (block.chainid == 10) {
+            return (0x13e3Ee699D1909E989722E753853AE30b17e08c5, 3600, 0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389, 3600);
+        } else if (block.chainid == 11_155_420) {
+            return (0x61Ec26aA57019C486B10502285c5A3D4A4750AD7, 3600, address(0), 0);
+        } else if (block.chainid == 8453) {
+            return (0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70, 3600, 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433, 3600);
+        } else if (block.chainid == 84_532) {
+            return (0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1, 3600, address(0), 0);
+        } else if (block.chainid == 42_161) {
+            return (0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612, 3600, 0xFdB631F5EE196F0ed6FAa767959853A9F217697D, 3600);
+        }
+        return (address(0), 0, address(0), 0);
+    }
+
+    /// Returns the canonical USDC/USD oracle params for this chain. Same shape as
+    /// `_expectedEthUsdOracle`. Mirrors Deploy.s.sol's _deployUsdcFeed.
+    function _expectedUsdcUsdOracle()
+        internal
+        view
+        returns (address aggregator, uint256 threshold, address sequencerFeed, uint256 gracePeriod)
+    {
+        if (block.chainid == 1) {
+            return (0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6, 86_400, address(0), 0);
+        } else if (block.chainid == 11_155_111) {
+            return (0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E, 86_400, address(0), 0);
+        } else if (block.chainid == 10) {
+            return
+                (0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3, 86_400, 0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389, 3600);
+        } else if (block.chainid == 11_155_420) {
+            return (0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C, 86_400, address(0), 0);
+        } else if (block.chainid == 8453) {
+            return
+                (0x7e860098F58bBFC8648a4311b374B1D669a2bc6B, 86_400, 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433, 3600);
+        } else if (block.chainid == 84_532) {
+            return (0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165, 86_400, address(0), 0);
+        } else if (block.chainid == 42_161) {
+            return
+                (0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3, 86_400, 0xFdB631F5EE196F0ed6FAa767959853A9F217697D, 3600);
+        } else if (block.chainid == 421_614) {
+            return (0x0153002d20B96532C639313c2d54c3dA09109309, 86_400, address(0), 0);
+        }
+        return (address(0), 0, address(0), 0);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2095,35 +2246,64 @@ contract Verify is Script {
     function _verifyExternalAddresses() internal {
         console.log("--- Category 20: External Address Provenance ---");
 
-        // Terminal Permit2 wiring.
-        _check({
-            condition: address(terminal.PERMIT2()) != address(0), label: "Terminal.PERMIT2 is non-zero", critical: true
-        });
+        // BA: pin the immutable PERMIT2 wiring on every deployed contract that exposes it to the
+        // canonical Permit2 singleton. Without the exact-address check, a deployment that wired in
+        // a forked Permit2 (different signature semantics, different ownership) would still pass.
+        address expectedPermit2 = _expectedPermit2();
+        address expectedWrappedNative = _expectedWrappedNative();
 
-        // Router terminal wrapped-native-token and Permit2 wiring.
+        if (expectedPermit2 != address(0)) {
+            _check({
+                condition: address(terminal.PERMIT2()) == expectedPermit2,
+                label: "Terminal.PERMIT2 == canonical Permit2",
+                critical: true
+            });
+            if (address(routerTerminal) != address(0)) {
+                _check({
+                    condition: address(routerTerminal.PERMIT2()) == expectedPermit2,
+                    label: "RouterTerminal.PERMIT2 == canonical Permit2",
+                    critical: true
+                });
+            }
+            if (address(revLoans) != address(0)) {
+                _check({
+                    condition: address(revLoans.PERMIT2()) == expectedPermit2,
+                    label: "REVLoans.PERMIT2 == canonical Permit2",
+                    critical: true
+                });
+            }
+        } else {
+            // Fall back to non-zero on chains without a canonical Permit2 manifest. The skip is
+            // logged so operators see which chains are still gaps.
+            _check({
+                condition: address(terminal.PERMIT2()) != address(0),
+                label: "Terminal.PERMIT2 is non-zero (no canonical manifest for this chain)",
+                critical: true
+            });
+            _skip("BA: Permit2 exact-address check skipped (no manifest for this chain)");
+        }
+
+        // BA: pin WRAPPED_NATIVE_TOKEN on the router terminal to the canonical WETH for this chain.
+        // The router uses this to settle native unwrapping on swap-out — a wrong WETH lets the
+        // router pull from / push to a token with attacker-controlled mint/burn semantics.
         if (address(routerTerminal) != address(0)) {
-            _check({
-                condition: address(routerTerminal.WRAPPED_NATIVE_TOKEN()) != address(0),
-                label: "RouterTerminal.WRAPPED_NATIVE_TOKEN is non-zero",
-                critical: true
-            });
-            _check({
-                condition: address(routerTerminal.PERMIT2()) != address(0),
-                label: "RouterTerminal.PERMIT2 is non-zero",
-                critical: true
-            });
+            if (expectedWrappedNative != address(0)) {
+                _check({
+                    condition: address(routerTerminal.WRAPPED_NATIVE_TOKEN()) == expectedWrappedNative,
+                    label: "RouterTerminal.WRAPPED_NATIVE_TOKEN == canonical WETH",
+                    critical: true
+                });
+            } else {
+                _check({
+                    condition: address(routerTerminal.WRAPPED_NATIVE_TOKEN()) != address(0),
+                    label: "RouterTerminal.WRAPPED_NATIVE_TOKEN is non-zero (no canonical manifest)",
+                    critical: true
+                });
+                _skip("BA: WETH exact-address check skipped (no manifest for this chain)");
+            }
         }
 
-        // REVLoans PERMIT2.
-        if (address(revLoans) != address(0)) {
-            _check({
-                condition: address(revLoans.PERMIT2()) != address(0),
-                label: "REVLoans.PERMIT2 is non-zero",
-                critical: true
-            });
-        }
-
-        // OmnichainDeployer DIRECTORY.
+        // OmnichainDeployer DIRECTORY (existing check — kept).
         _check({
             condition: address(omnichainDeployer.DIRECTORY()) == address(directory),
             label: "OmnichainDeployer.DIRECTORY == directory",
@@ -2131,6 +2311,33 @@ contract Verify is Script {
         });
 
         console.log("");
+    }
+
+    /// Returns the canonical Permit2 singleton address for this chain. Permit2 is deployed at the
+    /// same CREATE2 address on every supported chain. Returns address(0) on unsupported chains.
+    function _expectedPermit2() internal view returns (address) {
+        // Canonical Permit2 across all EVM chains where deployed.
+        if (
+            block.chainid == 1 || block.chainid == 11_155_111 || block.chainid == 10 || block.chainid == 11_155_420
+                || block.chainid == 8453 || block.chainid == 84_532 || block.chainid == 42_161
+                || block.chainid == 421_614
+        ) {
+            return 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+        }
+        return address(0);
+    }
+
+    /// Returns the canonical WETH (wrapped native token) address for this chain.
+    function _expectedWrappedNative() internal view returns (address) {
+        if (block.chainid == 1) return 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+        if (block.chainid == 11_155_111) return 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
+        if (block.chainid == 10) return 0x4200000000000000000000000000000000000006;
+        if (block.chainid == 11_155_420) return 0x4200000000000000000000000000000000000006;
+        if (block.chainid == 8453) return 0x4200000000000000000000000000000000000006;
+        if (block.chainid == 84_532) return 0x4200000000000000000000000000000000000006;
+        if (block.chainid == 42_161) return 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
+        if (block.chainid == 421_614) return 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73;
+        return address(0);
     }
 
     // ════════════════════════════════════════════════════════════════════
