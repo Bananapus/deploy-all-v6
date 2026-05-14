@@ -8,9 +8,10 @@ contract PostDeploySafeWrappedConstructorArgsGapTest is Test {
 
     function test_postDeployConstructorArgRecoveryUsesFactoryInternalCall() public view {
         string memory artifactsSource = vm.readFile("script/post-deploy/lib/artifacts.mjs");
+        string memory verifySource = vm.readFile("script/post-deploy/lib/verify.mjs");
 
-        // artifacts.mjs now prefers the deterministic-factory's internal-call input over the
-        // outer Safe-wrapped tx input. This bypasses the wrapper ABI bytes entirely.
+        // artifacts.mjs prefers the deterministic-factory's internal-call input over the outer
+        // Safe-wrapped tx input.
         assertTrue(
             _contains(artifactsSource, "getFactoryCallInput"), "artifact emitter declares the factory-call helper"
         );
@@ -35,6 +36,26 @@ contract PostDeploySafeWrappedConstructorArgsGapTest is Test {
                 artifactsSource, "sliceConstructorArgs({txInput, creationCodeHex: forgeArtifact.bytecode.object})"
             ),
             "slicer is still used (now against the clean factory-call input)"
+        );
+
+        // verify.mjs MUST use the same factory-call recovery — otherwise Etherscan verification
+        // still resolves constructor args from the Safe wrapper and mismatches the artifact.
+        assertTrue(_contains(verifySource, "getFactoryCallInput"), "verifier declares the factory-call helper");
+        assertTrue(
+            _contains(verifySource, "const factoryInput = await getFactoryCallInput"),
+            "verifier calls the factory-call helper to recover args"
+        );
+        assertTrue(
+            _contains(verifySource, "factoryInput || await getTxInput"),
+            "verifier falls back to outer tx input when the internal call is missing"
+        );
+        assertTrue(
+            _contains(verifySource, "0x4e59b44847b379578588920ca78fbf26c0b4956c"),
+            "verifier factory-call helper targets the canonical deterministic factory"
+        );
+        assertTrue(
+            _contains(verifySource, "action=txlistinternal"),
+            "verifier factory-call helper queries Etherscan's internal-tx API"
         );
     }
 
