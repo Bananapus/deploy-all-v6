@@ -220,12 +220,14 @@ for alias in $CHAINS_LIST; do
   fi
 
   # ── Step 3: emit sphinx-format artifacts ──
+  artifact_failed=0
   if [[ "$SKIP_ARTIFACTS" -eq 0 ]]; then
     echo "  [3/4] Emitting artifacts..."
     if [[ "$DRY_RUN" -eq 0 ]]; then
       node "$POST_DEPLOY_DIR/lib/artifacts.mjs" --chain "$chain_id" $rehearsal_flag || {
-        echo "    Some artifacts failed to generate."
+        echo "    Some artifacts failed to generate; skipping distribution for this chain."
         GLOBAL_FAIL=1
+        artifact_failed=1
       }
     else
       echo "    (skipped — dry-run)"
@@ -235,7 +237,11 @@ for alias in $CHAINS_LIST; do
   fi
 
   # ── Step 4: fan out to per-repo deployments/ ──
-  if [[ "$SKIP_DISTRIBUTE" -eq 0 ]]; then
+  # Skip distribution if artifact emission failed — otherwise we would copy
+  # stale cached JSON from a previous run into the canonical deployments/
+  # tree. distribute.mjs also gates on the current address dump, but this
+  # outer skip is defense in depth.
+  if [[ "$SKIP_DISTRIBUTE" -eq 0 && "$artifact_failed" -eq 0 ]]; then
     echo "  [4/4] Distributing artifacts..."
     extra=""
     [[ "$DRY_RUN" -eq 1 ]] && extra="--dry-run"
@@ -243,6 +249,8 @@ for alias in $CHAINS_LIST; do
       echo "    Some artifacts failed to distribute."
       GLOBAL_FAIL=1
     }
+  elif [[ "$artifact_failed" -eq 1 ]]; then
+    echo "  [4/4] (skipped — artifact emission failed)"
   else
     echo "  [4/4] (skip-distribute)"
   fi
