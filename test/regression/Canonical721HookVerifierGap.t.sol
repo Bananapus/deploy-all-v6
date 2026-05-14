@@ -47,9 +47,7 @@ contract Canonical721HookVerifierGapTest is Test {
         // BS fix: Category 1 now requires the CPN hook to be recorded. The mock leaves it unset,
         // so the verifier rejects.
         vm.expectRevert(
-            abi.encodeWithSelector(
-                Verify.Verify_CriticalCheckFailed.selector, "CPN(2) has Croptop 721 hook recorded"
-            )
+            abi.encodeWithSelector(Verify.Verify_CriticalCheckFailed.selector, "CPN(2) has Croptop 721 hook recorded")
         );
         harness.verifyCanonicalProjectIdentities();
     }
