@@ -3926,7 +3926,11 @@ contract Deploy is Script, Sphinx {
                     unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
                 })
             );
-            _serializeIfSet({key: j, name: "JBChainlinkV3PriceFeed__ETH_USD", addr: ethUsd});
+            // On L2s (Optimism / Base / Arbitrum + sepolias) the deployed feed is the sequencer-aware
+            // variant whose runtime bytecode differs from `JBChainlinkV3PriceFeed.json`. Naming the
+            // emitted entry by the actual artifact type lets the post-deploy verifier and artifact
+            // emitter resolve the correct artifact via the `__` strip rule rather than guessing.
+            _serializePriceFeed({key: j, suffix: "ETH_USD", feed: ethUsd});
 
             if (_usdcToken != address(0)) {
                 // forge-lint: disable-next-line(unsafe-typecast)
@@ -3935,7 +3939,7 @@ contract Deploy is Script, Sphinx {
                         projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(_usdcToken))
                     })
                 );
-                _serializeIfSet({key: j, name: "JBChainlinkV3PriceFeed__USDC_USD", addr: usdcUsd});
+                _serializePriceFeed({key: j, suffix: "USDC_USD", feed: usdcUsd});
             }
 
             address ethMatching = address(
@@ -4055,6 +4059,19 @@ contract Deploy is Script, Sphinx {
             vm.serializeAddress({objectKey: key, valueKey: deployerName, value: d});
             _serializeSingletonFromDeployer({key: key, name: singletonName, deployer: d});
         }
+    }
+
+    /// Detects whether a deployed price feed is the L2 sequencer-aware variant and emits it under
+    /// the matching artifact name (`JBChainlinkV3SequencerPriceFeed__<suffix>` vs the plain
+    /// `JBChainlinkV3PriceFeed__<suffix>`). The sequencer-aware variant exposes a `SEQUENCER_FEED()`
+    /// getter that the standard variant does not. We use a low-level staticcall so this single
+    /// helper works for both shapes without needing two interfaces in scope.
+    function _serializePriceFeed(string memory key, string memory suffix, address feed) internal {
+        if (feed == address(0)) return;
+        (bool ok, bytes memory data) = feed.staticcall(abi.encodeWithSignature("SEQUENCER_FEED()"));
+        bool isSequencer = ok && data.length >= 32 && abi.decode(data, (address)) != address(0);
+        string memory base = isSequencer ? "JBChainlinkV3SequencerPriceFeed" : "JBChainlinkV3PriceFeed";
+        vm.serializeAddress({objectKey: key, valueKey: string.concat(base, "__", suffix), value: feed});
     }
 
     /// Emits the canonical project's ERC-20 clone address from
