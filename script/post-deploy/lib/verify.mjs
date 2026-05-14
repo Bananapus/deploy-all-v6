@@ -192,7 +192,13 @@ async function verifyOne({ target, entry, baseName }) {
   if (!creation?.txHash) {
     throw nonTransient(`No creation transaction found on explorer for ${target.address}`);
   }
-  const txInput = await getTxInput(creation.txHash);
+  // CA fix: under Sphinx/Safe deployment the OUTER tx input is the Safe.execTransaction wrapper
+  // and slicing through it picks up wrapper ABI bytes as fake constructor args. Recover from the
+  // internal call to the deterministic CREATE2 factory instead — its input is exactly
+  // `0x + salt(32 bytes) + creationCode + constructorArgs`. Fall back to the outer input if no
+  // factory call is present (non-Sphinx deploys).
+  const factoryInput = await getFactoryCallInput(creation.txHash);
+  const txInput = factoryInput || await getTxInput(creation.txHash);
   const ctorArgsHex = sliceConstructorArgs(txInput, artifact.bytecode.object);
 
   // Resolve repo path. deploy-all-v6 has a special case (it IS DEPLOY_ROOT).
@@ -327,6 +333,45 @@ async function getTxInput(txHash) {
     if (body.result && typeof body.result.input === 'string') return body.result.input;
     throw transient(`Explorer eth_getTransactionByHash returned no input: ${JSON.stringify(body).slice(0, 200)}`);
   });
+}
+
+// The canonical deterministic CREATE2 factory used by every artifact deploy path.
+const CREATE2_FACTORY = '0x4e59b44847b379578588920ca78fbf26c0b4956c';
+
+/// Returns the internal call's `input` for the CREATE2 factory invocation inside `txHash`, or
+/// null if no such internal call exists (non-Sphinx deployments). The factory's input is
+/// `0x + salt(32 bytes) + creationCode + constructorArgs`, which `sliceConstructorArgs` slices
+/// cleanly without picking up wrapper ABI bytes from the outer Safe.execTransaction. Mirrors the
+/// helper in artifacts.mjs so the verifier and emitter share the same CA fix.
+async function getFactoryCallInput(txHash) {
+  try {
+    return await withRetry(async () => {
+      const url = `${chain.apiUrl}?chainid=${CHAIN_ID}&module=account&action=txlistinternal&txhash=${txHash}&apikey=${ETHERSCAN_KEY}`;
+      const res = await fetchWithTimeout(url);
+      const text = await res.text();
+      let body;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        throw transient(`Explorer non-JSON response: ${truncate(text, 200)}`);
+      }
+      if (body.status !== '1' || !Array.isArray(body.result)) {
+        const msg = String(body.message || body.result || 'unknown');
+        if (/rate limit|throttle|max calls/i.test(msg)) throw transient(`Explorer rate limited: ${msg}`);
+        return null;
+      }
+      const factoryCall = body.result.find(
+        (entry) =>
+          String(entry?.to || '').toLowerCase() === CREATE2_FACTORY
+          && typeof entry?.input === 'string'
+          && entry.input.length > 2
+      );
+      return factoryCall?.input || null;
+    });
+  } catch (err) {
+    if (err?.transient) throw err;
+    return null;
+  }
 }
 
 /**
