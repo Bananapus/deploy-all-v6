@@ -63,19 +63,19 @@ contract USDCRevnetForkTest is RevnetForkBase {
         usdc = new MockERC20Token("Mock USDC", "USDC", 6);
         usdc.mint(address(this), 100_000_000e6); // 100M USDC
 
-        // Deploy LP-split hook (clone pattern).
+        // Deploy LP-split hook (clone pattern). Implementation ctor is chain-same; the per-clone chain-specific
+        // V4 addresses are passed into `initialize` directly.
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()),
-            jbPermissions(),
-            address(jbTokens()),
-            poolManager,
-            positionManager,
-            permit2(),
-            IHooks(address(0)),
-            IJBSuckerRegistry(address(0))
+            address(jbDirectory()), jbPermissions(), address(jbTokens()), permit2(), IJBSuckerRegistry(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
-        LP_SPLIT_HOOK.initialize(0, 0); // No fee project for simplicity.
+        LP_SPLIT_HOOK.initialize({
+            feeProjectId: 0, // No fee project for simplicity.
+            feePercent: 0,
+            poolManager: poolManager,
+            positionManager: positionManager,
+            oracleHook: IHooks(address(0))
+        });
 
         // Mock geomean oracle at address(0) so payments work before buyback pool is set up.
         _mockOracle(1, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));

@@ -388,16 +388,11 @@ contract DeployFullStackTest is Test {
     /// @dev Phase 03c: Buyback Hook. Mirrors Deploy._deployBuybackHook().
     function _deployBuybackHook(ChainConfig memory cfg) internal {
         _buybackRegistry = new JBBuybackHookRegistry(_permissions, _projects, _deployer, _trustedForwarder);
-        _buybackHook = new JBBuybackHook(
-            _directory,
-            _permissions,
-            _prices,
-            _projects,
-            _tokens,
-            IPoolManager(cfg.poolManager),
-            IHooks(address(_uniswapV4Hook)),
-            _trustedForwarder
-        );
+        _buybackHook =
+            new JBBuybackHook(_directory, _permissions, _prices, _projects, _tokens, address(this), _trustedForwarder);
+        _buybackHook.setChainSpecificConstants({
+            poolManager: IPoolManager(cfg.poolManager), oracleHook: IHooks(address(_uniswapV4Hook))
+        });
         _buybackRegistry.setDefaultHook(_buybackHook);
     }
 
@@ -406,16 +401,14 @@ contract DeployFullStackTest is Test {
         _routerTerminalRegistry =
             new JBRouterTerminalRegistry(_permissions, _projects, _PERMIT2, _deployer, _trustedForwarder);
         _routerTerminal = new JBRouterTerminal(
-            _directory,
-            _tokens,
-            _PERMIT2,
-            IWETH9(cfg.wrappedNativeToken),
-            IUniswapV3Factory(cfg.v3Factory),
-            IPoolManager(cfg.poolManager),
-            address(_buybackHook),
-            address(_uniswapV4Hook),
-            _trustedForwarder
+            _directory, _tokens, _PERMIT2, address(_buybackHook), _trustedForwarder, address(this)
         );
+        _routerTerminal.setChainSpecificConstants({
+            wrappedNativeToken: IWETH9(cfg.wrappedNativeToken),
+            factory: IUniswapV3Factory(cfg.v3Factory),
+            poolManager: IPoolManager(cfg.poolManager),
+            univ4Hook: address(_uniswapV4Hook)
+        });
         _routerTerminalRegistry.setDefaultTerminal(_routerTerminal);
         _feeless.setFeelessAddress(address(_routerTerminal), true);
     }
@@ -426,14 +419,17 @@ contract DeployFullStackTest is Test {
             address(_directory),
             _permissions,
             address(_tokens),
-            IPoolManager(cfg.poolManager),
-            IPositionManager(cfg.positionManager),
             IAllowanceTransfer(address(_PERMIT2)),
-            IHooks(address(_uniswapV4Hook)),
             IJBSuckerRegistry(address(_suckerRegistry))
         );
         _lpSplitHookDeployer =
-            new JBUniswapV4LPSplitHookDeployer(_lpSplitHook, IJBAddressRegistry(address(_addressRegistry)));
+            new JBUniswapV4LPSplitHookDeployer(IJBAddressRegistry(address(_addressRegistry)), address(this));
+        _lpSplitHookDeployer.setChainSpecificConstants({
+            hook: _lpSplitHook,
+            poolManager: IPoolManager(cfg.poolManager),
+            positionManager: IPositionManager(cfg.positionManager),
+            oracleHook: IHooks(address(_uniswapV4Hook))
+        });
     }
 
     /// @dev Phase 03f: Suckers. Deploys chain-appropriate suckers and the registry.

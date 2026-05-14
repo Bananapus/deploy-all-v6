@@ -401,16 +401,7 @@ contract ResumeDeployHarness is IERC721Receiver {
         (address hookAddress, bool hookDeployed) = _isDeployed(
             BUYBACK_HOOK_SALT,
             type(JBBuybackHook).creationCode,
-            abi.encode(
-                directory,
-                permissions,
-                prices,
-                projects,
-                tokens,
-                IPoolManager(POOL_MANAGER),
-                IHooks(address(uniswapV4Hook)),
-                trustedForwarder
-            )
+            abi.encode(directory, permissions, prices, projects, tokens, address(this), trustedForwarder)
         );
         buybackHook = hookDeployed
             ? JBBuybackHook(payable(hookAddress))
@@ -420,10 +411,14 @@ contract ResumeDeployHarness is IERC721Receiver {
                 prices: prices,
                 projects: projects,
                 tokens: tokens,
-                poolManager: IPoolManager(POOL_MANAGER),
-                oracleHook: IHooks(address(uniswapV4Hook)),
+                deployer: address(this),
                 trustedForwarder: trustedForwarder
             });
+        if (address(buybackHook.POOL_MANAGER()) == address(0)) {
+            buybackHook.setChainSpecificConstants({
+                poolManager: IPoolManager(POOL_MANAGER), oracleHook: IHooks(address(uniswapV4Hook))
+            });
+        }
 
         if (address(buybackRegistry.defaultHook()) == address(0)) {
             buybackRegistry.setDefaultHook({hook: IJBRulesetDataHook(address(buybackHook))});
@@ -449,17 +444,7 @@ contract ResumeDeployHarness is IERC721Receiver {
         (address terminalAddress, bool terminalDeployed) = _isDeployed(
             ROUTER_TERMINAL_SALT,
             type(JBRouterTerminal).creationCode,
-            abi.encode(
-                directory,
-                tokens,
-                _PERMIT2,
-                IWETH9(WETH),
-                IUniswapV3Factory(V3_FACTORY),
-                IPoolManager(POOL_MANAGER),
-                address(buybackHook),
-                address(uniswapV4Hook),
-                trustedForwarder
-            )
+            abi.encode(directory, tokens, _PERMIT2, address(buybackHook), trustedForwarder, address(this))
         );
         routerTerminal = terminalDeployed
             ? JBRouterTerminal(payable(terminalAddress))
@@ -467,13 +452,18 @@ contract ResumeDeployHarness is IERC721Receiver {
                 directory: directory,
                 tokens: tokens,
                 permit2: _PERMIT2,
-                weth: IWETH9(WETH),
+                buybackHook: address(buybackHook),
+                trustedForwarder: trustedForwarder,
+                deployer: address(this)
+            });
+        if (address(routerTerminal.WRAPPED_NATIVE_TOKEN()) == address(0)) {
+            routerTerminal.setChainSpecificConstants({
+                wrappedNativeToken: IWETH9(WETH),
                 factory: IUniswapV3Factory(V3_FACTORY),
                 poolManager: IPoolManager(POOL_MANAGER),
-                buybackHook: address(buybackHook),
-                univ4Hook: address(uniswapV4Hook),
-                trustedForwarder: trustedForwarder
+                univ4Hook: address(uniswapV4Hook)
             });
+        }
 
         if (address(routerTerminalRegistry.defaultTerminal()) == address(0)) {
             routerTerminalRegistry.setDefaultTerminal({terminal: IJBTerminal(address(routerTerminal))});
@@ -484,6 +474,7 @@ contract ResumeDeployHarness is IERC721Receiver {
     }
 
     function _deployLpSplitHook() internal {
+        // Chain-same ctor inputs; V4 addresses wired via the factory below.
         (address hookAddress, bool hookDeployed) = _isDeployed(
             LP_SPLIT_HOOK_SALT,
             type(JBUniswapV4LPSplitHook).creationCode,
@@ -491,10 +482,7 @@ contract ResumeDeployHarness is IERC721Receiver {
                 address(directory),
                 permissions,
                 address(tokens),
-                IPoolManager(POOL_MANAGER),
-                IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook)),
                 IJBSuckerRegistry(address(suckerRegistry))
             )
         );
@@ -504,23 +492,28 @@ contract ResumeDeployHarness is IERC721Receiver {
                 address(directory),
                 permissions,
                 address(tokens),
-                IPoolManager(POOL_MANAGER),
-                IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook)),
                 IJBSuckerRegistry(address(suckerRegistry))
             );
 
         (address deployerAddress, bool deployerDeployed) = _isDeployed(
             LP_SPLIT_HOOK_DEPLOYER_SALT,
             type(JBUniswapV4LPSplitHookDeployer).creationCode,
-            abi.encode(lpSplitHook, IJBAddressRegistry(address(addressRegistry)))
+            abi.encode(IJBAddressRegistry(address(addressRegistry)), address(this))
         );
         lpSplitHookDeployer = deployerDeployed
             ? JBUniswapV4LPSplitHookDeployer(deployerAddress)
             : new JBUniswapV4LPSplitHookDeployer{salt: LP_SPLIT_HOOK_DEPLOYER_SALT}(
-                lpSplitHook, IJBAddressRegistry(address(addressRegistry))
+                IJBAddressRegistry(address(addressRegistry)), address(this)
             );
+        if (address(lpSplitHookDeployer.HOOK()) == address(0)) {
+            lpSplitHookDeployer.setChainSpecificConstants({
+                hook: lpSplitHook,
+                poolManager: IPoolManager(POOL_MANAGER),
+                positionManager: IPositionManager(POSITION_MANAGER),
+                oracleHook: IHooks(address(uniswapV4Hook))
+            });
+        }
     }
 
     function _deploySuckers() internal {

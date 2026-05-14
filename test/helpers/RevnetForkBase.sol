@@ -150,15 +150,9 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
 
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbProjects(),
-            jbTokens(),
-            poolManager,
-            IHooks(address(0)),
-            address(0)
+            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), address(this), address(0)
         );
+        BUYBACK_HOOK.setChainSpecificConstants({poolManager: poolManager, oracleHook: IHooks(address(0))});
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
         BUYBACK_REGISTRY.setDefaultHook(IJBRulesetDataHook(address(BUYBACK_HOOK)));

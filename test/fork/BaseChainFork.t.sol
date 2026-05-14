@@ -202,15 +202,11 @@ contract BaseChainForkTest is TestBaseWorkflow {
 
         // Deploy buyback hook using Base's real PoolManager and the univ4 router as oracle hook.
         BUYBACK_HOOK = new JBBuybackHook(
-            jbDirectory(),
-            jbPermissions(),
-            jbPrices(),
-            jbProjects(),
-            jbTokens(),
-            IPoolManager(BASE_POOL_MANAGER),
-            IHooks(address(oracleHook)),
-            address(0)
+            jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), address(this), address(0)
         );
+        BUYBACK_HOOK.setChainSpecificConstants({
+            poolManager: IPoolManager(BASE_POOL_MANAGER), oracleHook: IHooks(address(oracleHook))
+        });
 
         // Deploy and configure buyback hook registry with the hook as default.
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));

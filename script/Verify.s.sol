@@ -1914,11 +1914,11 @@ contract Verify is Script {
             condition: address(terminal.PERMIT2()) != address(0), label: "Terminal.PERMIT2 is non-zero", critical: true
         });
 
-        // Router terminal WETH and Permit2 wiring.
+        // Router terminal wrapped-native-token and Permit2 wiring.
         if (address(routerTerminal) != address(0)) {
             _check({
-                condition: address(routerTerminal.WETH()) != address(0),
-                label: "RouterTerminal.WETH is non-zero",
+                condition: address(routerTerminal.WRAPPED_NATIVE_TOKEN()) != address(0),
+                label: "RouterTerminal.WRAPPED_NATIVE_TOKEN is non-zero",
                 critical: true
             });
             _check({

@@ -429,20 +429,11 @@ contract InstrumentedDeployer is IERC721Receiver {
                 permissions: permissions, projects: projects, owner: address(this), trustedForwarder: trustedForwarder
             });
 
-        // Deploy or resolve buyback hook.
+        // Deploy or resolve buyback hook (chain-same ctor inputs; chain-specific PoolManager/oracle wired below).
         (address h, bool hD) = _isDeployed(
             BUYBACK_HOOK_SALT,
             type(JBBuybackHook).creationCode,
-            abi.encode(
-                directory,
-                permissions,
-                prices,
-                projects,
-                tokens,
-                IPoolManager(POOL_MANAGER),
-                IHooks(address(uniswapV4Hook)),
-                trustedForwarder
-            )
+            abi.encode(directory, permissions, prices, projects, tokens, address(this), trustedForwarder)
         );
         buybackHook = hD
             ? JBBuybackHook(payable(h))
@@ -452,10 +443,14 @@ contract InstrumentedDeployer is IERC721Receiver {
                 prices: prices,
                 projects: projects,
                 tokens: tokens,
-                poolManager: IPoolManager(POOL_MANAGER),
-                oracleHook: IHooks(address(uniswapV4Hook)),
+                deployer: address(this),
                 trustedForwarder: trustedForwarder
             });
+        if (address(buybackHook.POOL_MANAGER()) == address(0)) {
+            buybackHook.setChainSpecificConstants({
+                poolManager: IPoolManager(POOL_MANAGER), oracleHook: IHooks(address(uniswapV4Hook))
+            });
+        }
 
         // Idempotent: set default hook.
         if (address(buybackRegistry.defaultHook()) == address(0)) {
@@ -480,21 +475,11 @@ contract InstrumentedDeployer is IERC721Receiver {
                 trustedForwarder: trustedForwarder
             });
 
-        // Deploy or resolve router terminal.
+        // Deploy or resolve router terminal (chain-same ctor inputs; chain-specific constants wired below).
         (address t, bool tD) = _isDeployed(
             ROUTER_TERMINAL_SALT,
             type(JBRouterTerminal).creationCode,
-            abi.encode(
-                directory,
-                tokens,
-                _PERMIT2,
-                IWETH9(WETH),
-                IUniswapV3Factory(V3_FACTORY),
-                IPoolManager(POOL_MANAGER),
-                address(buybackHook),
-                address(uniswapV4Hook),
-                trustedForwarder
-            )
+            abi.encode(directory, tokens, _PERMIT2, address(buybackHook), trustedForwarder, address(this))
         );
         routerTerminal = tD
             ? JBRouterTerminal(payable(t))
@@ -502,13 +487,18 @@ contract InstrumentedDeployer is IERC721Receiver {
                 directory: directory,
                 tokens: tokens,
                 permit2: _PERMIT2,
-                weth: IWETH9(WETH),
+                buybackHook: address(buybackHook),
+                trustedForwarder: trustedForwarder,
+                deployer: address(this)
+            });
+        if (address(routerTerminal.WRAPPED_NATIVE_TOKEN()) == address(0)) {
+            routerTerminal.setChainSpecificConstants({
+                wrappedNativeToken: IWETH9(WETH),
                 factory: IUniswapV3Factory(V3_FACTORY),
                 poolManager: IPoolManager(POOL_MANAGER),
-                buybackHook: address(buybackHook),
-                univ4Hook: address(uniswapV4Hook),
-                trustedForwarder: trustedForwarder
+                univ4Hook: address(uniswapV4Hook)
             });
+        }
 
         // Idempotent: set default terminal and feeless.
         if (address(routerTerminalRegistry.defaultTerminal()) == address(0)) {
@@ -520,7 +510,8 @@ contract InstrumentedDeployer is IERC721Receiver {
     }
 
     function _deployLpSplitHook() internal {
-        // Deploy or resolve LP split hook.
+        // Deploy or resolve LP split hook (chain-same ctor inputs; chain-specific V4 addresses are wired via the
+        // factory's setChainSpecificConstants and passed into each clone by `deployHookFor`).
         (address h, bool hD) = _isDeployed(
             LP_SPLIT_HOOK_SALT,
             type(JBUniswapV4LPSplitHook).creationCode,
@@ -528,10 +519,7 @@ contract InstrumentedDeployer is IERC721Receiver {
                 address(directory),
                 permissions,
                 address(tokens),
-                IPoolManager(POOL_MANAGER),
-                IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook)),
                 IJBSuckerRegistry(address(suckerRegistry))
             )
         );
@@ -541,24 +529,29 @@ contract InstrumentedDeployer is IERC721Receiver {
                 address(directory),
                 permissions,
                 address(tokens),
-                IPoolManager(POOL_MANAGER),
-                IPositionManager(POSITION_MANAGER),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IHooks(address(uniswapV4Hook)),
                 IJBSuckerRegistry(address(suckerRegistry))
             );
 
-        // Deploy or resolve LP split hook deployer.
+        // Deploy or resolve LP split hook deployer (chain-same ctor inputs; HOOK + V4 addresses wired below).
         (address d, bool dD) = _isDeployed(
             LP_SPLIT_HOOK_DEPLOYER_SALT,
             type(JBUniswapV4LPSplitHookDeployer).creationCode,
-            abi.encode(lpSplitHook, IJBAddressRegistry(address(addressRegistry)))
+            abi.encode(IJBAddressRegistry(address(addressRegistry)), address(this))
         );
         lpSplitHookDeployer = dD
             ? JBUniswapV4LPSplitHookDeployer(d)
             : new JBUniswapV4LPSplitHookDeployer{salt: LP_SPLIT_HOOK_DEPLOYER_SALT}(
-                lpSplitHook, IJBAddressRegistry(address(addressRegistry))
+                IJBAddressRegistry(address(addressRegistry)), address(this)
             );
+        if (address(lpSplitHookDeployer.HOOK()) == address(0)) {
+            lpSplitHookDeployer.setChainSpecificConstants({
+                hook: lpSplitHook,
+                poolManager: IPoolManager(POOL_MANAGER),
+                positionManager: IPositionManager(POSITION_MANAGER),
+                oracleHook: IHooks(address(uniswapV4Hook))
+            });
+        }
     }
 
     function _deploySuckers() internal {

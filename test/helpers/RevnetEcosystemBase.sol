@@ -53,19 +53,23 @@ abstract contract RevnetEcosystemBase is RevnetForkBase {
         positionManager = IPositionManager(V4_POSITION_MANAGER_ADDR);
         weth = IWETH9(WETH_ADDR);
 
-        // Deploy LP-split hook (clone pattern).
+        // Deploy LP-split hook (clone pattern). Implementation ctor is chain-same; the per-clone chain-specific
+        // V4 addresses are passed into `initialize` directly.
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
             address(jbDirectory()),
             jbPermissions(),
             address(jbTokens()),
-            poolManager,
-            positionManager,
             permit2(),
-            IHooks(address(0)),
             IJBSuckerRegistry(address(SUCKER_REGISTRY))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
-        LP_SPLIT_HOOK.initialize(0, 0);
+        LP_SPLIT_HOOK.initialize({
+            feeProjectId: 0,
+            feePercent: 0,
+            poolManager: poolManager,
+            positionManager: positionManager,
+            oracleHook: IHooks(address(0))
+        });
 
         // Mock oracle so payments work before buyback pool is set up.
         _mockOracle(1, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
