@@ -621,18 +621,12 @@ contract Verify is Script {
                     critical: true
                 });
 
-                // CPN posting criteria for categories 0-4 must be configured. The on-chain
-                // assertion proves the CTPublisher has registered criteria for the canonical
-                // category set rather than leaving them unset (which would let any poster onto
-                // an unconfigured category with default zero-permission semantics).
-                //
-                // when env vars are provided, also assert exact value equality on
-                // every criterion. Env shape (per category 0-4):
-                //   VERIFY_CPN_MIN_PRICE_<cat>          uint
-                //   VERIFY_CPN_MIN_SUPPLY_<cat>         uint
-                //   VERIFY_CPN_MAX_SUPPLY_<cat>         uint
-                //   VERIFY_CPN_MAX_SPLIT_PERCENT_<cat>  uint
-                //   VERIFY_CPN_ALLOWED_ADDRESSES_<cat>  "0x..,0x.." CSV (empty = no allowlist)
+                // CPN posting criteria for categories 0-4 must match the canonical values that
+                // `Deploy.s.sol::_deployCroptop` registers. The verifier hardcodes the same
+                // constants the deploy script uses so an off-chain operator manifest isn't
+                // required — same source of truth, no env-var dependency. The default deploy
+                // sets an empty `allowedAddresses` list per category; if that ever changes, the
+                // deploy script and the canonical-values table here must move together.
                 if (address(ctPublisher) != address(0)) {
                     for (uint256 cat; cat <= 4; cat++) {
                         (
@@ -3840,9 +3834,12 @@ contract Verify is Script {
         return address(checkpointsDeployer);
     }
 
-    /// when VERIFY_CPN_* env vars are set for a category, assert exact equality on
-    /// each criterion field. Skips per-field when its env var is unset so operators can opt in
-    /// incrementally. The on-chain "minPrice > 0" sanity check above remains the always-on gate.
+    /// @notice Assert the live CTPublisher CPN posting criteria for category `cat` match the
+    /// canonical values from `Deploy.s.sol::_deployCroptop`. Same source of truth (the deploy
+    /// script's hardcoded REVCroptopAllowedPost values), no operator env input needed.
+    /// @dev If the canonical CPN config changes in the deploy script, the table here must change
+    /// alongside it. The deploy script uses `DECIMALS = 18`; matching power-of-ten literals are
+    /// inlined below to keep the canonical table grep-able next to its checks.
     function _verifyCpnCriterionExact(
         uint256 cat,
         uint256 minPrice,
@@ -3853,66 +3850,56 @@ contract Verify is Script {
     )
         internal
     {
-        string memory minPriceVar = string.concat("VERIFY_CPN_MIN_PRICE_", vm.toString(cat));
-        string memory minSupplyVar = string.concat("VERIFY_CPN_MIN_SUPPLY_", vm.toString(cat));
-        string memory maxSupplyVar = string.concat("VERIFY_CPN_MAX_SUPPLY_", vm.toString(cat));
-        string memory maxSplitVar = string.concat("VERIFY_CPN_MAX_SPLIT_PERCENT_", vm.toString(cat));
-        string memory allowedVar = string.concat("VERIFY_CPN_ALLOWED_ADDRESSES_", vm.toString(cat));
+        // Canonical values mirror Deploy.s.sol `_deployCroptop`. `DECIMALS = 18`.
+        uint256 expectedMinPrice;
+        uint256 expectedMinSupply;
+        uint256 expectedMaxSupply = 999_999_999; // shared across categories
+        uint256 expectedMaxSplitPct = 0; // shared
+        if (cat == 0) {
+            expectedMinPrice = 10 ** 13; // 10 ** (DECIMALS - 5)
+            expectedMinSupply = 10_000;
+        } else if (cat == 1) {
+            expectedMinPrice = 10 ** 15; // 10 ** (DECIMALS - 3)
+            expectedMinSupply = 10_000;
+        } else if (cat == 2) {
+            expectedMinPrice = 10 ** 17; // 10 ** (DECIMALS - 1)
+            expectedMinSupply = 100;
+        } else if (cat == 3) {
+            expectedMinPrice = 10 ** 18; // 10 ** DECIMALS
+            expectedMinSupply = 10;
+        } else if (cat == 4) {
+            expectedMinPrice = 10 ** 20; // 10 ** (DECIMALS + 2)
+            expectedMinSupply = 10;
+        } else {
+            // Caller loops 0..4; any other category isn't part of the canonical CPN config.
+            return;
+        }
 
-        string memory raw;
-        raw = vm.envOr({name: minPriceVar, defaultValue: string("")});
-        if (bytes(raw).length > 0) {
-            _check({
-                condition: minPrice == vm.parseUint(raw),
-                label: string.concat("CPN category ", vm.toString(cat), " minPrice == expected"),
-                critical: true
-            });
-        }
-        raw = vm.envOr({name: minSupplyVar, defaultValue: string("")});
-        if (bytes(raw).length > 0) {
-            _check({
-                condition: minSupply == vm.parseUint(raw),
-                label: string.concat("CPN category ", vm.toString(cat), " minSupply == expected"),
-                critical: true
-            });
-        }
-        raw = vm.envOr({name: maxSupplyVar, defaultValue: string("")});
-        if (bytes(raw).length > 0) {
-            _check({
-                condition: maxSupply == vm.parseUint(raw),
-                label: string.concat("CPN category ", vm.toString(cat), " maxSupply == expected"),
-                critical: true
-            });
-        }
-        raw = vm.envOr({name: maxSplitVar, defaultValue: string("")});
-        if (bytes(raw).length > 0) {
-            _check({
-                condition: maxSplitPct == vm.parseUint(raw),
-                label: string.concat("CPN category ", vm.toString(cat), " maxSplitPercent == expected"),
-                critical: true
-            });
-        }
-        raw = vm.envOr({name: allowedVar, defaultValue: string("")});
-        if (bytes(raw).length > 0) {
-            // Empty CSV literal "" (handled above) skips. Non-empty: each entry must be parseable;
-            // require lengths match and elements equal in order. The canonical CPN config sets an
-            // empty allowed-addresses list, so the most common operator setting is `""` (skip).
-            string[] memory parts = vm.split(raw, ",");
-            _check({
-                condition: allowed.length == parts.length,
-                label: string.concat("CPN category ", vm.toString(cat), " allowed-addresses length == expected"),
-                critical: true
-            });
-            for (uint256 i; i < parts.length && i < allowed.length; i++) {
-                _check({
-                    condition: allowed[i] == vm.parseAddress(parts[i]),
-                    label: string.concat(
-                        "CPN category ", vm.toString(cat), " allowed[", vm.toString(i), "] == expected"
-                    ),
-                    critical: true
-                });
-            }
-        }
+        _check({
+            condition: minPrice == expectedMinPrice,
+            label: string.concat("CPN category ", vm.toString(cat), " minPrice == canonical"),
+            critical: true
+        });
+        _check({
+            condition: minSupply == expectedMinSupply,
+            label: string.concat("CPN category ", vm.toString(cat), " minSupply == canonical"),
+            critical: true
+        });
+        _check({
+            condition: maxSupply == expectedMaxSupply,
+            label: string.concat("CPN category ", vm.toString(cat), " maxSupply == canonical"),
+            critical: true
+        });
+        _check({
+            condition: maxSplitPct == expectedMaxSplitPct,
+            label: string.concat("CPN category ", vm.toString(cat), " maxSplitPercent == canonical"),
+            critical: true
+        });
+        _check({
+            condition: allowed.length == 0,
+            label: string.concat("CPN category ", vm.toString(cat), " allowed-addresses is empty (canonical)"),
+            critical: true
+        });
     }
 
     /// loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
