@@ -8,26 +8,26 @@ import {Verify} from "../../script/Verify.s.sol";
 import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
 
 contract SuckerDeployerAllowlistVerifierGapTest is Test {
-    function test_bkGapAcknowledgedInVerifierSource() public view {
-        // BK known gap: the on-chain JBSuckerRegistry has no enumeration of its allowed-deployer
-        // set, so the verifier cannot prove the absence of unexpected allowed deployers without
-        // off-chain event-log reconciliation. The fix lands the partial mitigation (per-listed
-        // deployer code/admin/wiring checks via CP) and explicitly documents the residual
-        // enumeration gap in the verifier source so operators know to reconcile off-chain.
+    function test_enumerationGapAcknowledgedInVerifierSource() public view {
+        // The on-chain JBSuckerRegistry has no enumeration of its allowed-deployer set, so the
+        // verifier cannot prove the absence of unexpected allowed deployers without off-chain
+        // event-log reconciliation. The verifier lands a partial mitigation (per-listed deployer
+        // code/admin/wiring checks) and explicitly documents the residual enumeration gap in the
+        // source so operators know to reconcile off-chain.
         string memory verifySource = vm.readFile("script/Verify.s.sol");
         assertTrue(
-            _contains(verifySource, "BK: no on-chain enumeration of sucker-deployer allowlist"),
-            "verifier source documents the BK enumeration gap"
+            _contains(verifySource, "no on-chain enumeration of sucker-deployer allowlist"),
+            "verifier source documents the enumeration gap"
         );
         assertTrue(
             _contains(verifySource, "reconcile off-chain"),
             "verifier source directs operators to off-chain reconciliation"
         );
-        // CP's partial mitigation must be wired: per-listed deployer code + canonical wiring
+        // The partial mitigation must be wired: per-listed deployer code + canonical wiring
         // checks fire inside _verifyAllowlists.
         assertTrue(
             _contains(verifySource, "_verifySuckerDeployerCanonicalWiring(deployer)"),
-            "verifier invokes the per-deployer canonical wiring check (CP)"
+            "verifier invokes the per-deployer canonical wiring check"
         );
     }
 
@@ -50,14 +50,14 @@ contract SuckerDeployerAllowlistVerifierGapTest is Test {
     }
 }
 
-/// Minimal contract surface for a sucker deployer. CP's checks call its getters via low-level
-/// staticcall; absence of the getter is treated as a pass-by-skip (the check only fires if the
-/// staticcall succeeds with a 32-byte return).
+/// @notice Minimal contract surface for a sucker deployer. The canonical-wiring checks call its
+/// getters via low-level staticcall; absence of the getter is treated as a pass-by-skip (the
+/// check only fires if the staticcall succeeds with a 32-byte return).
 contract MockSuckerDeployerContract {
-    // No-op constructor — having any code at the address is enough to pass CP's code-presence
+    // No-op constructor — having any code at the address is enough to pass the code-presence
     // check, which is the gate the test cares about. LAYER_SPECIFIC_CONFIGURATOR / singleton /
-    // DIRECTORY / TOKENS / PERMISSIONS getters are intentionally absent so CP's
-    // additional checks short-circuit on the staticcall failure path.
+    // DIRECTORY / TOKENS / PERMISSIONS getters are intentionally absent so the additional checks
+    // short-circuit on the staticcall failure path.
     function placeholder() external pure returns (bool) {
         return true;
     }

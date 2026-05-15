@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression for BZ: build-artifacts.sh must include the constructor-created clone
+/// @notice Regression: build-artifacts.sh must include the constructor-created clone
 /// implementations (JBProjectPayer, JB721Checkpoints) in its CONTRACTS list, and _dumpAddresses
 /// must emit each implementation alongside its deployer.
 contract PostDeployConstructorImplementationArtifactGapTest is Test {

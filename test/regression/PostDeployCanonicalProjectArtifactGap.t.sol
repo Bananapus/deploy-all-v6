@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression for BT: _dumpAddresses must query the live `_tokens.tokenOf(projectId)` and
+/// @notice Regression: _dumpAddresses must query the live `_tokens.tokenOf(projectId)` and
 /// `_revOwner.tiered721HookOf(projectId)` for each canonical project (1-4) and emit the clone
 /// addresses under `JBERC20__Project<NAME>` / `JB721TiersHook__Project<NAME>`.
 contract PostDeployCanonicalProjectArtifactGapTest is Test {

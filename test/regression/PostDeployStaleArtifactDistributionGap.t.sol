@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression for BV: artifact emission must prune its per-chain output directory before
+/// @notice Regression: artifact emission must prune its per-chain output directory before
 /// writing the current run's targets, distribution must derive its target list from the current
 /// addresses-<chainId>.json dump (not readdirSync on the cache), and post-deploy.sh must skip
 /// distribution when artifact emission failed.

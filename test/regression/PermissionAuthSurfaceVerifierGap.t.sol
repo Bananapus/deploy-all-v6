@@ -27,11 +27,11 @@ import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 contract PermissionAuthSurfaceVerifierGapTest is Test {
     /// @dev Source-only assertion: confirm the verifier exercises every new PERMISSIONS /
     /// trustedForwarder pair so a future refactor cannot silently drop one of them. Mirrors the
-    /// BK source-only pattern used in `SuckerDeployerAllowlistVerifierGap.t.sol`.
+    /// source-only pattern used in `SuckerDeployerAllowlistVerifierGap.t.sol`.
     function test_verifierAuthSurfaceCoverage() public view {
         string memory verifySource = vm.readFile("script/Verify.s.sol");
 
-        // PERMISSIONS coverage that the O residual called out.
+        // PERMISSIONS coverage.
         assertTrue(
             _contains(verifySource, "Prices.PERMISSIONS == permissions"),
             "verifier asserts JBPrices PERMISSIONS pointer"
@@ -45,7 +45,7 @@ contract PermissionAuthSurfaceVerifierGapTest is Test {
             "verifier asserts CTDeployer PERMISSIONS pointer"
         );
 
-        // trustedForwarder coverage across ERC-2771 surfaces from the O residual list.
+        // trustedForwarder coverage across ERC-2771 surfaces.
         assertTrue(
             _contains(verifySource, "Prices.trustedForwarder == expected"), "verifier asserts JBPrices trustedForwarder"
         );
@@ -94,7 +94,7 @@ contract PermissionAuthSurfaceVerifierGapTest is Test {
             "verifier asserts CTDeployer trustedForwarder"
         );
 
-        // P residual grant coverage.
+        // Wildcard grant coverage.
         assertTrue(
             _contains(verifySource, "SuckerRegistry wildcard MAP_SUCKER_TOKEN granted by OmnichainDeployer"),
             "verifier asserts MAP_SUCKER_TOKEN wildcard grant"
@@ -104,7 +104,7 @@ contract PermissionAuthSurfaceVerifierGapTest is Test {
             "verifier asserts ADJUST_721_TIERS wildcard grant"
         );
 
-        // P residual production-required split-operator manifest.
+        // Production-required split-operator manifest.
         assertTrue(
             _contains(verifySource, "MUST be set on production for"),
             "verifier fails closed when split-operator env var is unset on production"

@@ -71,7 +71,7 @@ import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
 import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
 import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
 
-// ── Phase 11 Periphery ──
+// ── Periphery (optional on testnets) ──
 import {JBProjectHandles} from "@bananapus/project-handles-v6/src/JBProjectHandles.sol";
 import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.sol";
 import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
@@ -144,11 +144,11 @@ contract Verify is Script {
     JB721TiersHookProjectDeployer public hookProjectDeployer;
     // The 721 checkpoints deployer that owns the checkpoints clone implementation.
     JB721CheckpointsDeployer public checkpointsDeployer;
-    /// BA residual: tracked separately so the verifier can assert the LP split hook deployer
+    /// tracked separately so the verifier can assert the LP split hook deployer
     /// carries the canonical V4 PositionManager. Loaded from `VERIFY_LP_SPLIT_HOOK_DEPLOYER`;
     /// `address(0)` when the chain has no canonical PositionManager.
     address public lpSplitHookDeployer;
-    /// BA residual: per-type sucker-deployer slots so each bridge/CCIP endpoint manifest can be
+    /// per-type sucker-deployer slots so each bridge/CCIP endpoint manifest can be
     /// asserted against the canonical chain constants. `address(0)` means the deployer is not
     /// listed for this verify run (testnet / partial stack); production chains fail closed.
     address public opSuckerDeployer;
@@ -205,7 +205,7 @@ contract Verify is Script {
     // Expected trusted forwarder address.
     address public expectedTrustedForwarder;
 
-    // -- Phase 11 Periphery (optional on testnets) --
+    // -- Periphery (optional on testnets) --
     // ENS-backed project handle registry.
     JBProjectHandles public projectHandles;
     // 721 staking reward distributor.
@@ -237,7 +237,7 @@ contract Verify is Script {
     uint256 private constant _REV_PROJECT_ID = 3;
     // The BAN/Banny project is always project 4.
     uint256 private constant _BAN_PROJECT_ID = 4;
-    // Phase 11 distributor vesting rounds must match Deploy.s.sol.
+    // Distributor vesting rounds must match Deploy.s.sol.
     uint256 private constant _VESTING_ROUNDS = 52;
 
     // ════════════════════════════════════════════════════════════════════
@@ -368,7 +368,7 @@ contract Verify is Script {
         // Read the expected trusted forwarder address.
         expectedTrustedForwarder = vm.envOr({name: "VERIFY_TRUSTED_FORWARDER", defaultValue: address(0)});
 
-        // Read Phase 11 periphery addresses from env (address(0) if intentionally omitted on a testnet).
+        // Read periphery addresses from env (address(0) if intentionally omitted on a testnet).
         projectHandles = JBProjectHandles(vm.envOr({name: "VERIFY_PROJECT_HANDLES", defaultValue: address(0)}));
         distributor721 = JB721Distributor(payable(vm.envOr({name: "VERIFY_721_DISTRIBUTOR", defaultValue: address(0)})));
         tokenDistributor =
@@ -379,7 +379,7 @@ contract Verify is Script {
             JB721CheckpointsDeployer(vm.envOr({name: "VERIFY_CHECKPOINTS_DEPLOYER", defaultValue: address(0)}));
         lpSplitHookDeployer = vm.envOr({name: "VERIFY_LP_SPLIT_HOOK_DEPLOYER", defaultValue: address(0)});
 
-        // BA residual: per-type sucker-deployer addresses so each endpoint manifest (OP messenger
+        // per-type sucker-deployer addresses so each endpoint manifest (OP messenger
         // + standard bridge, Arbitrum inbox + gateway router, CCIP router + remote selector +
         // remote chain id) can be checked exactly against the canonical chain manifest.
         opSuckerDeployer = vm.envOr({name: "VERIFY_OP_SUCKER_DEPLOYER", defaultValue: address(0)});
@@ -522,9 +522,9 @@ contract Verify is Script {
                 });
             }
 
-            // BS: CPN (Croptop) also gets a 721 hook recorded at project 2. The pre-fix verifier
-            // ignored it entirely; an attacker-deployed CPN hook (wrong PROJECT_ID, wrong store,
-            // wrong symbol) survived. Same identity shape as Banny.
+            // CPN (Croptop) also gets a 721 hook recorded at project 2. An attacker-deployed CPN
+            // hook with wrong PROJECT_ID, wrong store, or wrong symbol must not survive — same
+            // identity shape as Banny.
             IJB721TiersHook cpnHook = revOwner.tiered721HookOf(_CPN_PROJECT_ID);
             _check({
                 condition: address(cpnHook) != address(0), label: "CPN(2) has Croptop 721 hook recorded", critical: true
@@ -546,12 +546,12 @@ contract Verify is Script {
                     critical: true
                 });
 
-                // BS: CPN posting criteria for categories 0-4 must be configured. The on-chain
+                // CPN posting criteria for categories 0-4 must be configured. The on-chain
                 // assertion proves the CTPublisher has registered criteria for the canonical
                 // category set rather than leaving them unset (which would let any poster onto
                 // an unconfigured category with default zero-permission semantics).
                 //
-                // BS residual: when env vars are provided, also assert exact value equality on
+                // when env vars are provided, also assert exact value equality on
                 // every criterion. Env shape (per category 0-4):
                 //   VERIFY_CPN_MIN_PRICE_<cat>          uint
                 //   VERIFY_CPN_MIN_SUPPLY_<cat>         uint
@@ -658,7 +658,7 @@ contract Verify is Script {
         for (uint256 i; i < projectCount; i++) {
             // Read the controller set for this project in the directory.
             IERC165 projectController = directory.controllerOf(projectIds[i]);
-            // CH fix: require the controller pointer to equal the canonical controller, not just
+            // require the controller pointer to equal the canonical controller, not just
             // be non-zero. A noncanonical controller would otherwise pass and silently authorize
             // ruleset queues / token mints / payout calls that the canonical operator never
             // approved.
@@ -677,7 +677,7 @@ contract Verify is Script {
                 critical: true
             });
 
-            // CQ fix: assert the live accounting context for the native token matches the
+            // assert the live accounting context for the native token matches the
             // expected shape (token sentinel + 18 decimals + native currency id). A wrong
             // accounting context — e.g. decimals=6 because the deployer mis-configured a USD
             // currency — silently mis-scales every cash-out and pay on that project.
@@ -934,7 +934,7 @@ contract Verify is Script {
                     critical: true
                 });
 
-                // BE residual closure: assert the registry's default hook AND every canonical
+                // assert the registry's default hook AND every canonical
                 // project's resolved hook equal the operator-declared canonical buyback hook.
                 // Without this, a deployment can ship with `defaultHook != address(0)` and
                 // `hookOf(1) != address(0)` while the actual addresses point at a noncanonical
@@ -986,7 +986,7 @@ contract Verify is Script {
         console.log("");
     }
 
-    /// BE residual closure: assert canonical buyback hook identity across the registry. On
+    /// assert canonical buyback hook identity across the registry. On
     /// production chains `VERIFY_BUYBACK_HOOK` is mandatory (fail-closed); on non-production
     /// chains a missing env var skips with a logged note. Checks both `defaultHook()` and the
     /// per-project resolved `hookOf(projectId)` for canonical projects 1-4. The latter
@@ -1362,9 +1362,9 @@ contract Verify is Script {
             }
         }
 
-        // BG: oracle exactness. The audit calls for asserting not just the aggregator address but
-        // also THRESHOLD(), SEQUENCER_FEED() (per L2), and GRACE_PERIOD_TIME() (per L2) against
-        // the canonical Deploy.s.sol values. Without these the verifier accepts any sequencer-aware
+        // Oracle exactness: assert not just the aggregator address but also THRESHOLD(),
+        // SEQUENCER_FEED() (per L2), and GRACE_PERIOD_TIME() (per L2) against the canonical
+        // Deploy.s.sol values. Without these the verifier accepts any sequencer-aware
         // wrapper whose getters happen to return plausible values.
         _verifyEthUsdOracleExactness();
         _verifyUsdcUsdOracleExactness({usdc: usdc});
@@ -1373,7 +1373,7 @@ contract Verify is Script {
         console.log("");
     }
 
-    /// BG: assert the deployed ETH/USD feed wraps the canonical Chainlink aggregator with the
+    /// @notice Assert the deployed ETH/USD feed wraps the canonical Chainlink aggregator with the
     /// expected THRESHOLD, and on L2s the canonical SEQUENCER_FEED + GRACE_PERIOD_TIME.
     function _verifyEthUsdOracleExactness() internal {
         (address expectedAggregator, uint256 expectedThreshold, address expectedSequencerFeed, uint256 expectedGrace) =
@@ -1440,7 +1440,7 @@ contract Verify is Script {
         }
     }
 
-    /// BG: same shape as `_verifyEthUsdOracleExactness` for the USDC/USD feed. Per-chain USDC
+    /// @notice Same shape as `_verifyEthUsdOracleExactness` for the USDC/USD feed. Per-chain USDC
     /// address is already in scope from the parent function — pass it through so we don't
     /// re-derive it.
     function _verifyUsdcUsdOracleExactness(address usdc) internal {
@@ -1583,14 +1583,14 @@ contract Verify is Script {
             for (uint256 i; i < parts.length; i++) {
                 address deployer = vm.parseAddress(parts[i]);
                 if (deployer != address(0)) {
-                    // BK: each listed deployer must actually be allowed in the registry.
+                    // Each listed deployer must actually be allowed in the registry.
                     bool allowed = suckerRegistry.suckerDeployerIsAllowed(deployer);
                     _check({
                         condition: allowed,
                         label: string.concat("Sucker deployer ", vm.toString(deployer), " is allowed"),
                         critical: true
                     });
-                    // CP: each listed deployer must be a real deployer with canonical wiring.
+                    // Each listed deployer must be a real deployer with canonical wiring.
                     // Without these checks, a non-executable EOA or a deployer admined by an
                     // attacker-controlled Safe could survive in the allowlist undetected.
                     _verifySuckerDeployerCanonicalWiring(deployer);
@@ -1644,17 +1644,17 @@ contract Verify is Script {
             }
         }
 
-        // BK known gap: JBSuckerRegistry has no enumeration of its allowed-deployer set, so the
+        // JBSuckerRegistry has no enumeration of its allowed-deployer set, so the
         // on-chain verifier cannot prove the absence of unexpected allowed deployers. Operators
         // must reconcile against the `SuckerDeployerSetAllowed` event log off-chain. The
         // VERIFY_SUCKER_DEPLOYER_COUNT check above provides a sanity gate; the event-log
         // reconciliation is documented in DEPLOY.md.
-        console.log("  [INFO] BK: no on-chain enumeration of sucker-deployer allowlist - reconcile off-chain");
+        console.log("  [INFO] no on-chain enumeration of sucker-deployer allowlist - reconcile off-chain");
 
         console.log("");
     }
 
-    /// CP: for each env-listed sucker deployer, assert it is a real, canonically-wired deployer.
+    /// @notice For each env-listed sucker deployer, assert it is a real, canonically-wired deployer.
     /// Checks:
     ///   - has code (not an EOA / non-executable address)
     ///   - LAYER_SPECIFIC_CONFIGURATOR == expectedSafe (admin gate)
@@ -1705,8 +1705,8 @@ contract Verify is Script {
         }
 
         // singleton() must be a real implementation contract — not an EOA, not address(0). The
-        // exact-identity check is part of BR's emission work (the singleton appears in the address
-        // dump and gets verified separately via artifact identity in CK/CM).
+        // exact-identity check is part of the address-dump emission work — the singleton appears
+        // in the address dump and gets verified separately via the artifact-identity sweep.
         (bool okSing, bytes memory singData) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
         if (okSing && singData.length >= 32) {
             address singleton = abi.decode(singData, (address));
@@ -1779,10 +1779,10 @@ contract Verify is Script {
                     critical: true
                 });
 
-                // BL: require the registry to resolve each canonical project to the canonical
-                // router terminal. Without this, the registry could route project N through a
-                // forked router (different fee handling, different beneficiary resolution) while
-                // still passing the "registry in terminal list" check.
+                // Require the registry to resolve each canonical project to the canonical router
+                // terminal. Without this, the registry could route project N through a forked
+                // router (different fee handling, different beneficiary resolution) while still
+                // passing the "registry in terminal list" check.
                 if (address(routerTerminal) != address(0)) {
                     (bool ok, bytes memory data) = address(routerTerminalRegistry)
                         .staticcall(abi.encodeWithSignature("terminalOf(uint256)", projectIds[i]));
@@ -1803,10 +1803,10 @@ contract Verify is Script {
                     }
                 }
 
-                // BL: exact terminal-list membership. The canonical deployment installs exactly
+                // Exact terminal-list membership. The canonical deployment installs exactly
                 // two terminals: JBMultiTerminal + JBRouterTerminalRegistry. Anything else in the
-                // list is either a stale leftover or a malicious injection. Refusing extras is
-                // the audit's "exact list" gate.
+                // list is either a stale leftover or a malicious injection. The two-entry check
+                // refuses extras so neither shape can survive.
                 _check({
                     condition: terminals.length == 2,
                     label: string.concat(labels[i], " terminal list has exactly 2 entries"),
@@ -1846,12 +1846,12 @@ contract Verify is Script {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Category 11: Phase 11 Periphery Extensions
+    //  Category 11: Periphery Extensions
     // ════════════════════════════════════════════════════════════════════
 
     /// @dev Validates the late-phase convenience contracts that Deploy.s.sol always deploys.
     function _verifyPeripheryExtensions() internal {
-        console.log("--- Category 11: Phase 11 Periphery Extensions ---");
+        console.log("--- Category 11: Periphery Extensions ---");
 
         uint256 expectedRoundDuration = _expectedRoundDuration();
 
@@ -1962,11 +1962,11 @@ contract Verify is Script {
             condition: address(tokenImpl).code.length > 0, label: "JBERC20 implementation has code", critical: true
         });
 
-        // CJ: assert the JBERC20 implementation bytecode matches the published artifact.
+        // Assert the JBERC20 implementation bytecode matches the published artifact.
         _requireArtifactIdentity({artifactName: "JBERC20", deployed: address(tokenImpl), label: "JBERC20 impl"});
 
-        // Decision A: run the implementation-identity sweep for every audited contract group.
-        // Coverage: CK / CL / CM / CN / CO / CI / BE / BF / BH / BJ. Skips when an artifact file
+        // Run the implementation-identity sweep for every contract group with a published artifact.
+        // Skips when an artifact file
         // is missing so partial-coverage chains still get a clear log; production-chain build
         // pipeline regenerates the manifest so the artifacts are always present.
         _verifyImplementationIdentities();
@@ -2112,7 +2112,7 @@ contract Verify is Script {
             });
 
             // Extend the trusted-forwarder check across every ERC-2771-aware surface the deployment
-            // graph touches. Decision A masks immutables before bytecode comparison, so it cannot
+            // graph touches. Artifact bytecode parity masks immutables before bytecode comparison, so it cannot
             // prove which forwarder a contract was constructed with — only the per-surface getter
             // can. Each `address != 0` guard mirrors the conditional load convention used for
             // PERMISSIONS() below so periphery contracts unloaded on the current chain are skipped
@@ -2231,7 +2231,7 @@ contract Verify is Script {
         // hookDeployer and hookProjectDeployer don't extend JBPermissioned themselves — they
         // deploy hook clones whose PERMISSIONS pointer is verified at clone time, not on the
         // deployer. The clones inherit from JBPermissioned via the hook implementation, which is
-        // identity-checked separately (CN).
+        // identity-checked separately in the hook & registry singletons block.
 
         // Optional periphery — only check if loaded on this chain.
         if (address(buybackRegistry) != address(0)) {
@@ -2670,10 +2670,10 @@ contract Verify is Script {
             return;
         }
 
-        // BI: require exact expected config hashes on every canonical project on production chains.
-        // Per-project env vars VERIFY_CONFIG_HASH_{1..4} take precedence (matches the audit's
-        // recommendation); the legacy VERIFY_CONFIG_HASHES CSV is still accepted for backwards
-        // compatibility. On production chains, missing or zero expected hashes are critical.
+        // Require exact expected config hashes on every canonical project on production chains.
+        // Per-project env vars VERIFY_CONFIG_HASH_{1..4} take precedence; the legacy
+        // VERIFY_CONFIG_HASHES CSV is still accepted for backwards compatibility. On production
+        // chains, missing or zero expected hashes are critical.
         uint256[4] memory pids = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
         string[4] memory names = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
         string[4] memory envVars =
@@ -2726,13 +2726,13 @@ contract Verify is Script {
                     _skip("Banny hook contractURI() call failed");
                 }
 
-                // CT residual closure: assert the resolver's owner / trusted-forwarder /
+                // assert the resolver's owner / trusted-forwarder /
                 // metadata / drop-tier manifest match the canonical Banny launch. Without
                 // these, a deployment can ship with a code-bearing resolver and nonempty
                 // contractURI while resolver custody, metadata, and tier count drift from
                 // `_deployBanny` + `_registerBannyDrop*` + `_finalizeBannyOwnership`.
                 if (resolver != address(0)) {
-                    _verifyBannyResolverManifest(resolver, address(bannyHook));
+                    _verifyBannyResolverManifest({resolver: resolver, bannyHook: address(bannyHook)});
                 }
             }
         }
@@ -2740,7 +2740,7 @@ contract Verify is Script {
         console.log("");
     }
 
-    /// CT residual closure: per-field equality on the canonical Banny resolver and tier count.
+    /// per-field equality on the canonical Banny resolver and tier count.
     /// Each env var defaults to a no-op skip on non-production chains; production chains fail
     /// closed when the manifest envs are unset.
     function _verifyBannyResolverManifest(address resolver, address bannyHook) internal {
@@ -2890,7 +2890,7 @@ contract Verify is Script {
                 critical: true
             });
 
-            // BC: per-pair runtime sanity — each pair's local sucker must have code, must be
+            // Per-pair runtime sanity — each pair's local sucker must have code, must be
             // registered with the canonical sucker registry, and must expose a non-zero remote
             // chain id alongside the non-zero remote address. Without these, a malformed entry
             // (zero remote chain id, EOA local, unregistered sucker) survives just because the
@@ -2939,12 +2939,12 @@ contract Verify is Script {
                     });
                 }
 
-                // BC residual: native-token bridge mapping must be enabled. A pair where the
+                // native-token bridge mapping must be enabled. A pair where the
                 // native-token mapping is intentionally disabled (or emergency-hatch-stuck) is
                 // structurally indistinguishable from a properly-deployed pair on the count +
                 // remote checks, but the native cross-chain transfer path is dead for end users.
-                // The audit explicitly called this out: "disabled native-token mapping still
-                // passes" in the BC residual list.
+                // Reject the disabled mapping so a launch cannot ship a registered-but-unusable
+                // sucker pair.
                 (bool okMap, bytes memory mapData) =
                     local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", JBConstants.NATIVE_TOKEN));
                 if (okMap && mapData.length >= 32) {
@@ -2967,7 +2967,7 @@ contract Verify is Script {
                     });
                 }
 
-                // BC residual closure: per-pair exact-manifest equality. Env var
+                // per-pair exact-manifest equality. Env var
                 // `VERIFY_SUCKER_PAIR_<projectId>_<j>` carries
                 // `<peer>:<remoteChainId>:<remoteNativeToken>:<emergencyHatch>` so each pair's
                 // remote peer (bytes32), remote chain id (decimal uint), native-token addr
@@ -2983,7 +2983,7 @@ contract Verify is Script {
         }
 
         if (!anySuckerChecks) {
-            // BC residual: production chains must declare a manifest for every canonical project
+            // production chains must declare a manifest for every canonical project
             // (use "0" for projects with no suckers). Silent skip on production let a deployment
             // ship without ever exercising the per-pair manifest gate.
             bool isProductionChain =
@@ -3002,7 +3002,7 @@ contract Verify is Script {
         console.log("");
     }
 
-    /// BC residual closure: assert per-pair exact-manifest equality against the env var
+    /// assert per-pair exact-manifest equality against the env var
     /// `VERIFY_SUCKER_PAIR_<projectId>_<idx>=<peer>:<remoteChainId>:<remoteNativeToken>:<emergencyHatch>`.
     /// On production chains the env var is mandatory (fail-closed) so a launch cannot silently
     /// drop the exact-manifest gate; on non-production chains a missing env var skips with a log.
@@ -3109,7 +3109,7 @@ contract Verify is Script {
     function _verifyExternalAddresses() internal {
         console.log("--- Category 20: External Address Provenance ---");
 
-        // BA: pin the immutable PERMIT2 wiring on every deployed contract that exposes it to the
+        // Pin the immutable PERMIT2 wiring on every deployed contract that exposes it to the
         // canonical Permit2 singleton. Without the exact-address check, a deployment that wired in
         // a forked Permit2 (different signature semantics, different ownership) would still pass.
         address expectedPermit2 = _expectedPermit2();
@@ -3143,10 +3143,10 @@ contract Verify is Script {
                 label: "Terminal.PERMIT2 is non-zero (no canonical manifest for this chain)",
                 critical: true
             });
-            _skip("BA: Permit2 exact-address check skipped (no manifest for this chain)");
+            _skip("Permit2 exact-address check skipped (no manifest for this chain)");
         }
 
-        // BA: pin WRAPPED_NATIVE_TOKEN on the router terminal to the canonical WETH for this chain.
+        // Pin WRAPPED_NATIVE_TOKEN on the router terminal to the canonical WETH for this chain.
         // The router uses this to settle native unwrapping on swap-out — a wrong WETH lets the
         // router pull from / push to a token with attacker-controlled mint/burn semantics.
         if (address(routerTerminal) != address(0)) {
@@ -3162,7 +3162,7 @@ contract Verify is Script {
                     label: "RouterTerminal.WRAPPED_NATIVE_TOKEN is non-zero (no canonical manifest)",
                     critical: true
                 });
-                _skip("BA: WETH exact-address check skipped (no manifest for this chain)");
+                _skip("WETH exact-address check skipped (no manifest for this chain)");
             }
         }
 
@@ -3173,7 +3173,7 @@ contract Verify is Script {
             critical: true
         });
 
-        // BA residual: Defifa typeface. DefifaTokenUriResolver.TYPEFACE() must equal the per-chain
+        // Defifa typeface. DefifaTokenUriResolver.TYPEFACE() must equal the per-chain
         // canonical typeface contract. The resolver SVGs read on-chain glyphs from this typeface;
         // a wrong typeface ships incorrect or attacker-controlled imagery for every Defifa NFT.
         address expectedTypeface = _expectedDefifaTypeface();
@@ -3197,7 +3197,7 @@ contract Verify is Script {
             }
         }
 
-        // BA residual: Uniswap stack provenance — V3 factory, V4 PoolManager, V4 PositionManager.
+        // Uniswap stack provenance — V3 factory, V4 PoolManager, V4 PositionManager.
         // The buyback hook reads pool state from these to price the buyback route, and the
         // LP-split hook deposits liquidity into them. A forked V3/V4 deployment with attacker-
         // controlled fee/observation semantics survives without these checks.
@@ -3234,7 +3234,7 @@ contract Verify is Script {
             }
         }
 
-        // BA residual: V4 PositionManager identity on the LP split hook deployer. Every clone
+        // V4 PositionManager identity on the LP split hook deployer. Every clone
         // produced by `deployHookFor` is initialized with the deployer's `POSITION_MANAGER`, so
         // proving the deployer's pointer matches the canonical PositionManager bounds every
         // future LP split hook clone to the canonical V4 liquidity surface. Skip on chains
@@ -3256,8 +3256,8 @@ contract Verify is Script {
                 });
             }
 
-            // BA residual: same deployer also stores POOL_MANAGER and ORACLE_HOOK via
-            // `setChainSpecificConstants` after deploy. Decision A doesn't bind these (they're
+            // same deployer also stores POOL_MANAGER and ORACLE_HOOK via
+            // `setChainSpecificConstants` after deploy. Artifact bytecode parity doesn't bind these (they're
             // public storage, not immutable; the deploy explicitly chose storage so constructor
             // bytes stay chain-identical for CREATE2 address parity). Read-and-equal-check is
             // the only authentication path.
@@ -3297,7 +3297,7 @@ contract Verify is Script {
             }
         }
 
-        // BA residual: per-deployer bridge / CCIP endpoint manifests. Each branch fires only
+        // per-deployer bridge / CCIP endpoint manifests. Each branch fires only
         // when the operator supplied the deployer address; production chains fail closed in
         // the helper via per-type production-required guards.
         _verifyBridgeAndCcipEndpoints();
@@ -3305,10 +3305,10 @@ contract Verify is Script {
         console.log("");
     }
 
-    /// BA residual: assert each bridge/CCIP sucker deployer carries its canonical chain
+    /// assert each bridge/CCIP sucker deployer carries its canonical chain
     /// endpoints. The deploy script wires per-route immutables (opMessenger, opBridge,
     /// arbInbox, arbGatewayRouter, ccipRouter, ccipRemoteChainSelector, ccipRemoteChainId)
-    /// that survive Decision A's immutable-mask. A wrong endpoint here lets a deployment ship
+    /// that survive artifact bytecode parity's immutable-mask. A wrong endpoint here lets a deployment ship
     /// with infrastructure pointed at a non-canonical bridge / CCIP router while every other
     /// allowlist/wiring check still passes.
     function _verifyBridgeAndCcipEndpoints() internal {
@@ -3322,7 +3322,12 @@ contract Verify is Script {
             (block.chainid == 1 || block.chainid == 11_155_111 || block.chainid == 10 || block.chainid == 11_155_420);
         if (chainHasOp) {
             if (opSuckerDeployer != address(0)) {
-                _checkOpDeployerEndpoints(opSuckerDeployer, expectedOpMessenger, expectedOpBridge, "Optimism");
+                _checkOpDeployerEndpoints({
+                    deployer: opSuckerDeployer,
+                    expectedMessenger: expectedOpMessenger,
+                    expectedBridge: expectedOpBridge,
+                    label: "Optimism"
+                });
             } else if (isProductionChain) {
                 _check({
                     condition: false,
@@ -3341,7 +3346,12 @@ contract Verify is Script {
             (block.chainid == 1 || block.chainid == 11_155_111 || block.chainid == 8453 || block.chainid == 84_532);
         if (chainHasBase) {
             if (baseSuckerDeployer != address(0)) {
-                _checkOpDeployerEndpoints(baseSuckerDeployer, expectedBaseMessenger, expectedBaseBridge, "Base");
+                _checkOpDeployerEndpoints({
+                    deployer: baseSuckerDeployer,
+                    expectedMessenger: expectedBaseMessenger,
+                    expectedBridge: expectedBaseBridge,
+                    label: "Base"
+                });
             } else if (isProductionChain) {
                 _check({
                     condition: false,
@@ -3360,7 +3370,11 @@ contract Verify is Script {
             (block.chainid == 1 || block.chainid == 11_155_111 || block.chainid == 42_161 || block.chainid == 421_614);
         if (chainHasArb) {
             if (arbSuckerDeployer != address(0)) {
-                _checkArbDeployerEndpoints(arbSuckerDeployer, expectedArbInbox, expectedArbGatewayRouter);
+                _checkArbDeployerEndpoints({
+                    deployer: arbSuckerDeployer,
+                    expectedInbox: expectedArbInbox,
+                    expectedGatewayRouter: expectedArbGatewayRouter
+                });
             } else if (isProductionChain) {
                 _check({
                     condition: false,
@@ -3392,7 +3406,9 @@ contract Verify is Script {
                 }
                 uint256 remoteChainId = vm.parseUint(kv[0]);
                 address deployer = vm.parseAddress(kv[1]);
-                _checkCcipDeployerEndpoints(deployer, remoteChainId, expectedCcipRouter);
+                _checkCcipDeployerEndpoints({
+                    deployer: deployer, expectedRemoteChainId: remoteChainId, expectedRouter: expectedCcipRouter
+                });
             }
         } else if (isProductionChain && expectedCcipRouter != address(0)) {
             _check({
@@ -3506,7 +3522,7 @@ contract Verify is Script {
         }
     }
 
-    /// Stub: returns the registered Uniswap V4 hook address. Used by the BA external-address
+    /// @notice Returns the registered Uniswap V4 hook address. Used by the external-address
     /// sweep to chain into V4 PoolManager identity. Reads from the loaded buyback registry
     /// rather than introducing a new state var — the registry's defaultHook on production
     /// chains is the V4 hook.
@@ -3521,7 +3537,7 @@ contract Verify is Script {
         return address(checkpointsDeployer);
     }
 
-    /// BS residual: when VERIFY_CPN_* env vars are set for a category, assert exact equality on
+    /// when VERIFY_CPN_* env vars are set for a category, assert exact equality on
     /// each criterion field. Skips per-field when its env var is unset so operators can opt in
     /// incrementally. The on-chain "minPrice > 0" sanity check above remains the always-on gate.
     function _verifyCpnCriterionExact(
@@ -3596,7 +3612,7 @@ contract Verify is Script {
         }
     }
 
-    /// BI helper: loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
+    /// loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
     /// Falls back to the legacy VERIFY_CONFIG_HASHES CSV when individual vars are unset, for
     /// backwards compatibility with existing operator scripts.
     function _loadExpectedConfigHashes(string[4] memory envVars) internal view returns (bytes32[4] memory hashes) {
@@ -3675,7 +3691,7 @@ contract Verify is Script {
         return address(0);
     }
 
-    /// BA residual: canonical OP CrossDomainMessenger seen from this chain. On L1 the messenger
+    /// canonical OP CrossDomainMessenger seen from this chain. On L1 the messenger
     /// is the route-specific L1 messenger (different for OP vs Base — see _expectedBase*); on
     /// L2 (Optimism / OP Sepolia) it is the bedrock predeploy at 0x...0007.
     function _expectedOpBridgeMessenger() internal view returns (address) {
@@ -3686,7 +3702,7 @@ contract Verify is Script {
         return address(0);
     }
 
-    /// BA residual: canonical OP StandardBridge seen from this chain. Bedrock predeploy on L2.
+    /// canonical OP StandardBridge seen from this chain. Bedrock predeploy on L2.
     function _expectedOpStandardBridge() internal view returns (address) {
         if (block.chainid == 1) return 0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1;
         if (block.chainid == 11_155_111) return 0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1;
@@ -3695,7 +3711,7 @@ contract Verify is Script {
         return address(0);
     }
 
-    /// BA residual: canonical Base CrossDomainMessenger seen from this chain. L1 messenger
+    /// canonical Base CrossDomainMessenger seen from this chain. L1 messenger
     /// differs from the OP messenger because each L2's L1-side messenger is independent.
     function _expectedBaseBridgeMessenger() internal view returns (address) {
         if (block.chainid == 1) return 0x866E82a600A1414e583f7F13623F1aC5d58b0Afa;
@@ -3705,7 +3721,7 @@ contract Verify is Script {
         return address(0);
     }
 
-    /// BA residual: canonical Base StandardBridge seen from this chain. Bedrock predeploy on L2.
+    /// canonical Base StandardBridge seen from this chain. Bedrock predeploy on L2.
     function _expectedBaseStandardBridge() internal view returns (address) {
         if (block.chainid == 1) return 0x3154Cf16ccdb4C6d922629664174b904d80F2C35;
         if (block.chainid == 11_155_111) return 0xfd0Bf71F60660E2f608ed56e1659C450eB113120;
@@ -3714,7 +3730,7 @@ contract Verify is Script {
         return address(0);
     }
 
-    /// BA residual: canonical Arbitrum inbox seen from this chain. L1-only — the inbox is the
+    /// canonical Arbitrum inbox seen from this chain. L1-only — the inbox is the
     /// L1 contract that receives retryable tickets; L2 deployers store address(0) here.
     function _expectedArbInbox() internal view returns (address) {
         if (block.chainid == 1) return 0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f;
@@ -3725,7 +3741,7 @@ contract Verify is Script {
         return address(0);
     }
 
-    /// BA residual: canonical Arbitrum gateway router seen from this chain (L1 and L2 versions
+    /// canonical Arbitrum gateway router seen from this chain (L1 and L2 versions
     /// differ).
     function _expectedArbGatewayRouter() internal view returns (address) {
         if (block.chainid == 1) return 0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef;
@@ -3735,7 +3751,7 @@ contract Verify is Script {
         return address(0);
     }
 
-    /// BA residual: canonical USDC for this chain — the bridge token swap-CCIP deployers route
+    /// canonical USDC for this chain — the bridge token swap-CCIP deployers route
     /// value through. Mirrors Deploy.s.sol's `_usdcToken` assignments.
     function _expectedBridgeToken() internal view returns (address) {
         if (block.chainid == 1) return 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -3749,7 +3765,7 @@ contract Verify is Script {
         return address(0);
     }
 
-    /// BA residual: canonical Chainlink CCIP router on this chain. Mirrors `CCIPHelper.<X>_ROUTER`.
+    /// canonical Chainlink CCIP router on this chain. Mirrors `CCIPHelper.<X>_ROUTER`.
     function _expectedCcipRouter() internal view returns (address) {
         if (block.chainid == 1) return 0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D;
         if (block.chainid == 11_155_111) return 0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59;
@@ -3762,7 +3778,7 @@ contract Verify is Script {
         return address(0);
     }
 
-    /// BA residual: Chainlink's canonical CCIP chain selector for a given remote chain id.
+    /// Chainlink's canonical CCIP chain selector for a given remote chain id.
     /// Returns 0 for unknown chains so the caller can skip the assert rather than fail closed
     /// — selectors are immutable per Chainlink so absent entries here mean "not yet supported".
     function _expectedCcipSelectorFor(uint256 remoteChainId) internal pure returns (uint64) {
@@ -3850,161 +3866,221 @@ contract Verify is Script {
         }
     }
 
-    /// Decision A sweep across every audited group. Each call asserts the deployed runtime
-    /// bytecode equals the artifact's deployedBytecode. Logs INFO and skips gracefully when the
-    /// artifact file is missing (e.g. partial-coverage testnet) or the contract is not loaded
-    /// (e.g. optional Phase 11 periphery on testnet).
+    /// @notice Artifact-identity sweep across every implementation group. Each call asserts the
+    /// deployed runtime bytecode equals the artifact's deployedBytecode. Logs INFO and skips
+    /// gracefully when the artifact file is missing (e.g. partial-coverage testnet) or the
+    /// contract is not loaded (e.g. optional periphery on testnet).
     ///
-    /// Coverage:
-    /// - CK: JBProjects, JBDirectory, JBController, JBMultiTerminal, JBTerminalStore
-    /// - CO: JBFundAccessLimits, JBTokens, JBPrices, JBRulesets, JBSplits, JBFeelessAddresses,
-    ///       JBPermissions
-    /// - CL: REVDeployer, REVOwner, REVLoans
-    /// - CM: JBOmnichainDeployer, JBSuckerRegistry
-    /// - CN: JB721TiersHookDeployer/Store/ProjectDeployer, JBBuybackHookRegistry,
-    ///       JBRouterTerminalRegistry
-    /// - CI: CTPublisher, CTDeployer, CTProjectOwner
-    /// - BE: JBBuybackHook (default hook implementation)
-    /// - BF: JB721TiersHook (base hook implementation)
-    /// - BH: JBProjectHandles, JB721Distributor, JBTokenDistributor, JBProjectPayerDeployer
-    /// - BJ: JBAddressRegistry, DefifaDeployer + sub-targets (HOOK_CODE_ORIGIN,
-    ///       TOKEN_URI_RESOLVER, GOVERNOR)
+    /// Coverage groups:
+    /// - core singletons: JBProjects, JBDirectory, JBController, JBMultiTerminal, JBTerminalStore
+    /// - core support: JBFundAccessLimits, JBTokens, JBPrices, JBRulesets, JBSplits,
+    ///   JBFeelessAddresses, JBPermissions
+    /// - Revnet stack: REVDeployer, REVOwner, REVLoans
+    /// - Omnichain: JBOmnichainDeployer, JBSuckerRegistry
+    /// - Hook & registry singletons: JB721TiersHookDeployer/Store/ProjectDeployer,
+    ///   JBBuybackHookRegistry, JBRouterTerminalRegistry
+    /// - Croptop: CTPublisher, CTDeployer, CTProjectOwner
+    /// - Buyback hook (default implementation)
+    /// - 721 tiers hook (base implementation)
+    /// - Periphery: JBProjectHandles, JB721Distributor, JBTokenDistributor, JBProjectPayerDeployer
+    /// - Address registry + Defifa: JBAddressRegistry, DefifaDeployer + sub-targets
+    ///   (HOOK_CODE_ORIGIN, TOKEN_URI_RESOLVER, GOVERNOR)
     function _verifyImplementationIdentities() internal {
-        console.log("--- Decision A: Implementation Identity (artifact bytecode parity) ---");
+        console.log("--- Implementation Identity (artifact bytecode parity) ---");
 
-        // CK: core singletons
-        _requireArtifactIdentity("JBProjects", address(projects), "JBProjects");
-        _requireArtifactIdentity("JBDirectory", address(directory), "JBDirectory");
-        _requireArtifactIdentity("JBController", address(controller), "JBController");
-        _requireArtifactIdentity("JBMultiTerminal", address(terminal), "JBMultiTerminal");
-        _requireArtifactIdentity("JBTerminalStore", address(terminalStore), "JBTerminalStore");
+        // Core singletons.
+        _requireArtifactIdentity({artifactName: "JBProjects", deployed: address(projects), label: "JBProjects"});
+        _requireArtifactIdentity({artifactName: "JBDirectory", deployed: address(directory), label: "JBDirectory"});
+        _requireArtifactIdentity({artifactName: "JBController", deployed: address(controller), label: "JBController"});
+        _requireArtifactIdentity({
+            artifactName: "JBMultiTerminal", deployed: address(terminal), label: "JBMultiTerminal"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JBTerminalStore", deployed: address(terminalStore), label: "JBTerminalStore"
+        });
 
-        // CO: core support
-        _requireArtifactIdentity("JBFundAccessLimits", address(fundAccessLimits), "JBFundAccessLimits");
-        _requireArtifactIdentity("JBTokens", address(tokens), "JBTokens");
-        _requireArtifactIdentity("JBPrices", address(prices), "JBPrices");
-        _requireArtifactIdentity("JBRulesets", address(rulesets), "JBRulesets");
-        _requireArtifactIdentity("JBSplits", address(splits), "JBSplits");
-        _requireArtifactIdentity("JBFeelessAddresses", address(feelessAddresses), "JBFeelessAddresses");
-        _requireArtifactIdentity("JBPermissions", address(permissions), "JBPermissions");
+        // Core support.
+        _requireArtifactIdentity({
+            artifactName: "JBFundAccessLimits", deployed: address(fundAccessLimits), label: "JBFundAccessLimits"
+        });
+        _requireArtifactIdentity({artifactName: "JBTokens", deployed: address(tokens), label: "JBTokens"});
+        _requireArtifactIdentity({artifactName: "JBPrices", deployed: address(prices), label: "JBPrices"});
+        _requireArtifactIdentity({artifactName: "JBRulesets", deployed: address(rulesets), label: "JBRulesets"});
+        _requireArtifactIdentity({artifactName: "JBSplits", deployed: address(splits), label: "JBSplits"});
+        _requireArtifactIdentity({
+            artifactName: "JBFeelessAddresses", deployed: address(feelessAddresses), label: "JBFeelessAddresses"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JBPermissions", deployed: address(permissions), label: "JBPermissions"
+        });
 
-        // CL: Revnet stack
-        _requireArtifactIdentity("REVDeployer", address(revDeployer), "REVDeployer");
-        _requireArtifactIdentity("REVOwner", address(revOwner), "REVOwner");
-        _requireArtifactIdentity("REVLoans", address(revLoans), "REVLoans");
+        // Revnet stack.
+        _requireArtifactIdentity({artifactName: "REVDeployer", deployed: address(revDeployer), label: "REVDeployer"});
+        _requireArtifactIdentity({artifactName: "REVOwner", deployed: address(revOwner), label: "REVOwner"});
+        _requireArtifactIdentity({artifactName: "REVLoans", deployed: address(revLoans), label: "REVLoans"});
 
-        // CM: omnichain
-        _requireArtifactIdentity("JBOmnichainDeployer", address(omnichainDeployer), "JBOmnichainDeployer");
-        _requireArtifactIdentity("JBSuckerRegistry", address(suckerRegistry), "JBSuckerRegistry");
+        // Omnichain.
+        _requireArtifactIdentity({
+            artifactName: "JBOmnichainDeployer", deployed: address(omnichainDeployer), label: "JBOmnichainDeployer"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JBSuckerRegistry", deployed: address(suckerRegistry), label: "JBSuckerRegistry"
+        });
 
-        // CN: hook & registry singletons
-        _requireArtifactIdentity("JB721TiersHookDeployer", address(hookDeployer), "JB721TiersHookDeployer");
-        _requireArtifactIdentity("JB721TiersHookStore", address(hookStore), "JB721TiersHookStore");
-        _requireArtifactIdentity(
-            "JB721TiersHookProjectDeployer", address(hookProjectDeployer), "JB721TiersHookProjectDeployer"
-        );
-        _requireArtifactIdentity("JBBuybackHookRegistry", address(buybackRegistry), "JBBuybackHookRegistry");
-        _requireArtifactIdentity(
-            "JBRouterTerminalRegistry", address(routerTerminalRegistry), "JBRouterTerminalRegistry"
-        );
+        // Hook & registry singletons.
+        _requireArtifactIdentity({
+            artifactName: "JB721TiersHookDeployer", deployed: address(hookDeployer), label: "JB721TiersHookDeployer"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JB721TiersHookStore", deployed: address(hookStore), label: "JB721TiersHookStore"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JB721TiersHookProjectDeployer",
+            deployed: address(hookProjectDeployer),
+            label: "JB721TiersHookProjectDeployer"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JBBuybackHookRegistry", deployed: address(buybackRegistry), label: "JBBuybackHookRegistry"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JBRouterTerminalRegistry",
+            deployed: address(routerTerminalRegistry),
+            label: "JBRouterTerminalRegistry"
+        });
 
-        // CI: Croptop
-        _requireArtifactIdentity("CTPublisher", address(ctPublisher), "CTPublisher");
-        _requireArtifactIdentity("CTDeployer", address(ctDeployer), "CTDeployer");
-        _requireArtifactIdentity("CTProjectOwner", address(ctProjectOwner), "CTProjectOwner");
+        // Croptop.
+        _requireArtifactIdentity({artifactName: "CTPublisher", deployed: address(ctPublisher), label: "CTPublisher"});
+        _requireArtifactIdentity({artifactName: "CTDeployer", deployed: address(ctDeployer), label: "CTDeployer"});
+        _requireArtifactIdentity({
+            artifactName: "CTProjectOwner", deployed: address(ctProjectOwner), label: "CTProjectOwner"
+        });
 
-        // BE: buyback hook default implementation (via registry getter)
+        // Buyback hook default implementation (via registry getter).
         if (address(buybackRegistry) != address(0)) {
             (bool ok, bytes memory data) = address(buybackRegistry).staticcall(abi.encodeWithSignature("defaultHook()"));
             if (ok && data.length >= 32) {
-                _requireArtifactIdentity("JBBuybackHook", abi.decode(data, (address)), "JBBuybackHook default");
+                _requireArtifactIdentity({
+                    artifactName: "JBBuybackHook", deployed: abi.decode(data, (address)), label: "JBBuybackHook default"
+                });
             }
         }
 
-        // BF: 721 tiers hook base implementation (via low-level call so the interface return-type
+        // 721 tiers hook base implementation (via low-level call so the interface return-type
         // mismatch between JB721TiersHookDeployer.HOOK() and IJB721TiersHook doesn't bite).
         {
             (bool okHook, bytes memory hookData) = address(hookDeployer).staticcall(abi.encodeWithSignature("HOOK()"));
             if (okHook && hookData.length >= 32) {
-                _requireArtifactIdentity("JB721TiersHook", abi.decode(hookData, (address)), "JB721TiersHook base impl");
+                _requireArtifactIdentity({
+                    artifactName: "JB721TiersHook",
+                    deployed: abi.decode(hookData, (address)),
+                    label: "JB721TiersHook base impl"
+                });
             }
         }
 
-        // BH: Phase 11 periphery
-        _requireArtifactIdentity("JBProjectHandles", address(projectHandles), "JBProjectHandles");
-        _requireArtifactIdentity("JB721Distributor", address(distributor721), "JB721Distributor");
-        _requireArtifactIdentity("JBTokenDistributor", address(tokenDistributor), "JBTokenDistributor");
-        _requireArtifactIdentity("JBProjectPayerDeployer", address(projectPayerDeployer), "JBProjectPayerDeployer");
+        // Periphery.
+        _requireArtifactIdentity({
+            artifactName: "JBProjectHandles", deployed: address(projectHandles), label: "JBProjectHandles"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JB721Distributor", deployed: address(distributor721), label: "JB721Distributor"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JBTokenDistributor", deployed: address(tokenDistributor), label: "JBTokenDistributor"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JBProjectPayerDeployer",
+            deployed: address(projectPayerDeployer),
+            label: "JBProjectPayerDeployer"
+        });
 
-        // BH residual: the JBProjectPayer implementation behind JBProjectPayerDeployer.IMPLEMENTATION
+        // the JBProjectPayer implementation behind JBProjectPayerDeployer.IMPLEMENTATION
         // also needs identity. Deployer-only identity proves the FACTORY is canonical but not the
         // CLONE TARGET — and every JBProjectPayer clone delegates to that implementation.
         if (address(projectPayerDeployer) != address(0)) {
             (bool okImpl, bytes memory implData) =
                 address(projectPayerDeployer).staticcall(abi.encodeWithSignature("IMPLEMENTATION()"));
             if (okImpl && implData.length >= 32) {
-                _requireArtifactIdentity("JBProjectPayer", abi.decode(implData, (address)), "JBProjectPayer clone impl");
+                _requireArtifactIdentity({
+                    artifactName: "JBProjectPayer",
+                    deployed: abi.decode(implData, (address)),
+                    label: "JBProjectPayer clone impl"
+                });
             }
         }
 
-        // BF residual: the JB721Checkpoints implementation behind JB721CheckpointsDeployer.IMPLEMENTATION
-        // is the analogous case for the 721 checkpoint module. Deployer-only identity (covered in CN)
-        // is insufficient; the clone target needs its own check.
+        // The JB721Checkpoints implementation behind JB721CheckpointsDeployer.IMPLEMENTATION is
+        // the analogous case for the 721 checkpoint module. Deployer-only identity is insufficient;
+        // the clone target needs its own check.
         if (address(_checkpointsDeployer()) != address(0)) {
             (bool okImpl, bytes memory implData) =
                 _checkpointsDeployer().staticcall(abi.encodeWithSignature("IMPLEMENTATION()"));
             if (okImpl && implData.length >= 32) {
-                _requireArtifactIdentity(
-                    "JB721Checkpoints", abi.decode(implData, (address)), "JB721Checkpoints clone impl"
-                );
+                _requireArtifactIdentity({
+                    artifactName: "JB721Checkpoints",
+                    deployed: abi.decode(implData, (address)),
+                    label: "JB721Checkpoints clone impl"
+                });
             }
         }
 
-        // BJ: Defifa + AddressRegistry
-        _requireArtifactIdentity("JBAddressRegistry", addressRegistry, "JBAddressRegistry");
-        _requireArtifactIdentity("DefifaDeployer", address(defifaDeployer), "DefifaDeployer");
+        // Defifa + AddressRegistry.
+        _requireArtifactIdentity({
+            artifactName: "JBAddressRegistry", deployed: addressRegistry, label: "JBAddressRegistry"
+        });
+        _requireArtifactIdentity({
+            artifactName: "DefifaDeployer", deployed: address(defifaDeployer), label: "DefifaDeployer"
+        });
         if (address(defifaDeployer) != address(0)) {
             (bool okOrigin, bytes memory originData) =
                 address(defifaDeployer).staticcall(abi.encodeWithSignature("HOOK_CODE_ORIGIN()"));
             if (okOrigin && originData.length >= 32) {
-                _requireArtifactIdentity("DefifaHook", abi.decode(originData, (address)), "DefifaHook code origin");
+                _requireArtifactIdentity({
+                    artifactName: "DefifaHook",
+                    deployed: abi.decode(originData, (address)),
+                    label: "DefifaHook code origin"
+                });
             }
             (bool okResolver, bytes memory resolverData) =
                 address(defifaDeployer).staticcall(abi.encodeWithSignature("TOKEN_URI_RESOLVER()"));
             if (okResolver && resolverData.length >= 32) {
-                _requireArtifactIdentity(
-                    "DefifaTokenUriResolver", abi.decode(resolverData, (address)), "DefifaTokenUriResolver"
-                );
+                _requireArtifactIdentity({
+                    artifactName: "DefifaTokenUriResolver",
+                    deployed: abi.decode(resolverData, (address)),
+                    label: "DefifaTokenUriResolver"
+                });
             }
             (bool okGov, bytes memory govData) =
                 address(defifaDeployer).staticcall(abi.encodeWithSignature("GOVERNOR()"));
             if (okGov && govData.length >= 32) {
-                _requireArtifactIdentity("DefifaGovernor", abi.decode(govData, (address)), "DefifaGovernor");
+                _requireArtifactIdentity({
+                    artifactName: "DefifaGovernor", deployed: abi.decode(govData, (address)), label: "DefifaGovernor"
+                });
             }
         }
 
-        // Phase 4 rollout-evidence gate: each listed swap-enabled CCIP sucker deployer (and its
-        // singleton) must match the canonical artifact bytecode. Without this check the deploy
-        // can ship a swap-enabled sucker that pre-dates the S+AH fixes (out-of-order batch
+        // Each listed swap-enabled CCIP sucker deployer (and its singleton) must match the
+        // canonical artifact bytecode. Without this check the deploy can ship a swap-enabled
+        // sucker whose source diverges from the in-tree implementation (out-of-order batch
         // metadata stranding earlier batches; raw-ETH V4 settlement reverting before unwrap),
         // but reads as "allowed in registry" and "canonically wired". Identity covers both the
         // deployer factory and the per-route singleton that every clone proxies to.
         _verifySwapCcipSuckerRolloutIdentity();
 
-        // O clone/singleton residual: every implementation that backs a clone or per-route
-        // singleton carries its own constructor-injected PERMISSIONS / trustedForwarder
-        // immutables. Decision A masks those bytes before bytecode parity, so a noncanonical
-        // auth-input on the implementation survives the artifact-identity check. Per-surface
-        // getter equality is the only way to authenticate them.
+        // Every implementation that backs a clone or per-route singleton carries its own
+        // constructor-injected PERMISSIONS / trustedForwarder immutables. The artifact-identity
+        // sweep masks those bytes before bytecode parity, so a noncanonical auth-input on the
+        // implementation survives that check. Per-surface getter equality is the only way to
+        // authenticate them.
         _verifyImplementationAuthInputs();
 
         console.log("");
     }
 
-    /// O clone/singleton residual: assert canonical PERMISSIONS / trustedForwarder on every
-    /// implementation we Decision-A. Each branch probes the getter via staticcall so a
-    /// surface that doesn't expose the getter is silently skipped (the getter absence is
-    /// itself a bytecode-shape mismatch that Decision A catches).
+    /// @notice Assert canonical PERMISSIONS / trustedForwarder on every implementation that passes
+    /// the artifact-identity sweep. Each branch probes the getter via staticcall so a surface
+    /// that doesn't expose the getter is silently skipped (the getter absence is itself a
+    /// bytecode-shape mismatch that the artifact-identity sweep catches).
     function _verifyImplementationAuthInputs() internal {
         // Base 721 hook implementation (every cloned hook delegates here).
         (bool okHookData, bytes memory hookData) = address(hookDeployer).staticcall(abi.encodeWithSignature("HOOK()"));
@@ -4043,32 +4119,34 @@ contract Verify is Script {
         // Per-type sucker singletons. Each deployer's `singleton()` is the implementation
         // every clone proxies to; auth-input identity there bounds every produced sucker.
         if (opSuckerDeployer != address(0)) {
-            _verifySuckerSingletonAuthInputs(opSuckerDeployer, "JBOptimismSucker singleton");
+            _verifySuckerSingletonAuthInputs({deployer: opSuckerDeployer, label: "JBOptimismSucker singleton"});
         }
         if (baseSuckerDeployer != address(0)) {
-            _verifySuckerSingletonAuthInputs(baseSuckerDeployer, "JBBaseSucker singleton");
+            _verifySuckerSingletonAuthInputs({deployer: baseSuckerDeployer, label: "JBBaseSucker singleton"});
         }
         if (arbSuckerDeployer != address(0)) {
-            _verifySuckerSingletonAuthInputs(arbSuckerDeployer, "JBArbitrumSucker singleton");
+            _verifySuckerSingletonAuthInputs({deployer: arbSuckerDeployer, label: "JBArbitrumSucker singleton"});
         }
-        // CCIP-route deployers — iterate the same CSV used by BA endpoint identity.
+        // CCIP-route deployers — iterate the same CSV used by endpoint identity.
         if (bytes(ccipSuckerDeployersCsv).length > 0) {
             string[] memory pairs = vm.split(ccipSuckerDeployersCsv, ",");
             for (uint256 i; i < pairs.length; i++) {
                 string[] memory kv = vm.split(pairs[i], ":");
-                if (kv.length != 2) continue; // The BA pass already failed closed for malformed entries.
+                if (kv.length != 2) continue; // Earlier pass already failed closed for malformed entries.
                 address deployer = vm.parseAddress(kv[1]);
-                _verifySuckerSingletonAuthInputs(deployer, string.concat("JBCCIPSucker singleton (remote=", kv[0], ")"));
+                _verifySuckerSingletonAuthInputs({
+                    deployer: deployer, label: string.concat("JBCCIPSucker singleton (remote=", kv[0], ")")
+                });
             }
         }
     }
 
-    /// Helper: read a sucker deployer's `singleton()` and run the auth-input getter checks
-    /// against it. Used by the clone/singleton residual sweep so each per-route sucker
-    /// implementation gets per-surface auth-input authentication on top of Decision A.
+    /// @notice Helper: read a sucker deployer's `singleton()` and run the auth-input getter checks
+    /// against it. Used by the clone/singleton sweep so each per-route sucker implementation gets
+    /// per-surface auth-input authentication on top of the artifact-identity sweep.
     function _verifySuckerSingletonAuthInputs(address deployer, string memory label) internal {
         (bool ok, bytes memory data) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
-        if (!ok || data.length < 32) return; // BA / CP path already flagged the missing getter.
+        if (!ok || data.length < 32) return; // Earlier endpoint / wiring pass already flagged the missing getter.
         address singleton = abi.decode(data, (address));
         if (singleton == address(0) || singleton.code.length == 0) return;
         _requireCanonicalAuthInputs({impl: singleton, label: label});
@@ -4076,8 +4154,8 @@ contract Verify is Script {
 
     /// Helper: assert `impl.PERMISSIONS() == permissions` (when exposed) and
     /// `impl.trustedForwarder() == expectedTrustedForwarder` (when exposed and an expected
-    /// forwarder is configured). Missing getters are silently skipped — Decision A bytecode
-    /// parity already constrains the implementation's interface shape.
+    /// forwarder is configured). Missing getters are silently skipped — the artifact bytecode
+    /// parity sweep already constrains the implementation's interface shape.
     function _requireCanonicalAuthInputs(address impl, string memory label) internal {
         if (impl == address(0) || impl.code.length == 0) return;
 
@@ -4102,10 +4180,9 @@ contract Verify is Script {
         }
     }
 
-    /// @dev Phase 4 / S+AH: prove each listed swap-enabled CCIP sucker deployer + singleton
-    /// carries the canonical (post-PR-#120) bytecode. Comma-separated env list keeps the env
-    /// surface aligned with `VERIFY_SUCKER_DEPLOYERS` — operators populate this with the
-    /// swap-enabled subset only.
+    /// @dev Prove each listed swap-enabled CCIP sucker deployer and its singleton carry the
+    /// canonical artifact bytecode. Comma-separated env list keeps the env surface aligned with
+    /// `VERIFY_SUCKER_DEPLOYERS` — operators populate this with the swap-enabled subset only.
     function _verifySwapCcipSuckerRolloutIdentity() internal {
         string memory swapDeployersCsv = vm.envOr("VERIFY_SWAP_CCIP_SUCKER_DEPLOYERS", string(""));
         if (bytes(swapDeployersCsv).length == 0) {
@@ -4126,7 +4203,7 @@ contract Verify is Script {
             });
 
             // Per-route singleton is the actual sucker implementation that every clone
-            // delegates to; the S/AH fixes live there. Read via `singleton()` to avoid
+            // delegates to; the swap/native-settlement fixes live there. Read via `singleton()` to avoid
             // hard-coding a per-chain immutable getter.
             (bool ok, bytes memory data) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
             if (ok && data.length >= 32) {
@@ -4148,7 +4225,7 @@ contract Verify is Script {
 
             // Swap-CCIP deployers also store `bridgeToken`, `poolManager`, `v3Factory`,
             // `univ4Hook`, and `wrappedNativeToken` set via `setSwapConstants` after deploy.
-            // Decision A masks immutables and `setSwapConstants` writes to storage rather than
+            // Artifact bytecode parity masks immutables and `setSwapConstants` writes to storage rather than
             // immutables — but either way, per-surface getter equality is the only way to prove
             // the swap-specific endpoints match canonical. Without these, a swap-enabled sucker
             // could route bridge tokens through a forked V3/V4 surface or settle against a
@@ -4157,10 +4234,11 @@ contract Verify is Script {
         }
     }
 
-    /// Helper: assert each swap-CCIP deployer's swap-side endpoint pointers match the canonical
-    /// per-chain manifest. `bridgeToken` is USDC across the supported chains; `poolManager`,
-    /// `v3Factory`, and `wrappedNativeToken` reuse the existing BA manifests; `univ4Hook` is the
-    /// per-chain `JBUniswapV4Hook` (read via the buyback registry's `defaultHook`).
+    /// @notice Helper: assert each swap-CCIP deployer's swap-side endpoint pointers match the
+    /// canonical per-chain manifest. `bridgeToken` is USDC across the supported chains;
+    /// `poolManager`, `v3Factory`, and `wrappedNativeToken` reuse the existing external-address
+    /// manifests; `univ4Hook` is the per-chain `JBUniswapV4Hook` (read via the buyback registry's
+    /// `defaultHook`).
     function _checkSwapCcipSwapConstants(address deployer) internal {
         // bridgeToken == per-chain canonical USDC.
         address expectedBridgeToken = _expectedBridgeToken();
@@ -4173,7 +4251,7 @@ contract Verify is Script {
             });
         }
 
-        // poolManager == canonical V4 PoolManager (reuse BA manifest).
+        // poolManager == canonical V4 PoolManager (reuse external-address manifest).
         address expectedPoolManager = _expectedV4PoolManager();
         if (expectedPoolManager != address(0)) {
             (bool okPm, bytes memory pmData) = deployer.staticcall(abi.encodeWithSignature("poolManager()"));
@@ -4184,7 +4262,7 @@ contract Verify is Script {
             });
         }
 
-        // v3Factory == canonical V3 factory (reuse BA manifest).
+        // v3Factory == canonical V3 factory (reuse external-address manifest).
         address expectedV3 = _expectedV3Factory();
         if (expectedV3 != address(0)) {
             (bool okV3, bytes memory v3Data) = deployer.staticcall(abi.encodeWithSignature("v3Factory()"));
@@ -4195,7 +4273,7 @@ contract Verify is Script {
             });
         }
 
-        // wrappedNativeToken == canonical WETH (reuse BA manifest).
+        // wrappedNativeToken == canonical WETH (reuse external-address manifest).
         address expectedWeth = _expectedWrappedNative();
         if (expectedWeth != address(0)) {
             (bool okW, bytes memory wData) = deployer.staticcall(abi.encodeWithSignature("wrappedNativeToken()"));
@@ -4219,7 +4297,7 @@ contract Verify is Script {
         }
     }
 
-    /// Decision A: assert deployed runtime bytecode at `addr` is structurally identical to the
+    /// Assert deployed runtime bytecode at `addr` is structurally identical to the
     /// published artifact's `deployedBytecode`, with all immutable-reference byte ranges masked
     /// to zero on both sides. The mask ranges are read from the artifact's
     /// `deployedBytecode.immutableReferences` (a map of AST-ID -> [{start, length}, ...]).
@@ -4228,11 +4306,11 @@ contract Verify is Script {
     /// value into runtime bytecode at compiler-chosen offsets. The artifact carries zero bytes
     /// at those positions; a real deployment carries the constructor-injected values. Raw
     /// `extcodehash` equality fails for any such contract — but the bytes OUTSIDE those ranges
-    /// are byte-equal between artifact and live, which is what proves the audited source was
+    /// are byte-equal between artifact and live, which is what proves the canonical source was
     /// compiled and deployed.
     ///
-    /// Requires `bytecode_hash = "none"` (BW). Skips with a logged note when the artifact is
-    /// missing so partial-coverage chains still produce a clear log line.
+    /// Requires `bytecode_hash = "none"` in the build profile. Skips with a logged note when the
+    /// artifact is missing so partial-coverage chains still produce a clear log line.
     function _requireArtifactIdentity(string memory artifactName, address deployed, string memory label) internal {
         if (deployed == address(0)) {
             _skip(string.concat(label, ": skipped (deployed address is zero)"));
@@ -4263,8 +4341,8 @@ contract Verify is Script {
         if (liveBytecode.length != artifactBytecode.length) return;
 
         // Mask immutable-reference ranges in both sides.
-        _zeroImmutableRanges(artifactBytecode, json);
-        _zeroImmutableRanges(liveBytecode, json);
+        _zeroImmutableRanges({bytecode: artifactBytecode, artifactJson: json});
+        _zeroImmutableRanges({bytecode: liveBytecode, artifactJson: json});
 
         _check({
             condition: keccak256(liveBytecode) == keccak256(artifactBytecode),

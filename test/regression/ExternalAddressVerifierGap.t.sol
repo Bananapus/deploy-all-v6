@@ -21,7 +21,7 @@ contract ExternalAddressVerifierGapTest is Test {
     address internal constant CANONICAL_MAINNET_TYPEFACE = 0xA77b7D93E79f1E6B4f77FaB29d9ef85733A3D44A;
 
     function test_externalAddressVerifierRejectsWrongNonzeroPermit2OnMainnet() public {
-        // BA fix engages on production chains. Set chain id to mainnet so the canonical Permit2
+        // Coverage engages on production chains. Set chain id to mainnet so the canonical Permit2
         // manifest is consulted.
         vm.chainId(1);
 
@@ -41,7 +41,7 @@ contract ExternalAddressVerifierGapTest is Test {
             omnichainDeployer_: address(new MockOmnichainDeployer(directory))
         });
 
-        // BA fix: Terminal.PERMIT2 is the first canonical check; a non-canonical Permit2 rejects.
+        // Coverage: Terminal.PERMIT2 is the first canonical check; a non-canonical Permit2 rejects.
         vm.expectRevert(
             abi.encodeWithSelector(Verify.Verify_CriticalCheckFailed.selector, "Terminal.PERMIT2 == canonical Permit2")
         );
@@ -65,7 +65,7 @@ contract ExternalAddressVerifierGapTest is Test {
             omnichainDeployer_: address(new MockOmnichainDeployer(directory))
         });
 
-        // BA fix: when Permit2 is canonical, the next check is WRAPPED_NATIVE_TOKEN against WETH.
+        // Coverage: when Permit2 is canonical, the next check is WRAPPED_NATIVE_TOKEN against WETH.
         vm.expectRevert(
             abi.encodeWithSelector(
                 Verify.Verify_CriticalCheckFailed.selector, "RouterTerminal.WRAPPED_NATIVE_TOKEN == canonical WETH"
@@ -113,7 +113,7 @@ contract ExternalAddressVerifierGapTest is Test {
         harness.verifyAddressRegistryAndDefifa();
     }
 
-    /// @dev BA residual: the LP split hook deployer's `POSITION_MANAGER` immutable is the
+    /// @dev Coverage: the LP split hook deployer's `POSITION_MANAGER` immutable is the
     /// canonical V4 PositionManager every clone delegates against. A noncanonical address there
     /// must trip the new check.
     function test_externalAddressVerifierRejectsWrongV4PositionManagerOnMainnet() public {
@@ -144,7 +144,7 @@ contract ExternalAddressVerifierGapTest is Test {
         harness.verifyExternalAddresses();
     }
 
-    /// @dev BA residual: same deployer also stores POOL_MANAGER (V4) and ORACLE_HOOK
+    /// @dev Coverage: same deployer also stores POOL_MANAGER (V4) and ORACLE_HOOK
     /// (JBUniswapV4Hook). A noncanonical V4 PoolManager baked into the deployer must trip
     /// its dedicated check even after PositionManager identity passes.
     function test_externalAddressVerifierRejectsWrongLpSplitPoolManagerOnMainnet() public {
@@ -185,7 +185,7 @@ contract ExternalAddressVerifierGapTest is Test {
         harness.verifyExternalAddresses();
     }
 
-    /// @dev BA residual: on production chains the LP split hook deployer env var is required.
+    /// @dev Coverage: on production chains the LP split hook deployer env var is required.
     /// Without it the verifier must fail closed so the V4 PositionManager identity cannot
     /// silently drop out of the launch gate.
     function test_externalAddressVerifierFailsClosedWhenLpSplitHookDeployerUnsetOnMainnet() public {

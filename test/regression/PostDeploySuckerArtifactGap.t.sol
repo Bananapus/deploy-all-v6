@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression for BR: _dumpAddresses must emit the singleton implementation address for
+/// @notice Regression: _dumpAddresses must emit the singleton implementation address for
 /// every standard sucker deployer (JBOptimismSucker / JBBaseSucker / JBArbitrumSucker) AND the
 /// per-route CCIP and SwapCCIP deployers + their singletons (with `__<remoteChainSuffix>` naming).
 contract PostDeploySuckerArtifactGapTest is Test {

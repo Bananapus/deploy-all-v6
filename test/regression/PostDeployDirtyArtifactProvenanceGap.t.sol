@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression for BW: artifact builds must fail closed on dirty source unless --rehearsal is
+/// @notice Regression: artifact builds must fail closed on dirty source unless --rehearsal is
 /// passed, published artifacts must expose gitDirty alongside gitCommit, and downstream verify/emit
 /// scripts must refuse to publish dirty manifests on production chains without --rehearsal.
 contract PostDeployDirtyArtifactProvenanceGapTest is Test {

@@ -5,11 +5,11 @@ import {Test} from "forge-std/Test.sol";
 
 import {Verify} from "../../script/Verify.s.sol";
 
-/// @notice BA residual extension: each swap-CCIP deployer's swap-specific endpoint pointers
+/// @notice Coverage: each swap-CCIP deployer's swap-specific endpoint pointers
 /// (bridgeToken, poolManager, v3Factory, univ4Hook, wrappedNativeToken) must match the
-/// canonical chain manifest. Decision A masks immutables and `setSwapConstants` writes to
-/// storage rather than immutables — either way, per-surface getter equality is the only way to
-/// authenticate them.
+/// canonical chain manifest. Artifact bytecode parity masks immutables and `setSwapConstants`
+/// writes to storage rather than immutables — either way, per-surface getter equality is the
+/// only way to authenticate them.
 contract SwapCcipSwapConstantsVerifierGapTest is Test {
     address internal constant CANONICAL_MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant CANONICAL_MAINNET_V4_POOL_MANAGER = 0x000000000004444c5dc75cB358380D2e3dE08A90;

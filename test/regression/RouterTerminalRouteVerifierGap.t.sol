@@ -49,7 +49,7 @@ contract RouterTerminalRouteVerifierGapTest is Test {
         assertEq(address(registry.defaultTerminal()), routerTerminal);
         assertEq(address(registry.terminalOf(1)), address(0));
 
-        // BL fix: Category 10 now asserts the registry resolves each canonical project to the
+        // Coverage: Category 10 now asserts the registry resolves each canonical project to the
         // canonical router terminal. The mock returns address(0), so the verifier rejects.
         harness.verifyHookRegistries();
         vm.expectRevert(
@@ -128,7 +128,7 @@ contract RouterTerminalRouteVerifierGapTest is Test {
         assertEq(terminals.length, 3);
         assertEq(address(terminals[2]), unexpectedTerminal);
 
-        // BL fix: Category 10 now requires the terminal list to be exactly
+        // Coverage: Category 10 now requires the terminal list to be exactly
         // {JBMultiTerminal, JBRouterTerminalRegistry} (length 2). An unexpected third terminal
         // rejects.
         vm.expectRevert(

@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression for BU: verify.mjs must treat missing manifest entries (and identity-
+/// @notice Regression: verify.mjs must treat missing manifest entries (and identity-
 /// mismatched cache hits) as fail-closed, and the process exit must reflect both critical
 /// failure categories.
 contract PostDeployVerifyStatusGapTest is Test {

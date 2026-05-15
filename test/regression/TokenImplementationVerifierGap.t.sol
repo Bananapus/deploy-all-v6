@@ -21,7 +21,7 @@ contract TokenImplementationVerifierGapTest is Test {
         VerifyTokenImplementationHarness harness = new VerifyTokenImplementationHarness();
         harness.setTokenMocks({tokens_: address(maliciousTokens), projects_: projects, permissions_: permissions});
 
-        // CJ fix (Decision A): the mock JBERC20 implementation has unrelated code, so the
+        // Coverage: the mock JBERC20 implementation has unrelated code, so the
         // length-equality check fires first. Any Decision-A reject is sufficient for the test;
         // we just need to confirm noncanonical implementations are rejected.
         vm.expectRevert(

@@ -42,7 +42,7 @@ contract TerminalAccountingContextVerifierGapTest is Test {
             terminal.accountingContextForTokenOf({projectId: 1, token: JBConstants.NATIVE_TOKEN});
         assertEq(context.token, address(0), "setup intentionally omits native accounting context");
 
-        // CQ fix: Category 2 now also reads the live accounting context for the native token on
+        // Coverage: Category 2 now also reads the live accounting context for the native token on
         // each canonical project. The mock omits the native context (zero token field), so the
         // verifier rejects on the token-sentinel check.
         vm.expectRevert(

@@ -37,7 +37,7 @@ contract SuckerDeployerAdminVerifierGapTest is Test {
         assertNotEq(deployer.LAYER_SPECIFIC_CONFIGURATOR(), expectedSafe);
         assertEq(deployer.singleton(), maliciousSingleton);
 
-        // CP fix: each env-listed deployer must have code. The first listed entry is an EOA,
+        // Coverage: each env-listed deployer must have code. The first listed entry is an EOA,
         // so the verifier rejects on the code-presence gate before reaching the configurator
         // or singleton checks.
         vm.expectRevert(
@@ -49,8 +49,8 @@ contract SuckerDeployerAdminVerifierGapTest is Test {
         harness.verifyAllowlists();
     }
 
-    function test_cpAdminCheckExistsInVerifierSource() public view {
-        // CP source-level assertion. The runtime check is exercised in the EOA sub-test above
+    function test_canonicalWiringChecksExistInVerifierSource() public view {
+        // Source-level assertion. The runtime check is exercised in the EOA sub-test above
         // (which works in isolation); cross-contract env-var pollution in `forge test` makes a
         // full runtime test of the admin path flaky, so this complementary test guarantees the
         // source carries the canonical configurator + singleton-code + wiring checks.
@@ -59,13 +59,11 @@ contract SuckerDeployerAdminVerifierGapTest is Test {
             _contains(verifySource, "_verifySuckerDeployerCanonicalWiring(deployer)"),
             "verifier invokes per-deployer canonical wiring check from _verifyAllowlists"
         );
-        assertTrue(
-            _contains(verifySource, "LAYER_SPECIFIC_CONFIGURATOR == safe"), "CP: configurator matches expected safe"
-        );
-        assertTrue(_contains(verifySource, ".singleton has code"), "CP: singleton has code");
-        assertTrue(_contains(verifySource, ".DIRECTORY == directory"), "CP: deployer DIRECTORY == canonical");
-        assertTrue(_contains(verifySource, ".TOKENS == tokens"), "CP: deployer TOKENS == canonical");
-        assertTrue(_contains(verifySource, ".PERMISSIONS == permissions"), "CP: deployer PERMISSIONS == canonical");
+        assertTrue(_contains(verifySource, "LAYER_SPECIFIC_CONFIGURATOR == safe"), "configurator matches expected safe");
+        assertTrue(_contains(verifySource, ".singleton has code"), "singleton has code");
+        assertTrue(_contains(verifySource, ".DIRECTORY == directory"), "deployer DIRECTORY == canonical");
+        assertTrue(_contains(verifySource, ".TOKENS == tokens"), "deployer TOKENS == canonical");
+        assertTrue(_contains(verifySource, ".PERMISSIONS == permissions"), "deployer PERMISSIONS == canonical");
     }
 
     function _contains(string memory haystack, string memory needle) internal pure returns (bool) {

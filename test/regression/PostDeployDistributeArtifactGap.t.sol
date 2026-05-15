@@ -3,9 +3,9 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression for BQ: deploy-all-owned artifacts (where aggregator path and per-repo path
-/// coincide) must be written exactly once, not skipped or duplicated. Fix-as-of-BV uses Set-based
-/// dedup on the destination paths.
+/// @notice Regression: deploy-all-owned artifacts (where aggregator path and per-repo path
+/// coincide) must be written exactly once, not skipped or duplicated. The distribute step uses
+/// Set-based dedup on the destination paths.
 contract PostDeployDistributeArtifactGapTest is Test {
     function test_deployAllOwnedArtifactsWrittenOnceViaSetDedup() public view {
         string memory distributeSource = vm.readFile("script/post-deploy/lib/distribute.mjs");

@@ -292,8 +292,8 @@ contract MockJBMultiTerminal {
         return _feelessAddresses;
     }
 
-    /// CQ-added getter: return a valid native accounting context so the test continues to target
-    /// CK (core singleton implementation identity) rather than reverting on the CQ check.
+    /// @notice Return a valid native accounting context so the test continues to target core
+    /// singleton implementation identity rather than reverting on the accounting-context check.
     function accountingContextForTokenOf(uint256, address token) external pure returns (JBAccountingContext memory) {
         return JBAccountingContext({token: token, decimals: 18, currency: uint32(uint160(token))});
     }

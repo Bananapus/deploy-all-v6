@@ -34,7 +34,7 @@ contract CanonicalControllerVerifierGapTest is Test {
         assertTrue(fakeController != canonicalController, "setup must use wrong controller");
         assertEq(address(directory.controllerOf(1)), fakeController, "project resolves to fake controller");
 
-        // CH fix: Category 2 now asserts directory.controllerOf(projectId) == canonical
+        // Coverage: Category 2 now asserts directory.controllerOf(projectId) == canonical
         // controller. A noncanonical controller pointer rejects.
         vm.expectRevert(
             abi.encodeWithSelector(
