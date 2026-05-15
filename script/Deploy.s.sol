@@ -3600,8 +3600,7 @@ contract Deploy is Script, Sphinx {
         // far enough in the future that re-org / slow safe-execution windows on any chain still
         // leave the stage in the future at inclusion time. Downstream stage offsets (720 days,
         // 3600 days) are then added to that same future anchor.
-        uint48 defifaStage0Start =
-            DEFIFA_REV_START_TIME == 0 ? uint48(block.timestamp + 1 days) : DEFIFA_REV_START_TIME;
+        uint48 defifaStage0Start = DEFIFA_REV_START_TIME == 0 ? uint48(block.timestamp + 1 days) : DEFIFA_REV_START_TIME;
 
         stages[0] = REVStageConfig({
             startsAtOrAfter: defifaStage0Start,
