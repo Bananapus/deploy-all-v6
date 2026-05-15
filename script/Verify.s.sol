@@ -2725,10 +2725,142 @@ contract Verify is Script {
                 } catch {
                     _skip("Banny hook contractURI() call failed");
                 }
+
+                // CT residual closure: assert the resolver's owner / trusted-forwarder /
+                // metadata / drop-tier manifest match the canonical Banny launch. Without
+                // these, a deployment can ship with a code-bearing resolver and nonempty
+                // contractURI while resolver custody, metadata, and tier count drift from
+                // `_deployBanny` + `_registerBannyDrop*` + `_finalizeBannyOwnership`.
+                if (resolver != address(0)) {
+                    _verifyBannyResolverManifest(resolver, address(bannyHook));
+                }
             }
         }
 
         console.log("");
+    }
+
+    /// CT residual closure: per-field equality on the canonical Banny resolver and tier count.
+    /// Each env var defaults to a no-op skip on non-production chains; production chains fail
+    /// closed when the manifest envs are unset.
+    function _verifyBannyResolverManifest(address resolver, address bannyHook) internal {
+        bool isProductionChain =
+            (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+
+        // 1. Resolver owner — final handoff target. Operator declares `_BAN_OPS_OPERATOR`.
+        _checkResolverField({
+            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BAN_OPS_OPERATOR"),
+            expectedAddress: vm.envOr({name: "VERIFY_BAN_OPS_OPERATOR", defaultValue: address(0)}),
+            actualAddress: _staticAddress(resolver, "owner()"),
+            label: "Banny resolver owner == VERIFY_BAN_OPS_OPERATOR"
+        });
+
+        // 2. Resolver trusted forwarder — must match the canonical forwarder (already used by
+        // the broader O sweep). Skip if no expected forwarder is configured.
+        if (expectedTrustedForwarder != address(0)) {
+            _check({
+                condition: _staticAddress(resolver, "trustedForwarder()") == expectedTrustedForwarder,
+                label: "Banny resolver trustedForwarder == expected",
+                critical: true
+            });
+        }
+
+        // 3. Resolver SVG metadata triple — exact-string equality against operator manifest.
+        _checkResolverStringField({
+            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BANNY_SVG_DESCRIPTION"),
+            expectedRaw: vm.envOr({name: "VERIFY_BANNY_SVG_DESCRIPTION", defaultValue: string("")}),
+            actualRaw: _staticString(resolver, "svgDescription()"),
+            label: "Banny resolver svgDescription == expected"
+        });
+        _checkResolverStringField({
+            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BANNY_SVG_EXTERNAL_URL"),
+            expectedRaw: vm.envOr({name: "VERIFY_BANNY_SVG_EXTERNAL_URL", defaultValue: string("")}),
+            actualRaw: _staticString(resolver, "svgExternalUrl()"),
+            label: "Banny resolver svgExternalUrl == expected"
+        });
+        _checkResolverStringField({
+            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BANNY_SVG_BASE_URI"),
+            expectedRaw: vm.envOr({name: "VERIFY_BANNY_SVG_BASE_URI", defaultValue: string("")}),
+            actualRaw: _staticString(resolver, "svgBaseUri()"),
+            label: "Banny resolver svgBaseUri == expected"
+        });
+
+        // 4. Hook-store tier count — the canonical deployment ends with 4 baseline body tiers
+        // plus 64 Drop 1/Drop 2 tiers = 68 total. Drop missing/incomplete = wrong count.
+        string memory tierCountRaw = vm.envOr({name: "VERIFY_BANNY_TIER_COUNT", defaultValue: string("")});
+        if (bytes(tierCountRaw).length > 0) {
+            uint256 expectedTierCount = vm.parseUint(tierCountRaw);
+            _check({
+                condition: hookStore.maxTierIdOf(bannyHook) == expectedTierCount,
+                label: "Banny hook maxTierIdOf == VERIFY_BANNY_TIER_COUNT",
+                critical: true
+            });
+        } else if (isProductionChain) {
+            _check({
+                condition: false,
+                label: "VERIFY_BANNY_TIER_COUNT MUST be set on production for Banny tier manifest",
+                critical: true
+            });
+        } else {
+            _skip("Banny tier count (VERIFY_BANNY_TIER_COUNT not set on non-production chain)");
+        }
+    }
+
+    /// Helper: on production, an empty env value is a fail-closed event. On non-production it
+    /// skips with a logged note. Returns true when the per-field assertion should proceed.
+    function _expectBannyEnvOnProduction(bool isProductionChain, string memory envKey) internal returns (bool) {
+        string memory raw = vm.envOr({name: envKey, defaultValue: string("")});
+        if (bytes(raw).length > 0) return true;
+        if (isProductionChain) {
+            _check({
+                condition: false,
+                label: string.concat(envKey, " MUST be set on production for Banny resolver manifest"),
+                critical: true
+            });
+        } else {
+            _skip(string.concat(envKey, " unset - Banny manifest field skipped on non-production chain"));
+        }
+        return false;
+    }
+
+    function _checkResolverField(
+        bool ok,
+        address expectedAddress,
+        address actualAddress,
+        string memory label
+    )
+        internal
+    {
+        if (!ok) return;
+        _check({condition: actualAddress == expectedAddress, label: label, critical: true});
+    }
+
+    function _checkResolverStringField(
+        bool ok,
+        string memory expectedRaw,
+        string memory actualRaw,
+        string memory label
+    )
+        internal
+    {
+        if (!ok) return;
+        _check({condition: keccak256(bytes(actualRaw)) == keccak256(bytes(expectedRaw)), label: label, critical: true});
+    }
+
+    /// Helper: staticcall a zero-arg getter that returns an address. Returns address(0) on
+    /// revert or wrong return-data length. Used by the Banny resolver manifest checks.
+    function _staticAddress(address target, string memory signature) internal view returns (address) {
+        (bool ok, bytes memory data) = target.staticcall(abi.encodeWithSignature(signature));
+        if (!ok || data.length < 32) return address(0);
+        return abi.decode(data, (address));
+    }
+
+    /// Helper: staticcall a zero-arg getter that returns a string. Returns empty string on
+    /// revert or empty return data. Used by the Banny resolver manifest checks.
+    function _staticString(address target, string memory signature) internal view returns (string memory) {
+        (bool ok, bytes memory data) = target.staticcall(abi.encodeWithSignature(signature));
+        if (!ok || data.length == 0) return "";
+        return abi.decode(data, (string));
     }
 
     // ════════════════════════════════════════════════════════════════════

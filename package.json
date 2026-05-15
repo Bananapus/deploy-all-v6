@@ -1,6 +1,6 @@
 {
   "name": "@bananapus/deploy-all-v6",
-  "version": "0.0.28",
+  "version": "0.0.29",
   "license": "MIT",
   "description": "One-shot deployment orchestrator for the Juicebox V6 ecosystem.",
   "private": true,
