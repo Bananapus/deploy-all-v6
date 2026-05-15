@@ -148,6 +148,15 @@ contract Verify is Script {
     /// carries the canonical V4 PositionManager. Loaded from `VERIFY_LP_SPLIT_HOOK_DEPLOYER`;
     /// `address(0)` when the chain has no canonical PositionManager.
     address public lpSplitHookDeployer;
+    /// BA residual: per-type sucker-deployer slots so each bridge/CCIP endpoint manifest can be
+    /// asserted against the canonical chain constants. `address(0)` means the deployer is not
+    /// listed for this verify run (testnet / partial stack); production chains fail closed.
+    address public opSuckerDeployer;
+    address public baseSuckerDeployer;
+    address public arbSuckerDeployer;
+    /// CCIP deployers are per-remote-route, so a single deployer slot is not enough. CSV format
+    /// is `<remoteChainId>:<address>,<remoteChainId>:<address>,...`. See _verifyBridgeAndCcipEndpoints.
+    string public ccipSuckerDeployersCsv;
 
     // -- Buyback Hook --
     // The buyback hook registry that resolves hooks per project.
@@ -369,6 +378,17 @@ contract Verify is Script {
         checkpointsDeployer =
             JB721CheckpointsDeployer(vm.envOr({name: "VERIFY_CHECKPOINTS_DEPLOYER", defaultValue: address(0)}));
         lpSplitHookDeployer = vm.envOr({name: "VERIFY_LP_SPLIT_HOOK_DEPLOYER", defaultValue: address(0)});
+
+        // BA residual: per-type sucker-deployer addresses so each endpoint manifest (OP messenger
+        // + standard bridge, Arbitrum inbox + gateway router, CCIP router + remote selector +
+        // remote chain id) can be checked exactly against the canonical chain manifest.
+        opSuckerDeployer = vm.envOr({name: "VERIFY_OP_SUCKER_DEPLOYER", defaultValue: address(0)});
+        baseSuckerDeployer = vm.envOr({name: "VERIFY_BASE_SUCKER_DEPLOYER", defaultValue: address(0)});
+        arbSuckerDeployer = vm.envOr({name: "VERIFY_ARB_SUCKER_DEPLOYER", defaultValue: address(0)});
+        // CCIP deployers are per-remote-route (one address per (local, remote) pair). Take CSV of
+        // `<remoteChainId>:<address>` pairs so each route can be checked against its expected
+        // remote selector and the local-chain canonical router.
+        ccipSuckerDeployersCsv = vm.envOr({name: "VERIFY_CCIP_SUCKER_DEPLOYERS_BY_REMOTE", defaultValue: string("")});
 
         // On production chains, require the full deployment stack.
         // Testnets may omit optional components, but mainnet and major L2s must fail-closed.
@@ -2950,7 +2970,213 @@ contract Verify is Script {
             }
         }
 
+        // BA residual: per-deployer bridge / CCIP endpoint manifests. Each branch fires only
+        // when the operator supplied the deployer address; production chains fail closed in
+        // the helper via per-type production-required guards.
+        _verifyBridgeAndCcipEndpoints();
+
         console.log("");
+    }
+
+    /// BA residual: assert each bridge/CCIP sucker deployer carries its canonical chain
+    /// endpoints. The deploy script wires per-route immutables (opMessenger, opBridge,
+    /// arbInbox, arbGatewayRouter, ccipRouter, ccipRemoteChainSelector, ccipRemoteChainId)
+    /// that survive Decision A's immutable-mask. A wrong endpoint here lets a deployment ship
+    /// with infrastructure pointed at a non-canonical bridge / CCIP router while every other
+    /// allowlist/wiring check still passes.
+    function _verifyBridgeAndCcipEndpoints() internal {
+        bool isProductionChain =
+            (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+
+        // --- Optimism bridge ---
+        address expectedOpMessenger = _expectedOpBridgeMessenger();
+        address expectedOpBridge = _expectedOpStandardBridge();
+        bool chainHasOp =
+            (block.chainid == 1 || block.chainid == 11_155_111 || block.chainid == 10 || block.chainid == 11_155_420);
+        if (chainHasOp) {
+            if (opSuckerDeployer != address(0)) {
+                _checkOpDeployerEndpoints(opSuckerDeployer, expectedOpMessenger, expectedOpBridge, "Optimism");
+            } else if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: "VERIFY_OP_SUCKER_DEPLOYER MUST be set on production for Optimism endpoint identity",
+                    critical: true
+                });
+            } else {
+                _skip("Optimism endpoint identity (VERIFY_OP_SUCKER_DEPLOYER not set on non-production chain)");
+            }
+        }
+
+        // --- Base bridge ---
+        address expectedBaseMessenger = _expectedBaseBridgeMessenger();
+        address expectedBaseBridge = _expectedBaseStandardBridge();
+        bool chainHasBase =
+            (block.chainid == 1 || block.chainid == 11_155_111 || block.chainid == 8453 || block.chainid == 84_532);
+        if (chainHasBase) {
+            if (baseSuckerDeployer != address(0)) {
+                _checkOpDeployerEndpoints(baseSuckerDeployer, expectedBaseMessenger, expectedBaseBridge, "Base");
+            } else if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: "VERIFY_BASE_SUCKER_DEPLOYER MUST be set on production for Base endpoint identity",
+                    critical: true
+                });
+            } else {
+                _skip("Base endpoint identity (VERIFY_BASE_SUCKER_DEPLOYER not set on non-production chain)");
+            }
+        }
+
+        // --- Arbitrum bridge ---
+        address expectedArbInbox = _expectedArbInbox();
+        address expectedArbGatewayRouter = _expectedArbGatewayRouter();
+        bool chainHasArb =
+            (block.chainid == 1 || block.chainid == 11_155_111 || block.chainid == 42_161 || block.chainid == 421_614);
+        if (chainHasArb) {
+            if (arbSuckerDeployer != address(0)) {
+                _checkArbDeployerEndpoints(arbSuckerDeployer, expectedArbInbox, expectedArbGatewayRouter);
+            } else if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: "VERIFY_ARB_SUCKER_DEPLOYER MUST be set on production for Arbitrum endpoint identity",
+                    critical: true
+                });
+            } else {
+                _skip("Arbitrum endpoint identity (VERIFY_ARB_SUCKER_DEPLOYER not set on non-production chain)");
+            }
+        }
+
+        // --- CCIP routes ---
+        // CCIP deployers are per-(local, remote) pair. The CSV form
+        // `<remoteChainId>:<address>,<remoteChainId>:<address>` lets the operator supply each
+        // route deployer alongside its expected remote chain id; the verifier then asserts the
+        // router (per local chain) and remote selector (per remote chain) match canonical.
+        address expectedCcipRouter = _expectedCcipRouter();
+        if (bytes(ccipSuckerDeployersCsv).length > 0) {
+            string[] memory pairs = vm.split(ccipSuckerDeployersCsv, ",");
+            for (uint256 i; i < pairs.length; i++) {
+                string[] memory kv = vm.split(pairs[i], ":");
+                if (kv.length != 2) {
+                    _check({
+                        condition: false,
+                        label: string.concat("VERIFY_CCIP_SUCKER_DEPLOYERS_BY_REMOTE entry malformed: ", pairs[i]),
+                        critical: true
+                    });
+                    continue;
+                }
+                uint256 remoteChainId = vm.parseUint(kv[0]);
+                address deployer = vm.parseAddress(kv[1]);
+                _checkCcipDeployerEndpoints(deployer, remoteChainId, expectedCcipRouter);
+            }
+        } else if (isProductionChain && expectedCcipRouter != address(0)) {
+            _check({
+                condition: false,
+                label: "VERIFY_CCIP_SUCKER_DEPLOYERS_BY_REMOTE MUST be set on production for CCIP route identity",
+                critical: true
+            });
+        } else {
+            _skip("CCIP route identity (VERIFY_CCIP_SUCKER_DEPLOYERS_BY_REMOTE not set)");
+        }
+    }
+
+    /// Assert OP/Base flavored deployer endpoints.
+    function _checkOpDeployerEndpoints(
+        address deployer,
+        address expectedMessenger,
+        address expectedBridge,
+        string memory label
+    )
+        internal
+    {
+        if (expectedMessenger != address(0)) {
+            (bool okMsg, bytes memory msgData) = deployer.staticcall(abi.encodeWithSignature("opMessenger()"));
+            _check({
+                condition: okMsg && msgData.length >= 32 && abi.decode(msgData, (address)) == expectedMessenger,
+                label: string.concat(label, " sucker deployer opMessenger == canonical"),
+                critical: true
+            });
+        }
+        if (expectedBridge != address(0)) {
+            (bool okBr, bytes memory brData) = deployer.staticcall(abi.encodeWithSignature("opBridge()"));
+            _check({
+                condition: okBr && brData.length >= 32 && abi.decode(brData, (address)) == expectedBridge,
+                label: string.concat(label, " sucker deployer opBridge == canonical"),
+                critical: true
+            });
+        }
+    }
+
+    /// Assert Arbitrum flavored deployer endpoints. `expectedInbox == address(0)` on L2 (no
+    /// inbox required); the helper still asserts the deployer's inbox is zero there so a wrong
+    /// L1-side inbox baked into an L2 deployer is also caught.
+    function _checkArbDeployerEndpoints(
+        address deployer,
+        address expectedInbox,
+        address expectedGatewayRouter
+    )
+        internal
+    {
+        (bool okInbox, bytes memory inboxData) = deployer.staticcall(abi.encodeWithSignature("arbInbox()"));
+        _check({
+            condition: okInbox && inboxData.length >= 32 && abi.decode(inboxData, (address)) == expectedInbox,
+            label: "Arbitrum sucker deployer arbInbox == canonical",
+            critical: true
+        });
+        if (expectedGatewayRouter != address(0)) {
+            (bool okGw, bytes memory gwData) = deployer.staticcall(abi.encodeWithSignature("arbGatewayRouter()"));
+            _check({
+                condition: okGw && gwData.length >= 32 && abi.decode(gwData, (address)) == expectedGatewayRouter,
+                label: "Arbitrum sucker deployer arbGatewayRouter == canonical",
+                critical: true
+            });
+        }
+    }
+
+    /// Assert CCIP-route deployer endpoints (router + remote selector + remote chain id). The
+    /// expected selector is keyed by the remote chain id supplied by the operator; the local
+    /// chain id is implicit through `_expectedCcipRouter`. A wrong `ccipRemoteChainId` means
+    /// the deployer is bridging to a different chain than the operator declared in the env CSV.
+    function _checkCcipDeployerEndpoints(
+        address deployer,
+        uint256 expectedRemoteChainId,
+        address expectedRouter
+    )
+        internal
+    {
+        // ccipRouter() == local-chain canonical router.
+        if (expectedRouter != address(0)) {
+            (bool okRouter, bytes memory routerData) = deployer.staticcall(abi.encodeWithSignature("ccipRouter()"));
+            _check({
+                condition: okRouter && routerData.length >= 32 && abi.decode(routerData, (address)) == expectedRouter,
+                label: string.concat(
+                    "CCIP sucker deployer (remote=", vm.toString(expectedRemoteChainId), ") ccipRouter == canonical"
+                ),
+                critical: true
+            });
+        }
+        // ccipRemoteChainId() == operator-declared remote chain id.
+        (bool okId, bytes memory idData) = deployer.staticcall(abi.encodeWithSignature("ccipRemoteChainId()"));
+        _check({
+            condition: okId && idData.length >= 32 && abi.decode(idData, (uint256)) == expectedRemoteChainId,
+            label: string.concat(
+                "CCIP sucker deployer (remote=", vm.toString(expectedRemoteChainId), ") ccipRemoteChainId == declared"
+            ),
+            critical: true
+        });
+        // ccipRemoteChainSelector() == Chainlink's canonical selector for the declared remote.
+        uint64 expectedSelector = _expectedCcipSelectorFor(expectedRemoteChainId);
+        if (expectedSelector != 0) {
+            (bool okSel, bytes memory selData) =
+                deployer.staticcall(abi.encodeWithSignature("ccipRemoteChainSelector()"));
+            _check({
+                condition: okSel && selData.length >= 32 && abi.decode(selData, (uint64)) == expectedSelector,
+                label: string.concat(
+                    "CCIP sucker deployer (remote=",
+                    vm.toString(expectedRemoteChainId),
+                    ") ccipRemoteChainSelector == canonical"
+                ),
+                critical: true
+            });
+        }
     }
 
     /// Stub: returns the registered Uniswap V4 hook address. Used by the BA external-address
@@ -3120,6 +3346,94 @@ contract Verify is Script {
         if (block.chainid == 42_161) return 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
         if (block.chainid == 421_614) return 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
         return address(0);
+    }
+
+    /// BA residual: canonical OP CrossDomainMessenger seen from this chain. On L1 the messenger
+    /// is the route-specific L1 messenger (different for OP vs Base — see _expectedBase*); on
+    /// L2 (Optimism / OP Sepolia) it is the bedrock predeploy at 0x...0007.
+    function _expectedOpBridgeMessenger() internal view returns (address) {
+        if (block.chainid == 1) return 0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1;
+        if (block.chainid == 11_155_111) return 0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef;
+        if (block.chainid == 10) return 0x4200000000000000000000000000000000000007;
+        if (block.chainid == 11_155_420) return 0x4200000000000000000000000000000000000007;
+        return address(0);
+    }
+
+    /// BA residual: canonical OP StandardBridge seen from this chain. Bedrock predeploy on L2.
+    function _expectedOpStandardBridge() internal view returns (address) {
+        if (block.chainid == 1) return 0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1;
+        if (block.chainid == 11_155_111) return 0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1;
+        if (block.chainid == 10) return 0x4200000000000000000000000000000000000010;
+        if (block.chainid == 11_155_420) return 0x4200000000000000000000000000000000000010;
+        return address(0);
+    }
+
+    /// BA residual: canonical Base CrossDomainMessenger seen from this chain. L1 messenger
+    /// differs from the OP messenger because each L2's L1-side messenger is independent.
+    function _expectedBaseBridgeMessenger() internal view returns (address) {
+        if (block.chainid == 1) return 0x866E82a600A1414e583f7F13623F1aC5d58b0Afa;
+        if (block.chainid == 11_155_111) return 0xC34855F4De64F1840e5686e64278da901e261f20;
+        if (block.chainid == 8453) return 0x4200000000000000000000000000000000000007;
+        if (block.chainid == 84_532) return 0x4200000000000000000000000000000000000007;
+        return address(0);
+    }
+
+    /// BA residual: canonical Base StandardBridge seen from this chain. Bedrock predeploy on L2.
+    function _expectedBaseStandardBridge() internal view returns (address) {
+        if (block.chainid == 1) return 0x3154Cf16ccdb4C6d922629664174b904d80F2C35;
+        if (block.chainid == 11_155_111) return 0xfd0Bf71F60660E2f608ed56e1659C450eB113120;
+        if (block.chainid == 8453) return 0x4200000000000000000000000000000000000010;
+        if (block.chainid == 84_532) return 0x4200000000000000000000000000000000000010;
+        return address(0);
+    }
+
+    /// BA residual: canonical Arbitrum inbox seen from this chain. L1-only — the inbox is the
+    /// L1 contract that receives retryable tickets; L2 deployers store address(0) here.
+    function _expectedArbInbox() internal view returns (address) {
+        if (block.chainid == 1) return 0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f;
+        if (block.chainid == 11_155_111) return 0xaAe29B0366299461418F5324a79Afc425BE5ae21;
+        // L2 deployers carry inbox = address(0) by design; surface that as the expected value
+        // so a wrong nonzero L1 inbox baked into an L2 deployer is still caught.
+        if (block.chainid == 42_161 || block.chainid == 421_614) return address(0);
+        return address(0);
+    }
+
+    /// BA residual: canonical Arbitrum gateway router seen from this chain (L1 and L2 versions
+    /// differ).
+    function _expectedArbGatewayRouter() internal view returns (address) {
+        if (block.chainid == 1) return 0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef;
+        if (block.chainid == 11_155_111) return 0xcE18836b233C83325Cc8848CA4487e94C6288264;
+        if (block.chainid == 42_161) return 0x5288c571Fd7aD117beA99bF60FE0846C4E84F933;
+        if (block.chainid == 421_614) return 0x9fDD1C4E4AA24EEc1d913FABea925594a20d43C7;
+        return address(0);
+    }
+
+    /// BA residual: canonical Chainlink CCIP router on this chain. Mirrors `CCIPHelper.<X>_ROUTER`.
+    function _expectedCcipRouter() internal view returns (address) {
+        if (block.chainid == 1) return 0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D;
+        if (block.chainid == 11_155_111) return 0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59;
+        if (block.chainid == 10) return 0x3206695CaE29952f4b0c22a169725a865bc8Ce0f;
+        if (block.chainid == 11_155_420) return 0x114A20A10b43D4115e5aeef7345a1A71d2a60C57;
+        if (block.chainid == 8453) return 0x881e3A65B4d4a04dD529061dd0071cf975F58bCD;
+        if (block.chainid == 84_532) return 0xD3b06cEbF099CE7DA4AcCf578aaebFDBd6e88a93;
+        if (block.chainid == 42_161) return 0x141fa059441E0ca23ce184B6A78bafD2A517DdE8;
+        if (block.chainid == 421_614) return 0x2a9C5afB0d0e4BAb2BCdaE109EC4b0c4Be15a165;
+        return address(0);
+    }
+
+    /// BA residual: Chainlink's canonical CCIP chain selector for a given remote chain id.
+    /// Returns 0 for unknown chains so the caller can skip the assert rather than fail closed
+    /// — selectors are immutable per Chainlink so absent entries here mean "not yet supported".
+    function _expectedCcipSelectorFor(uint256 remoteChainId) internal pure returns (uint64) {
+        if (remoteChainId == 1) return 5_009_297_550_715_157_269; // ETH
+        if (remoteChainId == 11_155_111) return 16_015_286_601_757_825_753; // ETH Sepolia
+        if (remoteChainId == 10) return 3_734_403_246_176_062_136; // OP
+        if (remoteChainId == 11_155_420) return 5_224_473_277_236_331_295; // OP Sepolia
+        if (remoteChainId == 42_161) return 4_949_039_107_694_359_620; // ARB
+        if (remoteChainId == 421_614) return 3_478_487_238_524_512_106; // ARB Sepolia
+        if (remoteChainId == 8453) return 15_971_525_489_660_198_786; // Base
+        if (remoteChainId == 84_532) return 10_344_971_235_874_465_080; // Base Sepolia
+        return 0;
     }
 
     /// Returns the per-chain canonical Uniswap V4 PositionManager address. Mirrors Deploy.s.sol's
