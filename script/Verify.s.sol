@@ -2735,14 +2735,22 @@ contract Verify is Script {
     /// per-field equality on the canonical Banny resolver and tier count.
     /// Each env var defaults to a no-op skip on non-production chains; production chains fail
     /// closed when the manifest envs are unset.
+    /// @dev Reads every operator-supplied expectation via `_loadBannyExpectations` (overridable in
+    /// test harnesses) so production-style env reads aren't interleaved through the verification
+    /// flow. Forge runs sibling test contracts in parallel and `vm.setEnv` is process-wide; mixing
+    /// env reads with verifier work would race against any sibling test that touches the same
+    /// `VERIFY_BANNY_*` keys. Loading once at the top, with the loader virtualised, means tests
+    /// can supply stable expectations from harness storage and skip env entirely.
     function _verifyBannyResolverManifest(address resolver, address bannyHook) internal {
         bool isProductionChain =
             (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
 
+        BannyExpectations memory expected = _loadBannyExpectations();
+
         // 1. Resolver owner — final handoff target. Operator declares `_BAN_OPS_OPERATOR`.
         _checkResolverField({
-            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BAN_OPS_OPERATOR"),
-            expectedAddress: vm.envOr({name: "VERIFY_BAN_OPS_OPERATOR", defaultValue: address(0)}),
+            ok: _enforceBannyExpectationOnProduction(isProductionChain, expected.banOpsOperatorSet, "VERIFY_BAN_OPS_OPERATOR"),
+            expectedAddress: expected.banOpsOperator,
             actualAddress: _staticAddress(resolver, "owner()"),
             label: "Banny resolver owner == VERIFY_BAN_OPS_OPERATOR"
         });
@@ -2759,32 +2767,29 @@ contract Verify is Script {
 
         // 3. Resolver SVG metadata triple — exact-string equality against operator manifest.
         _checkResolverStringField({
-            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BANNY_SVG_DESCRIPTION"),
-            expectedRaw: vm.envOr({name: "VERIFY_BANNY_SVG_DESCRIPTION", defaultValue: string("")}),
+            ok: _enforceBannyExpectationOnProduction(isProductionChain, expected.svgDescriptionSet, "VERIFY_BANNY_SVG_DESCRIPTION"),
+            expectedRaw: expected.svgDescription,
             actualRaw: _staticString(resolver, "svgDescription()"),
             label: "Banny resolver svgDescription == expected"
         });
         _checkResolverStringField({
-            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BANNY_SVG_EXTERNAL_URL"),
-            expectedRaw: vm.envOr({name: "VERIFY_BANNY_SVG_EXTERNAL_URL", defaultValue: string("")}),
+            ok: _enforceBannyExpectationOnProduction(isProductionChain, expected.svgExternalUrlSet, "VERIFY_BANNY_SVG_EXTERNAL_URL"),
+            expectedRaw: expected.svgExternalUrl,
             actualRaw: _staticString(resolver, "svgExternalUrl()"),
             label: "Banny resolver svgExternalUrl == expected"
         });
         _checkResolverStringField({
-            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BANNY_SVG_BASE_URI"),
-            expectedRaw: vm.envOr({name: "VERIFY_BANNY_SVG_BASE_URI", defaultValue: string("")}),
+            ok: _enforceBannyExpectationOnProduction(isProductionChain, expected.svgBaseUriSet, "VERIFY_BANNY_SVG_BASE_URI"),
+            expectedRaw: expected.svgBaseUri,
             actualRaw: _staticString(resolver, "svgBaseUri()"),
             label: "Banny resolver svgBaseUri == expected"
         });
 
         // 4. Hook-store tier count — the canonical deployment ends with 4 baseline body tiers
         // plus 64 Drop 1/Drop 2 tiers = 68 total. Drop missing/incomplete = wrong count.
-        uint256 expectedTierCount;
-        string memory tierCountRaw = vm.envOr({name: "VERIFY_BANNY_TIER_COUNT", defaultValue: string("")});
-        if (bytes(tierCountRaw).length > 0) {
-            expectedTierCount = vm.parseUint(tierCountRaw);
+        if (expected.tierCountSet) {
             _check({
-                condition: hookStore.maxTierIdOf(bannyHook) == expectedTierCount,
+                condition: hookStore.maxTierIdOf(bannyHook) == expected.tierCount,
                 label: "Banny hook maxTierIdOf == VERIFY_BANNY_TIER_COUNT",
                 critical: true
             });
@@ -2805,19 +2810,89 @@ contract Verify is Script {
         // earlier check. Hash the canonical per-tier fields off-chain, supply via
         // `VERIFY_BANNY_TIER_MANIFEST_HASH`, and verify on-chain by accumulating the same digest
         // over `tierOf` + `svgHashOf` + `productNameOf` for tiers `1..expectedTierCount`.
-        if (expectedTierCount > 0) {
+        if (expected.tierCountSet && expected.tierCount > 0) {
             _verifyBannyTierManifestHash({
                 bannyHook: bannyHook,
                 resolver: resolver,
-                tierCount: expectedTierCount,
+                tierCount: expected.tierCount,
+                tierManifestHash: expected.tierManifestHash,
+                tierManifestHashSet: expected.tierManifestHashSet,
                 isProductionChain: isProductionChain
             });
         }
     }
 
+    /// @notice Operator-supplied Banny manifest expectations, captured once before the verifier
+    /// runs so the per-field assertions don't race against a sibling test contract's `vm.setEnv`.
+    /// Tests inherit a harness that overrides `_loadBannyExpectations` to supply canned values
+    /// directly from storage; production runs receive the defaults loaded from env vars.
+    struct BannyExpectations {
+        bool banOpsOperatorSet;
+        address banOpsOperator;
+        bool svgDescriptionSet;
+        string svgDescription;
+        bool svgExternalUrlSet;
+        string svgExternalUrl;
+        bool svgBaseUriSet;
+        string svgBaseUri;
+        bool tierCountSet;
+        uint256 tierCount;
+        bool tierManifestHashSet;
+        bytes32 tierManifestHash;
+    }
+
+    /// @notice Default loader for `BannyExpectations`. Reads every `VERIFY_BANNY_*` /
+    /// `VERIFY_BAN_OPS_OPERATOR` env var once and packs them into the struct so downstream
+    /// verification work is decoupled from env-var timing.
+    function _loadBannyExpectations() internal virtual returns (BannyExpectations memory e) {
+        string memory raw = vm.envOr({name: "VERIFY_BAN_OPS_OPERATOR", defaultValue: string("")});
+        if (bytes(raw).length > 0) {
+            e.banOpsOperatorSet = true;
+            e.banOpsOperator = vm.parseAddress(raw);
+        }
+        e.svgDescription = vm.envOr({name: "VERIFY_BANNY_SVG_DESCRIPTION", defaultValue: string("")});
+        e.svgDescriptionSet = bytes(e.svgDescription).length > 0;
+        e.svgExternalUrl = vm.envOr({name: "VERIFY_BANNY_SVG_EXTERNAL_URL", defaultValue: string("")});
+        e.svgExternalUrlSet = bytes(e.svgExternalUrl).length > 0;
+        e.svgBaseUri = vm.envOr({name: "VERIFY_BANNY_SVG_BASE_URI", defaultValue: string("")});
+        e.svgBaseUriSet = bytes(e.svgBaseUri).length > 0;
+        raw = vm.envOr({name: "VERIFY_BANNY_TIER_COUNT", defaultValue: string("")});
+        if (bytes(raw).length > 0) {
+            e.tierCountSet = true;
+            e.tierCount = vm.parseUint(raw);
+        }
+        e.tierManifestHash = vm.envOr({name: "VERIFY_BANNY_TIER_MANIFEST_HASH", defaultValue: bytes32(0)});
+        e.tierManifestHashSet = e.tierManifestHash != bytes32(0);
+    }
+
+    /// @notice Replacement for the previous `_expectBannyEnvOnProduction` helper. Returns `true`
+    /// when the per-field assertion should proceed (operator supplied a value). On production with
+    /// no value supplied, fails closed with a label tied to the env var the operator forgot.
+    function _enforceBannyExpectationOnProduction(
+        bool isProductionChain,
+        bool fieldSet,
+        string memory envName
+    )
+        internal
+        returns (bool)
+    {
+        if (fieldSet) return true;
+        if (isProductionChain) {
+            _check({
+                condition: false,
+                label: string.concat(envName, " MUST be set on production for Banny resolver identity"),
+                critical: true
+            });
+        } else {
+            _skip(string.concat(envName, " (not set on non-production chain)"));
+        }
+        return false;
+    }
+
     /// @notice Walk `1..tierCount` on the canonical Banny hook + resolver and accumulate a
     /// keccak256 digest of every committed tier field. Compare against the operator-supplied
-    /// `VERIFY_BANNY_TIER_MANIFEST_HASH`. Fails closed on production when the env var is unset.
+    /// `tierManifestHash` (captured upstream by `_loadBannyExpectations`). Fails closed on
+    /// production when the operator didn't supply a hash.
     /// @dev Digest shape per tier (matches the off-chain manifest generator):
     ///   `keccak256(abi.encode(running, tierId, price, initialSupply, category, reserveFrequency,
     ///                          encodedIPFSUri, svgHash, keccak256(productName)))`
@@ -2826,12 +2901,13 @@ contract Verify is Script {
         address bannyHook,
         address resolver,
         uint256 tierCount,
+        bytes32 tierManifestHash,
+        bool tierManifestHashSet,
         bool isProductionChain
     )
         internal
     {
-        bytes32 expected = vm.envOr({name: "VERIFY_BANNY_TIER_MANIFEST_HASH", defaultValue: bytes32(0)});
-        if (expected == bytes32(0)) {
+        if (!tierManifestHashSet) {
             if (isProductionChain) {
                 _check({
                     condition: false,
@@ -2865,7 +2941,7 @@ contract Verify is Script {
         }
 
         _check({
-            condition: digest == expected,
+            condition: digest == tierManifestHash,
             label: "Banny per-tier manifest hash == VERIFY_BANNY_TIER_MANIFEST_HASH",
             critical: true
         });
@@ -2889,22 +2965,6 @@ contract Verify is Script {
         return abi.decode(data, (string));
     }
 
-    /// Helper: on production, an empty env value is a fail-closed event. On non-production it
-    /// skips with a logged note. Returns true when the per-field assertion should proceed.
-    function _expectBannyEnvOnProduction(bool isProductionChain, string memory envKey) internal returns (bool) {
-        string memory raw = vm.envOr({name: envKey, defaultValue: string("")});
-        if (bytes(raw).length > 0) return true;
-        if (isProductionChain) {
-            _check({
-                condition: false,
-                label: string.concat(envKey, " MUST be set on production for Banny resolver manifest"),
-                critical: true
-            });
-        } else {
-            _skip(string.concat(envKey, " unset - Banny manifest field skipped on non-production chain"));
-        }
-        return false;
-    }
 
     function _checkResolverField(
         bool ok,
