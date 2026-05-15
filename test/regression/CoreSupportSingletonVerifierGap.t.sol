@@ -92,7 +92,7 @@ contract CoreSupportSingletonVerifierGapTest is Test {
             suckerRegistry_: address(suckerRegistry)
         });
 
-        // CO fix (Decision A): the verifier now asserts every core+support singleton's runtime
+        // Coverage: the verifier now asserts every core+support singleton's runtime
         // bytecode equals its artifact's deployedBytecode. The mocks above do not match the
         // audited artifacts, so the verifier rejects at the first identity check.
         vm.expectRevert();
@@ -112,8 +112,8 @@ contract CoreSupportSingletonVerifierGapTest is Test {
         omnichainDeployer = address(omnichainMock);
         prices = new CoreSupportMockOwned({owner_: safe});
         feelessAddresses = new CoreSupportMockOwned({owner_: safe});
-        // The O fix asserts suckerRegistry.PERMISSIONS() — use a mock that exposes both
-        // owner() and PERMISSIONS() for this regression to still target CO behaviour.
+        // The verifier asserts suckerRegistry.PERMISSIONS() — use a mock that exposes both
+        // owner() and PERMISSIONS() for this regression to still target core-support behaviour.
         suckerRegistry = new CoreSupportMockOwnedPermissioned({owner_: safe, permissions_: address(permissions)});
         fundAccessLimits = new CoreSupportMockCode();
         rulesets = new CoreSupportMockCode();

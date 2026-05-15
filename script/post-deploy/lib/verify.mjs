@@ -192,8 +192,8 @@ async function verifyOne({ target, entry, baseName }) {
   if (!creation?.txHash) {
     throw nonTransient(`No creation transaction found on explorer for ${target.address}`);
   }
-  // CA fix: under Sphinx/Safe deployment the OUTER tx input is the Safe.execTransaction wrapper
-  // and slicing through it picks up wrapper ABI bytes as fake constructor args. Recover from the
+  // Under Sphinx/Safe deployment the OUTER tx input is the Safe.execTransaction wrapper, and
+  // slicing through it picks up wrapper ABI bytes as fake constructor args. Recover from the
   // internal call to the deterministic CREATE2 factory instead — its input is exactly
   // `0x + salt(32 bytes) + creationCode + constructorArgs`. Fall back to the outer input if no
   // factory call is present (non-Sphinx deploys).
@@ -342,7 +342,7 @@ const CREATE2_FACTORY = '0x4e59b44847b379578588920ca78fbf26c0b4956c';
 /// null if no such internal call exists (non-Sphinx deployments). The factory's input is
 /// `0x + salt(32 bytes) + creationCode + constructorArgs`, which `sliceConstructorArgs` slices
 /// cleanly without picking up wrapper ABI bytes from the outer Safe.execTransaction. Mirrors the
-/// helper in artifacts.mjs so the verifier and emitter share the same CA fix.
+/// helper in artifacts.mjs so the verifier and emitter share the same factory-call recovery.
 async function getFactoryCallInput(txHash) {
   try {
     return await withRetry(async () => {

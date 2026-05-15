@@ -25,7 +25,7 @@ contract SuckerManifestVerifierGapTest is Test {
 
         vm.setEnv("VERIFY_SUCKER_PAIRS_1", "1");
 
-        // BC fix: Category 19 now asserts the local sucker has code. The mock pair sets local to
+        // Coverage: Category 19 now asserts the local sucker has code. The mock pair sets local to
         // address(0), so the verifier rejects.
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -58,7 +58,7 @@ contract SuckerManifestVerifierGapTest is Test {
         JBRemoteToken memory remoteToken = local.remoteTokenFor(JBConstants.NATIVE_TOKEN);
         assertFalse(remoteToken.enabled, "native-token mapping is disabled");
 
-        // BC residual fix: Category 19 now reads remoteTokenFor(NATIVE_TOKEN).enabled and
+        // Coverage: Category 19 now reads remoteTokenFor(NATIVE_TOKEN).enabled and
         // rejects when the mapping is disabled.
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -69,7 +69,7 @@ contract SuckerManifestVerifierGapTest is Test {
         harness.verifySuckerManifest();
     }
 
-    /// @dev BC residual closure: when the operator declares the exact per-pair manifest via
+    /// @dev Coverage: when the operator declares the exact per-pair manifest via
     /// `VERIFY_SUCKER_PAIR_<projectId>_<idx>`, the verifier asserts each field matches. A wrong
     /// peer bytes32 must trip the new check. Uses project ID 2 to keep the env var key
     /// disjoint from the test below — Foundry runs tests in this contract concurrently and
@@ -123,7 +123,7 @@ contract SuckerManifestVerifierGapTest is Test {
         harness.verifySuckerManifest();
     }
 
-    /// @dev BC residual closure: a wrong remote-chain-id in the manifest must trip the registry-
+    /// @dev Coverage: a wrong remote-chain-id in the manifest must trip the registry-
     /// side remoteChainId check first. Uses project ID 3 to avoid env collision with sibling tests.
     function test_suckerManifestVerifierRejectsWrongRemoteChainIdInExactManifest() public {
         bytes32 peer = bytes32(uint256(uint160(makeAddr("remote sucker"))));

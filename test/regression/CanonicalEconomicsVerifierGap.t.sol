@@ -11,7 +11,7 @@ contract CanonicalEconomicsVerifierGapTest is Test {
     function test_canonicalEconomicsVerifierReadsDocumentedPerProjectHashEnvs() public view {
         // Source-level assertion. The runtime behaviour is flaky in `forge test`'s parallel
         // contract execution because env vars are process-wide and sibling tests race on them;
-        // this complementary check guarantees the BI source wires the per-project env vars
+        // this complementary check guarantees the verifier source wires the per-project env vars
         // through to a critical hash-equality check.
         string memory verifySource = vm.readFile("script/Verify.s.sol");
         assertTrue(_contains(verifySource, "VERIFY_CONFIG_HASH_1"), "verifier reads VERIFY_CONFIG_HASH_1 env var");

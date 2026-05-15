@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {Verify} from "../../script/Verify.s.sol";
 
-/// @notice BA residual coverage for bridge/CCIP endpoint identity on sucker deployers. Each test
+/// @notice Coverage for bridge/CCIP endpoint identity on sucker deployers. Each test
 /// supplies a deployer whose endpoint immutable is one step off the canonical chain manifest
 /// and asserts the verifier rejects.
 contract BridgeAndCcipEndpointVerifierGapTest is Test {

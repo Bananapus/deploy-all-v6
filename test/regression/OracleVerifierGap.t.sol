@@ -46,7 +46,7 @@ contract OracleVerifierGapTest is Test {
         assertEq(address(ethUsdFeed.FEED()), MAINNET_ETH_USD);
         assertTrue(ethUsdFeed.THRESHOLD() != 3600, "test must use noncanonical threshold");
 
-        // BG fix: Verify.s.sol now asserts the wrapper's THRESHOLD matches the canonical 3600s.
+        // Coverage: Verify.s.sol now asserts the wrapper's THRESHOLD matches the canonical 3600s.
         vm.expectRevert(
             abi.encodeWithSelector(
                 Verify.Verify_CriticalCheckFailed.selector, "ETH/USD: THRESHOLD matches deploy-time staleness window"
@@ -83,7 +83,7 @@ contract OracleVerifierGapTest is Test {
 
         assertTrue(address(usdcUsdFeed.FEED()) != MAINNET_USDC_USD, "test must use noncanonical USDC/USD feed");
 
-        // BG fix: Category 8 now also pins the USDC/USD aggregator to the per-chain expected.
+        // Coverage: Category 8 now also pins the USDC/USD aggregator to the per-chain expected.
         vm.expectRevert(
             abi.encodeWithSelector(
                 Verify.Verify_CriticalCheckFailed.selector, "USDC/USD: FEED matches expected Chainlink aggregator"

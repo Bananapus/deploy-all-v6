@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression for BX: verify.mjs must pass `--libraries <path>:<LibName>:<addr>` for every
+/// @notice Regression: verify.mjs must pass `--libraries <path>:<LibName>:<addr>` for every
 /// pre-linked library so forge verify-contract can re-link the source against the on-chain
 /// bytecode. The library addresses live in the manifest (top-level `libraries` map) populated by
 /// build-artifacts.sh's Phase 3.

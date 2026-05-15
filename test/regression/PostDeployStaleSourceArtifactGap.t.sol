@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression for BY: build-artifacts.sh must `forge clean` source repos before building
+/// @notice Regression: build-artifacts.sh must `forge clean` source repos before building
 /// (so stale out/*.json can't be picked up), validate that the source file exists in the source
 /// repo, and validate that the copied artifact's metadata.settings.compilationTarget binds the
 /// expected (sourcePath, contractName) pair.

@@ -7,7 +7,7 @@ import {Verify} from "../../script/Verify.s.sol";
 
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 
-/// @notice BE residual closure: the verifier asserts the registry's default hook AND every
+/// @notice Coverage: the verifier asserts the registry's default hook AND every
 /// canonical project's resolved hookOf equals the operator-declared canonical buyback hook.
 /// Without this, a deployment can ship with nonzero hooks that don't match the canonical
 /// implementation while the prior count-only check still passes.

@@ -7,7 +7,7 @@ import {Verify} from "../../script/Verify.s.sol";
 
 import {JB721TiersHookStore} from "@bananapus/721-hook-v6/src/JB721TiersHookStore.sol";
 
-/// @notice CT residual closure — assert resolver custody, metadata, and tier-count manifest
+/// @notice Coverage — assert resolver custody, metadata, and tier-count manifest
 /// match the canonical Banny launch. Without these, a code-bearing resolver with nonempty
 /// `contractURI` still passes the prior verifier even if `owner`, `trustedForwarder`,
 /// `svgDescription` / `svgExternalUrl` / `svgBaseUri`, or the 68-tier Drop 1/Drop 2 manifest

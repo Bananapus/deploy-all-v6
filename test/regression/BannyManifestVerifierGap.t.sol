@@ -13,8 +13,8 @@ import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 
 contract BannyManifestVerifierGapTest is Test {
     function test_canonicalBannyVerifierIgnoresResolverOwnerMetadataAndDropManifest() public {
-        // Clear BI's per-project env vars in case a sibling test leaked them via forge's shared
-        // process environment.
+        // Clear the per-project config-hash env vars in case a sibling test leaked them via
+        // forge's shared process environment.
         vm.setEnv("VERIFY_CONFIG_HASH_1", "");
         vm.setEnv("VERIFY_CONFIG_HASH_2", "");
         vm.setEnv("VERIFY_CONFIG_HASH_3", "");
@@ -43,10 +43,10 @@ contract BannyManifestVerifierGapTest is Test {
         MockBannyHook bannyHook =
             new MockBannyHook({hookStore_: address(hookStore), contractUri_: "wrong-contract-uri"});
         MockRevOwner revOwner = new MockRevOwner(address(bannyHook));
-        // BS gate now requires the CPN hook to be wired with PROJECT_ID==2 / STORE==hookStore /
-        // symbol=="CPN". This test targets Banny manifest behaviour, so satisfy BS with a minimal
-        // mock so we reach the Banny assertions.
-        revOwner.setCpnHook(address(new MockCpnHookForBs(address(hookStore))));
+        // The verifier now requires the CPN hook to be wired with PROJECT_ID==2 /
+        // STORE==hookStore / symbol=="CPN". This test targets Banny manifest behaviour, so satisfy
+        // that gate with a minimal mock so we reach the Banny assertions.
+        revOwner.setCpnHook(address(new MockCpnHookForCpn(address(hookStore))));
 
         assertEq(resolver.owner(), wrongOwner, "test uses wrong resolver owner");
         assertEq(resolver.trustedForwarder(), wrongForwarder, "test uses wrong forwarder");
@@ -132,8 +132,8 @@ contract MockRevOwner {
         _bannyHook = bannyHook_;
     }
 
-    /// BS-added setter: the CPN hook is required by the verifier; tests that target Banny-only
-    /// behaviour set a satisfying CPN mock through this so they don't trip the new BS gate.
+    /// @notice The CPN hook is required by the verifier; tests that target Banny-only behaviour
+    /// set a satisfying CPN mock through this so they don't trip the CPN gate.
     function setCpnHook(address cpnHook_) external {
         _cpnHook = cpnHook_;
     }
@@ -197,10 +197,10 @@ contract MockBannyHook is MockToken {
     }
 }
 
-/// CPN hook mock matching the BS gate's expectations (PROJECT_ID == 2, canonical store, "CPN"
-/// symbol). Used by sibling tests that target Banny manifest behaviour but now need a CPN hook
+/// @notice CPN hook mock matching the canonical-economics gate (PROJECT_ID == 2, canonical store,
+/// "CPN" symbol). Used by sibling tests that target Banny manifest behaviour but need a CPN hook
 /// in place to reach the Banny assertions.
-contract MockCpnHookForBs is MockToken {
+contract MockCpnHookForCpn is MockToken {
     address internal immutable _hookStore;
 
     constructor(address hookStore_) MockToken("CPN") {

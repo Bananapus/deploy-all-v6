@@ -44,8 +44,8 @@ if (!fs.existsSync(inDir)) die(`No input artifacts dir: ${inDir} (run artifacts.
 // Derive the expected target set from the CURRENT addresses-<chainId>.json dump
 // rather than from readdirSync(inDir). If a stale artifact survives in the cache
 // (from a previous run with different targets), it will simply not appear in
-// this dump and therefore not be distributed. This is the BV gate: distribution
-// is keyed off the current deployment, not whatever happens to be on disk.
+// this dump and therefore not be distributed. Distribution is keyed off the
+// current deployment, not whatever happens to be on disk.
 const expectedChainIdHex = `0x${Number(CHAIN_ID).toString(16)}`;
 const addressesPath = path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
 if (!fs.existsSync(addressesPath)) {

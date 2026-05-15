@@ -10,7 +10,7 @@ import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
 import {JBSuckersPair} from "@bananapus/suckers-v6/src/structs/JBSuckersPair.sol";
 
 contract SuckerManifestProductionSkipProbeTest is Test {
-    /// @dev BC residual closure: on production chains, the sucker manifest verifier must fail
+    /// @dev Coverage: on production chains, the sucker manifest verifier must fail
     /// closed when ALL `VERIFY_SUCKER_PAIRS_{1..4}` env vars are unset — otherwise a deployment
     /// can ship without ever exercising the per-pair manifest gate. Operators declare zero-pair
     /// projects by setting the env var to "0".
