@@ -2392,15 +2392,9 @@ contract Verify is Script {
         // Per-revnet operator grants. The operator is configured at revnet launch and
         // exposed via VERIFY_OPERATOR_{2,3,4} env vars. When set, the verifier asserts the
         // operator has the 9 canonical operator permissions on its revnet.
-        _verifyOperatorGrantsFor({
-            envVar: "VERIFY_OPERATOR_2", projectId: _CPN_PROJECT_ID, label: "Project 2 (CPN)"
-        });
-        _verifyOperatorGrantsFor({
-            envVar: "VERIFY_OPERATOR_3", projectId: _REV_PROJECT_ID, label: "Project 3 (REV)"
-        });
-        _verifyOperatorGrantsFor({
-            envVar: "VERIFY_OPERATOR_4", projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN)"
-        });
+        _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_2", projectId: _CPN_PROJECT_ID, label: "Project 2 (CPN)"});
+        _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_3", projectId: _REV_PROJECT_ID, label: "Project 3 (REV)"});
+        _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_4", projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN)"});
 
         // Known gap (logged, not failed): exhaustive "no extra grants" verification requires either
         // an enumerable JBPermissions or off-chain event-log reconciliation against
@@ -2453,10 +2447,7 @@ contract Verify is Script {
                     includeWildcardProjectId: true
                 }),
                 label: string.concat(
-                    "Permissions: ",
-                    label,
-                    " operator has permission ",
-                    vm.toString(uint256(expectedPermissions[i]))
+                    "Permissions: ", label, " operator has permission ", vm.toString(uint256(expectedPermissions[i]))
                 ),
                 critical: true
             });
