@@ -2308,8 +2308,8 @@ contract Verify is Script {
     ///        - operator=REVLoans,         permId=USE_ALLOWANCE
     ///        - operator=buyback registry, permId=SET_BUYBACK_POOL
     ///      account=REVDeployer in both cases.
-    ///   2. Per-revnet split-operator grants made by REVDeployer when each revnet is launched.
-    ///      Verified for projects {2 CPN, 3 REV, 4 BAN} when their split operator env var is set.
+    ///   2. Per-revnet operator grants made by REVDeployer when each revnet is launched.
+    ///      Verified for projects {2 CPN, 3 REV, 4 BAN} when their operator env var is set.
     ///   3. (Gap) No "extra grants" gate — JBPermissions has no enumeration, so the verifier
     ///      cannot prove the absence of unexpected grants on chain. Operators must rely on
     ///      off-chain event-log reconciliation against `OperatorPermissionsSet` until a future
@@ -2389,18 +2389,12 @@ contract Verify is Script {
             });
         }
 
-        // Per-revnet split-operator grants. The split operator is configured at revnet launch and
-        // exposed via VERIFY_SPLIT_OPERATOR_{2,3,4} env vars. When set, the verifier asserts the
-        // operator has the 9 canonical split-operator permissions on its revnet.
-        _verifySplitOperatorGrantsFor({
-            envVar: "VERIFY_SPLIT_OPERATOR_2", projectId: _CPN_PROJECT_ID, label: "Project 2 (CPN)"
-        });
-        _verifySplitOperatorGrantsFor({
-            envVar: "VERIFY_SPLIT_OPERATOR_3", projectId: _REV_PROJECT_ID, label: "Project 3 (REV)"
-        });
-        _verifySplitOperatorGrantsFor({
-            envVar: "VERIFY_SPLIT_OPERATOR_4", projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN)"
-        });
+        // Per-revnet operator grants. The operator is configured at revnet launch and
+        // exposed via VERIFY_OPERATOR_{2,3,4} env vars. When set, the verifier asserts the
+        // operator has the 9 canonical operator permissions on its revnet.
+        _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_2", projectId: _CPN_PROJECT_ID, label: "Project 2 (CPN)"});
+        _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_3", projectId: _REV_PROJECT_ID, label: "Project 3 (REV)"});
+        _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_4", projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN)"});
 
         // Known gap (logged, not failed): exhaustive "no extra grants" verification requires either
         // an enumerable JBPermissions or off-chain event-log reconciliation against
@@ -2408,10 +2402,10 @@ contract Verify is Script {
         console.log("  [INFO] No on-chain enumeration - see DEPLOY.md for off-chain grant reconciliation");
     }
 
-    /// Asserts the 9 canonical split-operator permissions on `projectId` for the operator named by
+    /// Asserts the 9 canonical operator permissions on `projectId` for the operator named by
     /// `envVar`. On production chains the env var is mandatory (fail-closed); on testnets and
     /// partial-stack chains the check skips when the env var is not set.
-    function _verifySplitOperatorGrantsFor(string memory envVar, uint256 projectId, string memory label) internal {
+    function _verifyOperatorGrantsFor(string memory envVar, uint256 projectId, string memory label) internal {
         address operator = vm.envOr({name: envVar, defaultValue: address(0)});
         if (operator == address(0)) {
             // Fail-closed on the canonical production chains so a launch run cannot silently skip
@@ -2422,12 +2416,12 @@ contract Verify is Script {
             if (isProductionChain) {
                 _check({
                     condition: false,
-                    label: string.concat(envVar, " MUST be set on production for ", label, " split-operator grants"),
+                    label: string.concat(envVar, " MUST be set on production for ", label, " operator grants"),
                     critical: true
                 });
                 return;
             }
-            console.log(string.concat("  [SKIP] ", envVar, " unset - split-operator grants for ", label, " skipped"));
+            console.log(string.concat("  [SKIP] ", envVar, " unset - operator grants for ", label, " skipped"));
             _skipped += 1;
             return;
         }
@@ -2453,10 +2447,7 @@ contract Verify is Script {
                     includeWildcardProjectId: true
                 }),
                 label: string.concat(
-                    "Permissions: ",
-                    label,
-                    " split-operator has permission ",
-                    vm.toString(uint256(expectedPermissions[i]))
+                    "Permissions: ", label, " operator has permission ", vm.toString(uint256(expectedPermissions[i]))
                 ),
                 critical: true
             });

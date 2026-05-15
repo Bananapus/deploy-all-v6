@@ -158,7 +158,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         cfg = REVConfig({
             description: REVDescription("WBTC Test", "WBTC8", "ipfs://wbtc", "WBTC_SALT"),
             baseCurrency: USD, // Abstract USD -> triggers cross-currency conversion via JBPrices
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -230,7 +230,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         cfg = REVConfig({
             description: REVDescription("WBTC TwoStage", "WB2S", "ipfs://wb2s", "WB2S_SALT"),
             baseCurrency: USD,
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -315,10 +315,10 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
             }),
             // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32(withSplit ? bytes32("WBTC_721_S") : bytes32("WBTC_721")),
-            preventSplitOperatorAdjustingTiers: false,
-            preventSplitOperatorUpdatingMetadata: false,
-            preventSplitOperatorMinting: false,
-            preventSplitOperatorIncreasingDiscountPercent: false
+            preventOperatorAdjustingTiers: false,
+            preventOperatorUpdatingMetadata: false,
+            preventOperatorMinting: false,
+            preventOperatorIncreasingDiscountPercent: false
         });
     }
 
@@ -861,7 +861,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         REVConfig memory cfg = REVConfig({
             description: REVDescription("WBTC+ETH", "WBETH", "ipfs://wbeth", "WBETH_SALT"),
             baseCurrency: USD,
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });

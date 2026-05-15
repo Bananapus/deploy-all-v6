@@ -279,7 +279,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         cfg = REVConfig({
             description: REVDescription("Revnet", "REV", "ipfs://rev", "REV_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -336,7 +336,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         cfg = REVConfig({
             description: REVDescription("TwoStage", "2STG", "ipfs://2stg", "2STG_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -400,10 +400,10 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             }),
             // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("TEST_721"),
-            preventSplitOperatorAdjustingTiers: false,
-            preventSplitOperatorUpdatingMetadata: false,
-            preventSplitOperatorMinting: false,
-            preventSplitOperatorIncreasingDiscountPercent: false
+            preventOperatorAdjustingTiers: false,
+            preventOperatorUpdatingMetadata: false,
+            preventOperatorMinting: false,
+            preventOperatorIncreasingDiscountPercent: false
         });
     }
 

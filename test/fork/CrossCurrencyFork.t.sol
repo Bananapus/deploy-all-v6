@@ -138,7 +138,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         cfg = REVConfig({
             description: REVDescription("CC Test", "CCT", "ipfs://cc", "CC_SALT"),
             baseCurrency: USD, // Abstract USD
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -224,10 +224,10 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             }),
             // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32(withSplit ? bytes32("CC_USD_721_S") : bytes32("CC_USD_721")),
-            preventSplitOperatorAdjustingTiers: false,
-            preventSplitOperatorUpdatingMetadata: false,
-            preventSplitOperatorMinting: false,
-            preventSplitOperatorIncreasingDiscountPercent: false
+            preventOperatorAdjustingTiers: false,
+            preventOperatorUpdatingMetadata: false,
+            preventOperatorMinting: false,
+            preventOperatorIncreasingDiscountPercent: false
         });
     }
 
@@ -279,10 +279,10 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             }),
             // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("CC_ETH_721"),
-            preventSplitOperatorAdjustingTiers: false,
-            preventSplitOperatorUpdatingMetadata: false,
-            preventSplitOperatorMinting: false,
-            preventSplitOperatorIncreasingDiscountPercent: false
+            preventOperatorAdjustingTiers: false,
+            preventOperatorUpdatingMetadata: false,
+            preventOperatorMinting: false,
+            preventOperatorIncreasingDiscountPercent: false
         });
     }
 
@@ -529,7 +529,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         REVConfig memory cfg = REVConfig({
             description: REVDescription("NoPriceFeed", "NPF", "ipfs://npf", "NPF_SALT"),
             baseCurrency: 999,
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -605,10 +605,10 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             }),
             // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("NP_721"),
-            preventSplitOperatorAdjustingTiers: false,
-            preventSplitOperatorUpdatingMetadata: false,
-            preventSplitOperatorMinting: false,
-            preventSplitOperatorIncreasingDiscountPercent: false
+            preventOperatorAdjustingTiers: false,
+            preventOperatorUpdatingMetadata: false,
+            preventOperatorMinting: false,
+            preventOperatorIncreasingDiscountPercent: false
         });
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
@@ -705,7 +705,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         REVConfig memory cfg = REVConfig({
             description: REVDescription("ETH Base", "ETHB", "ipfs://ethb", "ETHB_SALT"),
             baseCurrency: nativeCurrency, // Same currency as payment token
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });

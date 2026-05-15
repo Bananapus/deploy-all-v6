@@ -309,7 +309,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         cfg = REVConfig({
             description: REVDescription("Adversarial", "ADV", "ipfs://adv", "ADV_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });

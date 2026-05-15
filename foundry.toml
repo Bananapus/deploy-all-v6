@@ -3,7 +3,8 @@ solc = '0.8.28'
 bytecode_hash = "none"
 evm_version = 'cancun'
 via_ir = true
-optimizer = false
+optimizer = true
+optimizer_runs = 200
 libs = ["node_modules", "lib"]
 fs_permissions = [{ access = "read-write", path = "./"}]
 memory_limit = 67108864

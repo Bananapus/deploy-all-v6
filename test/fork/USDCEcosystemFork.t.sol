@@ -113,7 +113,7 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
         cfg = REVConfig({
             description: REVDescription("USDC Ecosystem", "UECO", "ipfs://ueco", "UECO_SALT"),
             baseCurrency: uint32(uint160(address(usdc))),
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -177,10 +177,10 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
             }),
             // forge-lint: disable-next-line(unsafe-typecast)
             salt: bytes32("UECO_721"),
-            preventSplitOperatorAdjustingTiers: false,
-            preventSplitOperatorUpdatingMetadata: false,
-            preventSplitOperatorMinting: false,
-            preventSplitOperatorIncreasingDiscountPercent: false
+            preventOperatorAdjustingTiers: false,
+            preventOperatorUpdatingMetadata: false,
+            preventOperatorMinting: false,
+            preventOperatorIncreasingDiscountPercent: false
         });
     }
 

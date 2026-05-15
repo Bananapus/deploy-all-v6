@@ -111,7 +111,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         cfg = REVConfig({
             description: REVDescription("LPBuyback", "LBH", "ipfs://lbh", "LBH_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });

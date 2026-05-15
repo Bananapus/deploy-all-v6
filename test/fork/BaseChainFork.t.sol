@@ -301,7 +301,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
         cfg = REVConfig({
             description: REVDescription("Base Fork Test", "BFORK", "ipfs://base", "BASE_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)), // ETH as base currency.
-            splitOperator: multisig(), // Multisig can operate splits.
+            operator: multisig(), // Multisig can operate splits.
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages // Single stage config.
         });

@@ -367,7 +367,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
         REVConfig memory cfg = REVConfig({
             description: REVDescription("CC Parity", "CCP", "ipfs://ccp", "CCP_SALT"),
             baseCurrency: USD,
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });

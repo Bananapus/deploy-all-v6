@@ -146,7 +146,7 @@ abstract contract RevnetEcosystemBase is RevnetForkBase {
         cfg = REVConfig({
             description: REVDescription("Ecosystem", "ECO", "ipfs://eco", "ECO_SALT"),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
