@@ -238,6 +238,12 @@ contract Verify is Script {
     uint256 private constant _REV_PROJECT_ID = 3;
     // The BAN/Banny project is always project 4.
     uint256 private constant _BAN_PROJECT_ID = 4;
+    // The DEFIFA revnet project is always project 5.
+    uint256 private constant _DEFIFA_REV_PROJECT_ID = 5;
+    // The ART/Artizen project is always project 6 (Base-only).
+    uint256 private constant _ART_PROJECT_ID = 6;
+    // The MARKEE project is always project 7.
+    uint256 private constant _MARKEE_PROJECT_ID = 7;
     // Distributor vesting rounds must match Deploy.s.sol.
     uint256 private constant _VESTING_ROUNDS = 52;
 
@@ -461,6 +467,17 @@ contract Verify is Script {
         // Verify project 4 (BAN/Banny) has an owner.
         _checkProjectHasOwner({projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN) exists with owner"});
 
+        // Conditional existence checks for newer projects.
+        if (totalProjects >= _DEFIFA_REV_PROJECT_ID) {
+            _checkProjectHasOwner({projectId: _DEFIFA_REV_PROJECT_ID, label: "Project 5 (DEFIFA) exists with owner"});
+        }
+        if (totalProjects >= _ART_PROJECT_ID) {
+            _checkProjectHasOwner({projectId: _ART_PROJECT_ID, label: "Project 6 (ART) exists with owner"});
+        }
+        if (totalProjects >= _MARKEE_PROJECT_ID) {
+            _checkProjectHasOwner({projectId: _MARKEE_PROJECT_ID, label: "Project 7 (MARKEE) exists with owner"});
+        }
+
         _verifyCanonicalProjectIdentities();
 
         // No stale ERC-721 approvals on canonical projects.
@@ -484,6 +501,27 @@ contract Verify is Script {
             label: "Project 4 (BAN) has no stale approval",
             critical: true
         });
+        if (totalProjects >= _DEFIFA_REV_PROJECT_ID) {
+            _check({
+                condition: projects.getApproved(_DEFIFA_REV_PROJECT_ID) == address(0),
+                label: "Project 5 (DEFIFA) has no stale approval",
+                critical: true
+            });
+        }
+        if (totalProjects >= _ART_PROJECT_ID) {
+            _check({
+                condition: projects.getApproved(_ART_PROJECT_ID) == address(0),
+                label: "Project 6 (ART) has no stale approval",
+                critical: true
+            });
+        }
+        if (totalProjects >= _MARKEE_PROJECT_ID) {
+            _check({
+                condition: projects.getApproved(_MARKEE_PROJECT_ID) == address(0),
+                label: "Project 7 (MARKEE) has no stale approval",
+                critical: true
+            });
+        }
 
         // Log a blank line for readability.
         console.log("");
@@ -499,6 +537,16 @@ contract Verify is Script {
         _verifyCanonicalRevnetProject({projectId: _CPN_PROJECT_ID, symbol: "CPN", label: "CPN(2)"});
         _verifyCanonicalRevnetProject({projectId: _REV_PROJECT_ID, symbol: "REV", label: "REV(3)"});
         _verifyCanonicalRevnetProject({projectId: _BAN_PROJECT_ID, symbol: "BAN", label: "BAN(4)"});
+
+        if (projects.count() >= _DEFIFA_REV_PROJECT_ID) {
+            _verifyCanonicalRevnetProject({projectId: _DEFIFA_REV_PROJECT_ID, symbol: "DEFIFA", label: "DEFIFA(5)"});
+        }
+        if (projects.count() >= _ART_PROJECT_ID && (block.chainid == 8453 || block.chainid == 84_532)) {
+            _verifyCanonicalRevnetProject({projectId: _ART_PROJECT_ID, symbol: "ART", label: "ART(6)"});
+        }
+        if (projects.count() >= _MARKEE_PROJECT_ID) {
+            _verifyCanonicalRevnetProject({projectId: _MARKEE_PROJECT_ID, symbol: "MARKEE", label: "MARKEE(7)"});
+        }
 
         if (address(revOwner) != address(0)) {
             IJB721TiersHook bannyHook = revOwner.tiered721HookOf(_BAN_PROJECT_ID);
@@ -1025,6 +1073,20 @@ contract Verify is Script {
                 critical: true
             });
         }
+
+        // Conditional buyback checks for newer projects (5, 6, 7).
+        uint256 totalProjects = projects.count();
+        uint256[3] memory extraPids = [_DEFIFA_REV_PROJECT_ID, _ART_PROJECT_ID, _MARKEE_PROJECT_ID];
+        string[3] memory extraNames = ["DEFIFA(5)", "ART(6)", "MARKEE(7)"];
+        for (uint256 i; i < extraPids.length; i++) {
+            if (totalProjects < extraPids[i]) continue;
+            if (extraPids[i] == _ART_PROJECT_ID && block.chainid != 8453 && block.chainid != 84_532) continue;
+            _check({
+                condition: address(buybackRegistry.hookOf(extraPids[i])) == expectedHook,
+                label: string.concat(extraNames[i], " resolved buyback hookOf == canonical"),
+                critical: true
+            });
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1174,8 +1236,8 @@ contract Verify is Script {
                 condition: address(defifaDeployer).code.length > 0, label: "DefifaDeployer has code", critical: true
             });
             _check({
-                condition: defifaDeployer.DEFIFA_PROJECT_ID() == _REV_PROJECT_ID,
-                label: "Defifa uses REV(3) as fee project",
+                condition: defifaDeployer.DEFIFA_PROJECT_ID() == _DEFIFA_REV_PROJECT_ID,
+                label: "Defifa uses DEFIFA_REV(5) as fee project",
                 critical: true
             });
             _check({
@@ -1216,8 +1278,8 @@ contract Verify is Script {
             if (hookCodeOrigin.code.length > 0) {
                 _check({
                     condition: address(DefifaHook(hookCodeOrigin).DEFIFA_TOKEN())
-                        == address(tokens.tokenOf(_REV_PROJECT_ID)),
-                    label: "Defifa hook code origin uses REV token",
+                        == address(tokens.tokenOf(_DEFIFA_REV_PROJECT_ID)),
+                    label: "Defifa hook code origin uses DEFIFA_REV token",
                     critical: true
                 });
                 _check({
@@ -2700,6 +2762,45 @@ contract Verify is Script {
             }
         }
 
+        // Conditional config hash checks for newer projects (5, 6, 7).
+        {
+            uint256 totalProjects = projects.count();
+            uint256[3] memory extraPids = [_DEFIFA_REV_PROJECT_ID, _ART_PROJECT_ID, _MARKEE_PROJECT_ID];
+            string[3] memory extraNames = ["DEFIFA(5)", "ART(6)", "MARKEE(7)"];
+            string[3] memory extraEnvVars =
+                ["VERIFY_CONFIG_HASH_5", "VERIFY_CONFIG_HASH_6", "VERIFY_CONFIG_HASH_7"];
+            for (uint256 i; i < extraPids.length; i++) {
+                if (totalProjects < extraPids[i]) continue;
+                if (extraPids[i] == _ART_PROJECT_ID && block.chainid != 8453 && block.chainid != 84_532) continue;
+
+                bytes32 actual = revDeployer.hashedEncodedConfigurationOf(extraPids[i]);
+                _check({
+                    condition: actual != bytes32(0),
+                    label: string.concat(extraNames[i], " has non-zero config hash"),
+                    critical: true
+                });
+
+                string memory hashStr = vm.envOr({name: extraEnvVars[i], defaultValue: string("")});
+                if (bytes(hashStr).length > 0) {
+                    _check({
+                        condition: actual == vm.parseBytes32(hashStr),
+                        label: string.concat(extraNames[i], " config hash == expected"),
+                        critical: true
+                    });
+                } else if (isProductionChain) {
+                    _check({
+                        condition: false,
+                        label: string.concat(
+                            extraNames[i], " expected config hash MUST be set on production via ", extraEnvVars[i]
+                        ),
+                        critical: true
+                    });
+                } else {
+                    _skip(string.concat(extraNames[i], " expected config hash not provided (", extraEnvVars[i], " unset)"));
+                }
+            }
+        }
+
         // Verify Banny hook resolver and contractURI.
         if (address(revOwner) != address(0)) {
             IJB721TiersHook bannyHook = revOwner.tiered721HookOf(_BAN_PROJECT_ID);
@@ -3132,6 +3233,96 @@ contract Verify is Script {
             }
         }
 
+        // Conditional sucker manifest checks for newer projects (5, 6, 7).
+        {
+            uint256 totalProjects = projects.count();
+            uint256[3] memory extraPids = [_DEFIFA_REV_PROJECT_ID, _ART_PROJECT_ID, _MARKEE_PROJECT_ID];
+            string[3] memory extraNames = ["DEFIFA(5)", "ART(6)", "MARKEE(7)"];
+            for (uint256 i; i < extraPids.length; i++) {
+                if (totalProjects < extraPids[i]) continue;
+                if (extraPids[i] == _ART_PROJECT_ID && block.chainid != 8453 && block.chainid != 84_532) continue;
+
+                string memory envKey = string.concat("VERIFY_SUCKER_PAIRS_", vm.toString(extraPids[i]));
+                string memory expectedCountStr = vm.envOr(envKey, string(""));
+                if (bytes(expectedCountStr).length == 0) continue;
+                anySuckerChecks = true;
+
+                uint256 expectedCount = vm.parseUint(expectedCountStr);
+                JBSuckersPair[] memory pairs = suckerRegistry.suckerPairsOf(extraPids[i]);
+                _check({
+                    condition: pairs.length == expectedCount,
+                    label: string.concat(extraNames[i], " sucker pair count matches expected"),
+                    critical: true
+                });
+
+                for (uint256 j; j < pairs.length; j++) {
+                    string memory pairLabel = string.concat(extraNames[i], " sucker pair ", vm.toString(j));
+                    _check({
+                        condition: pairs[j].remote != bytes32(0),
+                        label: string.concat(pairLabel, " has non-zero remote"),
+                        critical: true
+                    });
+                    address local = pairs[j].local;
+                    _check({
+                        condition: local != address(0) && local.code.length > 0,
+                        label: string.concat(pairLabel, " local sucker has code"),
+                        critical: true
+                    });
+                    if (local.code.length == 0) continue;
+
+                    (bool okIsOf, bytes memory isOfData) = address(suckerRegistry)
+                        .staticcall(abi.encodeWithSignature("isSuckerOf(uint256,address)", extraPids[i], local));
+                    if (okIsOf && isOfData.length >= 32) {
+                        _check({
+                            condition: abi.decode(isOfData, (bool)),
+                            label: string.concat(pairLabel, " local is registered as a sucker of the project"),
+                            critical: true
+                        });
+                    }
+
+                    (bool okChainId, bytes memory chainIdData) =
+                        local.staticcall(abi.encodeWithSignature("peerChainId()"));
+                    if (okChainId && chainIdData.length >= 32) {
+                        _check({
+                            condition: abi.decode(chainIdData, (uint256)) != 0,
+                            label: string.concat(pairLabel, " peerChainId is non-zero"),
+                            critical: true
+                        });
+                    } else {
+                        _check({
+                            condition: false,
+                            label: string.concat(pairLabel, " local sucker exposes peerChainId()"),
+                            critical: true
+                        });
+                    }
+
+                    (bool okMap, bytes memory mapData) =
+                        local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", JBConstants.NATIVE_TOKEN));
+                    if (okMap && mapData.length >= 32) {
+                        bool nativeEnabled;
+                        assembly {
+                            nativeEnabled := iszero(iszero(mload(add(mapData, 0x20))))
+                        }
+                        _check({
+                            condition: nativeEnabled,
+                            label: string.concat(pairLabel, " native-token remote mapping is enabled"),
+                            critical: true
+                        });
+                    } else {
+                        _check({
+                            condition: false,
+                            label: string.concat(pairLabel, " local sucker exposes remoteTokenFor(address)"),
+                            critical: true
+                        });
+                    }
+
+                    _checkSuckerPairAgainstManifest({
+                        pair: pairs[j], local: local, projectId: extraPids[i], pairIndex: j, pairLabel: pairLabel
+                    });
+                }
+            }
+        }
+
         if (!anySuckerChecks) {
             // production chains must declare a manifest for every canonical project
             // (use "0" for projects with no suckers). Silent skip on production let a deployment
@@ -3141,7 +3332,7 @@ contract Verify is Script {
             if (isProductionChain) {
                 _check({
                     condition: false,
-                    label: "VERIFY_SUCKER_PAIRS_{1..4} MUST be set on production (use \"0\" for projects with no suckers)",
+                    label: "VERIFY_SUCKER_PAIRS_{1..7} MUST be set on production (use \"0\" for projects with no suckers)",
                     critical: true
                 });
             } else {

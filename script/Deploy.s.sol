@@ -3664,10 +3664,7 @@ contract Deploy is Script, Sphinx {
         address operator = 0xbB96A6D3D251dFDA76F96d1650f9Cfd53b41c8d1;
 
         // Skip if already configured.
-        if (
-            _projects.count() >= _ART_PROJECT_ID
-                && address(_directory.controllerOf(_ART_PROJECT_ID)) != address(0)
-        ) {
+        if (_projects.count() >= _ART_PROJECT_ID && address(_directory.controllerOf(_ART_PROJECT_ID)) != address(0)) {
             if (!_isCanonicalRevnetProject({projectId: _ART_PROJECT_ID, expectedSymbol: "ART"})) {
                 revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
             }
@@ -3702,8 +3699,7 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
-            autoIssuances[0] =
-                REVAutoIssuance({chainId: 8453, count: ART_BASE_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({chainId: 8453, count: ART_BASE_AUTO_ISSUANCE, beneficiary: operator});
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: ART_START_TIME,
@@ -3725,7 +3721,7 @@ contract Deploy is Script, Sphinx {
             splitPercent: 4000,
             splits: splits,
             // forge-lint: disable-next-line(unsafe-typecast)
-            initialIssuance: uint112(1_250 * DECIMAL_MULTIPLIER),
+            initialIssuance: uint112(1250 * DECIMAL_MULTIPLIER),
             issuanceCutFrequency: 120 days,
             issuanceCutPercent: 500_000_000,
             cashOutTaxRate: 1000,
@@ -3815,10 +3811,8 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] =
-                REVAutoIssuance({chainId: 1, count: MARKEE_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[1] =
-                REVAutoIssuance({chainId: 8453, count: MARKEE_BASE_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: MARKEE_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: MARKEE_BASE_AUTO_ISSUANCE, beneficiary: operator});
             autoIssuances[2] = REVAutoIssuance({chainId: 10, count: MARKEE_OP_AUTO_ISSUANCE, beneficiary: operator});
             autoIssuances[3] =
                 REVAutoIssuance({chainId: 42_161, count: MARKEE_ARB_AUTO_ISSUANCE, beneficiary: operator});
@@ -3843,7 +3837,7 @@ contract Deploy is Script, Sphinx {
             splitPercent: 3800,
             splits: splits,
             // forge-lint: disable-next-line(unsafe-typecast)
-            initialIssuance: uint112(6_250 * DECIMAL_MULTIPLIER),
+            initialIssuance: uint112(6250 * DECIMAL_MULTIPLIER),
             issuanceCutFrequency: 7_889_184,
             issuanceCutPercent: 200_000_000,
             cashOutTaxRate: 1000,
@@ -3856,7 +3850,7 @@ contract Deploy is Script, Sphinx {
             splitPercent: 3800,
             splits: splits,
             // forge-lint: disable-next-line(unsafe-typecast)
-            initialIssuance: uint112(1_049 * DECIMAL_MULTIPLIER),
+            initialIssuance: uint112(1049 * DECIMAL_MULTIPLIER),
             issuanceCutFrequency: 7_889_184,
             issuanceCutPercent: 100_000_000,
             cashOutTaxRate: 1000,
