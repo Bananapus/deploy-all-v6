@@ -28,6 +28,10 @@ contract PermissionVerifierGapTest is Test {
         // so the test reaches P's grant check rather than reverting on a missing getter.
         vm.mockCall(revDeployer, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
         vm.mockCall(revLoans, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
+        // O's expanded ERC-2771 sweep also calls trustedForwarder() on the same surfaces. Stub
+        // those so the verifier reaches P's grant check.
+        vm.mockCall(revDeployer, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
+        vm.mockCall(revLoans, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
 
         assertFalse(
             permissions.hasPermission({
@@ -111,6 +115,12 @@ contract PermissionVerifierGapTest is Test {
         vm.mockCall(revLoans, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
         vm.mockCall(
             canonicalBuybackRegistry, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions))
+        );
+        // O's expanded ERC-2771 sweep also calls trustedForwarder() on each surface.
+        vm.mockCall(revDeployer, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
+        vm.mockCall(revLoans, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
+        vm.mockCall(
+            canonicalBuybackRegistry, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder)
         );
 
         // First grant REVLoans wildcard USE_ALLOWANCE so we reach the buyback-registry check.

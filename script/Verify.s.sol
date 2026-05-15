@@ -2010,6 +2010,8 @@ contract Verify is Script {
         _check({condition: controllerForwarder != address(0), label: "trustedForwarder is non-zero", critical: true});
 
         // If expected trusted forwarder is provided, verify all ERC-2771 contracts use it.
+        // VERIFY_TRUSTED_FORWARDER is required on production chains (see the production guard
+        // earlier in `setUp`), so on those chains this block always runs.
         if (expectedTrustedForwarder != address(0)) {
             _check({
                 condition: controllerForwarder == expectedTrustedForwarder,
@@ -2034,6 +2036,97 @@ contract Verify is Script {
                 label: "Permissions.trustedForwarder == expected",
                 critical: true
             });
+
+            // Extend the trusted-forwarder check across every ERC-2771-aware surface the deployment
+            // graph touches. Decision A masks immutables before bytecode comparison, so it cannot
+            // prove which forwarder a contract was constructed with — only the per-surface getter
+            // can. Each `address != 0` guard mirrors the conditional load convention used for
+            // PERMISSIONS() below so periphery contracts unloaded on the current chain are skipped
+            // by the production manifest, not by silent fall-through.
+            if (address(prices) != address(0)) {
+                _check({
+                    condition: prices.trustedForwarder() == expectedTrustedForwarder,
+                    label: "Prices.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(buybackRegistry) != address(0)) {
+                _check({
+                    condition: buybackRegistry.trustedForwarder() == expectedTrustedForwarder,
+                    label: "BuybackRegistry.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(suckerRegistry) != address(0)) {
+                _check({
+                    condition: suckerRegistry.trustedForwarder() == expectedTrustedForwarder,
+                    label: "SuckerRegistry.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(omnichainDeployer) != address(0)) {
+                _check({
+                    condition: omnichainDeployer.trustedForwarder() == expectedTrustedForwarder,
+                    label: "OmnichainDeployer.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(revDeployer) != address(0)) {
+                _check({
+                    condition: revDeployer.trustedForwarder() == expectedTrustedForwarder,
+                    label: "REVDeployer.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(revLoans) != address(0)) {
+                _check({
+                    condition: revLoans.trustedForwarder() == expectedTrustedForwarder,
+                    label: "REVLoans.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(routerTerminalRegistry) != address(0)) {
+                _check({
+                    condition: routerTerminalRegistry.trustedForwarder() == expectedTrustedForwarder,
+                    label: "RouterTerminalRegistry.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(routerTerminal) != address(0)) {
+                _check({
+                    condition: routerTerminal.trustedForwarder() == expectedTrustedForwarder,
+                    label: "RouterTerminal.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(hookDeployer) != address(0)) {
+                _check({
+                    condition: hookDeployer.trustedForwarder() == expectedTrustedForwarder,
+                    label: "HookDeployer.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(hookProjectDeployer) != address(0)) {
+                _check({
+                    condition: hookProjectDeployer.trustedForwarder() == expectedTrustedForwarder,
+                    label: "HookProjectDeployer.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(ctPublisher) != address(0)) {
+                _check({
+                    condition: ctPublisher.trustedForwarder() == expectedTrustedForwarder,
+                    label: "CTPublisher.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(ctDeployer) != address(0)) {
+                _check({
+                    condition: ctDeployer.trustedForwarder() == expectedTrustedForwarder,
+                    label: "CTDeployer.trustedForwarder == expected",
+                    critical: true
+                });
+            }
         }
 
         // JBOmnichainDeployer's immutable DIRECTORY auth input must match the canonical directory.
@@ -2098,6 +2191,34 @@ contract Verify is Script {
             });
         }
 
+        // JBPrices is itself a permissioned surface — `addPriceFeedFor` is gated by
+        // `JBPermissioned._requirePermissionFrom`, so a noncanonical registry pointer could let
+        // a stale operator install price feeds against the wrong account graph.
+        if (address(prices) != address(0)) {
+            _check({
+                condition: address(prices.PERMISSIONS()) == address(permissions),
+                label: "Prices.PERMISSIONS == permissions",
+                critical: true
+            });
+        }
+        // CTPublisher / CTDeployer both extend JBPermissioned. `mintFrom` and the deployer's tier
+        // adjustments are gated by `_requirePermissionFrom`, so a wrong registry here lets a stale
+        // operator set tiers on canonical-deployer-owned hooks during the launch window.
+        if (address(ctPublisher) != address(0)) {
+            _check({
+                condition: address(ctPublisher.PERMISSIONS()) == address(permissions),
+                label: "CTPublisher.PERMISSIONS == permissions",
+                critical: true
+            });
+        }
+        if (address(ctDeployer) != address(0)) {
+            _check({
+                condition: address(ctDeployer.PERMISSIONS()) == address(permissions),
+                label: "CTDeployer.PERMISSIONS == permissions",
+                critical: true
+            });
+        }
+
         // P: assert the runtime permission grants the canonical deployment is supposed to create.
         _verifyPermissionGrants();
 
@@ -2156,6 +2277,44 @@ contract Verify is Script {
             });
         }
 
+        // Wildcard 3: sucker registry MAP_SUCKER_TOKEN on any project, granted by
+        // JBOmnichainDeployer in its constructor (`SUCKER_REGISTRY` operator, account=deployer).
+        // Without this grant, omnichain-deployed revnets cannot map their cross-chain tokens
+        // post-launch — a silent breakage of sucker functionality the verifier must catch.
+        if (address(omnichainDeployer) != address(0) && address(suckerRegistry) != address(0)) {
+            _check({
+                condition: permissions.hasPermission({
+                    operator: address(suckerRegistry),
+                    account: address(omnichainDeployer),
+                    projectId: 0,
+                    permissionId: JBPermissionIds.MAP_SUCKER_TOKEN,
+                    includeRoot: true,
+                    includeWildcardProjectId: true
+                }),
+                label: "Permissions: SuckerRegistry wildcard MAP_SUCKER_TOKEN granted by OmnichainDeployer",
+                critical: true
+            });
+        }
+
+        // Wildcard 4: Croptop publisher ADJUST_721_TIERS on any project the deployer temporarily
+        // owns, granted by CTDeployer's constructor (`PUBLISHER` operator, account=deployer).
+        // Without it, every Croptop hook launched through `CTDeployer.deployHookFor` will revert
+        // on the first publisher-driven tier adjustment.
+        if (address(ctDeployer) != address(0) && address(ctPublisher) != address(0)) {
+            _check({
+                condition: permissions.hasPermission({
+                    operator: address(ctPublisher),
+                    account: address(ctDeployer),
+                    projectId: 0,
+                    permissionId: JBPermissionIds.ADJUST_721_TIERS,
+                    includeRoot: true,
+                    includeWildcardProjectId: true
+                }),
+                label: "Permissions: CTPublisher wildcard ADJUST_721_TIERS granted by CTDeployer",
+                critical: true
+            });
+        }
+
         // Per-revnet split-operator grants. The split operator is configured at revnet launch and
         // exposed via VERIFY_SPLIT_OPERATOR_{2,3,4} env vars. When set, the verifier asserts the
         // operator has the 9 canonical split-operator permissions on its revnet.
@@ -2176,10 +2335,24 @@ contract Verify is Script {
     }
 
     /// Asserts the 9 canonical split-operator permissions on `projectId` for the operator named by
-    /// `envVar`. Skips silently when the env var is not set (testnets, partial chains).
+    /// `envVar`. On production chains the env var is mandatory (fail-closed); on testnets and
+    /// partial-stack chains the check skips when the env var is not set.
     function _verifySplitOperatorGrantsFor(string memory envVar, uint256 projectId, string memory label) internal {
         address operator = vm.envOr({name: envVar, defaultValue: address(0)});
         if (operator == address(0)) {
+            // Fail-closed on the canonical production chains so a launch run cannot silently skip
+            // verifying the broad operator grants for any of the four canonical projects. The
+            // mainnet chain list mirrors the production guard in `setUp`.
+            bool isProductionChain =
+                (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+            if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: string.concat(envVar, " MUST be set on production for ", label, " split-operator grants"),
+                    critical: true
+                });
+                return;
+            }
             console.log(string.concat("  [SKIP] ", envVar, " unset - split-operator grants for ", label, " skipped"));
             _skipped += 1;
             return;
