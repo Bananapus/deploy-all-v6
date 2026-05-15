@@ -3408,6 +3408,20 @@ contract Verify is Script {
         return address(0);
     }
 
+    /// BA residual: canonical USDC for this chain — the bridge token swap-CCIP deployers route
+    /// value through. Mirrors Deploy.s.sol's `_usdcToken` assignments.
+    function _expectedBridgeToken() internal view returns (address) {
+        if (block.chainid == 1) return 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        if (block.chainid == 11_155_111) return 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
+        if (block.chainid == 10) return 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
+        if (block.chainid == 11_155_420) return 0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
+        if (block.chainid == 8453) return 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+        if (block.chainid == 84_532) return 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+        if (block.chainid == 42_161) return 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+        if (block.chainid == 421_614) return 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
+        return address(0);
+    }
+
     /// BA residual: canonical Chainlink CCIP router on this chain. Mirrors `CCIPHelper.<X>_ROUTER`.
     function _expectedCcipRouter() internal view returns (address) {
         if (block.chainid == 1) return 0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D;
@@ -3650,7 +3664,115 @@ contract Verify is Script {
         // deployer factory and the per-route singleton that every clone proxies to.
         _verifySwapCcipSuckerRolloutIdentity();
 
+        // O clone/singleton residual: every implementation that backs a clone or per-route
+        // singleton carries its own constructor-injected PERMISSIONS / trustedForwarder
+        // immutables. Decision A masks those bytes before bytecode parity, so a noncanonical
+        // auth-input on the implementation survives the artifact-identity check. Per-surface
+        // getter equality is the only way to authenticate them.
+        _verifyImplementationAuthInputs();
+
         console.log("");
+    }
+
+    /// O clone/singleton residual: assert canonical PERMISSIONS / trustedForwarder on every
+    /// implementation we Decision-A. Each branch probes the getter via staticcall so a
+    /// surface that doesn't expose the getter is silently skipped (the getter absence is
+    /// itself a bytecode-shape mismatch that Decision A catches).
+    function _verifyImplementationAuthInputs() internal {
+        // Base 721 hook implementation (every cloned hook delegates here).
+        (bool okHookData, bytes memory hookData) = address(hookDeployer).staticcall(abi.encodeWithSignature("HOOK()"));
+        if (okHookData && hookData.length >= 32) {
+            address baseHook = abi.decode(hookData, (address));
+            _requireCanonicalAuthInputs({impl: baseHook, label: "JB721TiersHook base impl"});
+        }
+
+        // 721 Checkpoints implementation (every checkpoint module clones from this).
+        if (address(_checkpointsDeployer()) != address(0)) {
+            (bool okCp, bytes memory cpData) =
+                _checkpointsDeployer().staticcall(abi.encodeWithSignature("IMPLEMENTATION()"));
+            if (okCp && cpData.length >= 32) {
+                _requireCanonicalAuthInputs({impl: abi.decode(cpData, (address)), label: "JB721Checkpoints clone impl"});
+            }
+        }
+
+        // ProjectPayer implementation (every clone delegates here).
+        if (address(projectPayerDeployer) != address(0)) {
+            (bool okPp, bytes memory ppData) =
+                address(projectPayerDeployer).staticcall(abi.encodeWithSignature("IMPLEMENTATION()"));
+            if (okPp && ppData.length >= 32) {
+                _requireCanonicalAuthInputs({impl: abi.decode(ppData, (address)), label: "JBProjectPayer clone impl"});
+            }
+        }
+
+        // Default buyback hook (the registry's defaultHook is the per-chain implementation).
+        if (address(buybackRegistry) != address(0)) {
+            (bool okBh, bytes memory bhData) =
+                address(buybackRegistry).staticcall(abi.encodeWithSignature("defaultHook()"));
+            if (okBh && bhData.length >= 32) {
+                _requireCanonicalAuthInputs({impl: abi.decode(bhData, (address)), label: "JBBuybackHook default"});
+            }
+        }
+
+        // Per-type sucker singletons. Each deployer's `singleton()` is the implementation
+        // every clone proxies to; auth-input identity there bounds every produced sucker.
+        if (opSuckerDeployer != address(0)) {
+            _verifySuckerSingletonAuthInputs(opSuckerDeployer, "JBOptimismSucker singleton");
+        }
+        if (baseSuckerDeployer != address(0)) {
+            _verifySuckerSingletonAuthInputs(baseSuckerDeployer, "JBBaseSucker singleton");
+        }
+        if (arbSuckerDeployer != address(0)) {
+            _verifySuckerSingletonAuthInputs(arbSuckerDeployer, "JBArbitrumSucker singleton");
+        }
+        // CCIP-route deployers — iterate the same CSV used by BA endpoint identity.
+        if (bytes(ccipSuckerDeployersCsv).length > 0) {
+            string[] memory pairs = vm.split(ccipSuckerDeployersCsv, ",");
+            for (uint256 i; i < pairs.length; i++) {
+                string[] memory kv = vm.split(pairs[i], ":");
+                if (kv.length != 2) continue; // The BA pass already failed closed for malformed entries.
+                address deployer = vm.parseAddress(kv[1]);
+                _verifySuckerSingletonAuthInputs(deployer, string.concat("JBCCIPSucker singleton (remote=", kv[0], ")"));
+            }
+        }
+    }
+
+    /// Helper: read a sucker deployer's `singleton()` and run the auth-input getter checks
+    /// against it. Used by the clone/singleton residual sweep so each per-route sucker
+    /// implementation gets per-surface auth-input authentication on top of Decision A.
+    function _verifySuckerSingletonAuthInputs(address deployer, string memory label) internal {
+        (bool ok, bytes memory data) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
+        if (!ok || data.length < 32) return; // BA / CP path already flagged the missing getter.
+        address singleton = abi.decode(data, (address));
+        if (singleton == address(0) || singleton.code.length == 0) return;
+        _requireCanonicalAuthInputs({impl: singleton, label: label});
+    }
+
+    /// Helper: assert `impl.PERMISSIONS() == permissions` (when exposed) and
+    /// `impl.trustedForwarder() == expectedTrustedForwarder` (when exposed and an expected
+    /// forwarder is configured). Missing getters are silently skipped — Decision A bytecode
+    /// parity already constrains the implementation's interface shape.
+    function _requireCanonicalAuthInputs(address impl, string memory label) internal {
+        if (impl == address(0) || impl.code.length == 0) return;
+
+        (bool okPerm, bytes memory permData) = impl.staticcall(abi.encodeWithSignature("PERMISSIONS()"));
+        if (okPerm && permData.length >= 32) {
+            _check({
+                condition: abi.decode(permData, (address)) == address(permissions),
+                label: string.concat(label, " PERMISSIONS == permissions"),
+                critical: true
+            });
+        }
+
+        if (expectedTrustedForwarder != address(0)) {
+            (bool okFwd, bytes memory fwdData) = impl.staticcall(abi.encodeWithSignature("trustedForwarder()"));
+            if (okFwd && fwdData.length >= 32) {
+                _check({
+                    condition: abi.decode(fwdData, (address)) == expectedTrustedForwarder,
+                    label: string.concat(label, " trustedForwarder == expected"),
+                    critical: true
+                });
+            }
+        }
     }
 
     /// @dev Phase 4 / S+AH: prove each listed swap-enabled CCIP sucker deployer + singleton
@@ -3696,6 +3818,77 @@ contract Verify is Script {
                     critical: true
                 });
             }
+
+            // Swap-CCIP deployers also store `bridgeToken`, `poolManager`, `v3Factory`,
+            // `univ4Hook`, and `wrappedNativeToken` set via `setSwapConstants` after deploy.
+            // Decision A masks immutables and `setSwapConstants` writes to storage rather than
+            // immutables — but either way, per-surface getter equality is the only way to prove
+            // the swap-specific endpoints match canonical. Without these, a swap-enabled sucker
+            // could route bridge tokens through a forked V3/V4 surface or settle against a
+            // wrong wrapped-native sentinel while the rest of the deployment looks canonical.
+            _checkSwapCcipSwapConstants(deployer);
+        }
+    }
+
+    /// Helper: assert each swap-CCIP deployer's swap-side endpoint pointers match the canonical
+    /// per-chain manifest. `bridgeToken` is USDC across the supported chains; `poolManager`,
+    /// `v3Factory`, and `wrappedNativeToken` reuse the existing BA manifests; `univ4Hook` is the
+    /// per-chain `JBUniswapV4Hook` (read via the buyback registry's `defaultHook`).
+    function _checkSwapCcipSwapConstants(address deployer) internal {
+        // bridgeToken == per-chain canonical USDC.
+        address expectedBridgeToken = _expectedBridgeToken();
+        if (expectedBridgeToken != address(0)) {
+            (bool okBt, bytes memory btData) = deployer.staticcall(abi.encodeWithSignature("bridgeToken()"));
+            _check({
+                condition: okBt && btData.length >= 32 && abi.decode(btData, (address)) == expectedBridgeToken,
+                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " bridgeToken == canonical USDC"),
+                critical: true
+            });
+        }
+
+        // poolManager == canonical V4 PoolManager (reuse BA manifest).
+        address expectedPoolManager = _expectedV4PoolManager();
+        if (expectedPoolManager != address(0)) {
+            (bool okPm, bytes memory pmData) = deployer.staticcall(abi.encodeWithSignature("poolManager()"));
+            _check({
+                condition: okPm && pmData.length >= 32 && abi.decode(pmData, (address)) == expectedPoolManager,
+                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " poolManager == canonical V4"),
+                critical: true
+            });
+        }
+
+        // v3Factory == canonical V3 factory (reuse BA manifest).
+        address expectedV3 = _expectedV3Factory();
+        if (expectedV3 != address(0)) {
+            (bool okV3, bytes memory v3Data) = deployer.staticcall(abi.encodeWithSignature("v3Factory()"));
+            _check({
+                condition: okV3 && v3Data.length >= 32 && abi.decode(v3Data, (address)) == expectedV3,
+                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " v3Factory == canonical V3"),
+                critical: true
+            });
+        }
+
+        // wrappedNativeToken == canonical WETH (reuse BA manifest).
+        address expectedWeth = _expectedWrappedNative();
+        if (expectedWeth != address(0)) {
+            (bool okW, bytes memory wData) = deployer.staticcall(abi.encodeWithSignature("wrappedNativeToken()"));
+            _check({
+                condition: okW && wData.length >= 32 && abi.decode(wData, (address)) == expectedWeth,
+                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " wrappedNativeToken == canonical"),
+                critical: true
+            });
+        }
+
+        // univ4Hook == the registered JBUniswapV4Hook (sourced from buyback registry's
+        // defaultHook). Skip if the buyback registry isn't loaded on this chain.
+        address expectedV4Hook = _uniswapV4Hook();
+        if (expectedV4Hook != address(0)) {
+            (bool okH, bytes memory hData) = deployer.staticcall(abi.encodeWithSignature("univ4Hook()"));
+            _check({
+                condition: okH && hData.length >= 32 && abi.decode(hData, (address)) == expectedV4Hook,
+                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " univ4Hook == canonical"),
+                critical: true
+            });
         }
     }
 
