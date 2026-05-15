@@ -2749,7 +2749,9 @@ contract Verify is Script {
 
         // 1. Resolver owner — final handoff target. Operator declares `_BAN_OPS_OPERATOR`.
         _checkResolverField({
-            ok: _enforceBannyExpectationOnProduction(isProductionChain, expected.banOpsOperatorSet, "VERIFY_BAN_OPS_OPERATOR"),
+            ok: _enforceBannyExpectationOnProduction(
+                isProductionChain, expected.banOpsOperatorSet, "VERIFY_BAN_OPS_OPERATOR"
+            ),
             expectedAddress: expected.banOpsOperator,
             actualAddress: _staticAddress(resolver, "owner()"),
             label: "Banny resolver owner == VERIFY_BAN_OPS_OPERATOR"
@@ -2767,19 +2769,25 @@ contract Verify is Script {
 
         // 3. Resolver SVG metadata triple — exact-string equality against operator manifest.
         _checkResolverStringField({
-            ok: _enforceBannyExpectationOnProduction(isProductionChain, expected.svgDescriptionSet, "VERIFY_BANNY_SVG_DESCRIPTION"),
+            ok: _enforceBannyExpectationOnProduction(
+                isProductionChain, expected.svgDescriptionSet, "VERIFY_BANNY_SVG_DESCRIPTION"
+            ),
             expectedRaw: expected.svgDescription,
             actualRaw: _staticString(resolver, "svgDescription()"),
             label: "Banny resolver svgDescription == expected"
         });
         _checkResolverStringField({
-            ok: _enforceBannyExpectationOnProduction(isProductionChain, expected.svgExternalUrlSet, "VERIFY_BANNY_SVG_EXTERNAL_URL"),
+            ok: _enforceBannyExpectationOnProduction(
+                isProductionChain, expected.svgExternalUrlSet, "VERIFY_BANNY_SVG_EXTERNAL_URL"
+            ),
             expectedRaw: expected.svgExternalUrl,
             actualRaw: _staticString(resolver, "svgExternalUrl()"),
             label: "Banny resolver svgExternalUrl == expected"
         });
         _checkResolverStringField({
-            ok: _enforceBannyExpectationOnProduction(isProductionChain, expected.svgBaseUriSet, "VERIFY_BANNY_SVG_BASE_URI"),
+            ok: _enforceBannyExpectationOnProduction(
+                isProductionChain, expected.svgBaseUriSet, "VERIFY_BANNY_SVG_BASE_URI"
+            ),
             expectedRaw: expected.svgBaseUri,
             actualRaw: _staticString(resolver, "svgBaseUri()"),
             label: "Banny resolver svgBaseUri == expected"
@@ -2964,7 +2972,6 @@ contract Verify is Script {
         if (!ok || data.length == 0) return "";
         return abi.decode(data, (string));
     }
-
 
     function _checkResolverField(
         bool ok,
