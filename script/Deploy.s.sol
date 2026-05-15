@@ -3594,8 +3594,16 @@ contract Deploy is Script, Sphinx {
 
         REVStageConfig[] memory stages = new REVStageConfig[](3);
 
+        // DEFIFA is the only revnet that hasn't yet launched. `DEFIFA_REV_START_TIME == 0`
+        // signals "not-yet-launched"; the actual stage-0 start is pinned to a small future
+        // offset from `block.timestamp` so REVDeployer's monotonic-stage-time guard holds and
+        // the start is guaranteed to be in the future of every chain's tip block. Downstream
+        // stage offsets (720 days, 3600 days) are then added to that same future anchor.
+        uint48 defifaStage0Start =
+            DEFIFA_REV_START_TIME == 0 ? uint48(block.timestamp + 5 minutes) : DEFIFA_REV_START_TIME;
+
         stages[0] = REVStageConfig({
-            startsAtOrAfter: DEFIFA_REV_START_TIME,
+            startsAtOrAfter: defifaStage0Start,
             autoIssuances: new REVAutoIssuance[](0),
             splitPercent: 3800,
             splits: splits,
@@ -3608,7 +3616,7 @@ contract Deploy is Script, Sphinx {
         });
 
         stages[1] = REVStageConfig({
-            startsAtOrAfter: uint40(stages[0].startsAtOrAfter + 720 days),
+            startsAtOrAfter: uint40(defifaStage0Start + 720 days),
             autoIssuances: new REVAutoIssuance[](0),
             splitPercent: 3800,
             splits: splits,
