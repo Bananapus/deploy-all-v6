@@ -298,34 +298,149 @@ export VERIFY_PROJECT_HANDLES=0x...
 export VERIFY_721_DISTRIBUTOR=0x...
 export VERIFY_TOKEN_DISTRIBUTOR=0x...
 export VERIFY_PROJECT_PAYER_DEPLOYER=0x...
+export VERIFY_LP_SPLIT_HOOK_DEPLOYER=0x...  # Canonical Uniswap V4 LP-split hook deployer.
+export VERIFY_CHECKPOINTS_DEPLOYER=0x...    # JB721Checkpoints deployer (clone-target source).
+export VERIFY_BUYBACK_HOOK=0x...            # Canonical JBBuybackHook implementation address.
 ```
 
-Optional manifest variables for stricter verification:
+#### Per-project canonical manifest (mandatory on production)
+
+Each canonical revnet's expected configuration must be supplied so the verifier can prove
+on-chain state matches the operator's commit. Missing values fail closed on production chains
+(chain IDs 1, 10, 8453, 42_161); on testnets they skip with a logged note.
+
 ```bash
-# Ethereum mainnet / Sepolia:
+# Sucker pair counts — REQUIRED on production for EVERY canonical project (1..7).
+# Use "0" for projects that intentionally have no suckers on this chain. The verifier
+# fails closed if ANY of VERIFY_SUCKER_PAIRS_{1..7} is unset on production.
+#
+# Topology (informational): projects 1-3 (NANA, CPN, REV) use native L1<->L2 suckers
+# (OP/Base/Arb messengers); projects 4+ (BAN, DEFIFA, ART, MARKEE) use CCIP suckers to
+# tie all chains. ART(6) lives only on Base — set VERIFY_SUCKER_PAIRS_6=0 off-Base.
+export VERIFY_SUCKER_PAIRS_1=...
+export VERIFY_SUCKER_PAIRS_2=...
+export VERIFY_SUCKER_PAIRS_3=...
+export VERIFY_SUCKER_PAIRS_4=...
+export VERIFY_SUCKER_PAIRS_5=...            # DEFIFA(5)
+export VERIFY_SUCKER_PAIRS_6=...            # ART(6) — set "0" off-Base
+export VERIFY_SUCKER_PAIRS_7=...            # MARKEE(7)
+
+# Optional per-pair manifest equality. For each project and pair index, supply
+# `<peer>:<remoteChainId>:<remoteNativeToken>:<emergencyHatch>`.
+#   <peer>                bytes32 (remote sucker, padded address or full bytes32)
+#   <remoteChainId>       decimal uint
+#   <remoteNativeToken>   bytes32 (canonical native token sentinel padded)
+#   <emergencyHatch>      "0" or "1"
+# Required on production when the corresponding VERIFY_SUCKER_PAIRS_<projectId> > 0.
+export VERIFY_SUCKER_PAIR_1_0=0xpeer:10:0xnative:0
+export VERIFY_SUCKER_PAIR_1_1=0xpeer:8453:0xnative:0
+# ... one per (projectId, pairIndex)
+
+# Per-project revnet config hash — required on production for projects 1..7
+# (project 6 / ART only on Base; off-Base ART is a bare placeholder with no revnet config).
+export VERIFY_CONFIG_HASH_1=0x...
+export VERIFY_CONFIG_HASH_2=0x...
+export VERIFY_CONFIG_HASH_3=0x...
+export VERIFY_CONFIG_HASH_4=0x...
+export VERIFY_CONFIG_HASH_5=0x...           # DEFIFA(5)
+export VERIFY_CONFIG_HASH_6=0x...           # ART(6) — Base only
+export VERIFY_CONFIG_HASH_7=0x...           # MARKEE(7)
+
+# Legacy CSV form still accepted (overridden by per-project values above when set).
+# export VERIFY_CONFIG_HASHES=0x...,0x...,0x...,0x...
+
+# Per-project split-operator manifest — required on production for projects 2..4
+# so the verifier can authenticate the `splitOperator` (the address allowed to call
+# OPERATOR-gated revnet functions) against the operator's commit.
+export VERIFY_OPERATOR_2=0x...              # CPN(2) splitOperator
+export VERIFY_OPERATOR_3=0x...              # REV(3) splitOperator
+export VERIFY_OPERATOR_4=0x...              # BAN(4) splitOperator
+```
+
+#### Sucker deployer allowlist (mandatory on production)
+
+The sucker registry's allowlist isn't enumerable on-chain, so the verifier accepts a
+comma-separated list of expected deployers and authenticates each one's canonical wiring
+(LAYER_SPECIFIC_CONFIGURATOR == VERIFY_SAFE, singleton has code, DIRECTORY/TOKENS/PERMISSIONS
+match the core singletons). The off-chain `SuckerDeployerSetAllowed` event log is the
+authoritative source for "no unexpected allowed deployers" — see Section 6a below.
+
+```bash
+# Ethereum mainnet / Sepolia (L1 hosts all four canonical-project deployers PLUS the
+# CCIP and Swap-CCIP route deployers for each L2):
 # - 3 standard canonical project deployers: OP, Base, Arb
 # - 3 CCIP deployers allowlisted for OP, Base, Arb routes
 # - 3 Swap CCIP deployers allowlisted for OP, Base, Arb routes
 export VERIFY_SUCKER_DEPLOYER_COUNT=9
-export VERIFY_SUCKER_PAIRS_1=3
-export VERIFY_SUCKER_PAIRS_2=3
-export VERIFY_SUCKER_PAIRS_3=3
-export VERIFY_SUCKER_PAIRS_4=3
+export VERIFY_SUCKER_DEPLOYERS=0x...,0x...,0x...,0x...,0x...,0x...,0x...,0x...,0x...
 
 # Optimism / Base / Arbitrum mainnets and testnets:
 # - 1 standard canonical project deployer back to Ethereum
 # - 3 CCIP deployers allowlisted for Ethereum and the two sibling L2s
 # - 3 Swap CCIP deployers allowlisted for Ethereum and the two sibling L2s
 # export VERIFY_SUCKER_DEPLOYER_COUNT=7
-# export VERIFY_SUCKER_PAIRS_1=1
-# export VERIFY_SUCKER_PAIRS_2=1
-# export VERIFY_SUCKER_PAIRS_3=1
-# export VERIFY_SUCKER_PAIRS_4=1
+# export VERIFY_SUCKER_DEPLOYERS=0x...,...
 
-export VERIFY_CONFIG_HASH_1=0x...           # Expected revnet config hash for project 1
-export VERIFY_CONFIG_HASH_2=0x...           # Expected revnet config hash for project 2
-export VERIFY_CONFIG_HASH_3=0x...           # Expected revnet config hash for project 3
-export VERIFY_CONFIG_HASH_4=0x...           # Expected revnet config hash for project 4
+# Per-bridge deployer pointers (required on production where the bridge applies).
+export VERIFY_OP_SUCKER_DEPLOYER=0x...                # L1 + Optimism deployer
+export VERIFY_BASE_SUCKER_DEPLOYER=0x...              # L1 + Base deployer
+export VERIFY_ARB_SUCKER_DEPLOYER=0x...               # L1 + Arbitrum deployer
+
+# Per-route CCIP deployers — CSV of `<remoteChainId>:<address>` entries. The
+# verifier asserts each one's ccipRouter/ccipRemoteChainId/ccipRemoteChainSelector
+# matches the canonical per-chain manifest.
+export VERIFY_CCIP_SUCKER_DEPLOYERS_BY_REMOTE=10:0x...,8453:0x...,42161:0x...
+
+# Per-route swap-CCIP deployers — same shape, plus swap-specific endpoint checks
+# (bridgeToken == canonical USDC, poolManager == canonical V4, v3Factory == canonical V3,
+# wrappedNativeToken == canonical WETH, univ4Hook == canonical JBUniswapV4Hook).
+export VERIFY_SWAP_CCIP_SUCKER_DEPLOYERS=10:0x...,8453:0x...,42161:0x...
+
+# Optional extra feeless addresses — CSV of addresses that should be present in the
+# feeless registry alongside the router terminal (which is checked separately).
+# export VERIFY_FEELESS_ADDRESSES=0x...,0x...
+```
+
+#### Banny resolver + per-tier manifest (mandatory on production)
+
+The Banny 721 hook resolver carries operator-supplied SVG metadata and a per-UPC product-name
+/ SVG-hash commitment. On production every field below must be supplied so the verifier can
+authenticate the resolver shell AND every individual tier.
+
+```bash
+export VERIFY_BAN_OPS_OPERATOR=0x...                  # Final resolver owner + BAN splitOperator
+export VERIFY_BANNY_SVG_DESCRIPTION="A piece of Banny Retail."
+export VERIFY_BANNY_SVG_EXTERNAL_URL="https://retail.banny.eth.shop"
+export VERIFY_BANNY_SVG_BASE_URI="https://bannyverse.infura-ipfs.io/ipfs/"
+export VERIFY_BANNY_TIER_COUNT=68                     # 4 baseline + 47 Drop 1 + 17 Drop 2
+
+# Per-tier digest: the verifier walks tiers 1..VERIFY_BANNY_TIER_COUNT and accumulates
+#   keccak256(running, tierId, price, initialSupply, category, reserveFrequency,
+#             encodedIPFSUri, svgHash, keccak256(productName))
+# starting from `bytes32(0)`. Off-chain manifest generator must produce the same digest.
+export VERIFY_BANNY_TIER_MANIFEST_HASH=0x...
+
+# Off-Base placeholder for ART(6) — owner of the bare project shell that reserves
+# project ID 6 so MARKEE's expected ID 7 holds. On Base, ART is a full revnet and this
+# var is ignored (the revnet identity check supersedes it).
+export VERIFY_ART_OPS_OPERATOR=0x...
+```
+
+#### CPN posting criteria (optional but mandatory on production for full coverage)
+
+When supplied, the verifier exactly pins every Croptop posting-criteria field for categories
+0-4 against the operator's manifest. Use `VERIFY_OPERATOR_2` (above) to pin the CPN
+splitOperator.
+
+```bash
+# Per category 0..4, supply the four scalar fields plus optional allowed-poster CSV.
+# Indices are the category; supply for every category the canonical launch configures.
+export VERIFY_CPN_MIN_PRICE_0=0
+export VERIFY_CPN_MIN_SUPPLY_0=1
+export VERIFY_CPN_MAX_SUPPLY_0=...
+export VERIFY_CPN_MAX_SPLIT_PERCENT_0=...
+export VERIFY_CPN_ALLOWED_ADDRESSES_0=0x...,0x...
+# ... repeat for categories 1..4
 ```
 
 ### Running Verification
