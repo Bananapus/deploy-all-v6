@@ -2785,20 +2785,127 @@ contract Verify is Script {
                         critical: true
                     });
                 }
+
+                // BC residual closure: per-pair exact-manifest equality. Env var
+                // `VERIFY_SUCKER_PAIR_<projectId>_<j>` carries
+                // `<peer>:<remoteChainId>:<remoteNativeToken>:<emergencyHatch>` so each pair's
+                // remote peer (bytes32), remote chain id (decimal uint), native-token addr
+                // (bytes32), and emergency-hatch flag (0/1) can be checked exactly. Without this
+                // a deployment can ship the right pair count + nonzero/enabled liveness
+                // predicates while the actual peers / chain ids / native-token mappings drift
+                // from the canonical manifest — which makes `fromRemote` reject legitimate
+                // messages or strand bridged value.
+                _checkSuckerPairAgainstManifest({
+                    pair: pairs[j], local: local, projectId: pids[i], pairIndex: j, pairLabel: pairLabel
+                });
             }
         }
-
-        // BC known gap: exact-manifest equality (each pair's expected remote address, remote
-        // chain id, and per-token mapping) requires per-route env vars or an off-chain manifest.
-        // The on-chain verifier proves no malformed pair survives; per-route expected values are
-        // a follow-up that the BC PR description points to.
-        console.log("  [INFO] BC: per-pair runtime sanity asserted; exact-manifest follow-up via env vars");
 
         if (!anySuckerChecks) {
             _skip("Sucker manifest checks (VERIFY_SUCKER_PAIRS_* not set)");
         }
 
         console.log("");
+    }
+
+    /// BC residual closure: assert per-pair exact-manifest equality against the env var
+    /// `VERIFY_SUCKER_PAIR_<projectId>_<idx>=<peer>:<remoteChainId>:<remoteNativeToken>:<emergencyHatch>`.
+    /// On production chains the env var is mandatory (fail-closed) so a launch cannot silently
+    /// drop the exact-manifest gate; on non-production chains a missing env var skips with a log.
+    /// @param pair The pair returned by `suckerRegistry.suckerPairsOf(projectId)[pairIndex]`.
+    /// @param local The local sucker address inside the pair.
+    /// @param projectId The canonical project ID this pair belongs to.
+    /// @param pairIndex The pair's index (matches the env var suffix).
+    /// @param pairLabel Pre-built label like "NANA(1) sucker pair 0" used in check labels.
+    function _checkSuckerPairAgainstManifest(
+        JBSuckersPair memory pair,
+        address local,
+        uint256 projectId,
+        uint256 pairIndex,
+        string memory pairLabel
+    )
+        internal
+    {
+        string memory envKey = string.concat("VERIFY_SUCKER_PAIR_", vm.toString(projectId), "_", vm.toString(pairIndex));
+        string memory manifest = vm.envOr({name: envKey, defaultValue: string("")});
+
+        if (bytes(manifest).length == 0) {
+            bool isProductionChain =
+                (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+            if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: string.concat(envKey, " MUST be set on production for exact pair manifest"),
+                    critical: true
+                });
+            } else {
+                _skip(string.concat(envKey, " unset - exact pair manifest skipped on non-production chain"));
+            }
+            return;
+        }
+
+        // Format: `<peer>:<remoteChainId>:<remoteNativeToken>:<emergencyHatch>`.
+        string[] memory parts = vm.split(manifest, ":");
+        if (parts.length != 4) {
+            _check({
+                condition: false,
+                label: string.concat(envKey, " manifest must have 4 colon-separated fields"),
+                critical: true
+            });
+            return;
+        }
+        bytes32 expectedPeer = vm.parseBytes32(parts[0]);
+        uint256 expectedRemoteChainId = vm.parseUint(parts[1]);
+        bytes32 expectedRemoteNativeToken = vm.parseBytes32(parts[2]);
+        bool expectedEmergencyHatch = vm.parseUint(parts[3]) != 0;
+
+        // 1. Pair's `remoteChainId` (from the registry) matches expected.
+        _check({
+            condition: pair.remoteChainId == expectedRemoteChainId,
+            label: string.concat(pairLabel, " registry-side remoteChainId == expected"),
+            critical: true
+        });
+
+        // 2. Local sucker's `peer()` matches expected remote peer bytes32.
+        (bool okPeer, bytes memory peerData) = local.staticcall(abi.encodeWithSignature("peer()"));
+        _check({
+            condition: okPeer && peerData.length >= 32 && abi.decode(peerData, (bytes32)) == expectedPeer,
+            label: string.concat(pairLabel, " peer() == expected"),
+            critical: true
+        });
+
+        // 3. Local sucker's `peerChainId()` matches expected (over and above the prior
+        //    non-zero predicate which already fired).
+        (bool okPcid, bytes memory pcidData) = local.staticcall(abi.encodeWithSignature("peerChainId()"));
+        _check({
+            condition: okPcid && pcidData.length >= 32 && abi.decode(pcidData, (uint256)) == expectedRemoteChainId,
+            label: string.concat(pairLabel, " peerChainId() == expected remote chain id"),
+            critical: true
+        });
+
+        // 4. Native-token mapping: addr + emergencyHatch. The first 32 bytes hold `enabled`
+        //    (already asserted above), the next hold `emergencyHatch`, then `minGas`, then
+        //    `addr` — total 4 word slots in the ABI-encoded JBRemoteToken layout.
+        (bool okMap, bytes memory mapData) =
+            local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", JBConstants.NATIVE_TOKEN));
+        if (okMap && mapData.length >= 128) {
+            bool actualEmergencyHatch;
+            bytes32 actualAddr;
+            assembly {
+                actualEmergencyHatch := iszero(iszero(mload(add(mapData, 0x40))))
+                actualAddr := mload(add(mapData, 0x80))
+            }
+            _check({
+                condition: actualAddr == expectedRemoteNativeToken,
+                label: string.concat(pairLabel, " remoteTokenFor(NATIVE_TOKEN).addr == expected"),
+                critical: true
+            });
+            _check({
+                condition: actualEmergencyHatch == expectedEmergencyHatch,
+                label: string.concat(pairLabel, " remoteTokenFor(NATIVE_TOKEN).emergencyHatch == expected"),
+                critical: true
+            });
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2952,6 +3059,32 @@ contract Verify is Script {
             } else {
                 _check({
                     condition: false, label: "JBUniswapV4LPSplitHookDeployer exposes POSITION_MANAGER()", critical: true
+                });
+            }
+
+            // BA residual: same deployer also stores POOL_MANAGER and ORACLE_HOOK via
+            // `setChainSpecificConstants` after deploy. Decision A doesn't bind these (they're
+            // public storage, not immutable; the deploy explicitly chose storage so constructor
+            // bytes stay chain-identical for CREATE2 address parity). Read-and-equal-check is
+            // the only authentication path.
+            address expectedLpPoolManager = _expectedV4PoolManager();
+            if (expectedLpPoolManager != address(0)) {
+                (bool okPm, bytes memory pmData) =
+                    lpSplitHookDeployer.staticcall(abi.encodeWithSignature("POOL_MANAGER()"));
+                _check({
+                    condition: okPm && pmData.length >= 32 && abi.decode(pmData, (address)) == expectedLpPoolManager,
+                    label: "JBUniswapV4LPSplitHookDeployer.POOL_MANAGER == canonical V4 PoolManager",
+                    critical: true
+                });
+            }
+            address expectedOracleHook = _uniswapV4Hook();
+            if (expectedOracleHook != address(0)) {
+                (bool okOh, bytes memory ohData) =
+                    lpSplitHookDeployer.staticcall(abi.encodeWithSignature("ORACLE_HOOK()"));
+                _check({
+                    condition: okOh && ohData.length >= 32 && abi.decode(ohData, (address)) == expectedOracleHook,
+                    label: "JBUniswapV4LPSplitHookDeployer.ORACLE_HOOK == canonical JBUniswapV4Hook",
+                    critical: true
                 });
             }
         } else if (lpSplitHookDeployer == address(0) && expectedV4PositionManager != address(0)) {

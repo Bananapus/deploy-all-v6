@@ -69,6 +69,103 @@ contract SuckerManifestVerifierGapTest is Test {
         harness.verifySuckerManifest();
     }
 
+    /// @dev BC residual closure: when the operator declares the exact per-pair manifest via
+    /// `VERIFY_SUCKER_PAIR_<projectId>_<idx>`, the verifier asserts each field matches. A wrong
+    /// peer bytes32 must trip the new check. Uses project ID 2 to keep the env var key
+    /// disjoint from the test below — Foundry runs tests in this contract concurrently and
+    /// `vm.setEnv` is process-wide.
+    function test_suckerManifestVerifierRejectsWrongPeerInExactManifest() public {
+        bytes32 actualPeer = bytes32(uint256(uint160(makeAddr("actual remote sucker"))));
+        bytes32 expectedPeerInManifest = bytes32(uint256(uint160(makeAddr("expected canonical remote"))));
+        assertTrue(actualPeer != expectedPeerInManifest, "test must use a peer different from the manifest");
+
+        MockSucker local = new MockSucker({
+            peer_: actualPeer,
+            peerChainId_: 10,
+            remoteToken_: JBRemoteToken({
+                enabled: true,
+                emergencyHatch: false,
+                minGas: 0,
+                addr: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))
+            })
+        });
+
+        MockSuckerRegistry registry = new MockSuckerRegistry();
+        registry.setPairs(2, _singlePair({local: address(local), remote: actualPeer, remoteChainId: 10}));
+
+        VerifySuckerManifestHarness harness = new VerifySuckerManifestHarness();
+        harness.setSuckerRegistry(address(registry));
+
+        // Sibling tests in this contract also set `VERIFY_SUCKER_PAIRS_1`. The verifier loops
+        // through all four canonical projects, so leftover env from a sibling would trip the
+        // count check for project 1 first. Clear it explicitly to keep this test focused on
+        // project 2 only.
+        vm.setEnv("VERIFY_SUCKER_PAIRS_1", "");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_3", "");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_4", "");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_2", "1");
+        // Manifest format: <peer>:<remoteChainId>:<remoteNativeToken>:<emergencyHatch>
+        vm.setEnv(
+            "VERIFY_SUCKER_PAIR_2_0",
+            string.concat(
+                vm.toString(expectedPeerInManifest),
+                ":10:",
+                vm.toString(bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))),
+                ":0"
+            )
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector, "CPN(2) sucker pair 0 peer() == expected"
+            )
+        );
+        harness.verifySuckerManifest();
+    }
+
+    /// @dev BC residual closure: a wrong remote-chain-id in the manifest must trip the registry-
+    /// side remoteChainId check first. Uses project ID 3 to avoid env collision with sibling tests.
+    function test_suckerManifestVerifierRejectsWrongRemoteChainIdInExactManifest() public {
+        bytes32 peer = bytes32(uint256(uint160(makeAddr("remote sucker"))));
+
+        MockSucker local = new MockSucker({
+            peer_: peer,
+            peerChainId_: 10, // local says 10
+            remoteToken_: JBRemoteToken({
+                enabled: true,
+                emergencyHatch: false,
+                minGas: 0,
+                addr: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))
+            })
+        });
+
+        MockSuckerRegistry registry = new MockSuckerRegistry();
+        registry.setPairs(3, _singlePair({local: address(local), remote: peer, remoteChainId: 10}));
+
+        VerifySuckerManifestHarness harness = new VerifySuckerManifestHarness();
+        harness.setSuckerRegistry(address(registry));
+
+        vm.setEnv("VERIFY_SUCKER_PAIRS_1", "");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_2", "");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_4", "");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_3", "1");
+        // Operator-declared remoteChainId = 8453 (Base) — disagrees with the pair's actual 10 (OP).
+        vm.setEnv(
+            "VERIFY_SUCKER_PAIR_3_0",
+            string.concat(
+                vm.toString(peer), ":8453:", vm.toString(bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))), ":0"
+            )
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                "REV(3) sucker pair 0 registry-side remoteChainId == expected"
+            )
+        );
+        harness.verifySuckerManifest();
+    }
+
     function _singlePair(
         address local,
         bytes32 remote,
