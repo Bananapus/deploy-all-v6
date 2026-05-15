@@ -211,6 +211,8 @@ contract Deploy is Script, Sphinx {
     ///      DELEGATECALLs from contracts that depend on these libraries hit dead code.
     ///      All libraries are deployed by `_deployLibraries()` (Phase 00, before _deployCore).
     bytes32 private constant PAYOUT_SPLIT_GROUP_LIB_SALT = keccak256("_JBPayoutSplitGroupLibV6_");
+    bytes32 private constant HELD_FEES_LIB_SALT = keccak256("_JBHeldFeesLibV6_");
+    bytes32 private constant CASH_OUT_HOOK_SPECS_LIB_SALT = keccak256("_JBCashOutHookSpecsLibV6_");
     bytes32 private constant TIERS_HOOK_LIB_SALT = keccak256("_JB721TiersHookLibV6_");
     bytes32 private constant SUCKER_LIB_SALT = keccak256("_JBSuckerLibV6_");
     bytes32 private constant CCIP_LIB_SALT = keccak256("_JBCCIPLibV6_");
@@ -698,6 +700,14 @@ contract Deploy is Script, Sphinx {
         // JBPayoutSplitGroupLib — DELEGATECALL'd by JBMultiTerminal.
         _deployPrecompiledIfNeeded({
             artifactName: "JBPayoutSplitGroupLib", salt: PAYOUT_SPLIT_GROUP_LIB_SALT, ctorArgs: ""
+        });
+        // JBHeldFeesLib — DELEGATECALL'd by JBMultiTerminal (held-fee bookkeeping extracted in nana-core-v6
+        // 0.0.50+ to keep the terminal under EIP-170 after `payAfterCashOutTokensOf` landed).
+        _deployPrecompiledIfNeeded({artifactName: "JBHeldFeesLib", salt: HELD_FEES_LIB_SALT, ctorArgs: ""});
+        // JBCashOutHookSpecsLib — DELEGATECALL'd by JBMultiTerminal (cash-out hook fulfillment extracted in
+        // nana-core-v6 0.0.51+ for the same reason).
+        _deployPrecompiledIfNeeded({
+            artifactName: "JBCashOutHookSpecsLib", salt: CASH_OUT_HOOK_SPECS_LIB_SALT, ctorArgs: ""
         });
         // JB721TiersHookLib — DELEGATECALL'd by JB721TiersHook.
         _deployPrecompiledIfNeeded({artifactName: "JB721TiersHookLib", salt: TIERS_HOOK_LIB_SALT, ctorArgs: ""});
@@ -4283,6 +4293,8 @@ contract Deploy is Script, Sphinx {
 
         // External libraries — no constructor args, fixed salts.
         _serializeLibrary({key: j, name: "JBPayoutSplitGroupLib", salt: PAYOUT_SPLIT_GROUP_LIB_SALT});
+        _serializeLibrary({key: j, name: "JBHeldFeesLib", salt: HELD_FEES_LIB_SALT});
+        _serializeLibrary({key: j, name: "JBCashOutHookSpecsLib", salt: CASH_OUT_HOOK_SPECS_LIB_SALT});
         _serializeLibrary({key: j, name: "JB721TiersHookLib", salt: TIERS_HOOK_LIB_SALT});
         _serializeLibrary({key: j, name: "JBSuckerLib", salt: SUCKER_LIB_SALT});
         _serializeLibrary({key: j, name: "JBCCIPLib", salt: CCIP_LIB_SALT});
