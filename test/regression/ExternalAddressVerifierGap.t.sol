@@ -144,6 +144,47 @@ contract ExternalAddressVerifierGapTest is Test {
         harness.verifyExternalAddresses();
     }
 
+    /// @dev BA residual: same deployer also stores POOL_MANAGER (V4) and ORACLE_HOOK
+    /// (JBUniswapV4Hook). A noncanonical V4 PoolManager baked into the deployer must trip
+    /// its dedicated check even after PositionManager identity passes.
+    function test_externalAddressVerifierRejectsWrongLpSplitPoolManagerOnMainnet() public {
+        vm.chainId(1);
+
+        address canonicalPositionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
+        address canonicalV4PoolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+        address wrongPoolManager = makeAddr("wrong v4 pool manager");
+        assertTrue(wrongPoolManager != canonicalV4PoolManager, "test must use a noncanonical V4 PoolManager");
+
+        address directory = makeAddr("directory");
+
+        VerifyExternalAddressHarness harness = new VerifyExternalAddressHarness();
+        harness.setExternalAddressMocks({
+            directory_: directory,
+            terminal_: address(new MockTerminal(CANONICAL_PERMIT2)),
+            routerTerminal_: address(new MockRouterTerminal(CANONICAL_PERMIT2, CANONICAL_MAINNET_WETH)),
+            revLoans_: address(new MockRevLoans(CANONICAL_PERMIT2)),
+            omnichainDeployer_: address(new MockOmnichainDeployer(directory))
+        });
+        // ORACLE_HOOK is sourced via `_uniswapV4Hook()` which reads buybackRegistry.defaultHook().
+        // Leave the buyback registry unloaded so the ORACLE_HOOK assertion is skipped — this test
+        // focuses on the POOL_MANAGER branch.
+        harness.setLpSplitHookDeployer(
+            address(
+                new MockLpSplitHookDeployerFull({
+                    positionManager: canonicalPositionManager, poolManager: wrongPoolManager, oracleHook: address(0)
+                })
+            )
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                "JBUniswapV4LPSplitHookDeployer.POOL_MANAGER == canonical V4 PoolManager"
+            )
+        );
+        harness.verifyExternalAddresses();
+    }
+
     /// @dev BA residual: on production chains the LP split hook deployer env var is required.
     /// Without it the verifier must fail closed so the V4 PositionManager identity cannot
     /// silently drop out of the launch gate.
@@ -222,13 +263,49 @@ contract VerifyExternalAddressHarness is Verify {
 
 contract MockLpSplitHookDeployer {
     address internal immutable _positionManager;
+    address internal immutable _poolManager;
+    address internal immutable _oracleHook;
 
     constructor(address positionManager) {
         _positionManager = positionManager;
+        _poolManager = address(0);
+        _oracleHook = address(0);
     }
 
     function POSITION_MANAGER() external view returns (address) {
         return _positionManager;
+    }
+
+    function POOL_MANAGER() external view returns (address) {
+        return _poolManager;
+    }
+
+    function ORACLE_HOOK() external view returns (address) {
+        return _oracleHook;
+    }
+}
+
+contract MockLpSplitHookDeployerFull {
+    address internal immutable _positionManager;
+    address internal immutable _poolManager;
+    address internal immutable _oracleHook;
+
+    constructor(address positionManager, address poolManager, address oracleHook) {
+        _positionManager = positionManager;
+        _poolManager = poolManager;
+        _oracleHook = oracleHook;
+    }
+
+    function POSITION_MANAGER() external view returns (address) {
+        return _positionManager;
+    }
+
+    function POOL_MANAGER() external view returns (address) {
+        return _poolManager;
+    }
+
+    function ORACLE_HOOK() external view returns (address) {
+        return _oracleHook;
     }
 }
 
