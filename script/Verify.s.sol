@@ -144,6 +144,10 @@ contract Verify is Script {
     JB721TiersHookProjectDeployer public hookProjectDeployer;
     // The 721 checkpoints deployer that owns the checkpoints clone implementation.
     JB721CheckpointsDeployer public checkpointsDeployer;
+    /// BA residual: tracked separately so the verifier can assert the LP split hook deployer
+    /// carries the canonical V4 PositionManager. Loaded from `VERIFY_LP_SPLIT_HOOK_DEPLOYER`;
+    /// `address(0)` when the chain has no canonical PositionManager.
+    address public lpSplitHookDeployer;
 
     // -- Buyback Hook --
     // The buyback hook registry that resolves hooks per project.
@@ -364,6 +368,7 @@ contract Verify is Script {
             JBProjectPayerDeployer(vm.envOr({name: "VERIFY_PROJECT_PAYER_DEPLOYER", defaultValue: address(0)}));
         checkpointsDeployer =
             JB721CheckpointsDeployer(vm.envOr({name: "VERIFY_CHECKPOINTS_DEPLOYER", defaultValue: address(0)}));
+        lpSplitHookDeployer = vm.envOr({name: "VERIFY_LP_SPLIT_HOOK_DEPLOYER", defaultValue: address(0)});
 
         // On production chains, require the full deployment stack.
         // Testnets may omit optional components, but mainnet and major L2s must fail-closed.
@@ -2908,6 +2913,43 @@ contract Verify is Script {
             }
         }
 
+        // BA residual: V4 PositionManager identity on the LP split hook deployer. Every clone
+        // produced by `deployHookFor` is initialized with the deployer's `POSITION_MANAGER`, so
+        // proving the deployer's pointer matches the canonical PositionManager bounds every
+        // future LP split hook clone to the canonical V4 liquidity surface. Skip on chains
+        // without a published PositionManager (e.g. Optimism Sepolia) or when the env var is
+        // not provided (testnets / partial stacks).
+        address expectedV4PositionManager = _expectedV4PositionManager();
+        if (lpSplitHookDeployer != address(0) && expectedV4PositionManager != address(0)) {
+            (bool okPosMgr, bytes memory posMgrData) =
+                lpSplitHookDeployer.staticcall(abi.encodeWithSignature("POSITION_MANAGER()"));
+            if (okPosMgr && posMgrData.length >= 32) {
+                _check({
+                    condition: abi.decode(posMgrData, (address)) == expectedV4PositionManager,
+                    label: "JBUniswapV4LPSplitHookDeployer.POSITION_MANAGER == canonical V4 PositionManager",
+                    critical: true
+                });
+            } else {
+                _check({
+                    condition: false, label: "JBUniswapV4LPSplitHookDeployer exposes POSITION_MANAGER()", critical: true
+                });
+            }
+        } else if (lpSplitHookDeployer == address(0) && expectedV4PositionManager != address(0)) {
+            // Production chain has a canonical PositionManager but operator did not provide the
+            // deployer address. Fail closed so the manifest gap is visible at verify time.
+            bool isProductionChain =
+                (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+            if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: "VERIFY_LP_SPLIT_HOOK_DEPLOYER MUST be set on production for V4 PositionManager identity",
+                    critical: true
+                });
+            } else {
+                _skip("V4 PositionManager identity (VERIFY_LP_SPLIT_HOOK_DEPLOYER not set on non-production chain)");
+            }
+        }
+
         console.log("");
     }
 
@@ -3077,6 +3119,21 @@ contract Verify is Script {
         if (block.chainid == 84_532) return 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
         if (block.chainid == 42_161) return 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
         if (block.chainid == 421_614) return 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
+        return address(0);
+    }
+
+    /// Returns the per-chain canonical Uniswap V4 PositionManager address. Mirrors Deploy.s.sol's
+    /// chain-specific `_positionManager` assignments. Optimism Sepolia returns `address(0)`
+    /// because Uniswap has not published a canonical PositionManager there yet.
+    function _expectedV4PositionManager() internal view returns (address) {
+        if (block.chainid == 1) return 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
+        if (block.chainid == 11_155_111) return 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
+        if (block.chainid == 10) return 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
+        if (block.chainid == 11_155_420) return address(0);
+        if (block.chainid == 8453) return 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
+        if (block.chainid == 84_532) return 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
+        if (block.chainid == 42_161) return 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
+        if (block.chainid == 421_614) return 0xAc631556d3d4019C95769033B5E719dD77124BAc;
         return address(0);
     }
 
