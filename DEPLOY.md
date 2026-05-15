@@ -432,6 +432,48 @@ These manual checks complement the automated verification:
 - [ ] Make a small test payment to project 1 via the terminal
 - [ ] Verify the payment appears in the project's balance via `terminalStore.balanceOf()`
 
+### 6a. Off-Chain Event-Log Reconciliation (Required Before Sign-Off)
+
+Two surfaces cannot be exhaustively verified on-chain because the relevant registries are
+not enumerable. Each requires a reviewer to reconcile the deployment's event log against the
+expected manifest before signing off.
+
+**Permissions — `JBPermissions.OperatorPermissionsSet` (P residual)**
+
+`JBPermissions` exposes `permissionsOf(operator, account, projectId)` but has no on-chain
+enumeration. The verifier proves every *expected* grant is present (REVLoans wildcard
+USE_ALLOWANCE, BuybackRegistry wildcard SET_BUYBACK_POOL, OmnichainDeployer →
+SuckerRegistry wildcard MAP_SUCKER_TOKEN, CTDeployer → CTPublisher wildcard
+ADJUST_721_TIERS, plus the per-revnet split-operator grant sets), but cannot prove the
+**absence** of unexpected grants on chain.
+
+- [ ] Pull all `OperatorPermissionsSet(operator, account, projectId, permissionIds, packed,
+      caller)` events from `JBPermissions` for the deployment block range.
+- [ ] Confirm the set matches the canonical manifest:
+  - The four wildcard grants above (`projectId == 0`).
+  - The 9-permission split-operator grant for each of canonical projects 2 / 3 / 4 (CPN /
+    REV / BAN) → operator addresses supplied via `VERIFY_SPLIT_OPERATOR_{2,3,4}`.
+  - Any per-project grants the deployment script makes when launching each canonical project.
+- [ ] Flag any grant outside that manifest — every extra wildcard or canonical-project grant
+      gives an unintended operator owner-equivalent powers and must be revoked or accepted
+      explicitly before launch.
+
+**Sucker deployer allowlist — `JBSuckerRegistry.SuckerDeployerSetAllowed` (BK / CP residual)**
+
+`JBSuckerRegistry.suckerDeployerIsAllowed(addr)` answers per-address membership but does not
+expose an enumeration. The verifier checks per-listed deployer code + canonical wiring + the
+expected count via `VERIFY_SUCKER_DEPLOYER_COUNT`, but cannot prove the absence of an
+allowed-but-unexpected deployer on chain.
+
+- [ ] Pull all `SuckerDeployerSetAllowed(deployer, allowed, caller)` events from
+      `JBSuckerRegistry` for the deployment block range.
+- [ ] Reduce the event stream to the current allowed set (track each `(deployer, allowed)`
+      pair, keeping only the last entry per deployer).
+- [ ] Confirm the resulting set exactly matches `VERIFY_SUCKER_DEPLOYERS` — same addresses,
+      same count.
+- [ ] Flag any allowed deployer not on the expected list — an unintended allowlisted route
+      can mint or move project tokens that the canonical deployment never sanctioned.
+
 ### 7. Cross-Chain (Multi-Chain Deployments)
 
 When deploying to multiple chains:
