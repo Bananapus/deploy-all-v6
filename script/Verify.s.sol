@@ -3212,7 +3212,7 @@ contract Verify is Script {
     /// Zeroes every immutable-reference byte range in `bytecode`, in place. Iterates the artifact's
     /// `deployedBytecode.immutableReferences` map (keyed by AST ID, value an array of
     /// `{start, length}` ranges). The key order doesn't matter; the ranges are byte-aligned.
-    function _zeroImmutableRanges(bytes memory bytecode, string memory artifactJson) internal view {
+    function _zeroImmutableRanges(bytes memory bytecode, string memory artifactJson) internal pure {
         string[] memory keys;
         try vm.parseJsonKeys(artifactJson, ".deployedBytecode.immutableReferences") returns (string[] memory k) {
             keys = k;
