@@ -3098,7 +3098,61 @@ contract Verify is Script {
             }
         }
 
+        // Phase 4 rollout-evidence gate: each listed swap-enabled CCIP sucker deployer (and its
+        // singleton) must match the canonical artifact bytecode. Without this check the deploy
+        // can ship a swap-enabled sucker that pre-dates the S+AH fixes (out-of-order batch
+        // metadata stranding earlier batches; raw-ETH V4 settlement reverting before unwrap),
+        // but reads as "allowed in registry" and "canonically wired". Identity covers both the
+        // deployer factory and the per-route singleton that every clone proxies to.
+        _verifySwapCcipSuckerRolloutIdentity();
+
         console.log("");
+    }
+
+    /// @dev Phase 4 / S+AH: prove each listed swap-enabled CCIP sucker deployer + singleton
+    /// carries the canonical (post-PR-#120) bytecode. Comma-separated env list keeps the env
+    /// surface aligned with `VERIFY_SUCKER_DEPLOYERS` — operators populate this with the
+    /// swap-enabled subset only.
+    function _verifySwapCcipSuckerRolloutIdentity() internal {
+        string memory swapDeployersCsv = vm.envOr("VERIFY_SWAP_CCIP_SUCKER_DEPLOYERS", string(""));
+        if (bytes(swapDeployersCsv).length == 0) {
+            _skip("Swap-CCIP sucker rollout identity (VERIFY_SWAP_CCIP_SUCKER_DEPLOYERS not set)");
+            return;
+        }
+
+        string[] memory parts = vm.split(swapDeployersCsv, ",");
+        for (uint256 i; i < parts.length; i++) {
+            address deployer = vm.parseAddress(parts[i]);
+            if (deployer == address(0)) continue;
+
+            // Deployer factory must match the canonical JBSwapCCIPSuckerDeployer runtime.
+            _requireArtifactIdentity({
+                artifactName: "JBSwapCCIPSuckerDeployer",
+                deployed: deployer,
+                label: string.concat("JBSwapCCIPSuckerDeployer ", vm.toString(deployer))
+            });
+
+            // Per-route singleton is the actual sucker implementation that every clone
+            // delegates to; the S/AH fixes live there. Read via `singleton()` to avoid
+            // hard-coding a per-chain immutable getter.
+            (bool ok, bytes memory data) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
+            if (ok && data.length >= 32) {
+                address singleton = abi.decode(data, (address));
+                _requireArtifactIdentity({
+                    artifactName: "JBSwapCCIPSucker",
+                    deployed: singleton,
+                    label: string.concat("JBSwapCCIPSucker singleton ", vm.toString(singleton))
+                });
+            } else {
+                _check({
+                    condition: false,
+                    label: string.concat(
+                        "Swap-CCIP deployer ", vm.toString(deployer), " exposes singleton() for identity check"
+                    ),
+                    critical: true
+                });
+            }
+        }
     }
 
     /// Decision A: assert deployed runtime bytecode at `addr` is structurally identical to the
@@ -3158,7 +3212,7 @@ contract Verify is Script {
     /// Zeroes every immutable-reference byte range in `bytecode`, in place. Iterates the artifact's
     /// `deployedBytecode.immutableReferences` map (keyed by AST ID, value an array of
     /// `{start, length}` ranges). The key order doesn't matter; the ranges are byte-aligned.
-    function _zeroImmutableRanges(bytes memory bytecode, string memory artifactJson) internal view {
+    function _zeroImmutableRanges(bytes memory bytecode, string memory artifactJson) internal pure {
         string[] memory keys;
         try vm.parseJsonKeys(artifactJson, ".deployedBytecode.immutableReferences") returns (string[] memory k) {
             keys = k;
