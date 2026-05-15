@@ -112,6 +112,64 @@ contract ExternalAddressVerifierGapTest is Test {
         // authenticate DefifaTokenUriResolver.TYPEFACE(), so the wrong immutable passes.
         harness.verifyAddressRegistryAndDefifa();
     }
+
+    /// @dev BA residual: the LP split hook deployer's `POSITION_MANAGER` immutable is the
+    /// canonical V4 PositionManager every clone delegates against. A noncanonical address there
+    /// must trip the new check.
+    function test_externalAddressVerifierRejectsWrongV4PositionManagerOnMainnet() public {
+        vm.chainId(1);
+
+        address wrongPositionManager = makeAddr("wrong position manager");
+        address canonicalPositionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
+        assertTrue(wrongPositionManager != canonicalPositionManager, "test must use a noncanonical PositionManager");
+
+        address directory = makeAddr("directory");
+
+        VerifyExternalAddressHarness harness = new VerifyExternalAddressHarness();
+        harness.setExternalAddressMocks({
+            directory_: directory,
+            terminal_: address(new MockTerminal(CANONICAL_PERMIT2)),
+            routerTerminal_: address(new MockRouterTerminal(CANONICAL_PERMIT2, CANONICAL_MAINNET_WETH)),
+            revLoans_: address(new MockRevLoans(CANONICAL_PERMIT2)),
+            omnichainDeployer_: address(new MockOmnichainDeployer(directory))
+        });
+        harness.setLpSplitHookDeployer(address(new MockLpSplitHookDeployer(wrongPositionManager)));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                "JBUniswapV4LPSplitHookDeployer.POSITION_MANAGER == canonical V4 PositionManager"
+            )
+        );
+        harness.verifyExternalAddresses();
+    }
+
+    /// @dev BA residual: on production chains the LP split hook deployer env var is required.
+    /// Without it the verifier must fail closed so the V4 PositionManager identity cannot
+    /// silently drop out of the launch gate.
+    function test_externalAddressVerifierFailsClosedWhenLpSplitHookDeployerUnsetOnMainnet() public {
+        vm.chainId(1);
+
+        address directory = makeAddr("directory");
+
+        VerifyExternalAddressHarness harness = new VerifyExternalAddressHarness();
+        harness.setExternalAddressMocks({
+            directory_: directory,
+            terminal_: address(new MockTerminal(CANONICAL_PERMIT2)),
+            routerTerminal_: address(new MockRouterTerminal(CANONICAL_PERMIT2, CANONICAL_MAINNET_WETH)),
+            revLoans_: address(new MockRevLoans(CANONICAL_PERMIT2)),
+            omnichainDeployer_: address(new MockOmnichainDeployer(directory))
+        });
+        // Intentionally leave `lpSplitHookDeployer` unset (defaults to address(0)).
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                "VERIFY_LP_SPLIT_HOOK_DEPLOYER MUST be set on production for V4 PositionManager identity"
+            )
+        );
+        harness.verifyExternalAddresses();
+    }
 }
 
 contract VerifyExternalAddressHarness is Verify {
@@ -155,6 +213,22 @@ contract VerifyExternalAddressHarness is Verify {
 
     function verifyAddressRegistryAndDefifa() external {
         _verifyAddressRegistryAndDefifa();
+    }
+
+    function setLpSplitHookDeployer(address deployer_) external {
+        lpSplitHookDeployer = deployer_;
+    }
+}
+
+contract MockLpSplitHookDeployer {
+    address internal immutable _positionManager;
+
+    constructor(address positionManager) {
+        _positionManager = positionManager;
+    }
+
+    function POSITION_MANAGER() external view returns (address) {
+        return _positionManager;
     }
 }
 
