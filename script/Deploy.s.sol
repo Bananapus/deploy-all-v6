@@ -3658,12 +3658,32 @@ contract Deploy is Script, Sphinx {
 
     /// @notice Deploys the ART revnet — a USDC-based revnet on Base only.
     function _deployArt() internal {
-        // ART is Base-only. Skip on all other chains.
-        if (block.chainid != 8453 && block.chainid != 84_532) return;
+        // ART is operationally Base-only — the full revnet (controller, terminals, ruleset,
+        // auto-issuance, sucker config) is instantiated only on Base. Off-Base, project ID
+        // `_ART_PROJECT_ID` (6) is still reserved via a bare `JBProjects.createFor` mint so
+        // MARKEE's expected project ID 7 is consistent across chains. Without that placeholder,
+        // a non-Base run would skip ART entirely, MARKEE would claim project ID 6 instead of 7,
+        // and `_deployMarkee` would revert with `Deploy_ProjectIdMismatch(7, 6)`.
 
         address operator = 0xbB96A6D3D251dFDA76F96d1650f9Cfd53b41c8d1;
+        bool isBase = block.chainid == 8453 || block.chainid == 84_532;
 
-        // Skip if already configured.
+        // Off-Base path: reserve project 6 as a bare placeholder owned by the canonical operator.
+        // No controller, terminals, or revnet wiring — only the project ID is allocated.
+        if (!isBase) {
+            if (_projects.count() < _ART_PROJECT_ID) {
+                uint256 newId = _projects.createFor(operator);
+                if (newId != _ART_PROJECT_ID) {
+                    revert Deploy_ProjectIdMismatch(_ART_PROJECT_ID, newId);
+                }
+            } else if (_projects.ownerOf(_ART_PROJECT_ID) != operator) {
+                // Placeholder already exists but isn't owned by the canonical operator — flag it.
+                revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
+            }
+            return;
+        }
+
+        // Base path: full revnet instantiation. Skip if already configured.
         if (_projects.count() >= _ART_PROJECT_ID && address(_directory.controllerOf(_ART_PROJECT_ID)) != address(0)) {
             if (!_isCanonicalRevnetProject({projectId: _ART_PROJECT_ID, expectedSymbol: "ART"})) {
                 revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
@@ -4315,14 +4335,19 @@ contract Deploy is Script, Sphinx {
             _serializeIfSet({key: j, name: "JBMatchingPriceFeed", addr: ethMatching});
         }
 
-        // Canonical project ERC-20 token clones (NANA/CPN/REV/BAN) live behind
-        // `_tokens.tokenOf(projectId)` and share the JBERC20 implementation bytecode but each clone
-        // has a unique address that must be in the dump for post-deploy verification.
+        // Canonical project ERC-20 token clones live behind `_tokens.tokenOf(projectId)` and
+        // share the JBERC20 implementation bytecode, but each clone has a unique address that
+        // must be in the dump for post-deploy verification. Includes DEFIFA(5), ART(6), and
+        // MARKEE(7) alongside the four baseline projects — `_serializeProjectErc20` no-ops if
+        // the project doesn't have a token clone yet (e.g. partial-deploy testnets).
         if (address(_tokens) != address(0)) {
             _serializeProjectErc20({key: j, suffix: "ProjectNANA", projectId: _FEE_PROJECT_ID});
             _serializeProjectErc20({key: j, suffix: "ProjectCPN", projectId: _CPN_PROJECT_ID});
             _serializeProjectErc20({key: j, suffix: "ProjectREV", projectId: _REV_PROJECT_ID});
             _serializeProjectErc20({key: j, suffix: "ProjectBAN", projectId: _BAN_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectDEFIFA", projectId: _DEFIFA_REV_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectART", projectId: _ART_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectMARKEE", projectId: _MARKEE_PROJECT_ID});
         }
 
         // Canonical 721 hook clones (CPN, BAN) live behind `_revOwner.tiered721HookOf(projectId)`.

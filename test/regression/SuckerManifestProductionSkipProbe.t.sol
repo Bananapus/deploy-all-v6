@@ -10,17 +10,23 @@ import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
 import {JBSuckersPair} from "@bananapus/suckers-v6/src/structs/JBSuckersPair.sol";
 
 contract SuckerManifestProductionSkipProbeTest is Test {
-    /// @dev Coverage: on production chains, the sucker manifest verifier must fail
-    /// closed when ALL `VERIFY_SUCKER_PAIRS_{1..4}` env vars are unset — otherwise a deployment
-    /// can ship without ever exercising the per-pair manifest gate. Operators declare zero-pair
-    /// projects by setting the env var to "0".
-    function test_suckerManifestFailsClosedOnProductionWhenPairCountEnvsUnset() public {
+    /// @dev Coverage: on production chains the sucker manifest verifier must fail closed when
+    /// ANY of `VERIFY_SUCKER_PAIRS_{1..7}` is unset — the partial-missing-env gap previously let
+    /// a deployment ship with only some projects' pair counts declared, silently skipping per-pair
+    /// manifest verification for the rest. Operators declare zero-pair projects by setting the
+    /// env var to "0".
+    function test_suckerManifestFailsClosedOnProductionWhenAnyPairCountEnvUnset() public {
         vm.chainId(1);
 
+        // Clear every project's pair env so the first iteration (project 1 / NANA) trips the
+        // per-project fail-closed gate without ambiguity.
         vm.setEnv("VERIFY_SUCKER_PAIRS_1", "");
         vm.setEnv("VERIFY_SUCKER_PAIRS_2", "");
         vm.setEnv("VERIFY_SUCKER_PAIRS_3", "");
         vm.setEnv("VERIFY_SUCKER_PAIRS_4", "");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_5", "");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_6", "");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_7", "");
 
         MockSuckerManifestRegistryProbe registry = new MockSuckerManifestRegistryProbe();
         // Set an obviously-malformed pair so a regression that silently skips the manifest
@@ -38,7 +44,7 @@ contract SuckerManifestProductionSkipProbeTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Verify.Verify_CriticalCheckFailed.selector,
-                "VERIFY_SUCKER_PAIRS_{1..4} MUST be set on production (use \"0\" for projects with no suckers)"
+                "VERIFY_SUCKER_PAIRS_1 MUST be set on production for NANA(1) (use \"0\" for no suckers)"
             )
         );
         harness.verifySuckerManifest();

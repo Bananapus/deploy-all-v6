@@ -218,7 +218,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
         bool tierManifestHashSet
     )
         internal
-        view
+        pure
         returns (Verify.BannyExpectations memory e)
     {
         e.banOpsOperatorSet = true;
@@ -300,7 +300,7 @@ contract VerifyBannyManifestHarness is Verify {
     }
 
     /// @inheritdoc Verify
-    function _loadBannyExpectations() internal override returns (Verify.BannyExpectations memory) {
+    function _loadBannyExpectations() internal view override returns (Verify.BannyExpectations memory) {
         return _stubbedExpectations;
     }
 }
