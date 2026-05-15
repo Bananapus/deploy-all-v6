@@ -41,6 +41,7 @@ import {JB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/JB721Checkpoi
 import {IJB721CheckpointsDeployer} from "@bananapus/721-hook-v6/src/interfaces/IJB721CheckpointsDeployer.sol";
 import {JB721TiersHook} from "@bananapus/721-hook-v6/src/JB721TiersHook.sol";
 import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
+import {JB721Tier} from "@bananapus/721-hook-v6/src/structs/JB721Tier.sol";
 
 // ── Buyback Hook ──
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
@@ -2778,9 +2779,10 @@ contract Verify is Script {
 
         // 4. Hook-store tier count — the canonical deployment ends with 4 baseline body tiers
         // plus 64 Drop 1/Drop 2 tiers = 68 total. Drop missing/incomplete = wrong count.
+        uint256 expectedTierCount;
         string memory tierCountRaw = vm.envOr({name: "VERIFY_BANNY_TIER_COUNT", defaultValue: string("")});
         if (bytes(tierCountRaw).length > 0) {
-            uint256 expectedTierCount = vm.parseUint(tierCountRaw);
+            expectedTierCount = vm.parseUint(tierCountRaw);
             _check({
                 condition: hookStore.maxTierIdOf(bannyHook) == expectedTierCount,
                 label: "Banny hook maxTierIdOf == VERIFY_BANNY_TIER_COUNT",
@@ -2795,6 +2797,96 @@ contract Verify is Script {
         } else {
             _skip("Banny tier count (VERIFY_BANNY_TIER_COUNT not set on non-production chain)");
         }
+
+        // 5. Per-tier manifest commitment — the prior checks pin shell metadata (owner, base URI,
+        // tier count) but say nothing about each tier's price / supply / category / reserve, the
+        // resolver's per-UPC SVG hash, or its product-name commitment. A wrong drop registration
+        // (off-by-one tier inputs, swapped SVG hashes, missing product names) still satisfied every
+        // earlier check. Hash the canonical per-tier fields off-chain, supply via
+        // `VERIFY_BANNY_TIER_MANIFEST_HASH`, and verify on-chain by accumulating the same digest
+        // over `tierOf` + `svgHashOf` + `productNameOf` for tiers `1..expectedTierCount`.
+        if (expectedTierCount > 0) {
+            _verifyBannyTierManifestHash({
+                bannyHook: bannyHook,
+                resolver: resolver,
+                tierCount: expectedTierCount,
+                isProductionChain: isProductionChain
+            });
+        }
+    }
+
+    /// @notice Walk `1..tierCount` on the canonical Banny hook + resolver and accumulate a
+    /// keccak256 digest of every committed tier field. Compare against the operator-supplied
+    /// `VERIFY_BANNY_TIER_MANIFEST_HASH`. Fails closed on production when the env var is unset.
+    /// @dev Digest shape per tier (matches the off-chain manifest generator):
+    ///   `keccak256(abi.encode(running, tierId, price, initialSupply, category, reserveFrequency,
+    ///                          encodedIPFSUri, svgHash, keccak256(productName)))`
+    /// Drop a single field or reorder one tier and the digest diverges; that's the whole point.
+    function _verifyBannyTierManifestHash(
+        address bannyHook,
+        address resolver,
+        uint256 tierCount,
+        bool isProductionChain
+    )
+        internal
+    {
+        bytes32 expected = vm.envOr({name: "VERIFY_BANNY_TIER_MANIFEST_HASH", defaultValue: bytes32(0)});
+        if (expected == bytes32(0)) {
+            if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: "VERIFY_BANNY_TIER_MANIFEST_HASH MUST be set on production for per-tier identity",
+                    critical: true
+                });
+            } else {
+                _skip("Banny per-tier manifest hash (VERIFY_BANNY_TIER_MANIFEST_HASH not set on non-production chain)");
+            }
+            return;
+        }
+
+        bytes32 digest;
+        for (uint256 id = 1; id <= tierCount; id++) {
+            JB721Tier memory tier = hookStore.tierOf({hook: bannyHook, id: id, includeResolvedUri: false});
+            bytes32 svgHash = _readResolverSvgHash({resolver: resolver, upc: id});
+            bytes32 nameHash = keccak256(bytes(_readResolverProductName({resolver: resolver, upc: id})));
+            digest = keccak256(
+                abi.encode(
+                    digest,
+                    id,
+                    uint256(tier.price),
+                    uint256(tier.initialSupply),
+                    uint256(tier.category),
+                    uint256(tier.reserveFrequency),
+                    tier.encodedIPFSUri,
+                    svgHash,
+                    nameHash
+                )
+            );
+        }
+
+        _check({
+            condition: digest == expected,
+            label: "Banny per-tier manifest hash == VERIFY_BANNY_TIER_MANIFEST_HASH",
+            critical: true
+        });
+    }
+
+    /// @notice Read `svgHashOf(upc)` from the resolver via low-level staticcall. The accessor is
+    /// a public storage mapping, so a real Banny resolver always responds; an out-of-shape resolver
+    /// fails closed.
+    function _readResolverSvgHash(address resolver, uint256 upc) internal view returns (bytes32) {
+        (bool ok, bytes memory data) = resolver.staticcall(abi.encodeWithSignature("svgHashOf(uint256)", upc));
+        if (!ok || data.length < 32) return bytes32(0);
+        return abi.decode(data, (bytes32));
+    }
+
+    /// @notice Read `productNameOf(upc)` from the resolver via low-level staticcall. The accessor
+    /// was added in banny-retail-v6 0.0.32; older deployments revert and the empty-string
+    /// fallback surfaces as a digest mismatch via the surrounding `_check`.
+    function _readResolverProductName(address resolver, uint256 upc) internal view returns (string memory) {
+        (bool ok, bytes memory data) = resolver.staticcall(abi.encodeWithSignature("productNameOf(uint256)", upc));
+        if (!ok || data.length == 0) return "";
+        return abi.decode(data, (string));
     }
 
     /// Helper: on production, an empty env value is a fail-closed event. On non-production it
