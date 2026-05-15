@@ -557,7 +557,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
                 salt: bytes32("test")
             }),
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            splitOperator: address(0),
+            operator: address(0),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });

@@ -429,7 +429,7 @@ contract Deploy is Script, Sphinx {
     uint256 private constant _BAN_PROJECT_ID = 4;
 
     /// @notice Canonical Banny ops EOA. Used as the auto-issuance beneficiary in all stages and inherits
-    /// the BAN split-operator role + resolver ownership from the Sphinx Safe via `_finalizeBannyOwnership`
+    /// the BAN operator role + resolver ownership from the Sphinx Safe via `_finalizeBannyOwnership`
     /// after all Banny drops have been registered.
     address private constant _BAN_OPS_OPERATOR = 0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450;
 
@@ -530,10 +530,10 @@ contract Deploy is Script, Sphinx {
 
         // Phase 09c: Banny Drop 2 — registers the 17 outfit items on top of Drop 1.
         // Idempotent: skipped when the hook already has the drop tiers. Must run before
-        // `_finalizeBannyOwnership` so the Sphinx Safe still holds split-operator + resolver ownership.
+        // `_finalizeBannyOwnership` so the Sphinx Safe still holds operator + resolver ownership.
         _registerBannyDrop2();
 
-        // Phase 09d: Finalize Banny ownership — transfers resolver ownership + BAN split-operator role
+        // Phase 09d: Finalize Banny ownership — transfers resolver ownership + BAN operator role
         // from the Sphinx Safe to `_BAN_OPS_OPERATOR`. Idempotent: skipped when the resolver is already
         // owned by `_BAN_OPS_OPERATOR`.
         _finalizeBannyOwnership();
@@ -1938,7 +1938,7 @@ contract Deploy is Script, Sphinx {
                 "Revnet", "REV", "ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W", REV_ERC20_SALT
             ),
             baseCurrency: ETH_CURRENCY,
-            splitOperator: operator,
+            operator: operator,
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -2039,7 +2039,7 @@ contract Deploy is Script, Sphinx {
                 salt: CPN_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
-            splitOperator: operator,
+            operator: operator,
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -2064,10 +2064,10 @@ contract Deploy is Script, Sphinx {
                 })
             }),
             salt: CPN_HOOK_SALT,
-            preventSplitOperatorAdjustingTiers: false,
-            preventSplitOperatorUpdatingMetadata: false,
-            preventSplitOperatorMinting: false,
-            preventSplitOperatorIncreasingDiscountPercent: false
+            preventOperatorAdjustingTiers: false,
+            preventOperatorUpdatingMetadata: false,
+            preventOperatorMinting: false,
+            preventOperatorIncreasingDiscountPercent: false
         });
 
         REVCroptopAllowedPost[] memory allowedPosts = new REVCroptopAllowedPost[](5);
@@ -2187,7 +2187,7 @@ contract Deploy is Script, Sphinx {
                 salt: NANA_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
-            splitOperator: operator,
+            operator: operator,
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -2361,7 +2361,7 @@ contract Deploy is Script, Sphinx {
             extraMetadata: 4
         });
 
-        // Initial split operator is the Sphinx Safe so this script can call `hook.adjustTiers` when
+        // Initial operator is the Sphinx Safe so this script can call `hook.adjustTiers` when
         // registering every Banny drop (Phases 09b, 09c, …). Operator is transferred to `operator`
         // (the canonical Banny ops EOA) by `_finalizeBannyOwnership` after the last drop. Auto-issuance
         // beneficiaries below still flow to `operator`, so the initial launch mints land correctly
@@ -2371,7 +2371,7 @@ contract Deploy is Script, Sphinx {
                 "Banny Network", "BAN", "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp", BAN_ERC20_SALT
             ),
             baseCurrency: ETH_CURRENCY,
-            splitOperator: safeAddress(),
+            operator: safeAddress(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -2487,10 +2487,10 @@ contract Deploy is Script, Sphinx {
                 })
             }),
             salt: BAN_HOOK_SALT,
-            preventSplitOperatorAdjustingTiers: false,
-            preventSplitOperatorUpdatingMetadata: false,
-            preventSplitOperatorMinting: false,
-            preventSplitOperatorIncreasingDiscountPercent: false
+            preventOperatorAdjustingTiers: false,
+            preventOperatorUpdatingMetadata: false,
+            preventOperatorMinting: false,
+            preventOperatorIncreasingDiscountPercent: false
         });
 
         // Deploy the $BAN revnet with 721 tiers (revnetId: 0 creates new project).
@@ -3415,11 +3415,11 @@ contract Deploy is Script, Sphinx {
     //  Phase 09d: Finalize Banny Ownership
     // ════════════════════════════════════════════════════════════════════
 
-    /// @notice Hands the Banny URI resolver and the BAN split-operator role from the Sphinx Safe to
+    /// @notice Hands the Banny URI resolver and the BAN operator role from the Sphinx Safe to
     /// `_BAN_OPS_OPERATOR`. Must run after every drop registration that needs owner-only writes.
     /// @dev Idempotent: skipped when the resolver is already owned by `_BAN_OPS_OPERATOR`. Because both
     /// transfers happen atomically in a single Sphinx proposal, the resolver owner serves as a witness
-    /// for the split-operator state too — if the resolver is no longer the safe's, both transfers
+    /// for the operator state too — if the resolver is no longer the safe's, both transfers
     /// have already landed.
     function _finalizeBannyOwnership() internal {
         IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
@@ -3434,10 +3434,10 @@ contract Deploy is Script, Sphinx {
         // point, future drops + metadata edits must be authorized by `_BAN_OPS_OPERATOR`.
         resolver.transferOwnership(_BAN_OPS_OPERATOR);
 
-        // Transfer the BAN split operator role from the Sphinx Safe to the canonical Banny ops EOA.
+        // Transfer the BAN operator role from the Sphinx Safe to the canonical Banny ops EOA.
         // After this, the safe no longer has ADJUST_721_TIERS / MINT_721 etc. on project 4; the Banny
         // ops account does.
-        _revDeployer.setSplitOperatorOf({revnetId: _BAN_PROJECT_ID, newSplitOperator: _BAN_OPS_OPERATOR});
+        _revDeployer.setOperatorOf({revnetId: _BAN_PROJECT_ID, newOperator: _BAN_OPS_OPERATOR});
     }
 
     // ════════════════════════════════════════════════════════════════════

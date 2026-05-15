@@ -129,7 +129,7 @@ contract USDCRevnetForkTest is RevnetForkBase {
         cfg = REVConfig({
             description: REVDescription("USDC Revnet", "UREV", "ipfs://urev", "UREV_SALT"),
             baseCurrency: uint32(uint160(address(usdc))),
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
@@ -188,7 +188,7 @@ contract USDCRevnetForkTest is RevnetForkBase {
         cfg = REVConfig({
             description: REVDescription("USDC Revnet LP", "UREVLP", "ipfs://urevlp", "UREVLP_SALT"),
             baseCurrency: uint32(uint160(address(usdc))),
-            splitOperator: multisig(),
+            operator: multisig(),
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });

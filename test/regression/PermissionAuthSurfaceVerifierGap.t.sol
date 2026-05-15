@@ -104,10 +104,10 @@ contract PermissionAuthSurfaceVerifierGapTest is Test {
             "verifier asserts ADJUST_721_TIERS wildcard grant"
         );
 
-        // Production-required split-operator manifest.
+        // Production-required operator manifest.
         assertTrue(
             _contains(verifySource, "MUST be set on production for"),
-            "verifier fails closed when split-operator env var is unset on production"
+            "verifier fails closed when operator env var is unset on production"
         );
     }
 
