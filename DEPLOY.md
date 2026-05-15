@@ -67,6 +67,40 @@ Before running a deployment:
 
 Deployments are executed through [Sphinx](https://sphinx.dev), which batches the deploy transactions through the multi-sig safe. The Sphinx CLI proposes the deployment, which must then be approved by safe signers.
 
+### Pre-Deploy Rehearsal (Gas-Free Address + ABI Preview)
+
+Before any real broadcast, run `script/rehearse-addresses.sh` to produce the deterministic CREATE2 addresses and the full ABI bundle for every supported chain. Nothing is signed or sent on-chain — the simulation runs in a per-chain anvil fork and `_dumpAddresses` writes the same CREATE2 addresses the eventual Sphinx broadcast will land at. Use this to:
+
+- Hand auditors / frontends / indexers the exact addresses ahead of launch.
+- Confirm cross-chain CREATE2 determinism (every chain-independent contract — `JBProjects`, `JBController`, etc. — must land at the same address across all 8 chains).
+- Catch deploy-script reverts (e.g. mis-ordered stage times, bad chain-specific constructor inputs) before paying gas.
+
+```bash
+./script/rehearse-addresses.sh                     # all 8 supported chains (~3–5 min)
+./script/rehearse-addresses.sh 1 10 8453 42161     # production mainnets only
+./script/rehearse-addresses.sh 11155111            # single chain (e.g. Sepolia)
+```
+
+Requires the chain's RPC env var (`RPC_ETHEREUM_MAINNET`, `RPC_OPTIMISM_SEPOLIA`, …) in `.env`. The script spins up an anvil fork per chain (so the safe's zero-balance doesn't trip Optimism's `lack of funds (0)` simulation gate), credits the safe via `anvil_setBalance`, runs the deploy simulation, and copies each chain's address dump into `rehearsal-output/`.
+
+Output layout:
+
+```
+rehearsal-output/
+├── abis/                                            # 71 chain-independent ABI JSONs
+├── addresses-1-ethereum-mainnet.json                # per-chain CREATE2 addresses
+├── addresses-10-optimism-mainnet.json
+├── addresses-8453-base-mainnet.json
+├── addresses-42161-arbitrum-mainnet.json
+├── addresses-11155111-ethereum-sepolia.json
+├── addresses-11155420-optimism-sepolia.json
+├── addresses-84532-base-sepolia.json
+├── addresses-421614-arbitrum-sepolia.json
+└── <label>-deploy.log / <label>-anvil.log          # per-chain traces for debugging
+```
+
+The bundle is `.gitignore`d — re-run the script anytime to refresh.
+
 ### Dry Run (Forge Simulation)
 
 ```bash
