@@ -238,6 +238,12 @@ contract Verify is Script {
     uint256 private constant _REV_PROJECT_ID = 3;
     // The BAN/Banny project is always project 4.
     uint256 private constant _BAN_PROJECT_ID = 4;
+    // The DEFIFA revnet project is always project 5.
+    uint256 private constant _DEFIFA_REV_PROJECT_ID = 5;
+    // The ART/Artizen project is always project 6 (Base-only).
+    uint256 private constant _ART_PROJECT_ID = 6;
+    // The MARKEE project is always project 7.
+    uint256 private constant _MARKEE_PROJECT_ID = 7;
     // Distributor vesting rounds must match Deploy.s.sol.
     uint256 private constant _VESTING_ROUNDS = 52;
 
@@ -461,6 +467,17 @@ contract Verify is Script {
         // Verify project 4 (BAN/Banny) has an owner.
         _checkProjectHasOwner({projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN) exists with owner"});
 
+        // Conditional existence checks for newer projects.
+        if (totalProjects >= _DEFIFA_REV_PROJECT_ID) {
+            _checkProjectHasOwner({projectId: _DEFIFA_REV_PROJECT_ID, label: "Project 5 (DEFIFA) exists with owner"});
+        }
+        if (totalProjects >= _ART_PROJECT_ID) {
+            _checkProjectHasOwner({projectId: _ART_PROJECT_ID, label: "Project 6 (ART) exists with owner"});
+        }
+        if (totalProjects >= _MARKEE_PROJECT_ID) {
+            _checkProjectHasOwner({projectId: _MARKEE_PROJECT_ID, label: "Project 7 (MARKEE) exists with owner"});
+        }
+
         _verifyCanonicalProjectIdentities();
 
         // No stale ERC-721 approvals on canonical projects.
@@ -484,6 +501,27 @@ contract Verify is Script {
             label: "Project 4 (BAN) has no stale approval",
             critical: true
         });
+        if (totalProjects >= _DEFIFA_REV_PROJECT_ID) {
+            _check({
+                condition: projects.getApproved(_DEFIFA_REV_PROJECT_ID) == address(0),
+                label: "Project 5 (DEFIFA) has no stale approval",
+                critical: true
+            });
+        }
+        if (totalProjects >= _ART_PROJECT_ID) {
+            _check({
+                condition: projects.getApproved(_ART_PROJECT_ID) == address(0),
+                label: "Project 6 (ART) has no stale approval",
+                critical: true
+            });
+        }
+        if (totalProjects >= _MARKEE_PROJECT_ID) {
+            _check({
+                condition: projects.getApproved(_MARKEE_PROJECT_ID) == address(0),
+                label: "Project 7 (MARKEE) has no stale approval",
+                critical: true
+            });
+        }
 
         // Log a blank line for readability.
         console.log("");
@@ -499,6 +537,42 @@ contract Verify is Script {
         _verifyCanonicalRevnetProject({projectId: _CPN_PROJECT_ID, symbol: "CPN", label: "CPN(2)"});
         _verifyCanonicalRevnetProject({projectId: _REV_PROJECT_ID, symbol: "REV", label: "REV(3)"});
         _verifyCanonicalRevnetProject({projectId: _BAN_PROJECT_ID, symbol: "BAN", label: "BAN(4)"});
+
+        // Hoist `projects.count()` once and swallow reverts: tests inject mocks that don't expose
+        // `count()`, and a bare call inside the existence guards would surface as a no-data revert
+        // and mask the assertion the test actually targets.
+        uint256 totalProjects;
+        if (address(projects) != address(0)) {
+            try projects.count() returns (uint256 c) {
+                totalProjects = c;
+            } catch {}
+        }
+
+        if (totalProjects >= _DEFIFA_REV_PROJECT_ID) {
+            _verifyCanonicalRevnetProject({projectId: _DEFIFA_REV_PROJECT_ID, symbol: "DEFIFA", label: "DEFIFA(5)"});
+        }
+        if (totalProjects >= _ART_PROJECT_ID) {
+            // ART is a fully wired revnet ONLY on Base — off-Base, project 6 is a bare placeholder
+            // owned by the canonical operator (no controller/terminals/ruleset). Run the revnet
+            // identity check only on Base; on other chains, just authenticate the placeholder.
+            if (block.chainid == 8453 || block.chainid == 84_532) {
+                _verifyCanonicalRevnetProject({projectId: _ART_PROJECT_ID, symbol: "ART", label: "ART(6)"});
+            } else {
+                address expectedOperator = vm.envOr({name: "VERIFY_ART_OPS_OPERATOR", defaultValue: address(0)});
+                if (expectedOperator != address(0)) {
+                    _check({
+                        condition: projects.ownerOf(_ART_PROJECT_ID) == expectedOperator,
+                        label: "ART(6) off-Base placeholder owner == VERIFY_ART_OPS_OPERATOR",
+                        critical: true
+                    });
+                } else {
+                    _skip("ART(6) off-Base placeholder owner (VERIFY_ART_OPS_OPERATOR not set)");
+                }
+            }
+        }
+        if (totalProjects >= _MARKEE_PROJECT_ID) {
+            _verifyCanonicalRevnetProject({projectId: _MARKEE_PROJECT_ID, symbol: "MARKEE", label: "MARKEE(7)"});
+        }
 
         if (address(revOwner) != address(0)) {
             IJB721TiersHook bannyHook = revOwner.tiered721HookOf(_BAN_PROJECT_ID);
@@ -646,17 +720,14 @@ contract Verify is Script {
             critical: true
         });
 
-        // Deploy.s.sol always creates and configures all 4 canonical projects regardless of
-        // whether the Uniswap stack is present. Check directory wiring for all of them.
-        uint256 projectCount = 4;
+        // Iterate every canonical revnet present on this chain — baseline 1-4 plus DEFIFA(5),
+        // ART(6), and MARKEE(7) where the deploy has reserved their IDs. Without the 5-7
+        // extension, those projects' directory wiring (controller, native accounting context,
+        // terminal list) would never be authenticated, leaving room for a noncanonical controller
+        // or a misconfigured accounting context on the newer projects.
+        (uint256[] memory projectIds, string[] memory labels) = _canonicalRevnetProjectIdsAndLabels();
 
-        // For each canonical project, check directory wiring.
-        uint256[4] memory projectIds = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
-        // Corresponding human-readable labels for logging.
-        string[4] memory labels = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
-
-        // Iterate through each project to validate its directory entries.
-        for (uint256 i; i < projectCount; i++) {
+        for (uint256 i; i < projectIds.length; i++) {
             // Read the controller set for this project in the directory.
             IERC165 projectController = directory.controllerOf(projectIds[i]);
             // require the controller pointer to equal the canonical controller, not just
@@ -1025,6 +1096,22 @@ contract Verify is Script {
                 critical: true
             });
         }
+
+        // Conditional buyback checks for newer projects (5, 6, 7).
+        uint256 totalProjects = projects.count();
+        uint256[3] memory extraPids = [_DEFIFA_REV_PROJECT_ID, _ART_PROJECT_ID, _MARKEE_PROJECT_ID];
+        string[3] memory extraNames = ["DEFIFA(5)", "ART(6)", "MARKEE(7)"];
+        for (uint256 i; i < extraPids.length; i++) {
+            if (totalProjects < extraPids[i]) continue;
+            // ART is a wired revnet only on Base. Off-Base, project 6 is a bare placeholder with no
+            // buyback wiring — skip the buyback hook check there.
+            if (extraPids[i] == _ART_PROJECT_ID && block.chainid != 8453 && block.chainid != 84_532) continue;
+            _check({
+                condition: address(buybackRegistry.hookOf(extraPids[i])) == expectedHook,
+                label: string.concat(extraNames[i], " resolved buyback hookOf == canonical"),
+                critical: true
+            });
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1174,8 +1261,8 @@ contract Verify is Script {
                 condition: address(defifaDeployer).code.length > 0, label: "DefifaDeployer has code", critical: true
             });
             _check({
-                condition: defifaDeployer.DEFIFA_PROJECT_ID() == _REV_PROJECT_ID,
-                label: "Defifa uses REV(3) as fee project",
+                condition: defifaDeployer.DEFIFA_PROJECT_ID() == _DEFIFA_REV_PROJECT_ID,
+                label: "Defifa uses DEFIFA_REV(5) as fee project",
                 critical: true
             });
             _check({
@@ -1216,8 +1303,8 @@ contract Verify is Script {
             if (hookCodeOrigin.code.length > 0) {
                 _check({
                     condition: address(DefifaHook(hookCodeOrigin).DEFIFA_TOKEN())
-                        == address(tokens.tokenOf(_REV_PROJECT_ID)),
-                    label: "Defifa hook code origin uses REV token",
+                        == address(tokens.tokenOf(_DEFIFA_REV_PROJECT_ID)),
+                    label: "Defifa hook code origin uses DEFIFA_REV token",
                     critical: true
                 });
                 _check({
@@ -1762,8 +1849,11 @@ contract Verify is Script {
         // Deploy.s.sol installs the router terminal registry as the project terminal. The registry then resolves to the
         // raw router terminal.
         if (address(routerTerminalRegistry) != address(0)) {
-            uint256[4] memory projectIds = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
-            string[4] memory labels = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
+            // Every canonical revnet present on this chain — see `_canonicalRevnetProjectIdsAndLabels`
+            // for the 1-4 baseline plus DEFIFA(5) / ART(6) / MARKEE(7) extension. The router-terminal
+            // registry is wired into every canonical revnet's terminal list, so every project
+            // (including 5-7) needs its registry registration AND `terminalOf` resolution proved.
+            (uint256[] memory projectIds, string[] memory labels) = _canonicalRevnetProjectIdsAndLabels();
 
             for (uint256 i; i < projectIds.length; i++) {
                 IJBTerminal[] memory terminals = directory.terminalsOf(projectIds[i]);
@@ -2700,6 +2790,48 @@ contract Verify is Script {
             }
         }
 
+        // Conditional config hash checks for newer projects (5, 6, 7).
+        {
+            uint256 totalProjects = projects.count();
+            uint256[3] memory extraPids = [_DEFIFA_REV_PROJECT_ID, _ART_PROJECT_ID, _MARKEE_PROJECT_ID];
+            string[3] memory extraNames = ["DEFIFA(5)", "ART(6)", "MARKEE(7)"];
+            string[3] memory extraEnvVars = ["VERIFY_CONFIG_HASH_5", "VERIFY_CONFIG_HASH_6", "VERIFY_CONFIG_HASH_7"];
+            for (uint256 i; i < extraPids.length; i++) {
+                if (totalProjects < extraPids[i]) continue;
+                // ART is a wired revnet only on Base. Off-Base project 6 is a bare placeholder with
+                // no revnet config hash — skip the config hash check there.
+                if (extraPids[i] == _ART_PROJECT_ID && block.chainid != 8453 && block.chainid != 84_532) continue;
+
+                bytes32 actual = revDeployer.hashedEncodedConfigurationOf(extraPids[i]);
+                _check({
+                    condition: actual != bytes32(0),
+                    label: string.concat(extraNames[i], " has non-zero config hash"),
+                    critical: true
+                });
+
+                string memory hashStr = vm.envOr({name: extraEnvVars[i], defaultValue: string("")});
+                if (bytes(hashStr).length > 0) {
+                    _check({
+                        condition: actual == vm.parseBytes32(hashStr),
+                        label: string.concat(extraNames[i], " config hash == expected"),
+                        critical: true
+                    });
+                } else if (isProductionChain) {
+                    _check({
+                        condition: false,
+                        label: string.concat(
+                            extraNames[i], " expected config hash MUST be set on production via ", extraEnvVars[i]
+                        ),
+                        critical: true
+                    });
+                } else {
+                    _skip(
+                        string.concat(extraNames[i], " expected config hash not provided (", extraEnvVars[i], " unset)")
+                    );
+                }
+            }
+        }
+
         // Verify Banny hook resolver and contractURI.
         if (address(revOwner) != address(0)) {
             IJB721TiersHook bannyHook = revOwner.tiered721HookOf(_BAN_PROJECT_ID);
@@ -2735,14 +2867,24 @@ contract Verify is Script {
     /// per-field equality on the canonical Banny resolver and tier count.
     /// Each env var defaults to a no-op skip on non-production chains; production chains fail
     /// closed when the manifest envs are unset.
+    /// @dev Reads every operator-supplied expectation via `_loadBannyExpectations` (overridable in
+    /// test harnesses) so production-style env reads aren't interleaved through the verification
+    /// flow. Forge runs sibling test contracts in parallel and `vm.setEnv` is process-wide; mixing
+    /// env reads with verifier work would race against any sibling test that touches the same
+    /// `VERIFY_BANNY_*` keys. Loading once at the top, with the loader virtualised, means tests
+    /// can supply stable expectations from harness storage and skip env entirely.
     function _verifyBannyResolverManifest(address resolver, address bannyHook) internal {
         bool isProductionChain =
             (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
 
+        BannyExpectations memory expected = _loadBannyExpectations();
+
         // 1. Resolver owner — final handoff target. Operator declares `_BAN_OPS_OPERATOR`.
         _checkResolverField({
-            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BAN_OPS_OPERATOR"),
-            expectedAddress: vm.envOr({name: "VERIFY_BAN_OPS_OPERATOR", defaultValue: address(0)}),
+            ok: _enforceBannyExpectationOnProduction(
+                isProductionChain, expected.banOpsOperatorSet, "VERIFY_BAN_OPS_OPERATOR"
+            ),
+            expectedAddress: expected.banOpsOperator,
             actualAddress: _staticAddress(resolver, "owner()"),
             label: "Banny resolver owner == VERIFY_BAN_OPS_OPERATOR"
         });
@@ -2759,32 +2901,35 @@ contract Verify is Script {
 
         // 3. Resolver SVG metadata triple — exact-string equality against operator manifest.
         _checkResolverStringField({
-            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BANNY_SVG_DESCRIPTION"),
-            expectedRaw: vm.envOr({name: "VERIFY_BANNY_SVG_DESCRIPTION", defaultValue: string("")}),
+            ok: _enforceBannyExpectationOnProduction(
+                isProductionChain, expected.svgDescriptionSet, "VERIFY_BANNY_SVG_DESCRIPTION"
+            ),
+            expectedRaw: expected.svgDescription,
             actualRaw: _staticString(resolver, "svgDescription()"),
             label: "Banny resolver svgDescription == expected"
         });
         _checkResolverStringField({
-            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BANNY_SVG_EXTERNAL_URL"),
-            expectedRaw: vm.envOr({name: "VERIFY_BANNY_SVG_EXTERNAL_URL", defaultValue: string("")}),
+            ok: _enforceBannyExpectationOnProduction(
+                isProductionChain, expected.svgExternalUrlSet, "VERIFY_BANNY_SVG_EXTERNAL_URL"
+            ),
+            expectedRaw: expected.svgExternalUrl,
             actualRaw: _staticString(resolver, "svgExternalUrl()"),
             label: "Banny resolver svgExternalUrl == expected"
         });
         _checkResolverStringField({
-            ok: _expectBannyEnvOnProduction(isProductionChain, "VERIFY_BANNY_SVG_BASE_URI"),
-            expectedRaw: vm.envOr({name: "VERIFY_BANNY_SVG_BASE_URI", defaultValue: string("")}),
+            ok: _enforceBannyExpectationOnProduction(
+                isProductionChain, expected.svgBaseUriSet, "VERIFY_BANNY_SVG_BASE_URI"
+            ),
+            expectedRaw: expected.svgBaseUri,
             actualRaw: _staticString(resolver, "svgBaseUri()"),
             label: "Banny resolver svgBaseUri == expected"
         });
 
         // 4. Hook-store tier count — the canonical deployment ends with 4 baseline body tiers
         // plus 64 Drop 1/Drop 2 tiers = 68 total. Drop missing/incomplete = wrong count.
-        uint256 expectedTierCount;
-        string memory tierCountRaw = vm.envOr({name: "VERIFY_BANNY_TIER_COUNT", defaultValue: string("")});
-        if (bytes(tierCountRaw).length > 0) {
-            expectedTierCount = vm.parseUint(tierCountRaw);
+        if (expected.tierCountSet) {
             _check({
-                condition: hookStore.maxTierIdOf(bannyHook) == expectedTierCount,
+                condition: hookStore.maxTierIdOf(bannyHook) == expected.tierCount,
                 label: "Banny hook maxTierIdOf == VERIFY_BANNY_TIER_COUNT",
                 critical: true
             });
@@ -2805,19 +2950,89 @@ contract Verify is Script {
         // earlier check. Hash the canonical per-tier fields off-chain, supply via
         // `VERIFY_BANNY_TIER_MANIFEST_HASH`, and verify on-chain by accumulating the same digest
         // over `tierOf` + `svgHashOf` + `productNameOf` for tiers `1..expectedTierCount`.
-        if (expectedTierCount > 0) {
+        if (expected.tierCountSet && expected.tierCount > 0) {
             _verifyBannyTierManifestHash({
                 bannyHook: bannyHook,
                 resolver: resolver,
-                tierCount: expectedTierCount,
+                tierCount: expected.tierCount,
+                tierManifestHash: expected.tierManifestHash,
+                tierManifestHashSet: expected.tierManifestHashSet,
                 isProductionChain: isProductionChain
             });
         }
     }
 
+    /// @notice Operator-supplied Banny manifest expectations, captured once before the verifier
+    /// runs so the per-field assertions don't race against a sibling test contract's `vm.setEnv`.
+    /// Tests inherit a harness that overrides `_loadBannyExpectations` to supply canned values
+    /// directly from storage; production runs receive the defaults loaded from env vars.
+    struct BannyExpectations {
+        bool banOpsOperatorSet;
+        address banOpsOperator;
+        bool svgDescriptionSet;
+        string svgDescription;
+        bool svgExternalUrlSet;
+        string svgExternalUrl;
+        bool svgBaseUriSet;
+        string svgBaseUri;
+        bool tierCountSet;
+        uint256 tierCount;
+        bool tierManifestHashSet;
+        bytes32 tierManifestHash;
+    }
+
+    /// @notice Default loader for `BannyExpectations`. Reads every `VERIFY_BANNY_*` /
+    /// `VERIFY_BAN_OPS_OPERATOR` env var once and packs them into the struct so downstream
+    /// verification work is decoupled from env-var timing.
+    function _loadBannyExpectations() internal virtual returns (BannyExpectations memory e) {
+        string memory raw = vm.envOr({name: "VERIFY_BAN_OPS_OPERATOR", defaultValue: string("")});
+        if (bytes(raw).length > 0) {
+            e.banOpsOperatorSet = true;
+            e.banOpsOperator = vm.parseAddress(raw);
+        }
+        e.svgDescription = vm.envOr({name: "VERIFY_BANNY_SVG_DESCRIPTION", defaultValue: string("")});
+        e.svgDescriptionSet = bytes(e.svgDescription).length > 0;
+        e.svgExternalUrl = vm.envOr({name: "VERIFY_BANNY_SVG_EXTERNAL_URL", defaultValue: string("")});
+        e.svgExternalUrlSet = bytes(e.svgExternalUrl).length > 0;
+        e.svgBaseUri = vm.envOr({name: "VERIFY_BANNY_SVG_BASE_URI", defaultValue: string("")});
+        e.svgBaseUriSet = bytes(e.svgBaseUri).length > 0;
+        raw = vm.envOr({name: "VERIFY_BANNY_TIER_COUNT", defaultValue: string("")});
+        if (bytes(raw).length > 0) {
+            e.tierCountSet = true;
+            e.tierCount = vm.parseUint(raw);
+        }
+        e.tierManifestHash = vm.envOr({name: "VERIFY_BANNY_TIER_MANIFEST_HASH", defaultValue: bytes32(0)});
+        e.tierManifestHashSet = e.tierManifestHash != bytes32(0);
+    }
+
+    /// @notice Replacement for the previous `_expectBannyEnvOnProduction` helper. Returns `true`
+    /// when the per-field assertion should proceed (operator supplied a value). On production with
+    /// no value supplied, fails closed with a label tied to the env var the operator forgot.
+    function _enforceBannyExpectationOnProduction(
+        bool isProductionChain,
+        bool fieldSet,
+        string memory envName
+    )
+        internal
+        returns (bool)
+    {
+        if (fieldSet) return true;
+        if (isProductionChain) {
+            _check({
+                condition: false,
+                label: string.concat(envName, " MUST be set on production for Banny resolver identity"),
+                critical: true
+            });
+        } else {
+            _skip(string.concat(envName, " (not set on non-production chain)"));
+        }
+        return false;
+    }
+
     /// @notice Walk `1..tierCount` on the canonical Banny hook + resolver and accumulate a
     /// keccak256 digest of every committed tier field. Compare against the operator-supplied
-    /// `VERIFY_BANNY_TIER_MANIFEST_HASH`. Fails closed on production when the env var is unset.
+    /// `tierManifestHash` (captured upstream by `_loadBannyExpectations`). Fails closed on
+    /// production when the operator didn't supply a hash.
     /// @dev Digest shape per tier (matches the off-chain manifest generator):
     ///   `keccak256(abi.encode(running, tierId, price, initialSupply, category, reserveFrequency,
     ///                          encodedIPFSUri, svgHash, keccak256(productName)))`
@@ -2826,12 +3041,13 @@ contract Verify is Script {
         address bannyHook,
         address resolver,
         uint256 tierCount,
+        bytes32 tierManifestHash,
+        bool tierManifestHashSet,
         bool isProductionChain
     )
         internal
     {
-        bytes32 expected = vm.envOr({name: "VERIFY_BANNY_TIER_MANIFEST_HASH", defaultValue: bytes32(0)});
-        if (expected == bytes32(0)) {
+        if (!tierManifestHashSet) {
             if (isProductionChain) {
                 _check({
                     condition: false,
@@ -2865,7 +3081,7 @@ contract Verify is Script {
         }
 
         _check({
-            condition: digest == expected,
+            condition: digest == tierManifestHash,
             label: "Banny per-tier manifest hash == VERIFY_BANNY_TIER_MANIFEST_HASH",
             critical: true
         });
@@ -2887,23 +3103,6 @@ contract Verify is Script {
         (bool ok, bytes memory data) = resolver.staticcall(abi.encodeWithSignature("productNameOf(uint256)", upc));
         if (!ok || data.length == 0) return "";
         return abi.decode(data, (string));
-    }
-
-    /// Helper: on production, an empty env value is a fail-closed event. On non-production it
-    /// skips with a logged note. Returns true when the per-field assertion should proceed.
-    function _expectBannyEnvOnProduction(bool isProductionChain, string memory envKey) internal returns (bool) {
-        string memory raw = vm.envOr({name: envKey, defaultValue: string("")});
-        if (bytes(raw).length > 0) return true;
-        if (isProductionChain) {
-            _check({
-                condition: false,
-                label: string.concat(envKey, " MUST be set on production for Banny resolver manifest"),
-                critical: true
-            });
-        } else {
-            _skip(string.concat(envKey, " unset - Banny manifest field skipped on non-production chain"));
-        }
-        return false;
     }
 
     function _checkResolverField(
@@ -2955,14 +3154,32 @@ contract Verify is Script {
 
         // Load optional per-project sucker pair counts from env.
         // Format: VERIFY_SUCKER_PAIRS_1=<count>,VERIFY_SUCKER_PAIRS_2=<count>, etc.
-        uint256[4] memory pids = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
-        string[4] memory names = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
+        // Covers the full canonical revnet set (1-7) so DEFIFA / ART / MARKEE sucker manifests can
+        // also be authenticated when their `VERIFY_SUCKER_PAIRS_*` env var is supplied.
+        (uint256[] memory pids, string[] memory names) = _canonicalRevnetProjectIdsAndLabels();
         bool anySuckerChecks = false;
+        bool isProductionChainNow =
+            (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
 
-        for (uint256 i; i < 4; i++) {
+        for (uint256 i; i < pids.length; i++) {
             string memory envKey = string.concat("VERIFY_SUCKER_PAIRS_", vm.toString(pids[i]));
             string memory expectedCountStr = vm.envOr(envKey, string(""));
-            if (bytes(expectedCountStr).length == 0) continue;
+            if (bytes(expectedCountStr).length == 0) {
+                // Partial-missing-env gap: on production, every canonical project must declare its
+                // pair count explicitly (use `"0"` for zero-sucker projects). Without this gate, a
+                // deployment can ship with only some VERIFY_SUCKER_PAIRS_* set and silently skip
+                // per-pair manifest verification for the unset projects.
+                if (isProductionChainNow) {
+                    _check({
+                        condition: false,
+                        label: string.concat(
+                            envKey, " MUST be set on production for ", names[i], " (use \"0\" for no suckers)"
+                        ),
+                        critical: true
+                    });
+                }
+                continue;
+            }
             anySuckerChecks = true;
 
             uint256 expectedCount = vm.parseUint(expectedCountStr);
@@ -3065,6 +3282,9 @@ contract Verify is Script {
             }
         }
 
+        // Projects 5-7 are folded into the main loop above via
+        // `_canonicalRevnetProjectIdsAndLabels` — no duplicate iteration here.
+
         if (!anySuckerChecks) {
             // production chains must declare a manifest for every canonical project
             // (use "0" for projects with no suckers). Silent skip on production let a deployment
@@ -3074,7 +3294,7 @@ contract Verify is Script {
             if (isProductionChain) {
                 _check({
                     condition: false,
-                    label: "VERIFY_SUCKER_PAIRS_{1..4} MUST be set on production (use \"0\" for projects with no suckers)",
+                    label: "VERIFY_SUCKER_PAIRS_{1..7} MUST be set on production (use \"0\" for projects with no suckers)",
                     critical: true
                 });
             } else {
@@ -3730,6 +3950,74 @@ contract Verify is Script {
             return 0x000000000022D473030F116dDEE9F6B43aC78BA3;
         }
         return address(0);
+    }
+
+    /// @notice Returns the canonical-revnet project IDs and human-readable labels that should be
+    /// looped over by per-project verifier categories (controller wiring, accounting context,
+    /// router-terminal routes, revnet config hash, sucker manifest, etc.).
+    ///
+    /// The baseline four (NANA(1), CPN(2), REV(3), BAN(4)) are always present on a canonical
+    /// deploy. DEFIFA(5), ART(6), and MARKEE(7) join the loop on chains where they've been
+    /// deployed — `_projects.count() >= projectId` is the cheap presence check that mirrors how
+    /// `_deployDefifaRevnet` / `_deployArt` / `_deployMarkee` reserve their IDs.
+    /// @dev The arrays are returned with matching indices so callers can use `labels[i]` for log
+    /// strings without re-deriving the human-readable name. Production chains run the full 7
+    /// projects on every chain (ART deploys a no-op shell off-Base to keep MARKEE's ID stable);
+    /// the count check guards local test fixtures and partial-deploy testnets.
+    function _canonicalRevnetProjectIdsAndLabels()
+        internal
+        view
+        returns (uint256[] memory ids, string[] memory labels)
+    {
+        // Defensive read: `projects` is set during `_loadDeployment` on real runs but several
+        // unit/regression harnesses construct `Verify` without populating it. Treat a reverting
+        // `count()` call as "baseline four only" so those harnesses keep targeting the assertion
+        // they intend to exercise instead of crashing on the count probe.
+        uint256 totalProjects;
+        if (address(projects) != address(0)) {
+            try projects.count() returns (uint256 c) {
+                totalProjects = c;
+            } catch {
+                totalProjects = 0;
+            }
+        }
+        // ART is a wired revnet ONLY on Base — off-Base it's a bare project-ID placeholder with no
+        // controller/terminals/ruleset, so the wired-revnet loops would falsely reject it. Existence
+        // and ownership of project 6 are still proven separately (outside this helper) on every chain.
+        bool isBase = block.chainid == 8453 || block.chainid == 84_532;
+        bool includeDefifa = totalProjects >= _DEFIFA_REV_PROJECT_ID;
+        bool includeArt = totalProjects >= _ART_PROJECT_ID && isBase;
+        bool includeMarkee = totalProjects >= _MARKEE_PROJECT_ID;
+
+        uint256 count = 4 + (includeDefifa ? 1 : 0) + (includeArt ? 1 : 0) + (includeMarkee ? 1 : 0);
+
+        ids = new uint256[](count);
+        labels = new string[](count);
+        ids[0] = _FEE_PROJECT_ID;
+        labels[0] = "NANA(1)";
+        ids[1] = _CPN_PROJECT_ID;
+        labels[1] = "CPN(2)";
+        ids[2] = _REV_PROJECT_ID;
+        labels[2] = "REV(3)";
+        ids[3] = _BAN_PROJECT_ID;
+        labels[3] = "BAN(4)";
+
+        uint256 j = 4;
+        if (includeDefifa) {
+            ids[j] = _DEFIFA_REV_PROJECT_ID;
+            labels[j] = "DEFIFA(5)";
+            j++;
+        }
+        if (includeArt) {
+            ids[j] = _ART_PROJECT_ID;
+            labels[j] = "ART(6)";
+            j++;
+        }
+        if (includeMarkee) {
+            ids[j] = _MARKEE_PROJECT_ID;
+            labels[j] = "MARKEE(7)";
+            j++;
+        }
     }
 
     /// Returns the per-chain canonical Capsules typeface address used by DefifaTokenUriResolver.

@@ -101,6 +101,13 @@ contract MockProjects {
         _revDeployer = revDeployer_;
     }
 
+    /// @notice This mock only injects the 4 baseline projects; `count()` returns 0 so the
+    /// verifier's optional 5-7 branches don't fire. See `Canonical721HookVerifierGap.t.sol` for
+    /// the longer rationale around Foundry's `expectRevert` interacting with try/catch.
+    function count() external pure returns (uint256) {
+        return 0;
+    }
+
     function ownerOf(uint256) external view returns (address) {
         return _revDeployer;
     }

@@ -54,12 +54,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
         VerifyBannyManifestHarness harness = new VerifyBannyManifestHarness();
         harness.setHookStore(address(store));
         harness.setExpectedTrustedForwarder(forwarder);
-
-        vm.setEnv("VERIFY_BAN_OPS_OPERATOR", vm.toString(CANONICAL_BAN_OPS));
-        vm.setEnv("VERIFY_BANNY_SVG_DESCRIPTION", CANONICAL_DESCRIPTION);
-        vm.setEnv("VERIFY_BANNY_SVG_EXTERNAL_URL", CANONICAL_EXTERNAL_URL);
-        vm.setEnv("VERIFY_BANNY_SVG_BASE_URI", CANONICAL_BASE_URI);
-        vm.setEnv("VERIFY_BANNY_TIER_COUNT", vm.toString(CANONICAL_TIER_COUNT));
+        harness.setExpectations(_canonicalExpectations(CANONICAL_TIER_COUNT, bytes32(0), false));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -88,12 +83,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
         VerifyBannyManifestHarness harness = new VerifyBannyManifestHarness();
         harness.setHookStore(address(store));
         harness.setExpectedTrustedForwarder(forwarder);
-
-        vm.setEnv("VERIFY_BAN_OPS_OPERATOR", vm.toString(CANONICAL_BAN_OPS));
-        vm.setEnv("VERIFY_BANNY_SVG_DESCRIPTION", CANONICAL_DESCRIPTION);
-        vm.setEnv("VERIFY_BANNY_SVG_EXTERNAL_URL", CANONICAL_EXTERNAL_URL);
-        vm.setEnv("VERIFY_BANNY_SVG_BASE_URI", CANONICAL_BASE_URI);
-        vm.setEnv("VERIFY_BANNY_TIER_COUNT", vm.toString(CANONICAL_TIER_COUNT));
+        harness.setExpectations(_canonicalExpectations(CANONICAL_TIER_COUNT, bytes32(0), false));
 
         vm.expectRevert(
             abi.encodeWithSelector(Verify.Verify_CriticalCheckFailed.selector, "Banny resolver svgBaseUri == expected")
@@ -120,12 +110,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
         VerifyBannyManifestHarness harness = new VerifyBannyManifestHarness();
         harness.setHookStore(address(store));
         harness.setExpectedTrustedForwarder(forwarder);
-
-        vm.setEnv("VERIFY_BAN_OPS_OPERATOR", vm.toString(CANONICAL_BAN_OPS));
-        vm.setEnv("VERIFY_BANNY_SVG_DESCRIPTION", CANONICAL_DESCRIPTION);
-        vm.setEnv("VERIFY_BANNY_SVG_EXTERNAL_URL", CANONICAL_EXTERNAL_URL);
-        vm.setEnv("VERIFY_BANNY_SVG_BASE_URI", CANONICAL_BASE_URI);
-        vm.setEnv("VERIFY_BANNY_TIER_COUNT", vm.toString(CANONICAL_TIER_COUNT));
+        harness.setExpectations(_canonicalExpectations(CANONICAL_TIER_COUNT, bytes32(0), false));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -170,18 +155,18 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
         VerifyBannyManifestHarness happyHarness = new VerifyBannyManifestHarness();
         happyHarness.setHookStore(address(store));
         happyHarness.setExpectedTrustedForwarder(forwarder);
-        _writeCanonicalEnv(tierCount);
-        vm.setEnv("VERIFY_BANNY_TIER_MANIFEST_HASH", vm.toString(expectedManifestHash));
+        happyHarness.setExpectations(_canonicalExpectations(tierCount, expectedManifestHash, true));
         happyHarness.verifyBannyResolverManifest(address(resolver), bannyHook);
 
         // Now flip the resolver's SVG hash for tier 1. Every other field is canonical, but the
-        // per-tier digest no longer matches `VERIFY_BANNY_TIER_MANIFEST_HASH` — the new gate
-        // rejects with the per-tier label, which the older verifier never surfaced.
+        // per-tier digest no longer matches `expectedManifestHash` — the new gate rejects with the
+        // per-tier label, which the older verifier never surfaced.
         resolver.setSvgHash(1, keccak256(bytes("forked-svg-hash")));
 
         VerifyBannyManifestHarness divergentHarness = new VerifyBannyManifestHarness();
         divergentHarness.setHookStore(address(store));
         divergentHarness.setExpectedTrustedForwarder(forwarder);
+        divergentHarness.setExpectations(_canonicalExpectations(tierCount, expectedManifestHash, true));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -211,10 +196,9 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
         VerifyBannyManifestHarness harness = new VerifyBannyManifestHarness();
         harness.setHookStore(address(store));
         harness.setExpectedTrustedForwarder(forwarder);
-
-        _writeCanonicalEnv(CANONICAL_TIER_COUNT);
-        // Explicit clear in case a sibling test leaked the value via forge's process env.
-        vm.setEnv("VERIFY_BANNY_TIER_MANIFEST_HASH", "");
+        // tier-count is set (so the per-tier helper runs) but `tierManifestHashSet=false` exercises
+        // the fail-closed branch.
+        harness.setExpectations(_canonicalExpectations(CANONICAL_TIER_COUNT, bytes32(0), false));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -225,15 +209,30 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
         harness.verifyBannyResolverManifest(address(resolver), bannyHook);
     }
 
-    /// @notice Shared canonical-env setup mirroring the production-chain expectation. Each test
-    /// targeting an earlier verifier check still produces a canonical view here so the test only
-    /// trips the specific assertion it targets.
-    function _writeCanonicalEnv(uint256 tierCount) internal {
-        vm.setEnv("VERIFY_BAN_OPS_OPERATOR", vm.toString(CANONICAL_BAN_OPS));
-        vm.setEnv("VERIFY_BANNY_SVG_DESCRIPTION", CANONICAL_DESCRIPTION);
-        vm.setEnv("VERIFY_BANNY_SVG_EXTERNAL_URL", CANONICAL_EXTERNAL_URL);
-        vm.setEnv("VERIFY_BANNY_SVG_BASE_URI", CANONICAL_BASE_URI);
-        vm.setEnv("VERIFY_BANNY_TIER_COUNT", vm.toString(tierCount));
+    /// @notice Build a `BannyExpectations` struct holding the canonical values every test in this
+    /// suite shares. Each test then varies only the field it targets (resolver owner, base URI,
+    /// tier count, manifest hash) via either the mock-side state or the per-test override here.
+    function _canonicalExpectations(
+        uint256 tierCount,
+        bytes32 tierManifestHash,
+        bool tierManifestHashSet
+    )
+        internal
+        pure
+        returns (Verify.BannyExpectations memory e)
+    {
+        e.banOpsOperatorSet = true;
+        e.banOpsOperator = CANONICAL_BAN_OPS;
+        e.svgDescriptionSet = true;
+        e.svgDescription = CANONICAL_DESCRIPTION;
+        e.svgExternalUrlSet = true;
+        e.svgExternalUrl = CANONICAL_EXTERNAL_URL;
+        e.svgBaseUriSet = true;
+        e.svgBaseUri = CANONICAL_BASE_URI;
+        e.tierCountSet = true;
+        e.tierCount = tierCount;
+        e.tierManifestHashSet = tierManifestHashSet;
+        e.tierManifestHash = tierManifestHash;
     }
 
     /// @notice Build a `JB721Tier` whose committed fields exercise every field the verifier hashes
@@ -279,6 +278,8 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
 }
 
 contract VerifyBannyManifestHarness is Verify {
+    Verify.BannyExpectations private _stubbedExpectations;
+
     function setHookStore(address store_) external {
         hookStore = JB721TiersHookStore(store_);
     }
@@ -287,8 +288,20 @@ contract VerifyBannyManifestHarness is Verify {
         expectedTrustedForwarder = forwarder;
     }
 
+    /// @notice Pin the harness's `BannyExpectations` to a stable in-memory value. Replaces the
+    /// production env-var loader so sibling test contracts can't race a `VERIFY_BANNY_*` value
+    /// out from under this test via Forge's process-wide `vm.setEnv`.
+    function setExpectations(Verify.BannyExpectations memory e) external {
+        _stubbedExpectations = e;
+    }
+
     function verifyBannyResolverManifest(address resolver, address bannyHook) external {
         _verifyBannyResolverManifest(resolver, bannyHook);
+    }
+
+    /// @inheritdoc Verify
+    function _loadBannyExpectations() internal view override returns (Verify.BannyExpectations memory) {
+        return _stubbedExpectations;
     }
 }
 

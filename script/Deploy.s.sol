@@ -290,6 +290,14 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant DEFIFA_REV_ERC20_SALT = "_DEFIFA_ERC20V6_";
     bytes32 private constant DEFIFA_REV_SUCKER_SALT = "_DEFIFA_SUCKERV6_";
 
+    // ── MARKEE salts ──
+    bytes32 private constant MARKEE_ERC20_SALT = "_MARKEE_ERC20V6_";
+    bytes32 private constant MARKEE_SUCKER_SALT = "_MARKEE_SUCKERV6_";
+
+    // ── ART salts ──
+    bytes32 private constant ART_ERC20_SALT = "_ART_ERC20V6_";
+    bytes32 private constant ART_SUCKER_SALT = "_ART_SUCKERV6_";
+
     // ── Project Handles salt ──
     bytes32 private constant PROJECT_HANDLES_SALT = "JBProjectHandlesV6";
 
@@ -328,12 +336,27 @@ contract Deploy is Script, Sphinx {
     uint104 private constant BAN_OP_AUTO_ISSUANCE = 328_366_065_858_064_488_000;
     uint104 private constant BAN_ARB_AUTO_ISSUANCE = 2_825_980_000_000_000_000_000;
 
+    // ── Defifa Revnet constants ──
+    uint48 private constant DEFIFA_REV_START_TIME = 0;
+
+    // ── MARKEE constants ──
+    uint48 private constant MARKEE_START_TIME = 1_766_275_200;
+    uint104 private constant MARKEE_MAINNET_AUTO_ISSUANCE = 99_171_654_737_214_001_809;
+    uint104 private constant MARKEE_BASE_AUTO_ISSUANCE = 50_325_350_436_326_292_424_472_445;
+    uint104 private constant MARKEE_OP_AUTO_ISSUANCE = 0;
+    uint104 private constant MARKEE_ARB_AUTO_ISSUANCE = 0;
+
+    // ── ART constants ──
+    uint48 private constant ART_START_TIME = 1_758_153_600;
+    uint104 private constant ART_BASE_AUTO_ISSUANCE = 957_902_762_145_312_613_270_859_503;
+
     // ── Distributor constants ──
     uint256 private constant VESTING_ROUNDS = 52;
 
     // ── Common ──
     uint32 private constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
     uint32 private constant ETH_CURRENCY = uint32(JBCurrencyIds.ETH);
+    uint32 private constant USD_CURRENCY = uint32(JBCurrencyIds.USD);
     uint8 private constant DECIMALS = 18;
     uint256 private constant DECIMAL_MULTIPLIER = 10 ** DECIMALS;
     uint32 private constant PREMINT_CHAIN_ID = 1;
@@ -427,6 +450,9 @@ contract Deploy is Script, Sphinx {
     uint256 private constant _CPN_PROJECT_ID = 2;
     uint256 private constant _REV_PROJECT_ID = 3;
     uint256 private constant _BAN_PROJECT_ID = 4;
+    uint256 private constant _DEFIFA_REV_PROJECT_ID = 5;
+    uint256 private constant _ART_PROJECT_ID = 6;
+    uint256 private constant _MARKEE_PROJECT_ID = 7;
 
     /// @notice Canonical Banny ops EOA. Used as the auto-issuance beneficiary in all stages and inherits
     /// the BAN operator role + resolver ownership from the Sphinx Safe via `_finalizeBannyOwnership`
@@ -538,8 +564,18 @@ contract Deploy is Script, Sphinx {
         // owned by `_BAN_OPS_OPERATOR`.
         _finalizeBannyOwnership();
 
+        // Phase 10a: Defifa Revnet (project ID 5) — creates the DEFIFA revnet (USDC-based, all chains).
+        // Must come BEFORE _deployDefifa so the revnet project ID can be used as the Defifa fee project.
+        _deployDefifaRevnet();
+
         // Phase 10: Defifa — deploys the Defifa game infrastructure (hook, resolver, governor, deployer).
         _deployDefifa();
+
+        // Phase 10b: ART / Artizen (project ID 6) — Base-only USDC revnet.
+        _deployArt();
+
+        // Phase 10c: MARKEE (project ID 7) — all-chain ETH revnet.
+        _deployMarkee();
 
         // Phase 11: Periphery Extensions (Project Handles, Distributor, Project Payer)
         _deployProjectHandles();
@@ -3445,15 +3481,15 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     /// @notice Deploys the Defifa game infrastructure: hook code origin, token URI resolver, governor, and deployer.
-    /// @dev Uses the REV project (ID 3) as the Defifa fee project and the NANA fee project (ID 1) as the base
-    /// protocol project. These will be updated when a dedicated Defifa revnet is created.
+    /// @dev Uses the Defifa revnet (ID 5) as the Defifa fee project and the NANA fee project (ID 1) as the base
+    /// protocol project.
     function _deployDefifa() internal {
         // Skip deployment on chains without a typeface (e.g. Tempo) — DefifaTokenUriResolver
         // requires a valid ITypeface and would cause tokenURI() to revert if deployed with address(0).
         if (_typeface == address(0)) return;
 
-        // Resolve the ERC-20 token for the Defifa fee project (REV, project 3).
-        IERC20 defifaToken = IERC20(address(_tokens.tokenOf(_REV_PROJECT_ID)));
+        // Resolve the ERC-20 token for the Defifa fee project (DEFIFA revnet, project 5).
+        IERC20 defifaToken = IERC20(address(_tokens.tokenOf(_DEFIFA_REV_PROJECT_ID)));
 
         // Resolve the ERC-20 token for the base protocol fee project (NANA, project 1).
         IERC20 baseProtocolToken = IERC20(address(_tokens.tokenOf(_FEE_PROJECT_ID)));
@@ -3498,7 +3534,7 @@ contract Deploy is Script, Sphinx {
             _defifaGovernor,
             _controller,
             _addressRegistry,
-            _REV_PROJECT_ID,
+            _DEFIFA_REV_PROJECT_ID,
             _FEE_PROJECT_ID,
             _defifaHookStore
         );
@@ -3510,6 +3546,355 @@ contract Deploy is Script, Sphinx {
         if (!deployerExisted) {
             // First-time deploy: transfer governor ownership to the new deployer so it can initialize games.
             _defifaGovernor.transferOwnership(address(_defifaDeployer));
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Phase 10a: Defifa Revnet (project ID 5)
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @notice Deploys the Defifa revnet — a USDC-based revnet on all chains.
+    function _deployDefifaRevnet() internal {
+        address operator = 0x6b92c73682f0e1fac35A18ab17efa5e77DDE9fE1;
+
+        // Skip if already configured.
+        if (
+            _projects.count() >= _DEFIFA_REV_PROJECT_ID
+                && address(_directory.controllerOf(_DEFIFA_REV_PROJECT_ID)) != address(0)
+        ) {
+            if (!_isCanonicalRevnetProject({projectId: _DEFIFA_REV_PROJECT_ID, expectedSymbol: "DEFIFA"})) {
+                revert Deploy_ProjectNotCanonical(_DEFIFA_REV_PROJECT_ID);
+            }
+            return;
+        }
+
+        JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
+        accountingContexts[0] =
+            JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
+
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
+        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
+
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            percent: JBConstants.SPLITS_TOTAL_PERCENT,
+            projectId: 0,
+            beneficiary: payable(operator),
+            preferAddToBalance: false,
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
+
+        REVStageConfig[] memory stages = new REVStageConfig[](3);
+
+        stages[0] = REVStageConfig({
+            startsAtOrAfter: DEFIFA_REV_START_TIME,
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 3800,
+            splits: splits,
+            // forge-lint: disable-next-line(unsafe-typecast)
+            initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
+            issuanceCutFrequency: 90 days,
+            issuanceCutPercent: 380_000_000,
+            cashOutTaxRate: 1000,
+            extraMetadata: 0
+        });
+
+        stages[1] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[0].startsAtOrAfter + 720 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 3800,
+            splits: splits,
+            initialIssuance: 1,
+            issuanceCutFrequency: 30 days,
+            issuanceCutPercent: 70_000_000,
+            cashOutTaxRate: 1000,
+            extraMetadata: 0
+        });
+
+        stages[2] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[1].startsAtOrAfter + 3600 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 0,
+            splits: splits,
+            initialIssuance: 0,
+            issuanceCutFrequency: 0,
+            issuanceCutPercent: 0,
+            cashOutTaxRate: 1000,
+            extraMetadata: 0
+        });
+
+        REVConfig memory defifaConfig = REVConfig({
+            description: REVDescription({name: "Defifa", ticker: "DEFIFA", uri: "", salt: DEFIFA_REV_ERC20_SALT}),
+            baseCurrency: USD_CURRENCY,
+            operator: operator,
+            scopeCashOutsToLocalBalances: false,
+            stageConfigurations: stages
+        });
+
+        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(DEFIFA_REV_SUCKER_SALT);
+
+        (uint256 defifaProjectId,) = _revDeployer.deployFor({
+            revnetId: 0,
+            configuration: defifaConfig,
+            terminalConfigurations: terminalConfigs,
+            suckerDeploymentConfiguration: suckerConfig
+        });
+        if (defifaProjectId != _DEFIFA_REV_PROJECT_ID) {
+            revert Deploy_ProjectIdMismatch(_DEFIFA_REV_PROJECT_ID, defifaProjectId);
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Phase 10b: ART / Artizen (project ID 6) — Base only
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @notice Deploys the ART revnet — a USDC-based revnet on Base only.
+    function _deployArt() internal {
+        // ART is operationally Base-only — the full revnet (controller, terminals, ruleset,
+        // auto-issuance, sucker config) is instantiated only on Base. Off-Base, project ID
+        // `_ART_PROJECT_ID` (6) is still reserved via a bare `JBProjects.createFor` mint so
+        // MARKEE's expected project ID 7 is consistent across chains. Without that placeholder,
+        // a non-Base run would skip ART entirely, MARKEE would claim project ID 6 instead of 7,
+        // and `_deployMarkee` would revert with `Deploy_ProjectIdMismatch(7, 6)`.
+
+        address operator = 0xbB96A6D3D251dFDA76F96d1650f9Cfd53b41c8d1;
+        bool isBase = block.chainid == 8453 || block.chainid == 84_532;
+
+        // Off-Base path: reserve project 6 as a bare placeholder owned by the canonical operator.
+        // No controller, terminals, or revnet wiring — only the project ID is allocated.
+        if (!isBase) {
+            if (_projects.count() < _ART_PROJECT_ID) {
+                uint256 newId = _projects.createFor(operator);
+                if (newId != _ART_PROJECT_ID) {
+                    revert Deploy_ProjectIdMismatch(_ART_PROJECT_ID, newId);
+                }
+            } else if (_projects.ownerOf(_ART_PROJECT_ID) != operator) {
+                // Placeholder already exists but isn't owned by the canonical operator — flag it.
+                revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
+            }
+            return;
+        }
+
+        // Base path: full revnet instantiation. Skip if already configured.
+        if (_projects.count() >= _ART_PROJECT_ID && address(_directory.controllerOf(_ART_PROJECT_ID)) != address(0)) {
+            if (!_isCanonicalRevnetProject({projectId: _ART_PROJECT_ID, expectedSymbol: "ART"})) {
+                revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
+            }
+            return;
+        }
+
+        JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
+        accountingContexts[0] =
+            JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
+
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
+        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
+
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            percent: JBConstants.SPLITS_TOTAL_PERCENT,
+            projectId: 0,
+            beneficiary: payable(operator),
+            preferAddToBalance: false,
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
+
+        REVStageConfig[] memory stages = new REVStageConfig[](3);
+
+        {
+            REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
+            autoIssuances[0] = REVAutoIssuance({chainId: 8453, count: ART_BASE_AUTO_ISSUANCE, beneficiary: operator});
+
+            stages[0] = REVStageConfig({
+                startsAtOrAfter: ART_START_TIME,
+                autoIssuances: autoIssuances,
+                splitPercent: 4000,
+                splits: splits,
+                // forge-lint: disable-next-line(unsafe-typecast)
+                initialIssuance: uint112(10_000 * DECIMAL_MULTIPLIER),
+                issuanceCutFrequency: 35 days,
+                issuanceCutPercent: 500_000_000,
+                cashOutTaxRate: 1000,
+                extraMetadata: 0
+            });
+        }
+
+        stages[1] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[0].startsAtOrAfter + 105 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 4000,
+            splits: splits,
+            // forge-lint: disable-next-line(unsafe-typecast)
+            initialIssuance: uint112(1250 * DECIMAL_MULTIPLIER),
+            issuanceCutFrequency: 120 days,
+            issuanceCutPercent: 500_000_000,
+            cashOutTaxRate: 1000,
+            extraMetadata: 0
+        });
+
+        stages[2] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[1].startsAtOrAfter + 840 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 4000,
+            splits: splits,
+            // forge-lint: disable-next-line(unsafe-typecast)
+            initialIssuance: uint112(10 * DECIMAL_MULTIPLIER),
+            issuanceCutFrequency: 365 days,
+            issuanceCutPercent: 500_000_000,
+            cashOutTaxRate: 1000,
+            extraMetadata: 0
+        });
+
+        REVConfig memory artConfig = REVConfig({
+            description: REVDescription({name: "Artizen", ticker: "ART", uri: "", salt: ART_ERC20_SALT}),
+            baseCurrency: USD_CURRENCY,
+            operator: operator,
+            scopeCashOutsToLocalBalances: false,
+            stageConfigurations: stages
+        });
+
+        // No suckers — ART is Base only.
+        REVSuckerDeploymentConfig memory suckerConfig =
+            REVSuckerDeploymentConfig({deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: ART_SUCKER_SALT});
+
+        (uint256 artProjectId,) = _revDeployer.deployFor({
+            revnetId: 0,
+            configuration: artConfig,
+            terminalConfigurations: terminalConfigs,
+            suckerDeploymentConfiguration: suckerConfig
+        });
+        if (artProjectId != _ART_PROJECT_ID) {
+            revert Deploy_ProjectIdMismatch(_ART_PROJECT_ID, artProjectId);
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Phase 10c: MARKEE (project ID 7)
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @notice Deploys the MARKEE revnet — an ETH-based revnet on all chains.
+    function _deployMarkee() internal {
+        address operator = 0xAf4401E765dFf079aB6021BBb8d46E53E27613DB;
+
+        // Skip if already configured.
+        if (
+            _projects.count() >= _MARKEE_PROJECT_ID
+                && address(_directory.controllerOf(_MARKEE_PROJECT_ID)) != address(0)
+        ) {
+            if (!_isCanonicalRevnetProject({projectId: _MARKEE_PROJECT_ID, expectedSymbol: "MARKEE"})) {
+                revert Deploy_ProjectNotCanonical(_MARKEE_PROJECT_ID);
+            }
+            return;
+        }
+
+        JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
+        accountingContexts[0] =
+            JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
+
+        bool hasRouter = address(_routerTerminalRegistry) != address(0);
+        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
+        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
+        if (hasRouter) {
+            terminalConfigs[1] = JBTerminalConfig({
+                terminal: IJBTerminal(address(_routerTerminalRegistry)),
+                accountingContextsToAccept: new JBAccountingContext[](0)
+            });
+        }
+
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            percent: JBConstants.SPLITS_TOTAL_PERCENT,
+            projectId: 0,
+            beneficiary: payable(operator),
+            preferAddToBalance: false,
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(0))
+        });
+
+        REVStageConfig[] memory stages = new REVStageConfig[](3);
+
+        {
+            REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
+            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: MARKEE_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: MARKEE_BASE_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: MARKEE_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[3] =
+                REVAutoIssuance({chainId: 42_161, count: MARKEE_ARB_AUTO_ISSUANCE, beneficiary: operator});
+
+            stages[0] = REVStageConfig({
+                startsAtOrAfter: MARKEE_START_TIME,
+                autoIssuances: autoIssuances,
+                splitPercent: 3800,
+                splits: splits,
+                // forge-lint: disable-next-line(unsafe-typecast)
+                initialIssuance: uint112(100_000 * DECIMAL_MULTIPLIER),
+                issuanceCutFrequency: 7_889_184,
+                issuanceCutPercent: 500_000_000,
+                cashOutTaxRate: 1000,
+                extraMetadata: 0
+            });
+        }
+
+        stages[1] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[0].startsAtOrAfter + 365 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 3800,
+            splits: splits,
+            // forge-lint: disable-next-line(unsafe-typecast)
+            initialIssuance: uint112(6250 * DECIMAL_MULTIPLIER),
+            issuanceCutFrequency: 7_889_184,
+            issuanceCutPercent: 200_000_000,
+            cashOutTaxRate: 1000,
+            extraMetadata: 0
+        });
+
+        stages[2] = REVStageConfig({
+            startsAtOrAfter: uint40(stages[1].startsAtOrAfter + 730 days),
+            autoIssuances: new REVAutoIssuance[](0),
+            splitPercent: 3800,
+            splits: splits,
+            // forge-lint: disable-next-line(unsafe-typecast)
+            initialIssuance: uint112(1049 * DECIMAL_MULTIPLIER),
+            issuanceCutFrequency: 7_889_184,
+            issuanceCutPercent: 100_000_000,
+            cashOutTaxRate: 1000,
+            extraMetadata: 0
+        });
+
+        REVConfig memory markeeConfig = REVConfig({
+            description: REVDescription({name: "Markee", ticker: "MARKEE", uri: "", salt: MARKEE_ERC20_SALT}),
+            baseCurrency: ETH_CURRENCY,
+            operator: operator,
+            scopeCashOutsToLocalBalances: false,
+            stageConfigurations: stages
+        });
+
+        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(MARKEE_SUCKER_SALT);
+
+        (uint256 markeeProjectId,) = _revDeployer.deployFor({
+            revnetId: 0,
+            configuration: markeeConfig,
+            terminalConfigurations: terminalConfigs,
+            suckerDeploymentConfiguration: suckerConfig
+        });
+        if (markeeProjectId != _MARKEE_PROJECT_ID) {
+            revert Deploy_ProjectIdMismatch(_MARKEE_PROJECT_ID, markeeProjectId);
         }
     }
 
@@ -3950,14 +4335,19 @@ contract Deploy is Script, Sphinx {
             _serializeIfSet({key: j, name: "JBMatchingPriceFeed", addr: ethMatching});
         }
 
-        // Canonical project ERC-20 token clones (NANA/CPN/REV/BAN) live behind
-        // `_tokens.tokenOf(projectId)` and share the JBERC20 implementation bytecode but each clone
-        // has a unique address that must be in the dump for post-deploy verification.
+        // Canonical project ERC-20 token clones live behind `_tokens.tokenOf(projectId)` and
+        // share the JBERC20 implementation bytecode, but each clone has a unique address that
+        // must be in the dump for post-deploy verification. Includes DEFIFA(5), ART(6), and
+        // MARKEE(7) alongside the four baseline projects — `_serializeProjectErc20` no-ops if
+        // the project doesn't have a token clone yet (e.g. partial-deploy testnets).
         if (address(_tokens) != address(0)) {
             _serializeProjectErc20({key: j, suffix: "ProjectNANA", projectId: _FEE_PROJECT_ID});
             _serializeProjectErc20({key: j, suffix: "ProjectCPN", projectId: _CPN_PROJECT_ID});
             _serializeProjectErc20({key: j, suffix: "ProjectREV", projectId: _REV_PROJECT_ID});
             _serializeProjectErc20({key: j, suffix: "ProjectBAN", projectId: _BAN_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectDEFIFA", projectId: _DEFIFA_REV_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectART", projectId: _ART_PROJECT_ID});
+            _serializeProjectErc20({key: j, suffix: "ProjectMARKEE", projectId: _MARKEE_PROJECT_ID});
         }
 
         // Canonical 721 hook clones (CPN, BAN) live behind `_revOwner.tiered721HookOf(projectId)`.

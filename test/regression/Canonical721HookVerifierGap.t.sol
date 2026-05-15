@@ -160,6 +160,15 @@ contract MockProjects {
         _revDeployer = revDeployer_;
     }
 
+    /// @notice This mock only injects the 4 baseline projects; `count()` returns 0 so the
+    /// verifier's optional 5-7 existence/wiring branches don't fire. The verifier wraps
+    /// `count()` in try/catch, but Foundry's `expectRevert` cheatcode captures the FIRST revert
+    /// it sees — even ones caught by try/catch — so an unsupported `count()` selector here would
+    /// surface as a "without data" mismatch in tests targeting later assertions.
+    function count() external pure returns (uint256) {
+        return 0;
+    }
+
     function ownerOf(uint256) external view returns (address) {
         return _revDeployer;
     }
