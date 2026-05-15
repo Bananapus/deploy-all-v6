@@ -933,6 +933,15 @@ contract Verify is Script {
                     label: "NANA(1) has explicit buyback hook pinned",
                     critical: true
                 });
+
+                // BE residual closure: assert the registry's default hook AND every canonical
+                // project's resolved hook equal the operator-declared canonical buyback hook.
+                // Without this, a deployment can ship with `defaultHook != address(0)` and
+                // `hookOf(1) != address(0)` while the actual addresses point at a noncanonical
+                // hook (e.g. a forked implementation, or a default set after canonical projects
+                // 2-4 existed so they fall through `defaultHookProjectIdThreshold` and resolve
+                // to no hook at all).
+                _verifyBuybackHookCanonicalManifest();
             } else {
                 _skip("BuybackRegistry default hook check (Uniswap stack not deployed)");
             }
@@ -975,6 +984,46 @@ contract Verify is Script {
 
         // Log a blank line for readability.
         console.log("");
+    }
+
+    /// BE residual closure: assert canonical buyback hook identity across the registry. On
+    /// production chains `VERIFY_BUYBACK_HOOK` is mandatory (fail-closed); on non-production
+    /// chains a missing env var skips with a logged note. Checks both `defaultHook()` and the
+    /// per-project resolved `hookOf(projectId)` for canonical projects 1-4. The latter
+    /// catches the case where a default hook is set AFTER projects 2-4 already existed
+    /// (`defaultHookProjectIdThreshold` excludes them and they fall through to no hook).
+    function _verifyBuybackHookCanonicalManifest() internal {
+        address expectedHook = vm.envOr({name: "VERIFY_BUYBACK_HOOK", defaultValue: address(0)});
+        if (expectedHook == address(0)) {
+            bool isProductionChain =
+                (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+            if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: "VERIFY_BUYBACK_HOOK MUST be set on production for canonical buyback identity",
+                    critical: true
+                });
+            } else {
+                _skip("Canonical buyback hook identity (VERIFY_BUYBACK_HOOK not set on non-production chain)");
+            }
+            return;
+        }
+
+        _check({
+            condition: address(buybackRegistry.defaultHook()) == expectedHook,
+            label: "BuybackRegistry.defaultHook == canonical buyback hook",
+            critical: true
+        });
+
+        uint256[4] memory pids = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
+        string[4] memory names = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
+        for (uint256 i; i < 4; i++) {
+            _check({
+                condition: address(buybackRegistry.hookOf(pids[i])) == expectedHook,
+                label: string.concat(names[i], " resolved buyback hookOf == canonical"),
+                critical: true
+            });
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2802,7 +2851,20 @@ contract Verify is Script {
         }
 
         if (!anySuckerChecks) {
-            _skip("Sucker manifest checks (VERIFY_SUCKER_PAIRS_* not set)");
+            // BC residual: production chains must declare a manifest for every canonical project
+            // (use "0" for projects with no suckers). Silent skip on production let a deployment
+            // ship without ever exercising the per-pair manifest gate.
+            bool isProductionChain =
+                (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
+            if (isProductionChain) {
+                _check({
+                    condition: false,
+                    label: "VERIFY_SUCKER_PAIRS_{1..4} MUST be set on production (use \"0\" for projects with no suckers)",
+                    critical: true
+                });
+            } else {
+                _skip("Sucker manifest checks (VERIFY_SUCKER_PAIRS_* not set)");
+            }
         }
 
         console.log("");
