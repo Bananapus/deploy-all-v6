@@ -1728,9 +1728,9 @@ contract Verify is Script {
 
         // JBSuckerRegistry has no enumeration of its allowed-deployer set, so the
         // on-chain verifier cannot prove the absence of unexpected allowed deployers. Operators
-        // must reconcile against the `SuckerDeployerSetAllowed` event log off-chain. The
-        // VERIFY_SUCKER_DEPLOYER_COUNT check above provides a sanity gate; the event-log
-        // reconciliation is documented in DEPLOY.md.
+        // must reconcile against the `SuckerDeployerAllowed` / `SuckerDeployerRemoved` event log
+        // off-chain. The VERIFY_SUCKER_DEPLOYER_COUNT check above provides a sanity gate; the
+        // event-log reconciliation is documented in DEPLOY.md.
         console.log("  [INFO] no on-chain enumeration of sucker-deployer allowlist - reconcile off-chain");
 
         console.log("");
@@ -2938,12 +2938,12 @@ contract Verify is Script {
         }
 
         // 5. Per-tier manifest commitment — the prior checks pin shell metadata (owner, base URI,
-        // tier count) but say nothing about each tier's price / supply / category / reserve, the
-        // resolver's per-UPC SVG hash, or its product-name commitment. A wrong drop registration
-        // (off-by-one tier inputs, swapped SVG hashes, missing product names) still satisfied every
-        // earlier check. Hash the canonical per-tier fields off-chain, supply via
-        // `VERIFY_BANNY_TIER_MANIFEST_HASH`, and verify on-chain by accumulating the same digest
-        // over `tierOf` + `svgHashOf` + `productNameOf` for tiers `1..expectedTierCount`.
+        // tier count) but say nothing about each tier's price / supply / category / reserve, or the
+        // resolver's per-UPC SVG hash. A wrong drop registration (off-by-one tier inputs, swapped
+        // SVG hashes) still satisfied every earlier check. Hash the canonical per-tier fields
+        // off-chain, supply via `VERIFY_BANNY_TIER_MANIFEST_HASH`, and verify on-chain by
+        // accumulating the same digest over `tierOf` + `svgHashOf` for tiers
+        // `1..expectedTierCount`.
         if (expected.tierCountSet && expected.tierCount > 0) {
             _verifyBannyTierManifestHash({
                 bannyHook: bannyHook,
@@ -3029,7 +3029,7 @@ contract Verify is Script {
     /// production when the operator didn't supply a hash.
     /// @dev Digest shape per tier (matches the off-chain manifest generator):
     ///   `keccak256(abi.encode(running, tierId, price, initialSupply, category, reserveFrequency,
-    ///                          encodedIPFSUri, svgHash, keccak256(productName)))`
+    ///                          encodedIPFSUri, svgHash))`
     /// Drop a single field or reorder one tier and the digest diverges; that's the whole point.
     function _verifyBannyTierManifestHash(
         address bannyHook,
@@ -3058,7 +3058,6 @@ contract Verify is Script {
         for (uint256 id = 1; id <= tierCount; id++) {
             JB721Tier memory tier = hookStore.tierOf({hook: bannyHook, id: id, includeResolvedUri: false});
             bytes32 svgHash = _readResolverSvgHash({resolver: resolver, upc: id});
-            bytes32 nameHash = keccak256(bytes(_readResolverProductName({resolver: resolver, upc: id})));
             digest = keccak256(
                 abi.encode(
                     digest,
@@ -3068,8 +3067,7 @@ contract Verify is Script {
                     uint256(tier.category),
                     uint256(tier.reserveFrequency),
                     tier.encodedIPFSUri,
-                    svgHash,
-                    nameHash
+                    svgHash
                 )
             );
         }
@@ -3088,15 +3086,6 @@ contract Verify is Script {
         (bool ok, bytes memory data) = resolver.staticcall(abi.encodeWithSignature("svgHashOf(uint256)", upc));
         if (!ok || data.length < 32) return bytes32(0);
         return abi.decode(data, (bytes32));
-    }
-
-    /// @notice Read `productNameOf(upc)` from the resolver via low-level staticcall. The accessor
-    /// was added in banny-retail-v6 0.0.32; older deployments revert and the empty-string
-    /// fallback surfaces as a digest mismatch via the surrounding `_check`.
-    function _readResolverProductName(address resolver, uint256 upc) internal view returns (string memory) {
-        (bool ok, bytes memory data) = resolver.staticcall(abi.encodeWithSignature("productNameOf(uint256)", upc));
-        if (!ok || data.length == 0) return "";
-        return abi.decode(data, (string));
     }
 
     function _checkResolverField(
@@ -4225,9 +4214,9 @@ contract Verify is Script {
     }
 
     /// @notice Artifact-identity sweep across every implementation group. Each call asserts the
-    /// deployed runtime bytecode equals the artifact's deployedBytecode. Logs INFO and skips
-    /// gracefully when the artifact file is missing (e.g. partial-coverage testnet) or the
-    /// contract is not loaded (e.g. optional periphery on testnet).
+    /// deployed runtime bytecode equals the artifact's deployedBytecode. Missing artifacts fail
+    /// closed on production chains; non-production runs still log a skip so partial testnet
+    /// manifests remain usable.
     ///
     /// Coverage groups:
     /// - core singletons: JBProjects, JBDirectory, JBController, JBMultiTerminal, JBTerminalStore
@@ -4667,8 +4656,8 @@ contract Verify is Script {
     /// are byte-equal between artifact and live, which is what proves the canonical source was
     /// compiled and deployed.
     ///
-    /// Requires `bytecode_hash = "none"` in the build profile. Skips with a logged note when the
-    /// artifact is missing so partial-coverage chains still produce a clear log line.
+    /// Requires `bytecode_hash = "none"` in the build profile. Missing or malformed artifacts fail
+    /// closed on production chains, and are skipped only on non-production chains.
     function _requireArtifactIdentity(string memory artifactName, address deployed, string memory label) internal {
         if (deployed == address(0)) {
             _skip(string.concat(label, ": skipped (deployed address is zero)"));
@@ -4679,14 +4668,30 @@ contract Verify is Script {
         try vm.readFile(artifactPath) returns (string memory j) {
             json = j;
         } catch {
-            _skip(string.concat(label, ": artifact unavailable at ", artifactPath));
+            if (_isProductionChain()) {
+                _check({
+                    condition: false,
+                    label: string.concat(label, ": artifact unavailable at ", artifactPath),
+                    critical: true
+                });
+            } else {
+                _skip(string.concat(label, ": artifact unavailable at ", artifactPath));
+            }
             return;
         }
         bytes memory artifactBytecode;
         try vm.parseJsonBytes(json, ".deployedBytecode.object") returns (bytes memory bc) {
             artifactBytecode = bc;
         } catch {
-            _skip(string.concat(label, ": artifact has no .deployedBytecode.object"));
+            if (_isProductionChain()) {
+                _check({
+                    condition: false,
+                    label: string.concat(label, ": artifact has no .deployedBytecode.object"),
+                    critical: true
+                });
+            } else {
+                _skip(string.concat(label, ": artifact has no .deployedBytecode.object"));
+            }
             return;
         }
 
@@ -4707,6 +4712,11 @@ contract Verify is Script {
             label: string.concat(label, ": runtime bytecode == artifact (immutable-masked)"),
             critical: true
         });
+    }
+
+    /// @notice Returns true on the production chains where verifier coverage must fail closed.
+    function _isProductionChain() internal view returns (bool) {
+        return block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161;
     }
 
     /// Zeroes every immutable-reference byte range in `bytecode`, in place. Iterates the artifact's

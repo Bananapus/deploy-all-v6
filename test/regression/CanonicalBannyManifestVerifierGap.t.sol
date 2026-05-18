@@ -144,12 +144,9 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
         store.setTier(bannyHook, 1, canonicalTier);
 
         bytes32 canonicalSvgHash = keccak256(bytes("canonical-svg-hash-tier-1"));
-        string memory canonicalProductName = "Background Original";
         resolver.setSvgHash(1, canonicalSvgHash);
-        resolver.setProductName(1, canonicalProductName);
 
-        bytes32 expectedManifestHash =
-            _expectedDigest({tier: canonicalTier, svgHash: canonicalSvgHash, productName: canonicalProductName});
+        bytes32 expectedManifestHash = _expectedDigest({tier: canonicalTier, svgHash: canonicalSvgHash});
 
         // Sanity: with the canonical manifest committed, the verifier passes the per-tier check.
         VerifyBannyManifestHarness happyHarness = new VerifyBannyManifestHarness();
@@ -252,15 +249,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
     /// @notice Compute the expected per-tier digest exactly the way the verifier accumulates it,
     /// so the test owns one canonical hash that can be flipped per-field to surface regressions
     /// without re-hashing across multiple call sites.
-    function _expectedDigest(
-        JB721Tier memory tier,
-        bytes32 svgHash,
-        string memory productName
-    )
-        internal
-        pure
-        returns (bytes32)
-    {
+    function _expectedDigest(JB721Tier memory tier, bytes32 svgHash) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 bytes32(0),
@@ -270,8 +259,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
                 uint256(tier.category),
                 uint256(tier.reserveFrequency),
                 tier.encodedIPFSUri,
-                svgHash,
-                keccak256(bytes(productName))
+                svgHash
             )
         );
     }
@@ -312,7 +300,6 @@ contract MockBannyResolver {
     string internal _svgExternalUrl;
     string internal _svgBaseUri;
     mapping(uint256 upc => bytes32) internal _svgHashOf;
-    mapping(uint256 upc => string) internal _productNameOf;
 
     constructor(
         address owner_,
@@ -330,10 +317,6 @@ contract MockBannyResolver {
 
     function setSvgHash(uint256 upc, bytes32 hash) external {
         _svgHashOf[upc] = hash;
-    }
-
-    function setProductName(uint256 upc, string memory name) external {
-        _productNameOf[upc] = name;
     }
 
     function owner() external view returns (address) {
@@ -358,10 +341,6 @@ contract MockBannyResolver {
 
     function svgHashOf(uint256 upc) external view returns (bytes32) {
         return _svgHashOf[upc];
-    }
-
-    function productNameOf(uint256 upc) external view returns (string memory) {
-        return _productNameOf[upc];
     }
 }
 

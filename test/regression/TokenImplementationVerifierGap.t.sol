@@ -10,6 +10,25 @@ import {JBProjects} from "@bananapus/core-v6/src/JBProjects.sol";
 import {JBTokens} from "@bananapus/core-v6/src/JBTokens.sol";
 
 contract TokenImplementationVerifierGapTest is Test {
+    function test_artifactIdentityFailsClosedWhenArtifactMissingOnProduction() public {
+        vm.chainId(1);
+
+        MockJBERC20Implementation deployed =
+            new MockJBERC20Implementation({projects_: makeAddr("projects"), permissions_: makeAddr("permissions")});
+
+        VerifyTokenImplementationHarness harness = new VerifyTokenImplementationHarness();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                "MissingArtifact: artifact unavailable at artifacts/MissingArtifact.json"
+            )
+        );
+        harness.requireArtifactIdentity({
+            artifactName: "MissingArtifact", deployed: address(deployed), label: "MissingArtifact"
+        });
+    }
+
     function test_tokenImplementationVerifierRejectsNoncanonicalImplementation() public {
         address projects = makeAddr("projects");
         address permissions = makeAddr("permissions");
@@ -42,6 +61,10 @@ contract VerifyTokenImplementationHarness is Verify {
 
     function verifyTokenImplementation() external {
         _verifyTokenImplementation();
+    }
+
+    function requireArtifactIdentity(string memory artifactName, address deployed, string memory label) external {
+        _requireArtifactIdentity({artifactName: artifactName, deployed: deployed, label: label});
     }
 }
 
