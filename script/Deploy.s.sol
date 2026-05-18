@@ -341,14 +341,19 @@ contract Deploy is Script, Sphinx {
     uint48 private constant DEFIFA_REV_START_TIME = 0;
 
     // ── MARKEE constants ──
-    uint48 private constant MARKEE_START_TIME = 1_766_275_200;
+    uint48 private constant MARKEE_START_TIME = 1_766_329_380;
+    uint48 private constant MARKEE_STAGE_1_START_TIME = 1_797_886_116;
+    uint48 private constant MARKEE_STAGE_2_START_TIME = 1_860_999_588;
+    uint32 private constant MARKEE_RULESET_DURATION = 7_889_184;
     uint104 private constant MARKEE_MAINNET_AUTO_ISSUANCE = 99_171_654_737_214_001_809;
     uint104 private constant MARKEE_BASE_AUTO_ISSUANCE = 50_325_350_436_326_292_424_472_445;
     uint104 private constant MARKEE_OP_AUTO_ISSUANCE = 0;
     uint104 private constant MARKEE_ARB_AUTO_ISSUANCE = 0;
 
     // ── ART constants ──
-    uint48 private constant ART_START_TIME = 1_758_153_600;
+    uint48 private constant ART_START_TIME = 1_758_234_169;
+    uint48 private constant ART_STAGE_1_START_TIME = 1_767_306_169;
+    uint48 private constant ART_STAGE_2_START_TIME = 1_839_882_169;
     uint104 private constant ART_BASE_AUTO_ISSUANCE = 957_902_762_145_312_613_270_859_503;
 
     // ── Distributor constants ──
@@ -572,7 +577,7 @@ contract Deploy is Script, Sphinx {
         // Phase 10: Defifa — deploys the Defifa game infrastructure (hook, resolver, governor, deployer).
         _deployDefifa();
 
-        // Phase 10b: ART / Artizen (project ID 6) — Base-only USDC revnet.
+        // Phase 10b: ART / Artizen (project ID 6) — Base-only USD-denominated revnet.
         _deployArt();
 
         // Phase 10c: MARKEE (project ID 7) — all-chain ETH revnet.
@@ -3670,7 +3675,7 @@ contract Deploy is Script, Sphinx {
     //  Phase 10b: ART / Artizen (project ID 6) — Base only
     // ════════════════════════════════════════════════════════════════════
 
-    /// @notice Deploys the ART revnet — a USDC-based revnet on Base only.
+    /// @notice Deploys the ART revnet — a USD-denominated revnet on Base only.
     function _deployArt() internal {
         // ART is operationally Base-only — the full revnet (controller, terminals, ruleset,
         // auto-issuance, sucker config) is instantiated only on Base. Off-Base, project ID
@@ -3750,7 +3755,7 @@ contract Deploy is Script, Sphinx {
         }
 
         stages[1] = REVStageConfig({
-            startsAtOrAfter: uint40(stages[0].startsAtOrAfter + 105 days),
+            startsAtOrAfter: ART_STAGE_1_START_TIME,
             autoIssuances: new REVAutoIssuance[](0),
             splitPercent: 4000,
             splits: splits,
@@ -3763,12 +3768,12 @@ contract Deploy is Script, Sphinx {
         });
 
         stages[2] = REVStageConfig({
-            startsAtOrAfter: uint40(stages[1].startsAtOrAfter + 840 days),
+            startsAtOrAfter: ART_STAGE_2_START_TIME,
             autoIssuances: new REVAutoIssuance[](0),
             splitPercent: 4000,
             splits: splits,
             // forge-lint: disable-next-line(unsafe-typecast)
-            initialIssuance: uint112(10 * DECIMAL_MULTIPLIER),
+            initialIssuance: uint112(9_765_625_000_000_000_000),
             issuanceCutFrequency: 365 days,
             issuanceCutPercent: 500_000_000,
             cashOutTaxRate: 1000,
@@ -3858,7 +3863,7 @@ contract Deploy is Script, Sphinx {
                 splits: splits,
                 // forge-lint: disable-next-line(unsafe-typecast)
                 initialIssuance: uint112(100_000 * DECIMAL_MULTIPLIER),
-                issuanceCutFrequency: 7_889_184,
+                issuanceCutFrequency: MARKEE_RULESET_DURATION,
                 issuanceCutPercent: 500_000_000,
                 cashOutTaxRate: 1000,
                 extraMetadata: 0
@@ -3866,26 +3871,26 @@ contract Deploy is Script, Sphinx {
         }
 
         stages[1] = REVStageConfig({
-            startsAtOrAfter: uint40(stages[0].startsAtOrAfter + 365 days),
+            startsAtOrAfter: MARKEE_STAGE_1_START_TIME,
             autoIssuances: new REVAutoIssuance[](0),
             splitPercent: 3800,
             splits: splits,
             // forge-lint: disable-next-line(unsafe-typecast)
             initialIssuance: uint112(6250 * DECIMAL_MULTIPLIER),
-            issuanceCutFrequency: 7_889_184,
+            issuanceCutFrequency: MARKEE_RULESET_DURATION,
             issuanceCutPercent: 200_000_000,
             cashOutTaxRate: 1000,
             extraMetadata: 0
         });
 
         stages[2] = REVStageConfig({
-            startsAtOrAfter: uint40(stages[1].startsAtOrAfter + 730 days),
+            startsAtOrAfter: MARKEE_STAGE_2_START_TIME,
             autoIssuances: new REVAutoIssuance[](0),
             splitPercent: 3800,
             splits: splits,
             // forge-lint: disable-next-line(unsafe-typecast)
-            initialIssuance: uint112(1049 * DECIMAL_MULTIPLIER),
-            issuanceCutFrequency: 7_889_184,
+            initialIssuance: uint112(1_048_576_000_000_000_000_000),
+            issuanceCutFrequency: MARKEE_RULESET_DURATION,
             issuanceCutPercent: 100_000_000,
             cashOutTaxRate: 1000,
             extraMetadata: 0
