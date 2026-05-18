@@ -396,7 +396,7 @@ export VERIFY_OPERATOR_4=0x...              # BAN(4) splitOperator
 The sucker registry's allowlist isn't enumerable on-chain, so the verifier accepts a
 comma-separated list of expected deployers and authenticates each one's canonical wiring
 (LAYER_SPECIFIC_CONFIGURATOR == VERIFY_SAFE, singleton has code, DIRECTORY/TOKENS/PERMISSIONS
-match the core singletons). The off-chain `SuckerDeployerSetAllowed` event log is the
+match the core singletons). The off-chain `SuckerDeployerAllowed` / `SuckerDeployerRemoved` event log is the
 authoritative source for "no unexpected allowed deployers" — see Section 6a below.
 
 ```bash
@@ -437,9 +437,9 @@ export VERIFY_SWAP_CCIP_SUCKER_DEPLOYERS=10:0x...,8453:0x...,42161:0x...
 
 #### Banny resolver + per-tier manifest (mandatory on production)
 
-The Banny 721 hook resolver carries operator-supplied SVG metadata and a per-UPC product-name
-/ SVG-hash commitment. On production every field below must be supplied so the verifier can
-authenticate the resolver shell AND every individual tier.
+The Banny 721 hook resolver carries operator-supplied SVG metadata and per-UPC SVG hashes. On
+production every field below must be supplied so the verifier can authenticate the resolver shell
+AND every individual tier.
 
 ```bash
 export VERIFY_BAN_OPS_OPERATOR=0x...                  # Final resolver owner + BAN splitOperator
@@ -450,7 +450,7 @@ export VERIFY_BANNY_TIER_COUNT=68                     # 4 baseline + 47 Drop 1 +
 
 # Per-tier digest: the verifier walks tiers 1..VERIFY_BANNY_TIER_COUNT and accumulates
 #   keccak256(running, tierId, price, initialSupply, category, reserveFrequency,
-#             encodedIPFSUri, svgHash, keccak256(productName))
+#             encodedIPFSUri, svgHash)
 # starting from `bytes32(0)`. Off-chain manifest generator must produce the same digest.
 export VERIFY_BANNY_TIER_MANIFEST_HASH=0x...
 
@@ -601,23 +601,24 @@ ADJUST_721_TIERS, plus the per-revnet split-operator grant sets), but cannot pro
 - [ ] Confirm the set matches the canonical manifest:
   - The four wildcard grants above (`projectId == 0`).
   - The 9-permission split-operator grant for each of canonical projects 2 / 3 / 4 (CPN /
-    REV / BAN) → operator addresses supplied via `VERIFY_SPLIT_OPERATOR_{2,3,4}`.
+    REV / BAN) → operator addresses supplied via `VERIFY_OPERATOR_{2,3,4}`.
   - Any per-project grants the deployment script makes when launching each canonical project.
 - [ ] Flag any grant outside that manifest — every extra wildcard or canonical-project grant
       gives an unintended operator owner-equivalent powers and must be revoked or accepted
       explicitly before launch.
 
-**Sucker deployer allowlist — `JBSuckerRegistry.SuckerDeployerSetAllowed` (BK / CP residual)**
+**Sucker deployer allowlist — `JBSuckerRegistry.SuckerDeployerAllowed` / `SuckerDeployerRemoved` (BK / CP residual)**
 
 `JBSuckerRegistry.suckerDeployerIsAllowed(addr)` answers per-address membership but does not
 expose an enumeration. The verifier checks per-listed deployer code + canonical wiring + the
 expected count via `VERIFY_SUCKER_DEPLOYER_COUNT`, but cannot prove the absence of an
 allowed-but-unexpected deployer on chain.
 
-- [ ] Pull all `SuckerDeployerSetAllowed(deployer, allowed, caller)` events from
+- [ ] Pull all `SuckerDeployerAllowed(deployer, caller)` and
+      `SuckerDeployerRemoved(deployer, caller)` events from
       `JBSuckerRegistry` for the deployment block range.
-- [ ] Reduce the event stream to the current allowed set (track each `(deployer, allowed)`
-      pair, keeping only the last entry per deployer).
+- [ ] Reduce the event stream to the current allowed set, keeping only deployers whose last
+      event is `SuckerDeployerAllowed`.
 - [ ] Confirm the resulting set exactly matches `VERIFY_SUCKER_DEPLOYERS` — same addresses,
       same count.
 - [ ] Flag any allowed deployer not on the expected list — an unintended allowlisted route
