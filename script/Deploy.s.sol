@@ -2433,7 +2433,7 @@ contract Deploy is Script, Sphinx {
             category: bannyBodyCategory,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -2455,7 +2455,7 @@ contract Deploy is Script, Sphinx {
             category: bannyBodyCategory,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -2477,7 +2477,7 @@ contract Deploy is Script, Sphinx {
             category: bannyBodyCategory,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -2499,7 +2499,7 @@ contract Deploy is Script, Sphinx {
             category: bannyBodyCategory,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: false,
                 transfersPausable: false,
                 useVotingUnits: false,
@@ -3189,7 +3189,7 @@ contract Deploy is Script, Sphinx {
             category: category,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
-                allowOwnerMint: false,
+                allowOwnerMint: true,
                 useReserveBeneficiaryAsDefault: useReserveBeneficiaryAsDefault,
                 transfersPausable: false,
                 useVotingUnits: false,
