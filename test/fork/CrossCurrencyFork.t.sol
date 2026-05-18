@@ -187,7 +187,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             // forge-lint: disable-next-line(unsafe-typecast)
-            encodedIPFSUri: bytes32("ccUsdTier1"),
+            encodedIpfsUri: bytes32("ccUsdTier1"),
             category: 1,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -242,7 +242,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             // forge-lint: disable-next-line(unsafe-typecast)
-            encodedIPFSUri: bytes32("ccEthTier1"),
+            encodedIpfsUri: bytes32("ccEthTier1"),
             category: 1,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -572,7 +572,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             // forge-lint: disable-next-line(unsafe-typecast)
-            encodedIPFSUri: bytes32("noPricesTier"),
+            encodedIpfsUri: bytes32("noPricesTier"),
             category: 1,
             discountPercent: 0,
             flags: JB721TierConfigFlags({

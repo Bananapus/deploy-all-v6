@@ -404,9 +404,9 @@ contract ResumeDeployHarness is IERC721Receiver {
                 deployer: address(this),
                 trustedForwarder: trustedForwarder
             });
-        if (address(buybackHook.POOL_MANAGER()) == address(0)) {
+        if (address(buybackHook.poolManager()) == address(0)) {
             buybackHook.setChainSpecificConstants({
-                poolManager: IPoolManager(POOL_MANAGER), oracleHook: IHooks(address(uniswapV4Hook))
+                newPoolManager: IPoolManager(POOL_MANAGER), newOracleHook: IHooks(address(uniswapV4Hook))
             });
         }
 
@@ -446,12 +446,12 @@ contract ResumeDeployHarness is IERC721Receiver {
                 trustedForwarder: trustedForwarder,
                 deployer: address(this)
             });
-        if (address(routerTerminal.WRAPPED_NATIVE_TOKEN()) == address(0)) {
+        if (address(routerTerminal.wrappedNativeToken()) == address(0)) {
             routerTerminal.setChainSpecificConstants({
-                wrappedNativeToken: IWETH9(WETH),
-                factory: IUniswapV3Factory(V3_FACTORY),
-                poolManager: IPoolManager(POOL_MANAGER),
-                univ4Hook: address(uniswapV4Hook)
+                newWrappedNativeToken: IWETH9(WETH),
+                newFactory: IUniswapV3Factory(V3_FACTORY),
+                newPoolManager: IPoolManager(POOL_MANAGER),
+                newUniv4Hook: address(uniswapV4Hook)
             });
         }
 
@@ -493,12 +493,12 @@ contract ResumeDeployHarness is IERC721Receiver {
             : new JBUniswapV4LPSplitHookDeployer{salt: LP_SPLIT_HOOK_DEPLOYER_SALT}(
                 IJBAddressRegistry(address(addressRegistry)), address(this)
             );
-        if (address(lpSplitHookDeployer.HOOK()) == address(0)) {
+        if (address(lpSplitHookDeployer.hookImplementation()) == address(0)) {
             lpSplitHookDeployer.setChainSpecificConstants({
-                hook: lpSplitHook,
-                poolManager: IPoolManager(POOL_MANAGER),
-                positionManager: IPositionManager(POSITION_MANAGER),
-                oracleHook: IHooks(address(uniswapV4Hook))
+                newHookImplementation: lpSplitHook,
+                newPoolManager: IPoolManager(POOL_MANAGER),
+                newPositionManager: IPositionManager(POSITION_MANAGER),
+                newOracleHook: IHooks(address(uniswapV4Hook))
             });
         }
     }

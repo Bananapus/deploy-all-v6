@@ -927,9 +927,9 @@ contract Deploy is Script, Sphinx {
                 }))
         );
 
-        if (address(_buybackHook.POOL_MANAGER()) == address(0)) {
+        if (address(_buybackHook.poolManager()) == address(0)) {
             _buybackHook.setChainSpecificConstants({
-                poolManager: IPoolManager(_poolManager), oracleHook: IHooks(address(_uniswapV4Hook))
+                newPoolManager: IPoolManager(_poolManager), newOracleHook: IHooks(address(_uniswapV4Hook))
             });
         }
 
@@ -969,12 +969,12 @@ contract Deploy is Script, Sphinx {
                 }))
         );
 
-        if (address(_routerTerminal.WRAPPED_NATIVE_TOKEN()) == address(0)) {
+        if (address(_routerTerminal.wrappedNativeToken()) == address(0)) {
             _routerTerminal.setChainSpecificConstants({
-                wrappedNativeToken: IWETH9(_wrappedNativeToken),
-                factory: IUniswapV3Factory(_v3Factory),
-                poolManager: IPoolManager(_poolManager),
-                univ4Hook: address(_uniswapV4Hook)
+                newWrappedNativeToken: IWETH9(_wrappedNativeToken),
+                newFactory: IUniswapV3Factory(_v3Factory),
+                newPoolManager: IPoolManager(_poolManager),
+                newUniv4Hook: address(_uniswapV4Hook)
             });
         }
 
@@ -1020,12 +1020,12 @@ contract Deploy is Script, Sphinx {
             })
         );
 
-        if (address(_lpSplitHookDeployer.HOOK()) == address(0)) {
+        if (address(_lpSplitHookDeployer.hookImplementation()) == address(0)) {
             _lpSplitHookDeployer.setChainSpecificConstants({
-                hook: _lpSplitHook,
-                poolManager: IPoolManager(_poolManager),
-                positionManager: IPositionManager(_positionManager),
-                oracleHook: IHooks(address(_uniswapV4Hook))
+                newHookImplementation: _lpSplitHook,
+                newPoolManager: IPoolManager(_poolManager),
+                newPositionManager: IPositionManager(_positionManager),
+                newOracleHook: IHooks(address(_uniswapV4Hook))
             });
         }
     }
@@ -1462,11 +1462,11 @@ contract Deploy is Script, Sphinx {
 
         if (address(deployer.bridgeToken()) == address(0)) {
             deployer.setSwapConstants({
-                _bridgeToken: IERC20(_usdcToken),
-                _poolManager: IPoolManager(_poolManager),
-                _v3Factory: IUniswapV3Factory(_v3Factory),
-                _univ4Hook: address(_uniswapV4Hook),
-                _wrappedNativeToken: _wrappedNativeToken
+                newBridgeToken: IERC20(_usdcToken),
+                newPoolManager: IPoolManager(_poolManager),
+                newV3Factory: IUniswapV3Factory(_v3Factory),
+                newUniv4Hook: address(_uniswapV4Hook),
+                newWrappedNativeToken: _wrappedNativeToken
             });
         }
 
@@ -1868,7 +1868,7 @@ contract Deploy is Script, Sphinx {
         (address predictedRevDeployer,) = _isDeployed({
             salt: REV_DEPLOYER_SALT, creationCode: _loadArtifact("REVDeployer"), arguments: revDeployerArgs
         });
-        if (address(_revOwner.DEPLOYER()) == address(0)) {
+        if (address(_revOwner.deployer()) == address(0)) {
             _revOwner.setDeployer(IREVDeployer(predictedRevDeployer));
         }
         _revDeployer = REVDeployer(
@@ -2429,7 +2429,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             // forge-lint: disable-next-line(unsafe-typecast)
-            encodedIPFSUri: bytes32(""),
+            encodedIpfsUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -2451,7 +2451,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             // forge-lint: disable-next-line(unsafe-typecast)
-            encodedIPFSUri: bytes32(""),
+            encodedIpfsUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -2473,7 +2473,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             // forge-lint: disable-next-line(unsafe-typecast)
-            encodedIPFSUri: bytes32(""),
+            encodedIpfsUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -2495,7 +2495,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             // forge-lint: disable-next-line(unsafe-typecast)
-            encodedIPFSUri: bytes32(""),
+            encodedIpfsUri: bytes32(""),
             category: bannyBodyCategory,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -3185,7 +3185,7 @@ contract Deploy is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: reserveFrequency,
             reserveBeneficiary: reserveBeneficiary,
-            encodedIPFSUri: encodedIpfsUri,
+            encodedIpfsUri: encodedIpfsUri,
             category: category,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -4034,7 +4034,7 @@ contract Deploy is Script, Sphinx {
 
         IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
         if (address(hook) == address(0)) return false;
-        if (hook.PROJECT_ID() != _BAN_PROJECT_ID) return false;
+        if (hook.projectId() != _BAN_PROJECT_ID) return false;
         if (address(hook.STORE()) != address(_hookStore)) return false;
 
         // Verify the BANNY symbol on the 721 hook.

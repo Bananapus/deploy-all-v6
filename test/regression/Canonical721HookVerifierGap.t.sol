@@ -227,6 +227,10 @@ contract MockBannyHook is MockToken {
         return 4;
     }
 
+    function projectId() external pure returns (uint256) {
+        return 4;
+    }
+
     function STORE() external view returns (address) {
         return _hookStore;
     }
@@ -240,6 +244,10 @@ contract MockCpnHook is MockToken {
     }
 
     function PROJECT_ID() external pure returns (uint256) {
+        return 2;
+    }
+
+    function projectId() external pure returns (uint256) {
         return 2;
     }
 

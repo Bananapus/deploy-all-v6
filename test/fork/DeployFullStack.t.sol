@@ -389,9 +389,9 @@ contract DeployFullStackTest is Test {
     function _deployBuybackHook(ChainConfig memory cfg) internal {
         _buybackRegistry = new JBBuybackHookRegistry(_permissions, _projects, _deployer, _trustedForwarder);
         _buybackHook =
-            new JBBuybackHook(_directory, _permissions, _prices, _projects, _tokens, address(this), _trustedForwarder);
+            new JBBuybackHook(_directory, _permissions, _prices, _projects, _tokens, _deployer, _trustedForwarder);
         _buybackHook.setChainSpecificConstants({
-            poolManager: IPoolManager(cfg.poolManager), oracleHook: IHooks(address(_uniswapV4Hook))
+            newPoolManager: IPoolManager(cfg.poolManager), newOracleHook: IHooks(address(_uniswapV4Hook))
         });
         _buybackRegistry.setDefaultHook(_buybackHook);
     }
@@ -400,14 +400,13 @@ contract DeployFullStackTest is Test {
     function _deployRouterTerminal(ChainConfig memory cfg) internal {
         _routerTerminalRegistry =
             new JBRouterTerminalRegistry(_permissions, _projects, _PERMIT2, _deployer, _trustedForwarder);
-        _routerTerminal = new JBRouterTerminal(
-            _directory, _tokens, _PERMIT2, address(_buybackHook), _trustedForwarder, address(this)
-        );
+        _routerTerminal =
+            new JBRouterTerminal(_directory, _tokens, _PERMIT2, address(_buybackHook), _trustedForwarder, _deployer);
         _routerTerminal.setChainSpecificConstants({
-            wrappedNativeToken: IWETH9(cfg.wrappedNativeToken),
-            factory: IUniswapV3Factory(cfg.v3Factory),
-            poolManager: IPoolManager(cfg.poolManager),
-            univ4Hook: address(_uniswapV4Hook)
+            newWrappedNativeToken: IWETH9(cfg.wrappedNativeToken),
+            newFactory: IUniswapV3Factory(cfg.v3Factory),
+            newPoolManager: IPoolManager(cfg.poolManager),
+            newUniv4Hook: address(_uniswapV4Hook)
         });
         _routerTerminalRegistry.setDefaultTerminal(_routerTerminal);
         // Router is intentionally NOT marked globally feeless — the global grant was dropped.
@@ -423,12 +422,12 @@ contract DeployFullStackTest is Test {
             IJBSuckerRegistry(address(_suckerRegistry))
         );
         _lpSplitHookDeployer =
-            new JBUniswapV4LPSplitHookDeployer(IJBAddressRegistry(address(_addressRegistry)), address(this));
+            new JBUniswapV4LPSplitHookDeployer(IJBAddressRegistry(address(_addressRegistry)), _deployer);
         _lpSplitHookDeployer.setChainSpecificConstants({
-            hook: _lpSplitHook,
-            poolManager: IPoolManager(cfg.poolManager),
-            positionManager: IPositionManager(cfg.positionManager),
-            oracleHook: IHooks(address(_uniswapV4Hook))
+            newHookImplementation: _lpSplitHook,
+            newPoolManager: IPoolManager(cfg.poolManager),
+            newPositionManager: IPositionManager(cfg.positionManager),
+            newOracleHook: IHooks(address(_uniswapV4Hook))
         });
     }
 
@@ -933,7 +932,9 @@ contract DeployFullStackTest is Test {
         );
     }
 
-    function _assertPeripheryDeployment(string memory chainName) internal view {
+    function _assertPeripheryDeployment(ChainConfig memory cfg) internal view {
+        string memory chainName = cfg.name;
+
         // 721 Hook.
         assertTrue(address(_hookStore) != address(0), string.concat(chainName, ": HookStore not deployed"));
         assertTrue(address(_hookDeployer) != address(0), string.concat(chainName, ": HookDeployer not deployed"));
@@ -948,7 +949,7 @@ contract DeployFullStackTest is Test {
             string.concat(chainName, ": Buyback default hook mismatch")
         );
         assertEq(
-            address(_buybackHook.ORACLE_HOOK()),
+            address(_buybackHook.oracleHook()),
             address(_uniswapV4Hook),
             string.concat(chainName, ": Buyback oracle hook mismatch")
         );
@@ -966,7 +967,7 @@ contract DeployFullStackTest is Test {
 
         // LP split hook deployer.
         assertEq(
-            address(_lpSplitHookDeployer.HOOK()),
+            address(_lpSplitHookDeployer.hookImplementation()),
             address(_lpSplitHook),
             string.concat(chainName, ": LP split hook implementation mismatch")
         );
@@ -976,7 +977,17 @@ contract DeployFullStackTest is Test {
             string.concat(chainName, ": LP split hook registry mismatch")
         );
         assertEq(
-            address(_lpSplitHook.ORACLE_HOOK()),
+            address(_lpSplitHookDeployer.poolManager()),
+            cfg.poolManager,
+            string.concat(chainName, ": LP split pool manager mismatch")
+        );
+        assertEq(
+            address(_lpSplitHookDeployer.positionManager()),
+            cfg.positionManager,
+            string.concat(chainName, ": LP split position manager mismatch")
+        );
+        assertEq(
+            address(_lpSplitHookDeployer.oracleHook()),
             address(_uniswapV4Hook),
             string.concat(chainName, ": LP split oracle hook mismatch")
         );
@@ -1023,7 +1034,7 @@ contract DeployFullStackTest is Test {
         _assertCoreWiring(cfg.name);
         _assertControllerDeployment(cfg.name);
         _assertProjectOneExists(cfg.name);
-        _assertPeripheryDeployment(cfg.name);
+        _assertPeripheryDeployment(cfg);
         _assertPriceFeeds(cfg.name);
     }
 
@@ -1041,7 +1052,7 @@ contract DeployFullStackTest is Test {
         _assertCoreWiring(cfg.name);
         _assertControllerDeployment(cfg.name);
         _assertProjectOneExists(cfg.name);
-        _assertPeripheryDeployment(cfg.name);
+        _assertPeripheryDeployment(cfg);
         _assertPriceFeeds(cfg.name);
     }
 
@@ -1059,7 +1070,7 @@ contract DeployFullStackTest is Test {
         _assertCoreWiring(cfg.name);
         _assertControllerDeployment(cfg.name);
         _assertProjectOneExists(cfg.name);
-        _assertPeripheryDeployment(cfg.name);
+        _assertPeripheryDeployment(cfg);
         _assertPriceFeeds(cfg.name);
     }
 
@@ -1077,7 +1088,7 @@ contract DeployFullStackTest is Test {
         _assertCoreWiring(cfg.name);
         _assertControllerDeployment(cfg.name);
         _assertProjectOneExists(cfg.name);
-        _assertPeripheryDeployment(cfg.name);
+        _assertPeripheryDeployment(cfg);
         _assertPriceFeeds(cfg.name);
     }
 }

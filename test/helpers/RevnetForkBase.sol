@@ -152,7 +152,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         BUYBACK_HOOK = new JBBuybackHook(
             jbDirectory(), jbPermissions(), jbPrices(), jbProjects(), jbTokens(), address(this), address(0)
         );
-        BUYBACK_HOOK.setChainSpecificConstants({poolManager: poolManager, oracleHook: IHooks(address(0))});
+        BUYBACK_HOOK.setChainSpecificConstants({newPoolManager: poolManager, newOracleHook: IHooks(address(0))});
 
         BUYBACK_REGISTRY = new JBBuybackHookRegistry(jbPermissions(), jbProjects(), address(this), address(0));
         BUYBACK_REGISTRY.setDefaultHook(IJBRulesetDataHook(address(BUYBACK_HOOK)));
@@ -365,7 +365,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             // forge-lint: disable-next-line(unsafe-typecast)
-            encodedIPFSUri: bytes32("tier1"),
+            encodedIpfsUri: bytes32("tier1"),
             category: 1,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
