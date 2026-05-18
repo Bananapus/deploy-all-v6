@@ -636,7 +636,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
         // 5. Send payouts of 5 ETH, which generates fees.
         // With holdFees=false, _takeFeeFrom calls _processFee immediately.
         // The fee = 5 ETH * 25 / 1000 = 0.125 ETH.
-        uint256 expectedFee = JBFees.feeAmountFrom({amountBeforeFee: 5 ether, feePercent: jbMultiTerminal().FEE()});
+        uint256 expectedFee = JBFees.feeAmountFrom({amountBeforeFee: 5 ether, feePercent: JBConstants.STANDARD_FEE});
         assertGt(expectedFee, 0, "expected fee should be non-zero");
 
         // 6. Expect the FeeReverted event.

@@ -375,7 +375,7 @@ contract MockTokens {
     }
 
     function tokenOf(uint256 projectId) external view returns (address) {
-        if (projectId == 3) return _revToken;
+        if (projectId == 5) return _revToken;
         if (projectId == 1) return _nanaToken;
         return address(0);
     }
@@ -463,7 +463,7 @@ contract MockDefifaDeployer {
     }
 
     function DEFIFA_PROJECT_ID() external pure returns (uint256) {
-        return 3;
+        return 5;
     }
 
     function BASE_PROTOCOL_PROJECT_ID() external pure returns (uint256) {

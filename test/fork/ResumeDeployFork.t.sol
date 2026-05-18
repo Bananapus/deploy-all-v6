@@ -166,17 +166,7 @@ contract ResumeDeployHarness is IERC721Receiver {
         return _create2Address(
             ROUTER_TERMINAL_SALT,
             type(JBRouterTerminal).creationCode,
-            abi.encode(
-                directory,
-                tokens,
-                _PERMIT2,
-                IWETH9(WETH),
-                IUniswapV3Factory(V3_FACTORY),
-                IPoolManager(POOL_MANAGER),
-                address(buybackHook),
-                address(uniswapV4Hook),
-                trustedForwarder
-            )
+            abi.encode(directory, tokens, _PERMIT2, address(buybackHook), trustedForwarder, address(this))
         );
     }
 

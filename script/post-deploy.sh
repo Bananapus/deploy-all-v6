@@ -241,11 +241,12 @@ for alias in $CHAINS_LIST; do
   # stale cached JSON from a previous run into the canonical deployments/
   # tree. distribute.mjs also gates on the current address dump, but this
   # outer skip is defense in depth.
-  if [[ "$SKIP_DISTRIBUTE" -eq 0 && "$artifact_failed" -eq 0 ]]; then
+  if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "  [4/4] Distributing artifacts..."
-    extra=""
-    [[ "$DRY_RUN" -eq 1 ]] && extra="--dry-run"
-    node "$POST_DEPLOY_DIR/lib/distribute.mjs" --chain "$chain_id" $extra || {
+    echo "    (skipped — dry-run)"
+  elif [[ "$SKIP_DISTRIBUTE" -eq 0 && "$artifact_failed" -eq 0 ]]; then
+    echo "  [4/4] Distributing artifacts..."
+    node "$POST_DEPLOY_DIR/lib/distribute.mjs" --chain "$chain_id" || {
       echo "    Some artifacts failed to distribute."
       GLOBAL_FAIL=1
     }

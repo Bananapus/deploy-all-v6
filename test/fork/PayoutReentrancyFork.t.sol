@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {EcosystemForkTest} from "./EcosystemFork.t.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
+import {JBFees} from "@bananapus/core-v6/src/libraries/JBFees.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {JBRulesetConfig} from "@bananapus/core-v6/src/structs/JBRulesetConfig.sol";
 import {JBRulesetMetadata} from "@bananapus/core-v6/src/structs/JBRulesetMetadata.sol";
@@ -19,10 +20,8 @@ import {IJBMultiTerminal} from "@bananapus/core-v6/src/interfaces/IJBMultiTermin
 
 /// @notice Split hook that re-enters `sendPayoutsOf` to attempt a double-payout.
 /// The payout limit should already be consumed by `recordPayoutFor`, so the re-entry
-/// must revert with `JBTerminalStore_InadequateControllerPayoutLimit`.
-/// Because `executePayout` wraps the hook call in try-catch, the revert is caught and
-/// the split's funds are returned to the project balance. The hook records whether re-entry
-/// was attempted and whether it succeeded.
+/// must not pay anything out. The hook records whether re-entry was attempted and whether
+/// it returned a nonzero payout.
 contract MaliciousSplitHook is IJBSplitHook {
     IJBMultiTerminal public terminal;
     uint256 public targetProjectId;
@@ -33,6 +32,7 @@ contract MaliciousSplitHook is IJBSplitHook {
     bool public reentering;
     bool public reentryCalled;
     bool public reentrySucceeded;
+    uint256 public reentryPaidOut;
 
     constructor(IJBMultiTerminal _terminal, uint256 _projectId, address _token, uint256 _amount, uint256 _currency) {
         terminal = _terminal;
@@ -48,15 +48,16 @@ contract MaliciousSplitHook is IJBSplitHook {
         if (!reentering) {
             reentering = true;
             reentryCalled = true;
-            // Attempt re-entry into sendPayoutsOf. This should fail because the payout limit
+            // Attempt re-entry into sendPayoutsOf. This should return 0 because the payout limit
             // was already consumed by recordPayoutFor before splits execute.
             try terminal.sendPayoutsOf({
                 projectId: targetProjectId, token: token, amount: amount, currency: currency, minTokensPaidOut: 0
-            }) {
-                // If we get here, re-entry succeeded (should NOT happen).
-                reentrySucceeded = true;
+            }) returns (
+                uint256 paidOut
+            ) {
+                reentryPaidOut = paidOut;
+                reentrySucceeded = paidOut != 0;
             } catch {
-                // Expected: re-entry reverts due to payout limit already consumed.
                 reentrySucceeded = false;
             }
         }
@@ -225,8 +226,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
     // ═══════════════════════════════════════════════════════════════════
 
     /// @notice A malicious split hook attempts to re-enter `sendPayoutsOf()` during payout processing.
-    /// The re-entry should fail because `recordPayoutFor()` already consumed the payout limit.
-    /// The try-catch in `executePayout` catches the failure and returns the split's funds to the project balance.
+    /// The re-entry should pay out 0 because `recordPayoutFor()` already consumed the payout limit.
     /// Only one payout's worth of funds should leave the terminal.
     function test_payoutReentrancy_splitHookCannotDoubleSpend() public {
         // We need a project first to know the ID, then deploy the hook with that ID.
@@ -266,9 +266,8 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         // Step 5: Trigger payouts. This should:
         //   1. recordPayoutFor consumes the 1 ETH payout limit
         //   2. executePayout sends ETH to malicious hook and calls processSplitWith
-        //   3. Hook tries to re-enter sendPayoutsOf -> recordPayoutFor reverts (limit consumed)
-        //   4. try-catch in the hook catches the revert
-        //   5. The first payout still completes (hook received the funds via try-catch in executePayout)
+        //   3. Hook tries to re-enter sendPayoutsOf -> recordPayoutFor returns 0 (limit consumed)
+        //   4. The first payout still completes
         jbMultiTerminal()
             .sendPayoutsOf({
             projectId: projectId,
@@ -281,8 +280,9 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         // Verify the hook attempted re-entry.
         assertTrue(maliciousHook.reentryCalled(), "hook should have attempted re-entry");
 
-        // Verify re-entry did NOT succeed.
-        assertFalse(maliciousHook.reentrySucceeded(), "re-entry into sendPayoutsOf should have failed");
+        // Verify re-entry did NOT pay anything out.
+        assertFalse(maliciousHook.reentrySucceeded(), "re-entry into sendPayoutsOf should not pay out");
+        assertEq(maliciousHook.reentryPaidOut(), 0, "re-entry payout should be zero");
 
         // Verify only one payout's worth of funds left the terminal.
         uint256 balanceAfter = _terminalBalance(projectId, JBConstants.NATIVE_TOKEN);
@@ -292,7 +292,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         // terminal set up in this test, so the fee processing reverts. The terminal catches this
         // and returns the fee amount back to the project balance via recordAddedBalanceFor.
         // Net balance decrease = PAYOUT_LIMIT - fee = 0.975 ETH.
-        uint256 feeAmount = (PAYOUT_LIMIT * 25) / 1000; // 2.5% fee
+        uint256 feeAmount = JBFees.standardFeeAmountFrom(PAYOUT_LIMIT);
         uint256 expectedDecrease = PAYOUT_LIMIT - feeAmount;
         assertEq(
             balanceBefore - balanceAfter,
@@ -300,10 +300,9 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             "terminal balance should decrease by payout minus returned fee"
         );
 
-        // A second sendPayoutsOf should also fail since payout limit is consumed for this cycle.
+        // A second sendPayoutsOf also returns 0 since payout limit is consumed for this cycle.
         // Since duration=0, same ruleset stays active, so payout limit persists.
-        vm.expectRevert();
-        jbMultiTerminal()
+        uint256 secondPaid = jbMultiTerminal()
             .sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
@@ -311,6 +310,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             currency: NATIVE_CURRENCY,
             minTokensPaidOut: 0
         });
+        assertEq(secondPaid, 0, "second payout should be clamped to zero");
     }
 
     /// @notice A split hook re-enters via `addToBalanceOf()` during payout processing.
@@ -377,9 +377,8 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             "balance should be higher than simple payout since hook returned funds"
         );
 
-        // No double-payout occurred: we can verify the payout limit is consumed by trying again.
-        vm.expectRevert();
-        jbMultiTerminal()
+        // No double-payout occurred: the consumed payout limit leaves nothing to pay.
+        uint256 secondPaid = jbMultiTerminal()
             .sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
@@ -387,5 +386,6 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             currency: NATIVE_CURRENCY,
             minTokensPaidOut: 0
         });
+        assertEq(secondPaid, 0, "second payout should be clamped to zero");
     }
 }
