@@ -255,6 +255,9 @@ for entry in "${CONTRACTS[@]}"; do
     errors=$((errors + 1))
     continue
   fi
+  # deploy-all-v6's `forge clean` removes its configured artifacts directory,
+  # which is also this script's collection destination.
+  mkdir -p "$ARTIFACTS_DIR"
 
   # The source file must actually exist in the source repo, otherwise the
   # manifest entry is pointing to a path that doesn't compile in this checkout
