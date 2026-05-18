@@ -68,7 +68,7 @@ contract ExternalAddressVerifierGapTest is Test {
         // Coverage: when Permit2 is canonical, the next check is WRAPPED_NATIVE_TOKEN against WETH.
         vm.expectRevert(
             abi.encodeWithSelector(
-                Verify.Verify_CriticalCheckFailed.selector, "RouterTerminal.WRAPPED_NATIVE_TOKEN == canonical WETH"
+                Verify.Verify_CriticalCheckFailed.selector, "RouterTerminal.wrappedNativeToken == canonical WETH"
             )
         );
         harness.verifyExternalAddresses();
@@ -138,7 +138,7 @@ contract ExternalAddressVerifierGapTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Verify.Verify_CriticalCheckFailed.selector,
-                "JBUniswapV4LPSplitHookDeployer.POSITION_MANAGER == canonical V4 PositionManager"
+                "JBUniswapV4LPSplitHookDeployer.positionManager == canonical V4 PositionManager"
             )
         );
         harness.verifyExternalAddresses();
@@ -171,7 +171,7 @@ contract ExternalAddressVerifierGapTest is Test {
         harness.setLpSplitHookDeployer(
             address(
                 new MockLpSplitHookDeployerFull({
-                    positionManager: canonicalPositionManager, poolManager: wrongPoolManager, oracleHook: address(0)
+                    positionManager_: canonicalPositionManager, poolManager_: wrongPoolManager, oracleHook_: address(0)
                 })
             )
         );
@@ -179,7 +179,7 @@ contract ExternalAddressVerifierGapTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Verify.Verify_CriticalCheckFailed.selector,
-                "JBUniswapV4LPSplitHookDeployer.POOL_MANAGER == canonical V4 PoolManager"
+                "JBUniswapV4LPSplitHookDeployer.poolManager == canonical V4 PoolManager"
             )
         );
         harness.verifyExternalAddresses();
@@ -266,8 +266,8 @@ contract MockLpSplitHookDeployer {
     address internal immutable _poolManager;
     address internal immutable _oracleHook;
 
-    constructor(address positionManager) {
-        _positionManager = positionManager;
+    constructor(address positionManager_) {
+        _positionManager = positionManager_;
         _poolManager = address(0);
         _oracleHook = address(0);
     }
@@ -276,11 +276,23 @@ contract MockLpSplitHookDeployer {
         return _positionManager;
     }
 
+    function positionManager() external view returns (address) {
+        return _positionManager;
+    }
+
     function POOL_MANAGER() external view returns (address) {
         return _poolManager;
     }
 
+    function poolManager() external view returns (address) {
+        return _poolManager;
+    }
+
     function ORACLE_HOOK() external view returns (address) {
+        return _oracleHook;
+    }
+
+    function oracleHook() external view returns (address) {
         return _oracleHook;
     }
 }
@@ -290,13 +302,17 @@ contract MockLpSplitHookDeployerFull {
     address internal immutable _poolManager;
     address internal immutable _oracleHook;
 
-    constructor(address positionManager, address poolManager, address oracleHook) {
-        _positionManager = positionManager;
-        _poolManager = poolManager;
-        _oracleHook = oracleHook;
+    constructor(address positionManager_, address poolManager_, address oracleHook_) {
+        _positionManager = positionManager_;
+        _poolManager = poolManager_;
+        _oracleHook = oracleHook_;
     }
 
     function POSITION_MANAGER() external view returns (address) {
+        return _positionManager;
+    }
+
+    function positionManager() external view returns (address) {
         return _positionManager;
     }
 
@@ -304,7 +320,15 @@ contract MockLpSplitHookDeployerFull {
         return _poolManager;
     }
 
+    function poolManager() external view returns (address) {
+        return _poolManager;
+    }
+
     function ORACLE_HOOK() external view returns (address) {
+        return _oracleHook;
+    }
+
+    function oracleHook() external view returns (address) {
         return _oracleHook;
     }
 }
@@ -325,9 +349,9 @@ contract MockRouterTerminal {
     address internal immutable _permit2;
     address internal immutable _wrappedNativeToken;
 
-    constructor(address permit2, address wrappedNativeToken) {
+    constructor(address permit2, address wrappedNativeToken_) {
         _permit2 = permit2;
-        _wrappedNativeToken = wrappedNativeToken;
+        _wrappedNativeToken = wrappedNativeToken_;
     }
 
     function PERMIT2() external view returns (address) {
@@ -335,6 +359,10 @@ contract MockRouterTerminal {
     }
 
     function WRAPPED_NATIVE_TOKEN() external view returns (address) {
+        return _wrappedNativeToken;
+    }
+
+    function wrappedNativeToken() external view returns (address) {
         return _wrappedNativeToken;
     }
 }

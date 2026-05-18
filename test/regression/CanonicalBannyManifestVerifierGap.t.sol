@@ -233,7 +233,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
     }
 
     /// @notice Build a `JB721Tier` whose committed fields exercise every field the verifier hashes
-    /// (price, initialSupply, category, reserveFrequency, encodedIPFSUri). Fields outside the
+    /// (price, initialSupply, category, reserveFrequency, encodedIpfsUri). Fields outside the
     /// digest (votingUnits, reserveBeneficiary, splitPercent, discountPercent, flags, etc.) are
     /// left at default — they don't influence the digest and a real deployment doesn't pin them.
     function _stubCanonicalTier(uint256 id) internal pure returns (JB721Tier memory tier) {
@@ -243,7 +243,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
         tier.initialSupply = 100;
         tier.category = 1;
         tier.reserveFrequency = 0;
-        tier.encodedIPFSUri = bytes32(uint256(0xCAFE));
+        tier.encodedIpfsUri = bytes32(uint256(0xCAFE));
     }
 
     /// @notice Compute the expected per-tier digest exactly the way the verifier accumulates it,
@@ -258,7 +258,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
                 uint256(tier.initialSupply),
                 uint256(tier.category),
                 uint256(tier.reserveFrequency),
-                tier.encodedIPFSUri,
+                tier.encodedIpfsUri,
                 svgHash
             )
         );

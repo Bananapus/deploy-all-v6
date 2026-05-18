@@ -582,7 +582,7 @@ contract Verify is Script {
             });
             if (address(bannyHook) != address(0)) {
                 _check({
-                    condition: bannyHook.PROJECT_ID() == _BAN_PROJECT_ID,
+                    condition: bannyHook.projectId() == _BAN_PROJECT_ID,
                     label: "Banny hook PROJECT_ID == 4",
                     critical: true
                 });
@@ -607,9 +607,7 @@ contract Verify is Script {
             });
             if (address(cpnHook) != address(0)) {
                 _check({
-                    condition: cpnHook.PROJECT_ID() == _CPN_PROJECT_ID,
-                    label: "CPN hook PROJECT_ID == 2",
-                    critical: true
+                    condition: cpnHook.projectId() == _CPN_PROJECT_ID, label: "CPN hook PROJECT_ID == 2", critical: true
                 });
                 _check({
                     condition: address(cpnHook.STORE()) == address(hookStore),
@@ -1217,10 +1215,10 @@ contract Verify is Script {
                     label: "REVDeployer.OWNER == REVOwner",
                     critical: true
                 });
-                // Verify the REV owner's DEPLOYER points back to the REV deployer.
+                // Verify the REV owner's deployer points back to the REV deployer.
                 _check({
-                    condition: address(revOwner.DEPLOYER()) == address(revDeployer),
-                    label: "REVOwner.DEPLOYER == REVDeployer",
+                    condition: address(revOwner.deployer()) == address(revDeployer),
+                    label: "REVOwner.deployer == REVDeployer",
                     critical: true
                 });
             }
@@ -3063,7 +3061,7 @@ contract Verify is Script {
     /// production when the operator didn't supply a hash.
     /// @dev Digest shape per tier (matches the off-chain manifest generator):
     ///   `keccak256(abi.encode(running, tierId, price, initialSupply, category, reserveFrequency,
-    ///                          encodedIPFSUri, svgHash))`
+    ///                          encodedIpfsUri, svgHash))`
     /// Drop a single field or reorder one tier and the digest diverges; that's the whole point.
     function _verifyBannyTierManifestHash(
         address bannyHook,
@@ -3100,7 +3098,7 @@ contract Verify is Script {
                     uint256(tier.initialSupply),
                     uint256(tier.category),
                     uint256(tier.reserveFrequency),
-                    tier.encodedIPFSUri,
+                    tier.encodedIpfsUri,
                     svgHash
                 )
             );
@@ -3472,14 +3470,14 @@ contract Verify is Script {
         if (address(routerTerminal) != address(0)) {
             if (expectedWrappedNative != address(0)) {
                 _check({
-                    condition: address(routerTerminal.WRAPPED_NATIVE_TOKEN()) == expectedWrappedNative,
-                    label: "RouterTerminal.WRAPPED_NATIVE_TOKEN == canonical WETH",
+                    condition: address(routerTerminal.wrappedNativeToken()) == expectedWrappedNative,
+                    label: "RouterTerminal.wrappedNativeToken == canonical WETH",
                     critical: true
                 });
             } else {
                 _check({
-                    condition: address(routerTerminal.WRAPPED_NATIVE_TOKEN()) != address(0),
-                    label: "RouterTerminal.WRAPPED_NATIVE_TOKEN is non-zero (no canonical manifest)",
+                    condition: address(routerTerminal.wrappedNativeToken()) != address(0),
+                    label: "RouterTerminal.wrappedNativeToken is non-zero (no canonical manifest)",
                     critical: true
                 });
                 _skip("WETH exact-address check skipped (no manifest for this chain)");
@@ -3563,16 +3561,16 @@ contract Verify is Script {
         address expectedV4PositionManager = _expectedV4PositionManager();
         if (lpSplitHookDeployer != address(0) && expectedV4PositionManager != address(0)) {
             (bool okPosMgr, bytes memory posMgrData) =
-                lpSplitHookDeployer.staticcall(abi.encodeWithSignature("POSITION_MANAGER()"));
+                lpSplitHookDeployer.staticcall(abi.encodeWithSignature("positionManager()"));
             if (okPosMgr && posMgrData.length >= 32) {
                 _check({
                     condition: abi.decode(posMgrData, (address)) == expectedV4PositionManager,
-                    label: "JBUniswapV4LPSplitHookDeployer.POSITION_MANAGER == canonical V4 PositionManager",
+                    label: "JBUniswapV4LPSplitHookDeployer.positionManager == canonical V4 PositionManager",
                     critical: true
                 });
             } else {
                 _check({
-                    condition: false, label: "JBUniswapV4LPSplitHookDeployer exposes POSITION_MANAGER()", critical: true
+                    condition: false, label: "JBUniswapV4LPSplitHookDeployer exposes positionManager()", critical: true
                 });
             }
 
@@ -3584,20 +3582,20 @@ contract Verify is Script {
             address expectedLpPoolManager = _expectedV4PoolManager();
             if (expectedLpPoolManager != address(0)) {
                 (bool okPm, bytes memory pmData) =
-                    lpSplitHookDeployer.staticcall(abi.encodeWithSignature("POOL_MANAGER()"));
+                    lpSplitHookDeployer.staticcall(abi.encodeWithSignature("poolManager()"));
                 _check({
                     condition: okPm && pmData.length >= 32 && abi.decode(pmData, (address)) == expectedLpPoolManager,
-                    label: "JBUniswapV4LPSplitHookDeployer.POOL_MANAGER == canonical V4 PoolManager",
+                    label: "JBUniswapV4LPSplitHookDeployer.poolManager == canonical V4 PoolManager",
                     critical: true
                 });
             }
             address expectedOracleHook = _uniswapV4Hook();
             if (expectedOracleHook != address(0)) {
                 (bool okOh, bytes memory ohData) =
-                    lpSplitHookDeployer.staticcall(abi.encodeWithSignature("ORACLE_HOOK()"));
+                    lpSplitHookDeployer.staticcall(abi.encodeWithSignature("oracleHook()"));
                 _check({
                     condition: okOh && ohData.length >= 32 && abi.decode(ohData, (address)) == expectedOracleHook,
-                    label: "JBUniswapV4LPSplitHookDeployer.ORACLE_HOOK == canonical JBUniswapV4Hook",
+                    label: "JBUniswapV4LPSplitHookDeployer.oracleHook == canonical JBUniswapV4Hook",
                     critical: true
                 });
             }

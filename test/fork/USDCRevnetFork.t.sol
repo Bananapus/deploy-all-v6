@@ -70,11 +70,11 @@ contract USDCRevnetForkTest is RevnetForkBase {
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize({
-            feeProjectId: 0, // No fee project for simplicity.
-            feePercent: 0,
-            poolManager: poolManager,
-            positionManager: positionManager,
-            oracleHook: IHooks(address(0))
+            initialFeeProjectId: 0, // No fee project for simplicity.
+            initialFeePercent: 0,
+            newPoolManager: poolManager,
+            newPositionManager: positionManager,
+            newOracleHook: IHooks(address(0))
         });
 
         // Mock geomean oracle at address(0) so payments work before buyback pool is set up.

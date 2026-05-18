@@ -277,7 +277,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             // forge-lint: disable-next-line(unsafe-typecast)
-            encodedIPFSUri: bytes32("wbtcTier1"),
+            encodedIpfsUri: bytes32("wbtcTier1"),
             category: 1, // Tiers must be sorted by category
             discountPercent: 0,
             flags: JB721TierConfigFlags({
