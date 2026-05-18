@@ -171,6 +171,7 @@ contract Deploy is Script, Sphinx {
     error Deploy_ProjectNotCanonical(uint256 projectId);
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
     error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
+    error Deploy_TimestampOverflow(uint256 timestamp);
     error Deploy_UnexpectedSafe(address expected, address actual);
 
     // ════════════════════════════════════════════════════════════════════
@@ -436,7 +437,7 @@ contract Deploy is Script, Sphinx {
     JBProjectHandles private _projectHandles;
 
     // Distributor
-    JB721Distributor private _721Distributor;
+    JB721Distributor private _jb721Distributor;
     JBTokenDistributor private _tokenDistributor;
     uint256 private _roundDuration;
 
@@ -669,7 +670,7 @@ contract Deploy is Script, Sphinx {
             _typeface = 0x431C35e9fA5152A906A38390910d0Cfcba0Fb43b;
             _roundDuration = 604_800; // 7 days
         }
-        // TODO: Tempo support commented out until chain is ready.
+        // Tempo and Tempo Moderato are intentionally excluded until their deployment constants are finalized.
         // else if (block.chainid == 4217) { ... }
         // else if (block.chainid == 42_431) { ... }
         else {
@@ -1081,7 +1082,7 @@ contract Deploy is Script, Sphinx {
                     : address(0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1)
             );
             if (address(opDeployer.opMessenger()) == address(0)) {
-                opDeployer.setChainSpecificConstants(messenger, bridge);
+                opDeployer.setChainSpecificConstants({messenger: messenger, bridge: bridge});
             }
 
             JBOptimismSucker singleton = JBOptimismSucker(
@@ -1116,10 +1117,10 @@ contract Deploy is Script, Sphinx {
             );
 
             if (address(opDeployer.opMessenger()) == address(0)) {
-                opDeployer.setChainSpecificConstants(
-                    IOPMessenger(0x4200000000000000000000000000000000000007),
-                    IOPStandardBridge(0x4200000000000000000000000000000000000010)
-                );
+                opDeployer.setChainSpecificConstants({
+                    messenger: IOPMessenger(0x4200000000000000000000000000000000000007),
+                    bridge: IOPStandardBridge(0x4200000000000000000000000000000000000010)
+                });
             }
 
             JBOptimismSucker singleton = JBOptimismSucker(
@@ -1166,7 +1167,7 @@ contract Deploy is Script, Sphinx {
                     : address(0xfd0Bf71F60660E2f608ed56e1659C450eB113120)
             );
             if (address(baseDeployer.opMessenger()) == address(0)) {
-                baseDeployer.setChainSpecificConstants(messenger, bridge);
+                baseDeployer.setChainSpecificConstants({messenger: messenger, bridge: bridge});
             }
 
             JBBaseSucker singleton = JBBaseSucker(
@@ -1201,10 +1202,10 @@ contract Deploy is Script, Sphinx {
             );
 
             if (address(baseDeployer.opMessenger()) == address(0)) {
-                baseDeployer.setChainSpecificConstants(
-                    IOPMessenger(0x4200000000000000000000000000000000000007),
-                    IOPStandardBridge(0x4200000000000000000000000000000000000010)
-                );
+                baseDeployer.setChainSpecificConstants({
+                    messenger: IOPMessenger(0x4200000000000000000000000000000000000007),
+                    bridge: IOPStandardBridge(0x4200000000000000000000000000000000000010)
+                });
             }
 
             JBBaseSucker singleton = JBBaseSucker(
@@ -1334,7 +1335,7 @@ contract Deploy is Script, Sphinx {
                 swapSalt: SWAP_ARB_SALT,
                 remoteChainId: block.chainid == 1 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
             });
-            // TODO: Tempo CCIP sucker commented out until chain is ready.
+            // Tempo CCIP routes are intentionally excluded until the chain is ready.
         }
 
         // Arbitrum / Arbitrum Sepolia
@@ -1392,7 +1393,7 @@ contract Deploy is Script, Sphinx {
             });
         }
 
-        // TODO: Tempo / Tempo Moderato CCIP sucker commented out until chain is ready.
+        // Tempo / Tempo Moderato CCIP routes are intentionally excluded until the chain is ready.
     }
 
     function _deployCCIPRoute(bytes32 standardSalt, bytes32 swapSalt, uint256 remoteChainId) internal {
@@ -1417,11 +1418,11 @@ contract Deploy is Script, Sphinx {
         );
 
         if (address(deployer.ccipRouter()) == address(0)) {
-            deployer.setChainSpecificConstants(
-                remoteChainId,
-                CCIPHelper.selectorOfChain(remoteChainId),
-                ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
-            );
+            deployer.setChainSpecificConstants({
+                remoteChainId: remoteChainId,
+                remoteChainSelector: CCIPHelper.selectorOfChain(remoteChainId),
+                router: ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
+            });
         }
 
         JBCCIPSucker singleton = JBCCIPSucker(
@@ -1452,11 +1453,11 @@ contract Deploy is Script, Sphinx {
         );
 
         if (address(deployer.ccipRouter()) == address(0)) {
-            deployer.setChainSpecificConstants(
-                remoteChainId,
-                CCIPHelper.selectorOfChain(remoteChainId),
-                ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
-            );
+            deployer.setChainSpecificConstants({
+                remoteChainId: remoteChainId,
+                remoteChainSelector: CCIPHelper.selectorOfChain(remoteChainId),
+                router: ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
+            });
         }
 
         if (address(deployer.bridgeToken()) == address(0)) {
@@ -1501,7 +1502,9 @@ contract Deploy is Script, Sphinx {
         );
 
         if (address(deployer.ccipRouter()) == address(0)) {
-            deployer.setChainSpecificConstants(remoteChainId, remoteChainSelector, router);
+            deployer.setChainSpecificConstants({
+                remoteChainId: remoteChainId, remoteChainSelector: remoteChainSelector, router: router
+            });
         }
 
         JBCCIPSucker singleton = JBCCIPSucker(
@@ -1544,8 +1547,9 @@ contract Deploy is Script, Sphinx {
     function _deployPeriphery() internal {
         // Deploy ETH/USD price feed.
         IJBPriceFeed ethUsdFeed = _deployEthUsdFeed();
-        IJBPriceFeed matchingFeed =
-            _prices.priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)));
+        IJBPriceFeed matchingFeed = _prices.priceFeedFor({
+            projectId: 0, pricingCurrency: JBCurrencyIds.ETH, unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        });
         if (address(matchingFeed) == address(0)) {
             // CREATE2 via the precompile pipeline (no constructor args) so the matching feed lands at the
             // same address on every chain. Previously this used plain `new`, which depended on the safe's
@@ -1605,12 +1609,12 @@ contract Deploy is Script, Sphinx {
         );
 
         if (!_directory.isAllowedToSetFirstController(address(_controller))) {
-            _directory.setIsAllowedToSetFirstController(address(_controller), true);
+            _directory.setIsAllowedToSetFirstController({addr: address(_controller), flag: true});
         }
     }
 
     function _deployEthUsdFeed() internal returns (IJBPriceFeed feed) {
-        uint256 L2GracePeriod = 3600 seconds;
+        uint256 l2GracePeriod = 3600 seconds;
 
         // Ethereum Mainnet
         if (block.chainid == 1) {
@@ -1635,7 +1639,7 @@ contract Deploy is Script, Sphinx {
                 chainlinkFeed: AggregatorV3Interface(0x13e3Ee699D1909E989722E753853AE30b17e08c5),
                 threshold: 3600 seconds,
                 sequencerFeed: AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
-                gracePeriod: L2GracePeriod
+                gracePeriod: l2GracePeriod
             });
         }
         // Optimism Sepolia
@@ -1653,7 +1657,7 @@ contract Deploy is Script, Sphinx {
                 chainlinkFeed: AggregatorV3Interface(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70),
                 threshold: 3600 seconds,
                 sequencerFeed: AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
-                gracePeriod: L2GracePeriod
+                gracePeriod: l2GracePeriod
             });
         }
         // Base Sepolia
@@ -1673,7 +1677,7 @@ contract Deploy is Script, Sphinx {
                 chainlinkFeed: AggregatorV3Interface(0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612),
                 threshold: 3600 seconds,
                 sequencerFeed: AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
-                gracePeriod: L2GracePeriod
+                gracePeriod: l2GracePeriod
             });
         }
         // Arbitrum Sepolia
@@ -1684,14 +1688,14 @@ contract Deploy is Script, Sphinx {
                 threshold: 3600 seconds
             });
         }
-        // TODO: Tempo ETH/USD feed commented out until chain is ready.
+        // Tempo ETH/USD is intentionally excluded until a production feed is available.
         else {
             revert("Unsupported chain for ETH/USD feed");
         }
     }
 
     function _deployUsdcFeed() internal {
-        uint256 L2GracePeriod = 3600 seconds;
+        uint256 l2GracePeriod = 3600 seconds;
         IJBPriceFeed usdcFeed;
         address usdc;
 
@@ -1716,7 +1720,7 @@ contract Deploy is Script, Sphinx {
                 chainlinkFeed: AggregatorV3Interface(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3),
                 threshold: 86_400 seconds,
                 sequencerFeed: AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
-                gracePeriod: L2GracePeriod
+                gracePeriod: l2GracePeriod
             });
         } else if (block.chainid == 11_155_420) {
             usdc = 0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
@@ -1732,7 +1736,7 @@ contract Deploy is Script, Sphinx {
                 chainlinkFeed: AggregatorV3Interface(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B),
                 threshold: 86_400 seconds,
                 sequencerFeed: AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
-                gracePeriod: L2GracePeriod
+                gracePeriod: l2GracePeriod
             });
         } else if (block.chainid == 84_532) {
             usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
@@ -1750,7 +1754,7 @@ contract Deploy is Script, Sphinx {
                 chainlinkFeed: AggregatorV3Interface(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3),
                 threshold: 86_400 seconds,
                 sequencerFeed: AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
-                gracePeriod: L2GracePeriod
+                gracePeriod: l2GracePeriod
             });
         } else if (block.chainid == 421_614) {
             usdc = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
@@ -1760,17 +1764,13 @@ contract Deploy is Script, Sphinx {
                 threshold: 86_400 seconds
             });
         }
-        // TODO: Tempo USDC feed commented out until chain is ready.
+        // Tempo USDC is intentionally excluded until a production feed is available.
         else {
             revert("Unsupported chain for USDC feed");
         }
 
         _ensureDefaultPriceFeed({
-            projectId: 0,
-            pricingCurrency: JBCurrencyIds.USD,
-            // forge-lint: disable-next-line(unsafe-typecast)
-            unitCurrency: uint32(uint160(usdc)),
-            expectedFeed: usdcFeed
+            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: _currencyIdOf(usdc), expectedFeed: usdcFeed
         });
     }
 
@@ -1970,9 +1970,12 @@ contract Deploy is Script, Sphinx {
         });
 
         REVConfig memory revConfig = REVConfig({
-            description: REVDescription(
-                "Revnet", "REV", "ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W", REV_ERC20_SALT
-            ),
+            description: REVDescription({
+                name: "Revnet",
+                ticker: "REV",
+                uri: "ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W",
+                salt: REV_ERC20_SALT
+            }),
             baseCurrency: ETH_CURRENCY,
             operator: operator,
             scopeCashOutsToLocalBalances: false,
@@ -2403,9 +2406,12 @@ contract Deploy is Script, Sphinx {
         // beneficiaries below still flow to `operator`, so the initial launch mints land correctly
         // regardless of who holds the operator role.
         REVConfig memory banConfig = REVConfig({
-            description: REVDescription(
-                "Banny Network", "BAN", "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp", BAN_ERC20_SALT
-            ),
+            description: REVDescription({
+                name: "Banny Network",
+                ticker: "BAN",
+                uri: "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp",
+                salt: BAN_ERC20_SALT
+            }),
             baseCurrency: ETH_CURRENCY,
             operator: safeAddress(),
             scopeCashOutsToLocalBalances: false,
@@ -2579,7 +2585,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x5665b0c125d1bccccb78cc0ffc429e66ce41ed3bccebba51209d04636cadbd2c),
+            encodedIpfsUri: bytes32(0x5665b0c125d1bccccb78cc0ffc429e66ce41ed3bccebba51209d04636cadbd2c),
             category: 1
         });
         // Hay field
@@ -2591,7 +2597,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x233dd4173ef4ed0f60822a469277bb328b5ae056d8980301f7bd7ad9df780099),
+            encodedIpfsUri: bytes32(0x233dd4173ef4ed0f60822a469277bb328b5ae056d8980301f7bd7ad9df780099),
             category: 1
         });
         // Pew pew
@@ -2603,7 +2609,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x6cb06872575a04a0c4527157eb4719be10b6474d08aa2ce2a4ac5bcb0da996ea),
+            encodedIpfsUri: bytes32(0x6cb06872575a04a0c4527157eb4719be10b6474d08aa2ce2a4ac5bcb0da996ea),
             category: 2
         });
         // Bandolph staff
@@ -2615,7 +2621,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x7206771942e806053d6ed8aa90040e53a07319e4fd1f938fc4a10879b7bd2da9),
+            encodedIpfsUri: bytes32(0x7206771942e806053d6ed8aa90040e53a07319e4fd1f938fc4a10879b7bd2da9),
             category: 2
         });
         // Block chain — the first reserves-bearing tier in Drop 1. Sets the hook's
@@ -2632,7 +2638,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 12,
             reserveBeneficiary: _BAN_OPS_OPERATOR,
             useReserveBeneficiaryAsDefault: true,
-            encodedIPFSUri: bytes32(0xef6478be50575bade53e7ce4c9fb5b399643bcabed94f2111afb63e97fb9fd44),
+            encodedIpfsUri: bytes32(0xef6478be50575bade53e7ce4c9fb5b399643bcabed94f2111afb63e97fb9fd44),
             category: 3
         });
         // Astronaut Head
@@ -2644,7 +2650,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xe26d20762024435aedd91058ac9bc9900d719e1f7a04cace501d83a4c1f40941),
+            encodedIpfsUri: bytes32(0xe26d20762024435aedd91058ac9bc9900d719e1f7a04cace501d83a4c1f40941),
             category: 4
         });
         // Nerd
@@ -2656,7 +2662,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 25,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x9f76cb495fd79397cba4fe3d377a5aa2fdd63df218f3b3022c6cc8e32478b494),
+            encodedIpfsUri: bytes32(0x9f76cb495fd79397cba4fe3d377a5aa2fdd63df218f3b3022c6cc8e32478b494),
             category: 6
         });
         // Banny vision pro — inherits the default reserve beneficiary already set by Block Chain
@@ -2669,7 +2675,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 25,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xf01423f9dae3de4adc7e372e6902a351e2c6193a385dde90f5baf37165914831),
+            encodedIpfsUri: bytes32(0xf01423f9dae3de4adc7e372e6902a351e2c6193a385dde90f5baf37165914831),
             category: 6
         });
         // Cyberpunk glasses
@@ -2681,7 +2687,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x325c138f1f38e5b5f90a57a248a2f5afe6af738b2adfc825cf9f413bbcf50fa1),
+            encodedIpfsUri: bytes32(0x325c138f1f38e5b5f90a57a248a2f5afe6af738b2adfc825cf9f413bbcf50fa1),
             category: 6
         });
         // Investor shades
@@ -2693,7 +2699,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 50,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x7dc7e556a7ac39c473da85165df3d094c6ed9258003fb7dc3d9a8582bcb0dc7f),
+            encodedIpfsUri: bytes32(0x7dc7e556a7ac39c473da85165df3d094c6ed9258003fb7dc3d9a8582bcb0dc7f),
             category: 6
         });
         // Proff glasses
@@ -2705,7 +2711,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xb06dbd64696994798dee9e00d406a649191524a95e715532f1bdebc92f00aebd),
+            encodedIpfsUri: bytes32(0xb06dbd64696994798dee9e00d406a649191524a95e715532f1bdebc92f00aebd),
             category: 6
         });
         // Gap tooth
@@ -2717,7 +2723,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 10,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x52815d712399165b921df61795581a8c20ad9acf3502e777e20a782b7bc11d54),
+            encodedIpfsUri: bytes32(0x52815d712399165b921df61795581a8c20ad9acf3502e777e20a782b7bc11d54),
             category: 7
         });
         // Dorthy shoes
@@ -2729,7 +2735,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x8a1b694033a47ad08b648d2608fa1b86dccdb0f431795c470605a819988f55ad),
+            encodedIpfsUri: bytes32(0x8a1b694033a47ad08b648d2608fa1b86dccdb0f431795c470605a819988f55ad),
             category: 8
         });
         // Astronaut boots
@@ -2741,7 +2747,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x39cd82854f76c22afccaf4ad6f055d4e225c2e225f322154f1c3d327cbaccb5a),
+            encodedIpfsUri: bytes32(0x39cd82854f76c22afccaf4ad6f055d4e225c2e225f322154f1c3d327cbaccb5a),
             category: 8
         });
         // Flops
@@ -2753,7 +2759,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 10,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x4e87f483ea20c1537f24c2a586acd14819ca2a6cba1bab68365361e45374f9f9),
+            encodedIpfsUri: bytes32(0x4e87f483ea20c1537f24c2a586acd14819ca2a6cba1bab68365361e45374f9f9),
             category: 8
         });
         // Astronaut Body
@@ -2765,7 +2771,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x5fbc1c58d608acd436c18e11edc72d3ae436e1a4c15d127b28a9a24879013d3c),
+            encodedIpfsUri: bytes32(0x5fbc1c58d608acd436c18e11edc72d3ae436e1a4c15d127b28a9a24879013d3c),
             category: 9
         });
         // Sweatsuit
@@ -2777,7 +2783,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 6,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x823466de69eaf605d3a62366e5e9dbd6649a71da146f791f94628d4749a2da55),
+            encodedIpfsUri: bytes32(0x823466de69eaf605d3a62366e5e9dbd6649a71da146f791f94628d4749a2da55),
             category: 9
         });
         // Dorthy dress
@@ -2789,7 +2795,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x017db86219678b824995b8556e7073d65af87212671312212365497708675c41),
+            encodedIpfsUri: bytes32(0x017db86219678b824995b8556e7073d65af87212671312212365497708675c41),
             category: 9
         });
         // Geisha body
@@ -2801,7 +2807,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 50,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xdf7d4084b087b22cc172e1df3a2b465b5386a950e9bcd53ed424014a0a86ee57),
+            encodedIpfsUri: bytes32(0xdf7d4084b087b22cc172e1df3a2b465b5386a950e9bcd53ed424014a0a86ee57),
             category: 9
         });
         // Baggies
@@ -2813,7 +2819,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 15,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x745b3b4f18aab6ad0d8465d34751ca8eb5b9c267dee6ec8bf63686b508afacf3),
+            encodedIpfsUri: bytes32(0x745b3b4f18aab6ad0d8465d34751ca8eb5b9c267dee6ec8bf63686b508afacf3),
             category: 10
         });
         // Jonny utah shirt
@@ -2825,7 +2831,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x815c7dfb119da1e3802754f8ce364caf7a8069e331e35c3f20446800579d8df8),
+            encodedIpfsUri: bytes32(0x815c7dfb119da1e3802754f8ce364caf7a8069e331e35c3f20446800579d8df8),
             category: 11
         });
         // Doc coat
@@ -2837,7 +2843,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xc77fe2f93a5a48ad7f59a3c6c40dd76317e47605fcb74b85a4c5bea160fdab6e),
+            encodedIpfsUri: bytes32(0xc77fe2f93a5a48ad7f59a3c6c40dd76317e47605fcb74b85a4c5bea160fdab6e),
             category: 11
         });
         // Goat jersey
@@ -2849,7 +2855,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 10,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x2b62afa12feb307f005902e6bec09f15f8f5d7ba09d937f1162e5d2f00c21e12),
+            encodedIpfsUri: bytes32(0x2b62afa12feb307f005902e6bec09f15f8f5d7ba09d937f1162e5d2f00c21e12),
             category: 11
         });
         // Irie tshirt
@@ -2861,7 +2867,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x4d4b149bded92db977ac35a77bcfff72270eaee404db8751b27ec18030511d3b),
+            encodedIpfsUri: bytes32(0x4d4b149bded92db977ac35a77bcfff72270eaee404db8751b27ec18030511d3b),
             category: 11
         });
         // Punk jacket
@@ -2873,7 +2879,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x5ec40dc2aad2a009266337a198d4b9098cd968d08c06cdc328efd4789f974aa4),
+            encodedIpfsUri: bytes32(0x5ec40dc2aad2a009266337a198d4b9098cd968d08c06cdc328efd4789f974aa4),
             category: 11
         });
         // Zipper jacket
@@ -2885,7 +2891,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 25,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xb8658c65907f280bfbd228ec384f0dfdfe55401505dc0f303d7d3d6a68a6414b),
+            encodedIpfsUri: bytes32(0xb8658c65907f280bfbd228ec384f0dfdfe55401505dc0f303d7d3d6a68a6414b),
             category: 11
         });
         // Zucco tshirt
@@ -2897,7 +2903,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x04e22ea49d80f346b7a5a9013169470824f71faa7d9e0155a71f4afc3fa63f89),
+            encodedIpfsUri: bytes32(0x04e22ea49d80f346b7a5a9013169470824f71faa7d9e0155a71f4afc3fa63f89),
             category: 11
         });
         // Ice Cube
@@ -2909,7 +2915,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 50,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xf7c17eff468f5dd227b991d773b7a36b93cd997751547f9908a4bf33e31ba701),
+            encodedIpfsUri: bytes32(0xf7c17eff468f5dd227b991d773b7a36b93cd997751547f9908a4bf33e31ba701),
             category: 11
         });
         // Club beanie
@@ -2921,7 +2927,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 50,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x9a29e975b191f800744d74b11c580fdd74b2db73c95426af36e28cf00d66da97),
+            encodedIpfsUri: bytes32(0x9a29e975b191f800744d74b11c580fdd74b2db73c95426af36e28cf00d66da97),
             category: 12
         });
         // Dorthy hair
@@ -2933,7 +2939,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x52a03dc3e983121f275cadc2d86626e0fca8a9901f3dc7d0bbee826e5d3d409d),
+            encodedIpfsUri: bytes32(0x52a03dc3e983121f275cadc2d86626e0fca8a9901f3dc7d0bbee826e5d3d409d),
             category: 12
         });
         // Farmer hat
@@ -2945,7 +2951,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 25,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xc583623dc7a3e61bfc04813f8c975eba8a22aeafe3d741edff1e2c97ac520737),
+            encodedIpfsUri: bytes32(0xc583623dc7a3e61bfc04813f8c975eba8a22aeafe3d741edff1e2c97ac520737),
             category: 12
         });
         // Geisha hair
@@ -2957,7 +2963,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 25,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x58f8e217cfafd0a6feff40f4822790cdc19aba5dd4d4948f4c1bd5e313c90e8d),
+            encodedIpfsUri: bytes32(0x58f8e217cfafd0a6feff40f4822790cdc19aba5dd4d4948f4c1bd5e313c90e8d),
             category: 12
         });
         // Headphones
@@ -2969,7 +2975,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 10,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x3e67840649fabab6d62f92bad701a6248b77f86ea8fcd66dc88dfbcba1134d85),
+            encodedIpfsUri: bytes32(0x3e67840649fabab6d62f92bad701a6248b77f86ea8fcd66dc88dfbcba1134d85),
             category: 12
         });
         // Natty dread
@@ -2981,7 +2987,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xd4724e692969066fc0b3587b8e18d1589205d1e1f133d7f9f8d63d14b6d1862f),
+            encodedIpfsUri: bytes32(0xd4724e692969066fc0b3587b8e18d1589205d1e1f133d7f9f8d63d14b6d1862f),
             category: 12
         });
         // Peachhair
@@ -2993,7 +2999,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xde4c6e589f4e99cda7205236a99db750638236007b2dd03d79de1146102d7f81),
+            encodedIpfsUri: bytes32(0xde4c6e589f4e99cda7205236a99db750638236007b2dd03d79de1146102d7f81),
             category: 12
         });
         // Proff hair
@@ -3005,7 +3011,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x766001db70e4a18e76dbbd9e4b0f9e47b5a9c4daa1a7c3727190a154daabfa1c),
+            encodedIpfsUri: bytes32(0x766001db70e4a18e76dbbd9e4b0f9e47b5a9c4daa1a7c3727190a154daabfa1c),
             category: 12
         });
         // Catana
@@ -3017,7 +3023,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xa4d2eb02df6eb99cbbdc3603a116b3b9dcd45f865a8c8396611ea5f879deee59),
+            encodedIpfsUri: bytes32(0xa4d2eb02df6eb99cbbdc3603a116b3b9dcd45f865a8c8396611ea5f879deee59),
             category: 13
         });
         // Chefs knife
@@ -3029,7 +3035,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 100,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x18abc38e7f1c5c014398f705131aac80196dcd0da2b5f02c103e1a549433e8b3),
+            encodedIpfsUri: bytes32(0x18abc38e7f1c5c014398f705131aac80196dcd0da2b5f02c103e1a549433e8b3),
             category: 13
         });
         // Cheap beer
@@ -3041,7 +3047,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 100,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xc498a98bea66a8b44297631f136a7326f7a28b882058829588979b186d06baff),
+            encodedIpfsUri: bytes32(0xc498a98bea66a8b44297631f136a7326f7a28b882058829588979b186d06baff),
             category: 13
         });
         // Constitution
@@ -3053,7 +3059,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 100,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x3bd1186293e2d3e4def734a669c348976e1ba0cdc628a19cd5a3b38e0bee28f9),
+            encodedIpfsUri: bytes32(0x3bd1186293e2d3e4def734a669c348976e1ba0cdc628a19cd5a3b38e0bee28f9),
             category: 13
         });
         // DJ booth
@@ -3065,7 +3071,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 10,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x6b8bfbf33e574747b69039adfc6788101047a4593db7ea7ff4f6fa5a890e9ecf),
+            encodedIpfsUri: bytes32(0x6b8bfbf33e574747b69039adfc6788101047a4593db7ea7ff4f6fa5a890e9ecf),
             category: 13
         });
         // Gas can
@@ -3077,7 +3083,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 25,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xf11d1cea4163e0dfa2be8d60b0cd82d075fb37d969e40439df4e91db53bf7f3e),
+            encodedIpfsUri: bytes32(0xf11d1cea4163e0dfa2be8d60b0cd82d075fb37d969e40439df4e91db53bf7f3e),
             category: 13
         });
         // Lightsaber
@@ -3089,7 +3095,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 50,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xedf8136f97347d1fee1fc14b1b9cbdb6d170a75c3860a92664c56060712567f3),
+            encodedIpfsUri: bytes32(0xedf8136f97347d1fee1fc14b1b9cbdb6d170a75c3860a92664c56060712567f3),
             category: 13
         });
         // Potion
@@ -3101,7 +3107,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 25,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xbcc0c314f94ccb0f8f2717aff0b2096a28ace5b70465b5b4e106981fdbceb238),
+            encodedIpfsUri: bytes32(0xbcc0c314f94ccb0f8f2717aff0b2096a28ace5b70465b5b4e106981fdbceb238),
             category: 13
         });
         // Dagger
@@ -3113,7 +3119,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 30,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x867d8d8b9da0b5d8a00024d548e5f6e33562d521dff8c245764b6206003d1970),
+            encodedIpfsUri: bytes32(0x867d8d8b9da0b5d8a00024d548e5f6e33562d521dff8c245764b6206003d1970),
             category: 13
         });
         // Duct Tape
@@ -3125,7 +3131,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 0,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x876078bdfb8cdcc4359bb946274a9964e84877beac0ecd59fbf293c3bc2457c9),
+            encodedIpfsUri: bytes32(0x876078bdfb8cdcc4359bb946274a9964e84877beac0ecd59fbf293c3bc2457c9),
             category: 14
         });
         // Mouthstraw
@@ -3137,7 +3143,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 15,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x1d1484b4b37a882e59ab5a01c1a32528e703e15156b9bb9b5372b61fec84c0df),
+            encodedIpfsUri: bytes32(0x1d1484b4b37a882e59ab5a01c1a32528e703e15156b9bb9b5372b61fec84c0df),
             category: 16
         });
 
@@ -3166,7 +3172,7 @@ contract Deploy is Script, Sphinx {
         uint16 reserveFrequency,
         address reserveBeneficiary,
         bool useReserveBeneficiaryAsDefault,
-        bytes32 encodedIPFSUri,
+        bytes32 encodedIpfsUri,
         uint24 category
     )
         private
@@ -3179,7 +3185,7 @@ contract Deploy is Script, Sphinx {
             votingUnits: 0,
             reserveFrequency: reserveFrequency,
             reserveBeneficiary: reserveBeneficiary,
-            encodedIPFSUri: encodedIPFSUri,
+            encodedIPFSUri: encodedIpfsUri,
             category: category,
             discountPercent: 0,
             flags: JB721TierConfigFlags({
@@ -3237,7 +3243,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 10,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x623d9c0b2fd488ca8b6d93a9f20f89290989366a548e6ec7354bbd61311f0e12),
+            encodedIpfsUri: bytes32(0x623d9c0b2fd488ca8b6d93a9f20f89290989366a548e6ec7354bbd61311f0e12),
             category: 2
         });
         // Fierce Eyes — eyes
@@ -3249,7 +3255,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xb5fd509939ccd462fbec901c3b33cda4a146fba01aec716a64f1a343d3a705a9),
+            encodedIpfsUri: bytes32(0xb5fd509939ccd462fbec901c3b33cda4a146fba01aec716a64f1a343d3a705a9),
             category: 5
         });
         // Glassy Eyes — eyes
@@ -3261,7 +3267,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xf03b5e0420b2203a11f02f44c8ee76b9d2651fb1c0d7c756e11268abdb7f6a8c),
+            encodedIpfsUri: bytes32(0xf03b5e0420b2203a11f02f44c8ee76b9d2651fb1c0d7c756e11268abdb7f6a8c),
             category: 5
         });
         // Introspective Eyes — eyes
@@ -3273,7 +3279,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 10,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x5f614933b94a7f16a5fe3385a1108be31cedfabccceeadc0aa8fa1936130a44c),
+            encodedIpfsUri: bytes32(0x5f614933b94a7f16a5fe3385a1108be31cedfabccceeadc0aa8fa1936130a44c),
             category: 5
         });
         // Lashed Eyes — eyes
@@ -3285,7 +3291,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xe02ba7e22c248ffff774aa351c92dcf8c15d4d6d903e70474cb5524df9ade79b),
+            encodedIpfsUri: bytes32(0xe02ba7e22c248ffff774aa351c92dcf8c15d4d6d903e70474cb5524df9ade79b),
             category: 5
         });
         // Surprised Eyes — eyes
@@ -3297,7 +3303,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x48968871dd045671e3e79ccee2330afaf4b7aa5ef213324132bbba823a961276),
+            encodedIpfsUri: bytes32(0x48968871dd045671e3e79ccee2330afaf4b7aa5ef213324132bbba823a961276),
             category: 5
         });
         // Lipstick — mouth
@@ -3309,7 +3315,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xc42aacdb29e89590b65d7a53c9942725eff2eafb2571cb96dc2dd23346617ebe),
+            encodedIpfsUri: bytes32(0xc42aacdb29e89590b65d7a53c9942725eff2eafb2571cb96dc2dd23346617ebe),
             category: 7
         });
         // Open Mouth — mouth
@@ -3321,7 +3327,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xf41dd39e89039f84af3e014cc5bf35017d864233be9f7ea0972b635c28686009),
+            encodedIpfsUri: bytes32(0xf41dd39e89039f84af3e014cc5bf35017d864233be9f7ea0972b635c28686009),
             category: 7
         });
         // Kasaya — suit
@@ -3333,7 +3339,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xc0b84558f47050ca7a297179497161ab6dc64cc984f41a23fc918a151c4890e1),
+            encodedIpfsUri: bytes32(0xc0b84558f47050ca7a297179497161ab6dc64cc984f41a23fc918a151c4890e1),
             category: 9
         });
         // Overalls — suit
@@ -3345,7 +3351,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x83b0fde0e64c98aa58e2699f49b883ebcd49461dd2ddee6e6d26f454966a70e1),
+            encodedIpfsUri: bytes32(0x83b0fde0e64c98aa58e2699f49b883ebcd49461dd2ddee6e6d26f454966a70e1),
             category: 9
         });
         // Chef Hat — headTop
@@ -3357,7 +3363,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xed52af40eca5f3d2543049a62b0c40581f9037234cd35de2e49dab0aa4767a65),
+            encodedIpfsUri: bytes32(0xed52af40eca5f3d2543049a62b0c40581f9037234cd35de2e49dab0aa4767a65),
             category: 12
         });
         // Green Hat — headTop
@@ -3369,7 +3375,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x7c618fc124661012a9c85356faeac8aae728b7738a0b3b676b058e39931c55b9),
+            encodedIpfsUri: bytes32(0x7c618fc124661012a9c85356faeac8aae728b7738a0b3b676b058e39931c55b9),
             category: 12
         });
         // Ribbon — headTop
@@ -3381,7 +3387,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x52b67b4b3d1553c7f0222155bf671be6ca000c08ef162368b40f9c2509f76d0d),
+            encodedIpfsUri: bytes32(0x52b67b4b3d1553c7f0222155bf671be6ca000c08ef162368b40f9c2509f76d0d),
             category: 12
         });
         // Rick Astley Hair — headTop
@@ -3393,7 +3399,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x340b99eec7b723b6d13e66af7f62e15106df3b2330c805317b8e7cb0b9369822),
+            encodedIpfsUri: bytes32(0x340b99eec7b723b6d13e66af7f62e15106df3b2330c805317b8e7cb0b9369822),
             category: 12
         });
         // Baguette — hand
@@ -3405,7 +3411,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 20,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xbd05bdd17415f8d89764a89e0d3ef94f1feb2eafafb6583e18c2fed281303feb),
+            encodedIpfsUri: bytes32(0xbd05bdd17415f8d89764a89e0d3ef94f1feb2eafafb6583e18c2fed281303feb),
             category: 13
         });
         // Fishing Pole — hand
@@ -3417,7 +3423,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 10,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0x56960c3eb618f4605ba50139bfa9c44a54e8884c547a1d03bc94010a03eea914),
+            encodedIpfsUri: bytes32(0x56960c3eb618f4605ba50139bfa9c44a54e8884c547a1d03bc94010a03eea914),
             category: 13
         });
         // Rhoads — hand
@@ -3429,7 +3435,7 @@ contract Deploy is Script, Sphinx {
             reserveFrequency: 10,
             reserveBeneficiary: address(0),
             useReserveBeneficiaryAsDefault: false,
-            encodedIPFSUri: bytes32(0xf2ed45e54a2c42994dddfa5e581c898f435afb5d5b9240b84a258f0c90d43bf9),
+            encodedIpfsUri: bytes32(0xf2ed45e54a2c42994dddfa5e581c898f435afb5d5b9240b84a258f0c90d43bf9),
             category: 13
         });
 
@@ -3616,7 +3622,7 @@ contract Deploy is Script, Sphinx {
         });
 
         stages[1] = REVStageConfig({
-            startsAtOrAfter: uint40(defifaStage0Start + 720 days),
+            startsAtOrAfter: _timestamp40(defifaStage0Start + 720 days),
             autoIssuances: new REVAutoIssuance[](0),
             splitPercent: 3800,
             splits: splits,
@@ -3919,7 +3925,7 @@ contract Deploy is Script, Sphinx {
     }
 
     function _deployDistributors() internal {
-        _721Distributor = JB721Distributor(
+        _jb721Distributor = JB721Distributor(
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JB721Distributor",
                     salt: DISTRIBUTOR_721_SALT,
@@ -3970,7 +3976,7 @@ contract Deploy is Script, Sphinx {
                 JBSuckerDeployerConfig({deployer: _baseSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
             suckerDeployerConfigs[2] =
                 JBSuckerDeployerConfig({deployer: _arbitrumSuckerDeployer, peer: bytes32(0), mappings: tokenMappings});
-            // TODO: Tempo sucker config commented out until chain is ready.
+            // Tempo sucker configuration is intentionally excluded until the chain is ready.
         } else {
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
             // L2 -> L1: pick whichever deployer is non-zero for this chain.
@@ -3984,6 +3990,13 @@ contract Deploy is Script, Sphinx {
         }
 
         return REVSuckerDeploymentConfig({deployerConfigurations: suckerDeployerConfigs, salt: salt});
+    }
+
+    /// @dev Juicebox price-feed currency IDs use the low 32 bits of ERC-20 token addresses.
+    function _currencyIdOf(address token) internal pure returns (uint32) {
+        // The truncation is intentional: JBAccountingContext identifies ERC-20 currencies by uint32(uint160(token)).
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint32(uint160(token));
     }
 
     function _ensureDefaultPriceFeed(
@@ -4007,9 +4020,16 @@ contract Deploy is Script, Sphinx {
         }
     }
 
+    function _timestamp40(uint256 timestamp) internal pure returns (uint40) {
+        if (timestamp > type(uint40).max) revert Deploy_TimestampOverflow({timestamp: timestamp});
+        // Safe because the bound check above rejects values outside uint40.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint40(timestamp);
+    }
+
     /// @dev Canonical identity gate for the Banny project (ID 4).
     function _isCanonicalBannyProject() internal view returns (bool) {
-        if (!_isCanonicalRevnetProject(_BAN_PROJECT_ID, "BAN")) return false;
+        if (!_isCanonicalRevnetProject({projectId: _BAN_PROJECT_ID, expectedSymbol: "BAN"})) return false;
         if (address(_revOwner) == address(0)) return false;
 
         IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
@@ -4197,7 +4217,8 @@ contract Deploy is Script, Sphinx {
         bytes memory creationCodeWithArgs = abi.encodePacked(creationCode, constructorArgs);
 
         for (uint256 i; i < HookMiner.MAX_LOOP; i++) {
-            address hookAddress = HookMiner.computeAddress(deployer, i, creationCodeWithArgs);
+            address hookAddress =
+                HookMiner.computeAddress({deployer: deployer, salt: i, creationCodeWithArgs: creationCodeWithArgs});
             if (uint160(hookAddress) & HookMiner.FLAG_MASK == flags) {
                 return bytes32(i);
             }
@@ -4272,7 +4293,7 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "DefifaGovernor", addr: address(_defifaGovernor)});
         _serializeIfSet({key: j, name: "DefifaDeployer", addr: address(_defifaDeployer)});
         _serializeIfSet({key: j, name: "JBProjectHandles", addr: address(_projectHandles)});
-        _serializeIfSet({key: j, name: "JB721Distributor", addr: address(_721Distributor)});
+        _serializeIfSet({key: j, name: "JB721Distributor", addr: address(_jb721Distributor)});
         _serializeIfSet({key: j, name: "JBTokenDistributor", addr: address(_tokenDistributor)});
         _serializeIfSet({key: j, name: "JBProjectPayerDeployer", addr: address(_projectPayerDeployer)});
         _serializeImplementationFromDeployer({key: j, name: "JBProjectPayer", deployer: address(_projectPayerDeployer)});
@@ -4327,7 +4348,7 @@ contract Deploy is Script, Sphinx {
                 // forge-lint: disable-next-line(unsafe-typecast)
                 address usdcUsd = address(
                     _prices.priceFeedFor({
-                        projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(_usdcToken))
+                        projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: _currencyIdOf(_usdcToken)
                     })
                 );
                 _serializePriceFeed({key: j, suffix: "USDC_USD", feed: usdcUsd});

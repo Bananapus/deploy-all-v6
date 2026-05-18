@@ -96,6 +96,7 @@ contract Verify is Script {
 
     // Reverts when a critical wiring check fails.
     error Verify_CriticalCheckFailed(string reason);
+    error Verify_ProjectIdOverflow(uint256 projectId);
 
     /// Foundry's parseJson requires struct fields in alphabetical order to match JSON keys.
     /// `{length, start}` for `{start, length}` JSON.
@@ -635,7 +636,7 @@ contract Verify is Script {
                             uint256 maxSupply,
                             uint256 maxSplitPct,
                             address[] memory allowed
-                        ) = ctPublisher.allowanceFor(address(cpnHook), cat);
+                        ) = ctPublisher.allowanceFor({hook: address(cpnHook), category: cat});
                         _check({
                             condition: minPrice > 0,
                             label: string.concat(
@@ -735,7 +736,8 @@ contract Verify is Script {
             });
 
             // Read the primary terminal for this project for the native token.
-            IJBTerminal primaryTerm = directory.primaryTerminalOf(projectIds[i], JBConstants.NATIVE_TOKEN);
+            IJBTerminal primaryTerm =
+                directory.primaryTerminalOf({projectId: projectIds[i], token: JBConstants.NATIVE_TOKEN});
             // Verify a primary terminal is set.
             _check({
                 condition: address(primaryTerm) != address(0),
@@ -747,7 +749,9 @@ contract Verify is Script {
             // expected shape (token sentinel + 18 decimals + native currency id). A wrong
             // accounting context — e.g. decimals=6 because the deployer mis-configured a USD
             // currency — silently mis-scales every cash-out and pay on that project.
-            try terminal.accountingContextForTokenOf(projectIds[i], JBConstants.NATIVE_TOKEN) returns (
+            try terminal.accountingContextForTokenOf({
+                projectId: projectIds[i], token: JBConstants.NATIVE_TOKEN
+            }) returns (
                 JBAccountingContext memory ctx
             ) {
                 _check({
@@ -1348,7 +1352,9 @@ contract Verify is Script {
         console.log("--- Category 8: Price Feeds ---");
 
         // Check the ETH/USD price feed (pricingCurrency=USD, unitCurrency=NATIVE_TOKEN).
-        IJBPriceFeed ethUsdFeed = prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(JBConstants.NATIVE_TOKEN)));
+        IJBPriceFeed ethUsdFeed = prices.priceFeedFor({
+            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        });
         // Verify the ETH/USD feed address is set (non-zero).
         _check({
             condition: address(ethUsdFeed) != address(0), label: "ETH/USD price feed is configured", critical: true
@@ -1375,8 +1381,9 @@ contract Verify is Script {
         }
 
         // Check the inverse feed: ETH/NATIVE_TOKEN (should be a matching/identity feed).
-        IJBPriceFeed ethNativeFeed =
-            prices.priceFeedFor(0, JBCurrencyIds.ETH, uint32(uint160(JBConstants.NATIVE_TOKEN)));
+        IJBPriceFeed ethNativeFeed = prices.priceFeedFor({
+            projectId: 0, pricingCurrency: JBCurrencyIds.ETH, unitCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        });
         // Verify the ETH/NATIVE feed address is set.
         _check({
             condition: address(ethNativeFeed) != address(0),
@@ -1401,7 +1408,8 @@ contract Verify is Script {
         }
 
         // Check the USD/NATIVE_TOKEN feed (inverse of ETH/USD).
-        IJBPriceFeed usdNativeFeed = prices.priceFeedFor(0, JBCurrencyIds.USD, JBCurrencyIds.ETH);
+        IJBPriceFeed usdNativeFeed =
+            prices.priceFeedFor({projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: JBCurrencyIds.ETH});
         // The `(USD, ETH)` feed is critical: `JBPrices.pricePerUnitOf` resolves only direct, inverse, and
         // default-project entries — it does NOT compose paths through `(USD, NATIVE)` and `(ETH, NATIVE)` to derive
         // `(USD, ETH)`. Any ETH-base-currency project that prices in USD reverts when this feed is missing, so a
@@ -1423,7 +1431,9 @@ contract Verify is Script {
 
         if (usdc != address(0)) {
             // forge-lint: disable-next-line(unsafe-typecast)
-            IJBPriceFeed usdcUsdFeed = prices.priceFeedFor(0, JBCurrencyIds.USD, uint32(uint160(usdc)));
+            IJBPriceFeed usdcUsdFeed = prices.priceFeedFor({
+                projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: _currencyIdOf(usdc)
+            });
             _check({
                 condition: address(usdcUsdFeed) != address(0),
                 label: "USDC/USD price feed is configured",
@@ -1535,7 +1545,7 @@ contract Verify is Script {
         }
         // forge-lint: disable-next-line(unsafe-typecast)
         try prices.priceFeedFor({
-            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: uint32(uint160(usdc))
+            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: _currencyIdOf(usdc)
         }) returns (
             IJBPriceFeed feed
         ) {
@@ -1917,8 +1927,9 @@ contract Verify is Script {
             // Verify all canonical projects' primary terminal for native token is the JBMultiTerminal.
             for (uint256 i; i < projectIds.length; i++) {
                 _check({
-                    condition: address(directory.primaryTerminalOf(projectIds[i], JBConstants.NATIVE_TOKEN))
-                        == address(terminal),
+                    condition: address(
+                            directory.primaryTerminalOf({projectId: projectIds[i], token: JBConstants.NATIVE_TOKEN})
+                        ) == address(terminal),
                     label: string.concat(labels[i], " primary native terminal is JBMultiTerminal"),
                     critical: true
                 });
@@ -2526,7 +2537,7 @@ contract Verify is Script {
                 condition: permissions.hasPermission({
                     operator: operator,
                     account: address(revDeployer),
-                    projectId: uint64(projectId),
+                    projectId: _projectId64(projectId),
                     permissionId: expectedPermissions[i],
                     includeRoot: true,
                     includeWildcardProjectId: true
@@ -2537,6 +2548,20 @@ contract Verify is Script {
                 critical: true
             });
         }
+    }
+
+    /// @dev Juicebox price-feed currency IDs use the low 32 bits of ERC-20 token addresses.
+    function _currencyIdOf(address token) internal pure returns (uint32) {
+        // The truncation is intentional: JBAccountingContext identifies ERC-20 currencies by uint32(uint160(token)).
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint32(uint160(token));
+    }
+
+    function _projectId64(uint256 projectId) internal pure returns (uint64) {
+        if (projectId > type(uint64).max) revert Verify_ProjectIdOverflow({projectId: projectId});
+        // Safe because the bound check above rejects values outside uint64.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint64(projectId);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2875,11 +2900,13 @@ contract Verify is Script {
 
         // 1. Resolver owner — final handoff target. Operator declares `_BAN_OPS_OPERATOR`.
         _checkResolverField({
-            ok: _enforceBannyExpectationOnProduction(
-                isProductionChain, expected.banOpsOperatorSet, "VERIFY_BAN_OPS_OPERATOR"
-            ),
+            ok: _enforceBannyExpectationOnProduction({
+                isProductionChain: isProductionChain,
+                fieldSet: expected.banOpsOperatorSet,
+                envName: "VERIFY_BAN_OPS_OPERATOR"
+            }),
             expectedAddress: expected.banOpsOperator,
-            actualAddress: _staticAddress(resolver, "owner()"),
+            actualAddress: _staticAddress({target: resolver, signature: "owner()"}),
             label: "Banny resolver owner == VERIFY_BAN_OPS_OPERATOR"
         });
 
@@ -2887,7 +2914,8 @@ contract Verify is Script {
         // the broader O sweep). Skip if no expected forwarder is configured.
         if (expectedTrustedForwarder != address(0)) {
             _check({
-                condition: _staticAddress(resolver, "trustedForwarder()") == expectedTrustedForwarder,
+                condition: _staticAddress({target: resolver, signature: "trustedForwarder()"})
+                    == expectedTrustedForwarder,
                 label: "Banny resolver trustedForwarder == expected",
                 critical: true
             });
@@ -2895,27 +2923,33 @@ contract Verify is Script {
 
         // 3. Resolver SVG metadata triple — exact-string equality against operator manifest.
         _checkResolverStringField({
-            ok: _enforceBannyExpectationOnProduction(
-                isProductionChain, expected.svgDescriptionSet, "VERIFY_BANNY_SVG_DESCRIPTION"
-            ),
+            ok: _enforceBannyExpectationOnProduction({
+                isProductionChain: isProductionChain,
+                fieldSet: expected.svgDescriptionSet,
+                envName: "VERIFY_BANNY_SVG_DESCRIPTION"
+            }),
             expectedRaw: expected.svgDescription,
-            actualRaw: _staticString(resolver, "svgDescription()"),
+            actualRaw: _staticString({target: resolver, signature: "svgDescription()"}),
             label: "Banny resolver svgDescription == expected"
         });
         _checkResolverStringField({
-            ok: _enforceBannyExpectationOnProduction(
-                isProductionChain, expected.svgExternalUrlSet, "VERIFY_BANNY_SVG_EXTERNAL_URL"
-            ),
+            ok: _enforceBannyExpectationOnProduction({
+                isProductionChain: isProductionChain,
+                fieldSet: expected.svgExternalUrlSet,
+                envName: "VERIFY_BANNY_SVG_EXTERNAL_URL"
+            }),
             expectedRaw: expected.svgExternalUrl,
-            actualRaw: _staticString(resolver, "svgExternalUrl()"),
+            actualRaw: _staticString({target: resolver, signature: "svgExternalUrl()"}),
             label: "Banny resolver svgExternalUrl == expected"
         });
         _checkResolverStringField({
-            ok: _enforceBannyExpectationOnProduction(
-                isProductionChain, expected.svgBaseUriSet, "VERIFY_BANNY_SVG_BASE_URI"
-            ),
+            ok: _enforceBannyExpectationOnProduction({
+                isProductionChain: isProductionChain,
+                fieldSet: expected.svgBaseUriSet,
+                envName: "VERIFY_BANNY_SVG_BASE_URI"
+            }),
             expectedRaw: expected.svgBaseUri,
-            actualRaw: _staticString(resolver, "svgBaseUri()"),
+            actualRaw: _staticString({target: resolver, signature: "svgBaseUri()"}),
             label: "Banny resolver svgBaseUri == expected"
         });
 
@@ -3491,9 +3525,9 @@ contract Verify is Script {
         address expectedV4PoolManager = _expectedV4PoolManager();
         if (address(_uniswapV4Hook()) != address(0)) {
             if (expectedV4PoolManager != address(0)) {
-                (bool okPM, bytes memory pmData) =
+                (bool okPm, bytes memory pmData) =
                     address(_uniswapV4Hook()).staticcall(abi.encodeWithSignature("poolManager()"));
-                if (okPM && pmData.length >= 32) {
+                if (okPm && pmData.length >= 32) {
                     _check({
                         condition: abi.decode(pmData, (address)) == expectedV4PoolManager,
                         label: "JBUniswapV4Hook.poolManager == canonical V4 PoolManager",
