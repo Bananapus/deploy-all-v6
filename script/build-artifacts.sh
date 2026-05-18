@@ -71,6 +71,11 @@ declare -A REPO_PROFILE=(
 # src_path is relative to the repo root and is used to locate the Forge artifact.
 # Order: roughly mirrors Deploy.s.sol phase order for readability.
 CONTRACTS=(
+  # ── deploy-all-v6 itself (OpenZeppelin's ERC2771Forwarder, compiled here) ──
+  # Keep this first: this repo's `forge clean` may remove the destination `artifacts/`
+  # directory, so it must run before artifacts from the source repos are collected.
+  "deploy-all-v6:ERC2771Forwarder:node_modules/@openzeppelin/contracts/metatx/ERC2771Forwarder.sol"
+
   # ── nana-core-v6 (viaIr=false, optimizer=true, runs=200) ──
   "nana-core-v6:JBPermissions:src/JBPermissions.sol"
   "nana-core-v6:JBProjects:src/JBProjects.sol"
@@ -83,8 +88,6 @@ CONTRACTS=(
   "nana-core-v6:JBFundAccessLimits:src/JBFundAccessLimits.sol"
   "nana-core-v6:JBFeelessAddresses:src/JBFeelessAddresses.sol"
   "nana-core-v6:JBPayoutSplitGroupLib:src/libraries/JBPayoutSplitGroupLib.sol"
-  "nana-core-v6:JBHeldFeesLib:src/libraries/JBHeldFeesLib.sol"
-  "nana-core-v6:JBCashOutHookSpecsLib:src/libraries/JBCashOutHookSpecsLib.sol"
   "nana-core-v6:JBTerminalStore:src/JBTerminalStore.sol"
   "nana-core-v6:JBMultiTerminal:src/JBMultiTerminal.sol"
   "nana-core-v6:JBController:src/JBController.sol"
@@ -174,8 +177,6 @@ CONTRACTS=(
   "nana-project-payer-v6:JBProjectPayer:src/JBProjectPayer.sol"
   "nana-project-payer-v6:JBProjectPayerDeployer:src/JBProjectPayerDeployer.sol"
 
-  # ── deploy-all-v6 itself (OpenZeppelin's ERC2771Forwarder, compiled here) ──
-  "deploy-all-v6:ERC2771Forwarder:node_modules/@openzeppelin/contracts/metatx/ERC2771Forwarder.sol"
 )
 
 # ── Build each repo (cached) and collect git metadata ─────────────────────
@@ -267,6 +268,9 @@ for entry in "${CONTRACTS[@]}"; do
   # Locate the Forge artifact. Output is: out/<basename(src_path)>/<ContractName>.json
   src_filename="$(basename "$src_path")"
   artifact="$repo_dir/out/$src_filename/$contract.json"
+  if [[ ! -f "$artifact" && -f "$repo_dir/artifacts/$src_filename/$contract.json" ]]; then
+    artifact="$repo_dir/artifacts/$src_filename/$contract.json"
+  fi
 
   if [[ ! -f "$artifact" ]]; then
     echo "ERROR: artifact not found: $artifact"
@@ -393,8 +397,6 @@ CREATE2_FACTORY=0x4e59b44847b379578588920cA78FbF26c0B4956C
 # `_deployLibraries()` phase. These must match the SALT constants there.
 LIB_SALTS=(
   "JBPayoutSplitGroupLib:_JBPayoutSplitGroupLibV6_"
-  "JBHeldFeesLib:_JBHeldFeesLibV6_"
-  "JBCashOutHookSpecsLib:_JBCashOutHookSpecsLibV6_"
   "JB721TiersHookLib:_JB721TiersHookLibV6_"
   "JBSuckerLib:_JBSuckerLibV6_"
   "JBCCIPLib:_JBCCIPLibV6_"

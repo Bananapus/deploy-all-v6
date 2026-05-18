@@ -273,10 +273,10 @@ contract ApprovalHookForkTest is TestBaseWorkflow {
         // Warp past cycle boundary.
         vm.warp(block.timestamp + CYCLE_DURATION + 1);
 
-        // Attempt payout of 2 ETH — should revert because base limit is 1 ETH.
+        // Request 2 ETH. The queued 10 ETH limit was rejected, so the terminal only pays the
+        // base ruleset's 1 ETH limit.
         vm.prank(PROJECT_OWNER);
-        vm.expectRevert();
-        jbMultiTerminal()
+        uint256 paid = jbMultiTerminal()
             .sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
@@ -284,18 +284,7 @@ contract ApprovalHookForkTest is TestBaseWorkflow {
             currency: NATIVE_CURRENCY,
             minTokensPaidOut: 0
         });
-
-        // Payout of 1 ETH should succeed (within base limit).
-        vm.prank(PROJECT_OWNER);
-        uint256 paid = jbMultiTerminal()
-            .sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 1 ether,
-            currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
-        });
-        assertGt(paid, 0, "Payout within base limit should succeed");
+        assertEq(paid, 1 ether, "Should pay only the base limit after rejection");
     }
 
     /// @notice A reverting approval hook should be treated the same as an explicit rejection.
