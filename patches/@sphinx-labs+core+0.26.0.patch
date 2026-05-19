@@ -1,0 +1,34 @@
+diff --git a/node_modules/@sphinx-labs/core/dist/etherscan.js b/node_modules/@sphinx-labs/core/dist/etherscan.js
+index 552e942..92b5d5b 100644
+--- a/node_modules/@sphinx-labs/core/dist/etherscan.js
++++ b/node_modules/@sphinx-labs/core/dist/etherscan.js
+@@ -39,7 +39,7 @@ const verifySphinxConfig = async (deploymentConfig, provider, apiKey, explorer)
+             const { artifact, buildInfoId } = deploymentConfig.configArtifacts[fullyQualifiedName];
+             const buildInfo = deploymentConfig.buildInfos[buildInfoId];
+             const minimumCompilerInput = (0, compiler_1.getMinimumCompilerInput)(buildInfo.input, artifact.metadata);
+-            const encodedConstructorArgs = ethers_1.ethers.dataSlice(initCodeWithArgs, ethers_1.ethers.dataLength(artifact.bytecode));
++            const encodedConstructorArgs = ethers_1.ethers.dataSlice(initCodeWithArgs, (0, utils_1.getBytesLength)(artifact.bytecode));
+             const result = await (0, exports.attemptVerification)(address, encodedConstructorArgs, fullyQualifiedName, buildInfo.solcLongVersion, minimumCompilerInput, provider, networkConfig.chainId, apiKey, explorer);
+             if (!result.success) {
+                 throw new Error(`Contract verification failed.\n${result.message}`);
+@@ -59,7 +59,7 @@ const verifyDeploymentWithRetries = async (deploymentConfig, provider, apiKey) =
+                 const { artifact, buildInfoId } = deploymentConfig.configArtifacts[fullyQualifiedName];
+                 const buildInfo = deploymentConfig.buildInfos[buildInfoId];
+                 const minimumCompilerInput = (0, compiler_1.getMinimumCompilerInput)(buildInfo.input, artifact.metadata);
+-                const encodedConstructorArgs = ethers_1.ethers.dataSlice(initCodeWithArgs, ethers_1.ethers.dataLength(artifact.bytecode));
++                const encodedConstructorArgs = ethers_1.ethers.dataSlice(initCodeWithArgs, (0, utils_1.getBytesLength)(artifact.bytecode));
+                 const result = await (0, exports.attemptVerification)(address, encodedConstructorArgs, fullyQualifiedName, buildInfo.solcLongVersion, minimumCompilerInput, provider, networkConfig.chainId, apiKey);
+                 if (result.success) {
+                     success = true;
+diff --git a/node_modules/@sphinx-labs/core/dist/utils.js b/node_modules/@sphinx-labs/core/dist/utils.js
+index a690846..d6776e4 100644
+--- a/node_modules/@sphinx-labs/core/dist/utils.js
++++ b/node_modules/@sphinx-labs/core/dist/utils.js
+@@ -767,6 +767,6 @@ exports.isDefined = isDefined;
+ exports.isDefined = isDefined;
+ const getAbiEncodedConstructorArgs = (initCodeWithArgs, artifactBytecode) => {
+-    return ethers_1.ethers.dataSlice(initCodeWithArgs, ethers_1.ethers.dataLength(artifactBytecode));
++    return ethers_1.ethers.dataSlice(initCodeWithArgs, (0, exports.getBytesLength)(artifactBytecode));
+ };
+ exports.getAbiEncodedConstructorArgs = getAbiEncodedConstructorArgs;
+ const decodeCall = (iface, data) => {
