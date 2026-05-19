@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# build-artifacts.sh — Build each source repo with its own foundry.toml and
+# build-artifacts.sh — Build each source package with its recorded compile profile and
 # copy the full Forge artifact JSON for every contract Deploy.s.sol will deploy.
 # Emits a sidecar `artifacts.manifest.json` recording per-contract compile
-# settings + source repo + git commit, used by the post-deploy verify and
+# settings + source root + package provenance, used by the post-deploy verify and
 # artifact-emit pipeline.
 #
 # Usage:  ./script/build-artifacts.sh [--rehearsal]
 # Run from the deploy-all-v6 root directory.
 #
 # Flags:
-#   --rehearsal   Allow source repos to be dirty (uncommitted changes). Without
+#   --rehearsal   Allow local source roots to be dirty (uncommitted changes). Without
 #                 this flag, a dirty source tree is a hard error so production
 #                 artifact builds cannot be published with unknown local edits.
 #                 With this flag, the manifest stamps gitDirty:true and every
@@ -25,6 +25,8 @@ DEPLOY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MONO_ROOT="$(cd "$DEPLOY_ROOT/.." && pwd)"
 ARTIFACTS_DIR="$DEPLOY_ROOT/artifacts"
 MANIFEST="$ARTIFACTS_DIR/artifacts.manifest.json"
+BUILD_OUT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/deploy-all-v6-artifacts.XXXXXX")"
+trap 'rm -rf "$BUILD_OUT_DIR"' EXIT
 
 REHEARSAL=0
 for arg in "$@"; do
@@ -66,9 +68,32 @@ declare -A REPO_PROFILE=(
   [deploy-all-v6]="true|true|200|cancun|0.8.28"
 )
 
+# ── Source package roots ──────────────────────────────────────────────────
+# Contract sources are compiled from the installed npm packages so deployment
+# bytecode follows the published dependency graph. `repo` names are still kept
+# in the manifest for per-repo deployment distribution paths.
+declare -A NPM_PACKAGE=(
+  [nana-core-v6]="@bananapus/core-v6"
+  [nana-address-registry-v6]="@bananapus/address-registry-v6"
+  [nana-721-hook-v6]="@bananapus/721-hook-v6"
+  [nana-buyback-hook-v6]="@bananapus/buyback-hook-v6"
+  [univ4-router-v6]="@bananapus/univ4-router-v6"
+  [nana-router-terminal-v6]="@bananapus/router-terminal-v6"
+  [univ4-lp-split-hook-v6]="@bananapus/univ4-lp-split-hook-v6"
+  [nana-suckers-v6]="@bananapus/suckers-v6"
+  [nana-omnichain-deployers-v6]="@bananapus/omnichain-deployers-v6"
+  [croptop-core-v6]="@croptop/core-v6"
+  [revnet-core-v6]="@rev-net/core-v6"
+  [banny-retail-v6]="@bannynet/core-v6"
+  [defifa]="@ballkidz/defifa"
+  [nana-project-handles-v6]="@bananapus/project-handles-v6"
+  [nana-distributor-v6]="@bananapus/distributor-v6"
+  [nana-project-payer-v6]="@bananapus/project-payer-v6"
+)
+
 # ── Mapping: every contract Deploy.s.sol deploys → source repo + src path ─
 # Each entry is "repo:ContractName:src_path".
-# src_path is relative to the repo root and is used to locate the Forge artifact.
+# src_path is relative to the package root and is used to locate the Forge artifact.
 # Order: roughly mirrors Deploy.s.sol phase order for readability.
 CONTRACTS=(
   # ── deploy-all-v6 itself (OpenZeppelin's ERC2771Forwarder, compiled here) ──
@@ -179,48 +204,82 @@ CONTRACTS=(
 
 )
 
-# ── Build each repo (cached) and collect git metadata ─────────────────────
+# ── Build each source root (cached) and collect provenance ────────────────
 declare -A BUILT_REPOS
 declare -A REPO_COMMIT
 declare -A REPO_DIRTY
+declare -A REPO_SOURCE_ROOT
+declare -A REPO_SOURCE_PACKAGE
+declare -A REPO_SOURCE_VERSION
+declare -A REPO_BUILD_TARGET
+declare -A REPO_OUT_DIR
 
 errors=0
 
 build_repo() {
   local repo="$1"
   local repo_dir="$2"
+  local repo_out_dir
 
   if [[ -n "${BUILT_REPOS[$repo]+x}" ]]; then
     return 0
   fi
   echo "Building $repo..."
-  # `forge clean` so a stale artifact from a previous compilation (different
-  # source state, different settings) cannot survive into this run's manifest.
-  # Without this, e.g. a `git pull` that updates source files but leaves
-  # `out/*.json` untouched would silently publish out-of-date artifacts.
-  (cd "$repo_dir" && forge clean 2>&1) || {
-    echo "ERROR: forge clean failed for $repo"
-    BUILT_REPOS[$repo]=1
-    return 1
-  }
-  if [[ "$repo" == "deploy-all-v6" ]]; then
-    # Build everything in deploy-all-v6 (includes ERC2771Forwarder via node_modules).
-    (cd "$repo_dir" && forge build --skip test 2>&1) || {
+  repo_out_dir="$BUILD_OUT_DIR/$repo"
+  rm -rf "$repo_out_dir"
+  mkdir -p "$repo_out_dir"
+  REPO_OUT_DIR[$repo]="$repo_out_dir"
+
+  if [[ -n "${REPO_BUILD_TARGET[$repo]:-}" ]]; then
+    # Package sources are compiled from deploy-all-v6 so npm-hoisted
+    # dependencies resolve through deploy-all's node_modules/remappings.
+
+    profile="${REPO_PROFILE[$repo]:-}"
+    if [[ -z "$profile" ]]; then
+      echo "ERROR: no REPO_PROFILE for $repo"
+      BUILT_REPOS[$repo]=1
+      return 1
+    fi
+    IFS='|' read -r p_via_ir p_optimizer p_runs p_evm p_solc <<< "$profile"
+
+    (
+      cd "$repo_dir" &&
+        FOUNDRY_VIA_IR="$p_via_ir" forge build "${REPO_BUILD_TARGET[$repo]}" \
+          --skip test script \
+          --out "$repo_out_dir" \
+          --optimize "$p_optimizer" \
+          --optimizer-runs "$p_runs" \
+          --evm-version "$p_evm" \
+          --use "$p_solc" \
+          --force 2>&1
+    ) || {
       echo "ERROR: forge build failed for $repo"
       BUILT_REPOS[$repo]=1
       return 1
     }
   else
-    (cd "$repo_dir" && forge build --skip test script 2>&1) || {
-      echo "ERROR: forge build failed for $repo"
-      BUILT_REPOS[$repo]=1
-      return 1
-    }
+    if [[ "$repo" == "deploy-all-v6" ]]; then
+      # Build everything in deploy-all-v6 (includes ERC2771Forwarder via node_modules).
+      (cd "$repo_dir" && forge build --skip test --out "$repo_out_dir" --force 2>&1) || {
+        echo "ERROR: forge build failed for $repo"
+        BUILT_REPOS[$repo]=1
+        return 1
+      }
+    else
+      (cd "$repo_dir" && forge build --skip test script --out "$repo_out_dir" --force 2>&1) || {
+        echo "ERROR: forge build failed for $repo"
+        BUILT_REPOS[$repo]=1
+        return 1
+      }
+    fi
   fi
   BUILT_REPOS[$repo]=1
 
-  # Capture git commit + dirty state for the manifest.
-  if [[ -d "$repo_dir/.git" ]] || git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
+  # Capture source provenance for the manifest.
+  if [[ -n "${REPO_SOURCE_PACKAGE[$repo]:-}" ]]; then
+    REPO_COMMIT[$repo]="npm:${REPO_SOURCE_PACKAGE[$repo]}@${REPO_SOURCE_VERSION[$repo]}"
+    REPO_DIRTY[$repo]="false"
+  elif [[ -d "$repo_dir/.git" ]] || git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
     REPO_COMMIT[$repo]="$(git -C "$repo_dir" rev-parse HEAD 2>/dev/null || echo unknown)"
     if [[ -z "$(git -C "$repo_dir" status --porcelain 2>/dev/null || true)" ]]; then
       REPO_DIRTY[$repo]="false"
@@ -243,6 +302,24 @@ for entry in "${CONTRACTS[@]}"; do
 
   if [[ "$repo" == "deploy-all-v6" ]]; then
     repo_dir="$DEPLOY_ROOT"
+    REPO_SOURCE_ROOT[$repo]="."
+  elif [[ -n "${NPM_PACKAGE[$repo]:-}" ]]; then
+    package="${NPM_PACKAGE[$repo]}"
+    package_dir="$DEPLOY_ROOT/node_modules/$package"
+    REPO_SOURCE_PACKAGE[$repo]="$package"
+
+    package_json="$package_dir/package.json"
+    if [[ ! -f "$package_json" ]]; then
+      echo "ERROR: npm package not installed: $package (expected $package_json)"
+      errors=$((errors + 1))
+      continue
+    fi
+    REPO_SOURCE_VERSION[$repo]="$(jq -r '.version // "unknown"' "$package_json")"
+
+    repo_dir="$DEPLOY_ROOT"
+    src_path="node_modules/$package/$src_path"
+    REPO_SOURCE_ROOT[$repo]="."
+    REPO_BUILD_TARGET[$repo]="node_modules/$package/src"
   fi
 
   if [[ ! -d "$repo_dir" ]]; then
@@ -255,11 +332,7 @@ for entry in "${CONTRACTS[@]}"; do
     errors=$((errors + 1))
     continue
   fi
-  # deploy-all-v6's `forge clean` removes its configured artifacts directory,
-  # which is also this script's collection destination.
-  mkdir -p "$ARTIFACTS_DIR"
-
-  # The source file must actually exist in the source repo, otherwise the
+  # The source file must actually exist in the source root, otherwise the
   # manifest entry is pointing to a path that doesn't compile in this checkout
   # (and any matching out/*.json would be from a previous source state).
   if [[ ! -f "$repo_dir/$src_path" ]]; then
@@ -268,12 +341,9 @@ for entry in "${CONTRACTS[@]}"; do
     continue
   fi
 
-  # Locate the Forge artifact. Output is: out/<basename(src_path)>/<ContractName>.json
+  # Locate the Forge artifact in the repo-scoped temporary output directory.
   src_filename="$(basename "$src_path")"
-  artifact="$repo_dir/out/$src_filename/$contract.json"
-  if [[ ! -f "$artifact" && -f "$repo_dir/artifacts/$src_filename/$contract.json" ]]; then
-    artifact="$repo_dir/artifacts/$src_filename/$contract.json"
-  fi
+  artifact="${REPO_OUT_DIR[$repo]}/$src_filename/$contract.json"
 
   if [[ ! -f "$artifact" ]]; then
     echo "ERROR: artifact not found: $artifact"
@@ -282,9 +352,8 @@ for entry in "${CONTRACTS[@]}"; do
   fi
 
   # Verify the artifact's metadata.settings.compilationTarget binds the
-  # expected sourcePath → contractName pair. If forge clean ran above this
-  # should always hold, but the check defends against any future bypass of
-  # the clean step (e.g. --skip flags, CI cache layers, manual edits).
+  # expected sourcePath → contractName pair. The check defends against stale
+  # cache layers, manual artifact edits, or an incorrect manifest path.
   compilation_target=$(jq -r --arg path "$src_path" --arg name "$contract" '
     (.metadata | (if type == "string" then fromjson else . end)).settings.compilationTarget[$path] // ""
   ' "$artifact" 2>/dev/null)
@@ -316,8 +385,14 @@ for entry in "${CONTRACTS[@]}"; do
     --arg solcVersion "$p_solc" \
     --arg gitCommit "${REPO_COMMIT[$repo]:-unknown}" \
     --arg gitDirty "${REPO_DIRTY[$repo]:-unknown}" \
+    --arg sourceRoot "${REPO_SOURCE_ROOT[$repo]:-../$repo}" \
+    --arg sourcePackage "${REPO_SOURCE_PACKAGE[$repo]:-}" \
+    --arg sourceVersion "${REPO_SOURCE_VERSION[$repo]:-}" \
     '{
       repo: $repo,
+      sourceRoot: $sourceRoot,
+      sourcePackage: $sourcePackage,
+      sourceVersion: $sourceVersion,
       sourcePath: $sourcePath,
       viaIr: $viaIr,
       optimizer: $optimizer,
@@ -352,7 +427,7 @@ if [[ ${#DIRTY_REPOS[@]} -gt 0 ]]; then
   ANY_DIRTY="true"
   if [[ "$REHEARSAL" -eq 0 ]]; then
     echo ""
-    echo "ERROR: source repo(s) have uncommitted changes:"
+    echo "ERROR: local source root(s) have uncommitted changes:"
     for r in "${DIRTY_REPOS[@]}"; do echo "  - $r"; done
     echo ""
     echo "Production artifact builds must be reproducible from a clean tree."
@@ -363,7 +438,7 @@ if [[ ${#DIRTY_REPOS[@]} -gt 0 ]]; then
   fi
   echo ""
   echo "════════════════════════════════════════════════════════════════════"
-  echo " WARNING: rehearsal build — source repo(s) have uncommitted changes:"
+  echo " WARNING: rehearsal build — local source root(s) have uncommitted changes:"
   for r in "${DIRTY_REPOS[@]}"; do echo "   - $r"; done
   echo " Artifacts will be stamped gitDirty:true and production verify/emit"
   echo " will refuse to publish them. Use only for fork rehearsal."

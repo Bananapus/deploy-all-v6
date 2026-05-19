@@ -115,7 +115,7 @@ No `--broadcast` flag = simulation only. The `--sender` override impersonates th
 ### Production Deploy (via Sphinx)
 
 ```bash
-pnpm artifacts                                # pre-compile every contract in its source repo
+pnpm artifacts                                # pre-compile every contract from its installed package
 pnpm deploy:propose:testnets                  # → npx sphinx propose --networks testnets
 # (or:)
 pnpm deploy:propose:mainnets                  # → npx sphinx propose --networks mainnets
@@ -154,7 +154,7 @@ Key points:
 
 ### Post-Deploy: Verification + Artifact Emission
 
-**Sphinx's auto-verification and auto-artifact pipeline are intentionally bypassed in v6.** Every contract that Deploy.s.sol routes through `_loadCreationCode` + `_deployFromArtifact` is pre-compiled in its source repo with that repo's own foundry profile (`via_ir` + `optimizerRuns`), then deployed via raw bytecode. Sphinx's bundled verifier doesn't know about that pre-compile step and would submit the wrong settings to Etherscan. Instead, v6 ships a local pipeline at `script/post-deploy.sh`.
+**Sphinx's auto-verification and auto-artifact pipeline are intentionally bypassed in v6.** Every contract that Deploy.s.sol routes through `_loadCreationCode` + `_deployFromArtifact` is pre-compiled from its installed npm package with the manifest's recorded compile profile (`via_ir` + `optimizerRuns`), then deployed via raw bytecode. Sphinx's bundled verifier doesn't know about that pre-compile step and would submit the wrong settings to Etherscan. Instead, v6 ships a local pipeline at `script/post-deploy.sh`.
 
 After a successful `npx sphinx propose` + safe-signer approval + on-chain execution, run:
 
@@ -166,7 +166,7 @@ export ETHERSCAN_API_KEY=...        # single key for Etherscan v2 unified API
 What it does, per chain:
 
 1. **Dump addresses.** Runs `forge script Deploy.s.sol --rpc-url $RPC_<CHAIN>` (no broadcast) to compute every deployed contract's CREATE2 address and emit `script/post-deploy/.cache/addresses-<chainId>.json`.
-2. **Verify on Etherscan.** Shells out to `forge verify-contract` from each contract's **source repo** so the right `foundry.toml` (with the right `via_ir` / `optimizerRuns`) is used. Retries transient failures (rate limits, 5xx, "pending in queue") with exponential backoff (1s → 60s, up to 10 attempts). Permanent failures (source mismatch, compiler mismatch) are logged per-contract; other contracts continue.
+2. **Verify on Etherscan.** Shells out to `forge verify-contract` from each contract's manifest source root with the manifest's compiler flags, using `node_modules/` source paths for npm packages. Retries transient failures (rate limits, 5xx, "pending in queue") with exponential backoff (1s → 60s, up to 10 attempts). Permanent failures (source mismatch, compiler mismatch) are logged per-contract; other contracts continue.
 3. **Emit artifacts.** Produces v5-compatible `sphinx-sol-ct-artifact-1` JSON per contract (same schema as `nana-core-v5/deployments/...`, **minus** `merkleRoot` since we're not Sphinx-managed). Fields: `address`, `sourceName`, `contractName`, `chainId` (hex), `abi`, `args`, `solcInputHash`, `receipt`, `bytecode`, `deployedBytecode`, `metadata`, `gitCommit`, `gitDirty`, `history`. Tab-indented to match v5 byte-for-byte (gitDirty surfaces source-tree provenance per artifact, not just in the sidecar manifest).
 4. **Distribute.** Copies each artifact to:
    - `deploy-all-v6/deployments/juicebox-v6/<chain_alias>/<Contract>.json` (aggregator)
@@ -192,7 +192,7 @@ All four steps are idempotent. Reruns skip already-verified contracts via `.cach
 
 #### Source provenance gate (`--rehearsal`)
 
-Production artifact builds must be reproducible from a clean source tree. Without acknowledgment, both `./script/build-artifacts.sh` and `./script/post-deploy.sh` (and the underlying `verify.mjs` / `artifacts.mjs`) refuse to proceed when any source repo has uncommitted changes, since the published artifacts would be unverifiable.
+Production artifact builds must be reproducible from a clean source. Published dependency contracts are compiled from installed npm packages and are treated as clean by package version; local `deploy-all-v6` artifacts still use the working tree and are dirty-gated. Without acknowledgment, both `./script/build-artifacts.sh` and `./script/post-deploy.sh` (and the underlying `verify.mjs` / `artifacts.mjs`) refuse to proceed when a local source root has uncommitted changes, since the published artifacts would be unverifiable.
 
 - **`./script/build-artifacts.sh`** scans every source repo. If any are dirty, it exits non-zero with the list of dirty repos. Re-run with `--rehearsal` to build a marked-dirty rehearsal artifact set (manifest top-level `"gitDirty": true`, every emitted artifact stamped `"gitDirty": true`).
 - **`./script/post-deploy.sh`** (and the underlying `verify.mjs` + `artifacts.mjs`) consult the manifest's `gitDirty` flag and the chain's `production` flag in `script/post-deploy/chains.json`. If both are true and `--rehearsal` is not passed, the chain is skipped before any Etherscan call. Testnets (`sepolia`, `optimism_sepolia`, `base_sepolia`, `arbitrum_sepolia`) have `production: false` and are unaffected.
