@@ -201,9 +201,8 @@ async function verifyOne({ target, entry, baseName }) {
   const txInput = factoryInput || await getTxInput(creation.txHash);
   const ctorArgsHex = sliceConstructorArgs(txInput, artifact.bytecode.object);
 
-  // Resolve repo path. deploy-all-v6 has a special case (it IS DEPLOY_ROOT).
-  const repoDir = entry.repo === 'deploy-all-v6' ? DEPLOY_ROOT : path.join(MONOREPO_ROOT, entry.repo);
-  if (!fs.existsSync(repoDir)) throw nonTransient(`Source repo not found: ${repoDir}`);
+  const repoDir = resolveSourceRoot(entry);
+  if (!fs.existsSync(repoDir)) throw nonTransient(`Source root not found: ${repoDir}`);
 
   // Build the forge verify-contract argv.
   const forgeArgs = [
@@ -237,9 +236,16 @@ async function verifyOne({ target, entry, baseName }) {
 
   // Run forge with retry on transient failures.
   await withRetry(async () => {
-    const result = await runProcess('forge', forgeArgs, repoDir);
+    const result = await runProcess('forge', forgeArgs, repoDir, {
+      FOUNDRY_VIA_IR: entry.viaIr ? 'true' : 'false'
+    });
     classifyForgeResult(result);
   });
+}
+
+function resolveSourceRoot(entry) {
+  if (entry.sourceRoot) return path.resolve(DEPLOY_ROOT, entry.sourceRoot);
+  return entry.repo === 'deploy-all-v6' ? DEPLOY_ROOT : path.join(MONOREPO_ROOT, entry.repo);
 }
 
 function classifyForgeResult({ code, stdout, stderr }) {
@@ -408,9 +414,9 @@ function sliceConstructorArgs(txInput, creationCodeHex) {
 }
 
 // ── Subprocess + fetch helpers ────────────────────────────────────────────
-async function runProcess(cmd, argv, cwd) {
+async function runProcess(cmd, argv, cwd, envOverrides = {}) {
   return await new Promise((resolve, reject) => {
-    const proc = spawn(cmd, argv, { cwd, env: process.env });
+    const proc = spawn(cmd, argv, { cwd, env: { ...process.env, ...envOverrides } });
     let stdout = '';
     let stderr = '';
     proc.stdout.on('data', (b) => (stdout += b.toString()));

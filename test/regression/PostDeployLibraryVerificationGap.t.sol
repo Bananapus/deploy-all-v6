@@ -48,11 +48,16 @@ contract PostDeployLibraryVerificationGapTest is Test {
             "library spec format matches forge's expected <path>:<name>:<address>"
         );
         assertTrue(
-            _contains(
-                verifySource,
-                "const repoDir = entry.repo === 'deploy-all-v6' ? DEPLOY_ROOT : path.join(MONOREPO_ROOT, entry.repo);"
-            ),
-            "verification runs from the source repo, not the patched artifact directory"
+            _contains(verifySource, "const repoDir = resolveSourceRoot(entry);"),
+            "verification runs from the manifest source root, not the patched artifact directory"
+        );
+        assertTrue(
+            _contains(verifySource, "if (entry.sourceRoot) return path.resolve(DEPLOY_ROOT, entry.sourceRoot);"),
+            "manifest sourceRoot can point verification at npm package roots"
+        );
+        assertTrue(
+            _contains(verifySource, "FOUNDRY_VIA_IR: entry.viaIr ? 'true' : 'false'"),
+            "verification preserves per-package via-ir settings when running from deploy-all"
         );
 
         // Artifact emit unchanged.
