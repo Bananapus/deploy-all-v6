@@ -119,15 +119,14 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
     function _buildWBTCConfig(uint16 cashOutTaxRate)
         internal
         view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
+        returns (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         // Set up accounting context for WBTC with 8 decimals and its derived currency ID.
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({token: address(wbtc), decimals: 8, currency: wbtcCurrency});
 
         // Configure the terminal to accept WBTC payments.
-        tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        tc = acc;
 
         // Create a single split sending all reserved tokens to the multisig.
         JBSplit[] memory splits = new JBSplit[](1);
@@ -176,15 +175,14 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
     )
         internal
         view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
+        returns (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         // Set up accounting context for WBTC with 8 decimals.
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({token: address(wbtc), decimals: 8, currency: wbtcCurrency});
 
         // Configure the terminal to accept WBTC.
-        tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        tc = acc;
 
         // Reserved token split sends 100% to multisig.
         JBSplit[] memory splits = new JBSplit[](1);
@@ -370,12 +368,12 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         _deployFeeProject(5000);
 
         // Build a single-stage WBTC config with 50% cash-out tax.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildWBTCConfig(5000);
 
         // Deploy the revnet with WBTC terminal.
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 1 WBTC (= 1e8 in 8-decimal representation).
@@ -405,12 +403,12 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         _deployFeeProject(5000);
 
         // Build config with 50% cash-out tax.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildWBTCConfig(5000);
 
         // Deploy the revnet.
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 0.001 WBTC = 100,000 satoshis (1e5 in 8-decimal).
@@ -432,7 +430,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         _deployFeeProject(5000);
 
         // Build WBTC config with 50% tax.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildWBTCConfig(5000);
         // Build 721 tier config with USD pricing and no tier split.
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDTiers(false);
@@ -441,7 +439,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -484,12 +482,12 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         _deployFeeProject(5000);
 
         // Build config with 50% cash-out tax rate (visible bonding curve penalty).
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildWBTCConfig(5000);
 
         // Deploy the revnet.
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Two payers create surplus and bonding curve dynamics.
@@ -544,12 +542,12 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         _deployFeeProject(5000);
 
         // Build config with 50% tax.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildWBTCConfig(5000);
 
         // Deploy the revnet.
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Get the deployed project token address.
@@ -617,7 +615,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         _deployFeeProject(5000);
 
         // Build WBTC config with 50% tax.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildWBTCConfig(5000);
         // Build 721 tier config with a 30% split to SPLIT_BENEFICIARY.
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDTiers(true);
@@ -626,7 +624,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -675,12 +673,12 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         _deployFeeProject(5000);
 
         // Build two-stage config: 70% tax in stage 1, 20% tax in stage 2.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageWBTCConfig(7000, 2000);
 
         // Deploy the revnet.
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Two payers create surplus.
@@ -708,12 +706,12 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         _deployFeeProject(5000);
 
         // Build config with 50% tax.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildWBTCConfig(5000);
 
         // Deploy the revnet.
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 1 satoshi (minimum WBTC amount).
@@ -732,7 +730,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         _deployFeeProject(5000);
 
         // Build WBTC config with 50% tax and deploy with 721 hook.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildWBTCConfig(5000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDTiers(false);
 
@@ -740,7 +738,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -829,8 +827,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         acc[1] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency});
 
         // Configure the terminal to accept both tokens.
-        JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        JBAccountingContext[] memory tc = acc;
 
         // Single split to multisig for reserved tokens.
         JBSplit[] memory splits = new JBSplit[](1);
@@ -873,7 +870,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
 
         // Deploy the revnet with dual-token terminal.
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 0.1 WBTC = $6,000.

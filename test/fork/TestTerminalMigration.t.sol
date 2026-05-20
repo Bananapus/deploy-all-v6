@@ -18,17 +18,16 @@ import {IJBRulesetApprovalHook} from "@bananapus/core-v6/src/interfaces/IJBRules
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 
 // Revnet
-import {REVLoan} from "@rev-net/core-v6/src/structs/REVLoan.sol";
-import {REVLoanSource} from "@rev-net/core-v6/src/structs/REVLoanSource.sol";
+import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 
 // Base
 import {RevnetForkBase} from "../helpers/RevnetForkBase.sol";
 
-/// @notice Terminal migration fork test during active REVLoans.
+/// @notice Terminal migration fork tests.
 ///
 /// Verifies that migrating a project's balance from one terminal to another
-/// properly transfers balances, that loan collateral values remain consistent,
-/// and that loan repayment still works after migration.
+/// properly transfers balances and that plain JB projects fail closed when sent
+/// through the Revnet-only loan path.
 ///
 /// Uses a plain JB project (not a revnet) for the migrated project because revnets
 /// do not enable the allowTerminalMigration / allowAddAccountingContext / allowSetTerminals
@@ -206,74 +205,26 @@ contract TestTerminalMigration is RevnetForkBase {
         );
     }
 
-    /// @notice Migrate terminal during active loan: verify borrowable amount consistency.
-    function test_mig_loanConsistencyAfterMigration() public {
+    /// @notice Plain JB migration projects are not valid REVLoans sources.
+    function test_mig_plainProjectCannotUseRevLoans() public {
         _deployFeeProject(5000);
         uint256 projectId = _launchMigrationProject();
 
-        // Pay and create a loan.
+        // Pay into the migration-friendly plain project.
         _payRevnet(projectId, PAYER, 10 ether);
         _payRevnet(projectId, BORROWER, 5 ether);
 
         uint256 borrowerTokens = jbTokens().totalBalanceOf(BORROWER, projectId);
-        _grantBurnPermission(BORROWER, projectId);
-
-        REVLoanSource memory source = REVLoanSource({token: JBConstants.NATIVE_TOKEN, terminal: jbMultiTerminal()});
-
-        // Check borrowable amount before migration.
-        uint256 borrowableBefore = LOANS_CONTRACT.borrowableAmountFrom(
-            projectId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN))
-        );
-        assertGt(borrowableBefore, 0, "should have borrowable amount before migration");
-
-        // Create loan.
-        vm.startPrank(BORROWER);
-        (uint256 loanId, REVLoan memory loan) = LOANS_CONTRACT.borrowFrom({
-            revnetId: projectId,
-            source: source,
-            minBorrowAmount: 0,
-            collateralCount: borrowerTokens,
-            beneficiary: payable(BORROWER),
-            prepaidFeePercent: LOANS_CONTRACT.MIN_PREPAID_FEE_PERCENT(),
-            holder: BORROWER
-        });
-        vm.stopPrank();
-
-        assertGt(loanId, 0, "loan should be created");
+        assertGt(borrowerTokens, 0, "borrower should have project tokens");
 
         // Migrate the terminal. Both terminals were configured at launch.
         uint256 migrated = jbMultiTerminal().migrateBalanceOf(projectId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
         assertGt(migrated, 0, "should migrate non-zero balance");
 
-        // After migration, the surplus is now in terminal 2.
-        // Since the project uses scopeCashOutsToLocalBalances, borrowable should be consistent.
-        uint256 borrowableAfter = LOANS_CONTRACT.borrowableAmountFrom(
-            projectId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN))
-        );
-
-        // The key invariant: borrowable should still be > 0 even after migration.
-        assertGt(borrowableAfter, 0, "borrowable should remain > 0 after terminal migration");
-
-        // Repay the loan using ETH.
-        vm.deal(BORROWER, 100 ether);
-        JBSingleAllowance memory allowance;
-
-        vm.startPrank(BORROWER);
-        LOANS_CONTRACT.repayLoan{value: loan.amount * 2}({
-            loanId: loanId,
-            maxRepayBorrowAmount: loan.amount * 2,
-            collateralCountToReturn: loan.collateral,
-            beneficiary: payable(BORROWER),
-            allowance: allowance
-        });
-        vm.stopPrank();
-
-        // Collateral should be returned.
-        assertGe(
-            jbTokens().totalBalanceOf(BORROWER, projectId),
-            borrowerTokens,
-            "collateral should be returned after repay post-migration"
-        );
+        // REVLoans only supports Revnets with a REVOwner data hook, because that hook resolves the canonical
+        // deployer-pinned multi terminal. Plain JB migration projects intentionally fail closed.
+        vm.expectRevert(abi.encodeWithSelector(REVLoans.REVLoans_InvalidTerminal.selector, address(0), projectId));
+        LOANS_CONTRACT.borrowableAmountFrom(projectId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
     }
 
     /// @notice Verify that payments into the new terminal work after migration.

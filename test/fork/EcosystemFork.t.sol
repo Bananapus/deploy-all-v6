@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
+
 import /* {*} from */ "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBMetadataResolver} from "@bananapus/core-v6/src/libraries/JBMetadataResolver.sol";
@@ -46,14 +48,14 @@ contract EcosystemForkTest is RevnetEcosystemBase {
     function test_eco_preAMM_payFromTerminal() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -70,14 +72,14 @@ contract EcosystemForkTest is RevnetEcosystemBase {
     function test_eco_preAMM_payWith721TierSplit() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -106,11 +108,11 @@ contract EcosystemForkTest is RevnetEcosystemBase {
     function test_eco_lpSplitHookAccumulates() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _payRevnet(revnetId, PAYER, 10 ether);
@@ -132,11 +134,11 @@ contract EcosystemForkTest is RevnetEcosystemBase {
     function test_eco_postAMM_payFromTerminal() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _setupNativePool(revnetId, 10_000 ether);
@@ -151,14 +153,14 @@ contract EcosystemForkTest is RevnetEcosystemBase {
     function test_eco_postAMM_payWith721TierSplitAndBuyback() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -189,11 +191,11 @@ contract EcosystemForkTest is RevnetEcosystemBase {
     function test_eco_crossStageWithBuyback() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _setupNativePool(revnetId, 10_000 ether);
@@ -220,11 +222,11 @@ contract EcosystemForkTest is RevnetEcosystemBase {
     function test_eco_payViaRouter() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _setupNativePool(revnetId, 10_000 ether);
@@ -301,14 +303,14 @@ contract EcosystemForkTest is RevnetEcosystemBase {
         _deployFeeProject(5000);
 
         // 1. Deploy revnet with 721 + LP-split.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)

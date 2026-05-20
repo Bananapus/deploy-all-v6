@@ -20,7 +20,7 @@ contract PostDeployDirtyArtifactProvenanceGapTest is Test {
         assertTrue(_contains(buildSource, "--rehearsal) REHEARSAL=1"), "build script parses --rehearsal flag");
         assertTrue(_contains(buildSource, "Dirty-source gate"), "build script has explicit dirty-source gate section");
         assertTrue(
-            _contains(buildSource, "source repo(s) have uncommitted changes"),
+            _contains(buildSource, "local source root(s) have uncommitted changes"),
             "build script errors when dirty without --rehearsal"
         );
         assertTrue(_contains(buildSource, "ANY_DIRTY=\"true\""), "build script computes any-dirty summary");

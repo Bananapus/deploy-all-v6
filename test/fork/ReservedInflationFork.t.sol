@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
+
 import {EcosystemForkTest} from "./EcosystemFork.t.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBCashOuts} from "@bananapus/core-v6/src/libraries/JBCashOuts.sol";
@@ -24,11 +26,11 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         _deployFeeProject(5000);
 
         // Deploy revnet with 80% reserved (splitPercent = 8000).
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 8000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 100 ETH. Do NOT distribute reserved tokens.
@@ -110,21 +112,21 @@ contract ReservedInflationForkTest is EcosystemForkTest {
 
         // Deploy two identical revnets to compare behavior.
         // Revnet A: cash out WITHOUT distributing reserved tokens first.
-        (REVConfig memory cfgA, JBTerminalConfig[] memory tcA, REVSuckerDeploymentConfig memory sdcA) =
+        (REVConfig memory cfgA, JBAccountingContext[] memory tcA, REVSuckerDeploymentConfig memory sdcA) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 8000);
 
         (uint256 revnetA,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfgA, terminalConfigurations: tcA, suckerDeploymentConfiguration: sdcA
+            revnetId: 0, configuration: cfgA, accountingContextsToAccept: tcA, suckerDeploymentConfiguration: sdcA
         });
 
         // Revnet B: cash out AFTER distributing reserved tokens.
-        (REVConfig memory cfgB, JBTerminalConfig[] memory tcB, REVSuckerDeploymentConfig memory sdcB) =
+        (REVConfig memory cfgB, JBAccountingContext[] memory tcB, REVSuckerDeploymentConfig memory sdcB) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 8000);
         // Use a different salt for revnet B to avoid collision.
         cfgB.description.salt = "ECO_SALT_B";
 
         (uint256 revnetB,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfgB, terminalConfigurations: tcB, suckerDeploymentConfiguration: sdcB
+            revnetId: 0, configuration: cfgB, accountingContextsToAccept: tcB, suckerDeploymentConfiguration: sdcB
         });
 
         // Pay 100 ETH to both revnets.
@@ -200,14 +202,14 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         _deployFeeProject(5000);
 
         // Deploy revnet with 721 + buyback (no pool) + 50% reserved.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfigWithLPSplit(7000, 2000, 5000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)

@@ -25,10 +25,12 @@ import {ERC2771Forwarder} from "@openzeppelin/contracts/metatx/ERC2771Forwarder.
 // ── Core Libraries ──
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
+import {JBSplitGroupIds} from "@bananapus/core-v6/src/libraries/JBSplitGroupIds.sol";
 
 // ── Core Structs ──
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {JBTerminalConfig} from "@bananapus/core-v6/src/structs/JBTerminalConfig.sol";
+import {JBRuleset} from "@bananapus/core-v6/src/structs/JBRuleset.sol";
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 
 // ── Core Interfaces ──
@@ -1861,6 +1863,8 @@ contract Deploy is Script, Sphinx {
         // (REVDeployer's constructor reads REVOwner.DEPLOYER() during initialization on some paths).
         bytes memory revDeployerArgs = abi.encode(
             _controller,
+            _terminal,
+            IJBTerminal(address(_routerTerminalRegistry)),
             _suckerRegistry,
             _revProjectId,
             IJB721TiersHookDeployer(address(_hookDeployer)),
@@ -1895,16 +1899,6 @@ contract Deploy is Script, Sphinx {
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
-
-        bool hasRouter = address(_routerTerminalRegistry) != address(0);
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
-        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        if (hasRouter) {
-            terminalConfigs[1] = JBTerminalConfig({
-                terminal: IJBTerminal(address(_routerTerminalRegistry)),
-                accountingContextsToAccept: new JBAccountingContext[](0)
-            });
-        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -1992,7 +1986,7 @@ contract Deploy is Script, Sphinx {
         _revDeployer.deployFor({
             revnetId: _revProjectId,
             configuration: revConfig,
-            terminalConfigurations: terminalConfigs,
+            accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
         });
     }
@@ -2007,16 +2001,6 @@ contract Deploy is Script, Sphinx {
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
-
-        bool hasRouter = address(_routerTerminalRegistry) != address(0);
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
-        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        if (hasRouter) {
-            terminalConfigs[1] = JBTerminalConfig({
-                terminal: IJBTerminal(address(_routerTerminalRegistry)),
-                accountingContextsToAccept: new JBAccountingContext[](0)
-            });
-        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -2163,7 +2147,7 @@ contract Deploy is Script, Sphinx {
             _revDeployer.deployFor({
                 revnetId: _cpnProjectId,
                 configuration: cpnConfig,
-                terminalConfigurations: terminalConfigs,
+                accountingContextsToAccept: accountingContexts,
                 suckerDeploymentConfiguration: suckerConfig,
                 tiered721HookConfiguration: hookConfig,
                 allowedPosts: allowedPosts
@@ -2182,16 +2166,6 @@ contract Deploy is Script, Sphinx {
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
-
-        bool hasRouter = address(_routerTerminalRegistry) != address(0);
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
-        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        if (hasRouter) {
-            terminalConfigs[1] = JBTerminalConfig({
-                terminal: IJBTerminal(address(_routerTerminalRegistry)),
-                accountingContextsToAccept: new JBAccountingContext[](0)
-            });
-        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -2237,10 +2211,15 @@ contract Deploy is Script, Sphinx {
         });
 
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(NANA_SUCKER_SALT);
+        bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: nanaConfig});
 
         // Configure project ID 1 only if it has not already become the canonical NANA revnet.
         if (address(_directory.controllerOf(feeProjectId)) != address(0)) {
-            if (!_isCanonicalRevnetProject({projectId: feeProjectId, expectedSymbol: "NANA"})) {
+            if (!_isCanonicalNanaRevnetProject({
+                    projectId: feeProjectId,
+                    expectedConfigurationHash: expectedConfigurationHash,
+                    expectedOperator: operator
+                })) {
                 revert Deploy_ProjectNotCanonical(feeProjectId);
             }
             return;
@@ -2254,7 +2233,7 @@ contract Deploy is Script, Sphinx {
         _revDeployer.deployFor({
             revnetId: feeProjectId,
             configuration: nanaConfig,
-            terminalConfigurations: terminalConfigs,
+            accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
         });
     }
@@ -2264,14 +2243,6 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployBanny() internal {
-        // Use canonical identity gates instead of generic ownership check.
-        if (_projects.count() >= _BAN_PROJECT_ID && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)) {
-            if (!_isCanonicalBannyProject()) {
-                revert Deploy_ProjectNotCanonical(_BAN_PROJECT_ID);
-            }
-            return;
-        }
-
         address operator = _BAN_OPS_OPERATOR;
 
         // Deploy the URI resolver.
@@ -2326,16 +2297,6 @@ contract Deploy is Script, Sphinx {
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
-
-        bool hasRouter = address(_routerTerminalRegistry) != address(0);
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
-        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        if (hasRouter) {
-            terminalConfigs[1] = JBTerminalConfig({
-                terminal: IJBTerminal(address(_routerTerminalRegistry)),
-                accountingContextsToAccept: new JBAccountingContext[](0)
-            });
-        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -2517,6 +2478,17 @@ contract Deploy is Script, Sphinx {
         });
 
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(BAN_SUCKER_SALT);
+        bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: banConfig});
+
+        // Use strict canonical identity gates before returning early. A merely Revnet-shaped project 4 is not enough.
+        if (_projects.count() >= _BAN_PROJECT_ID && address(_directory.controllerOf(_BAN_PROJECT_ID)) != address(0)) {
+            if (!_isCanonicalBannyProject({
+                    expectedConfigurationHash: expectedConfigurationHash, partialResumeOperator: safeAddress()
+                })) {
+                revert Deploy_ProjectNotCanonical(_BAN_PROJECT_ID);
+            }
+            return;
+        }
 
         REVDeploy721TiersHookConfig memory hookConfig = REVDeploy721TiersHookConfig({
             baseline721HookConfiguration: REVBaseline721HookConfig({
@@ -2544,7 +2516,7 @@ contract Deploy is Script, Sphinx {
         (uint256 banProjectId,) = _revDeployer.deployFor({
             revnetId: 0,
             configuration: banConfig,
-            terminalConfigurations: terminalConfigs,
+            accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -3568,30 +3540,9 @@ contract Deploy is Script, Sphinx {
     function _deployDefifaRevnet() internal {
         address operator = 0x6b92c73682f0e1fac35A18ab17efa5e77DDE9fE1;
 
-        // Skip if already configured.
-        if (
-            _projects.count() >= _DEFIFA_REV_PROJECT_ID
-                && address(_directory.controllerOf(_DEFIFA_REV_PROJECT_ID)) != address(0)
-        ) {
-            if (!_isCanonicalRevnetProject({projectId: _DEFIFA_REV_PROJECT_ID, expectedSymbol: "DEFIFA"})) {
-                revert Deploy_ProjectNotCanonical(_DEFIFA_REV_PROJECT_ID);
-            }
-            return;
-        }
-
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
-
-        bool hasRouter = address(_routerTerminalRegistry) != address(0);
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
-        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        if (hasRouter) {
-            terminalConfigs[1] = JBTerminalConfig({
-                terminal: IJBTerminal(address(_routerTerminalRegistry)),
-                accountingContextsToAccept: new JBAccountingContext[](0)
-            });
-        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -3659,11 +3610,30 @@ contract Deploy is Script, Sphinx {
         });
 
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(DEFIFA_REV_SUCKER_SALT);
+        bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: defifaConfig});
+
+        // Skip only if the existing project matches the exact intended revnet shape.
+        if (
+            _projects.count() >= _DEFIFA_REV_PROJECT_ID
+                && address(_directory.controllerOf(_DEFIFA_REV_PROJECT_ID)) != address(0)
+        ) {
+            if (!_isCanonicalRevnetProject({
+                    projectId: _DEFIFA_REV_PROJECT_ID,
+                    expectedSymbol: "DEFIFA",
+                    expectedConfigurationHash: expectedConfigurationHash,
+                    expectedOperator: operator,
+                    expectedUri: "",
+                    expectedReservedSplitBeneficiary: payable(operator)
+                })) {
+                revert Deploy_ProjectNotCanonical(_DEFIFA_REV_PROJECT_ID);
+            }
+            return;
+        }
 
         (uint256 defifaProjectId,) = _revDeployer.deployFor({
             revnetId: 0,
             configuration: defifaConfig,
-            terminalConfigurations: terminalConfigs,
+            accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
         });
         if (defifaProjectId != _DEFIFA_REV_PROJECT_ID) {
@@ -3702,27 +3672,9 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        // Base path: full revnet instantiation. Skip if already configured.
-        if (_projects.count() >= _ART_PROJECT_ID && address(_directory.controllerOf(_ART_PROJECT_ID)) != address(0)) {
-            if (!_isCanonicalRevnetProject({projectId: _ART_PROJECT_ID, expectedSymbol: "ART"})) {
-                revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
-            }
-            return;
-        }
-
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
-
-        bool hasRouter = address(_routerTerminalRegistry) != address(0);
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
-        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        if (hasRouter) {
-            terminalConfigs[1] = JBTerminalConfig({
-                terminal: IJBTerminal(address(_routerTerminalRegistry)),
-                accountingContextsToAccept: new JBAccountingContext[](0)
-            });
-        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -3791,11 +3743,27 @@ contract Deploy is Script, Sphinx {
         // No suckers — ART is Base only.
         REVSuckerDeploymentConfig memory suckerConfig =
             REVSuckerDeploymentConfig({deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: ART_SUCKER_SALT});
+        bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: artConfig});
+
+        // Base path: full revnet instantiation. Skip only if already configured with the exact intended shape.
+        if (_projects.count() >= _ART_PROJECT_ID && address(_directory.controllerOf(_ART_PROJECT_ID)) != address(0)) {
+            if (!_isCanonicalRevnetProject({
+                    projectId: _ART_PROJECT_ID,
+                    expectedSymbol: "ART",
+                    expectedConfigurationHash: expectedConfigurationHash,
+                    expectedOperator: operator,
+                    expectedUri: "",
+                    expectedReservedSplitBeneficiary: payable(operator)
+                })) {
+                revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
+            }
+            return;
+        }
 
         (uint256 artProjectId,) = _revDeployer.deployFor({
             revnetId: 0,
             configuration: artConfig,
-            terminalConfigurations: terminalConfigs,
+            accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
         });
         if (artProjectId != _ART_PROJECT_ID) {
@@ -3811,30 +3779,9 @@ contract Deploy is Script, Sphinx {
     function _deployMarkee() internal {
         address operator = 0xAf4401E765dFf079aB6021BBb8d46E53E27613DB;
 
-        // Skip if already configured.
-        if (
-            _projects.count() >= _MARKEE_PROJECT_ID
-                && address(_directory.controllerOf(_MARKEE_PROJECT_ID)) != address(0)
-        ) {
-            if (!_isCanonicalRevnetProject({projectId: _MARKEE_PROJECT_ID, expectedSymbol: "MARKEE"})) {
-                revert Deploy_ProjectNotCanonical(_MARKEE_PROJECT_ID);
-            }
-            return;
-        }
-
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: NATIVE_CURRENCY});
-
-        bool hasRouter = address(_routerTerminalRegistry) != address(0);
-        JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](hasRouter ? 2 : 1);
-        terminalConfigs[0] = JBTerminalConfig({terminal: _terminal, accountingContextsToAccept: accountingContexts});
-        if (hasRouter) {
-            terminalConfigs[1] = JBTerminalConfig({
-                terminal: IJBTerminal(address(_routerTerminalRegistry)),
-                accountingContextsToAccept: new JBAccountingContext[](0)
-            });
-        }
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -3905,11 +3852,30 @@ contract Deploy is Script, Sphinx {
         });
 
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(MARKEE_SUCKER_SALT);
+        bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: markeeConfig});
+
+        // Skip only if already configured with the exact intended revnet shape.
+        if (
+            _projects.count() >= _MARKEE_PROJECT_ID
+                && address(_directory.controllerOf(_MARKEE_PROJECT_ID)) != address(0)
+        ) {
+            if (!_isCanonicalRevnetProject({
+                    projectId: _MARKEE_PROJECT_ID,
+                    expectedSymbol: "MARKEE",
+                    expectedConfigurationHash: expectedConfigurationHash,
+                    expectedOperator: operator,
+                    expectedUri: "",
+                    expectedReservedSplitBeneficiary: payable(operator)
+                })) {
+                revert Deploy_ProjectNotCanonical(_MARKEE_PROJECT_ID);
+            }
+            return;
+        }
 
         (uint256 markeeProjectId,) = _revDeployer.deployFor({
             revnetId: 0,
             configuration: markeeConfig,
-            terminalConfigurations: terminalConfigs,
+            accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
         });
         if (markeeProjectId != _MARKEE_PROJECT_ID) {
@@ -4033,8 +3999,29 @@ contract Deploy is Script, Sphinx {
     }
 
     /// @dev Canonical identity gate for the Banny project (ID 4).
-    function _isCanonicalBannyProject() internal view returns (bool) {
-        if (!_isCanonicalRevnetProject({projectId: _BAN_PROJECT_ID, expectedSymbol: "BAN"})) return false;
+    function _isCanonicalBannyProject(
+        bytes32 expectedConfigurationHash,
+        address partialResumeOperator
+    )
+        internal
+        view
+        returns (bool)
+    {
+        if (!_isCanonicalRevnetProjectShape({
+                projectId: _BAN_PROJECT_ID,
+                expectedSymbol: "BAN",
+                expectedConfigurationHash: expectedConfigurationHash,
+                expectedUri: "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp",
+                expectedReservedSplitBeneficiary: payable(_BAN_OPS_OPERATOR)
+            })) return false;
+
+        // During a partial resume the Sphinx Safe may still hold the operator role so it can finish drop
+        // registration. After finalization the role must belong to the canonical Banny ops address.
+        if (
+            !_revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: partialResumeOperator})
+                && !_revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: _BAN_OPS_OPERATOR})
+        ) return false;
+
         if (address(_revOwner) == address(0)) return false;
 
         IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
@@ -4050,11 +4037,173 @@ contract Deploy is Script, Sphinx {
         return true;
     }
 
-    function _isCanonicalRevnetProject(uint256 projectId, string memory expectedSymbol) internal view returns (bool) {
+    function _isCanonicalRevnetProject(
+        uint256 projectId,
+        string memory expectedSymbol,
+        bytes32 expectedConfigurationHash,
+        address expectedOperator,
+        string memory expectedUri,
+        address payable expectedReservedSplitBeneficiary
+    )
+        internal
+        view
+        returns (bool)
+    {
+        if (!_isCanonicalRevnetProjectShape({
+                projectId: projectId,
+                expectedSymbol: expectedSymbol,
+                expectedConfigurationHash: expectedConfigurationHash,
+                expectedUri: expectedUri,
+                expectedReservedSplitBeneficiary: expectedReservedSplitBeneficiary
+            })) return false;
+        if (!_revDeployer.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
+        return true;
+    }
+
+    function _isCanonicalRevnetProjectShape(
+        uint256 projectId,
+        string memory expectedSymbol,
+        bytes32 expectedConfigurationHash,
+        string memory expectedUri,
+        address payable expectedReservedSplitBeneficiary
+    )
+        internal
+        view
+        returns (bool)
+    {
         if (_projects.ownerOf(projectId) != address(_revDeployer)) return false;
         if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
-        if (_revDeployer.hashedEncodedConfigurationOf(projectId) == bytes32(0)) return false;
+        if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
         if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: expectedSymbol})) return false;
+        if (keccak256(bytes(_controller.uriOf(projectId))) != keccak256(bytes(expectedUri))) return false;
+        if (!_reservedSplitIsCanonical({projectId: projectId, expectedBeneficiary: expectedReservedSplitBeneficiary})) {
+            return false;
+        }
+        if (!_nativeTerminalConfigIsCanonical({projectId: projectId})) {
+            return false;
+        }
+        return true;
+    }
+
+    function _isCanonicalNanaRevnetProject(
+        uint256 projectId,
+        bytes32 expectedConfigurationHash,
+        address expectedOperator
+    )
+        internal
+        view
+        returns (bool)
+    {
+        if (_projects.ownerOf(projectId) != address(_revDeployer)) return false;
+        if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
+        if (_revDeployer.FEE_REVNET_ID() != projectId) return false;
+        if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
+        if (!_revDeployer.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
+        if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "NANA"})) return false;
+        if (
+            keccak256(bytes(_controller.uriOf(projectId)))
+                != keccak256(bytes("ipfs://QmWCgCaryfsJYBu5LczFuBz3UKK5VEU3BZFYp2mHJTLeRQ"))
+        ) return false;
+        if (!_reservedSplitIsCanonical({projectId: projectId, expectedBeneficiary: payable(expectedOperator)})) {
+            return false;
+        }
+        if (!_nativeTerminalConfigIsCanonical({projectId: projectId})) {
+            return false;
+        }
+        return true;
+    }
+
+    function _encodedConfigurationHashOf(REVConfig memory configuration) internal view returns (bytes32) {
+        bytes memory encodedConfiguration = abi.encode(
+            configuration.baseCurrency,
+            configuration.scopeCashOutsToLocalBalances,
+            configuration.description.name,
+            configuration.description.ticker,
+            configuration.description.salt
+        );
+
+        encodedConfiguration = abi.encode(encodedConfiguration, _terminal, _routerTerminalRegistry);
+
+        uint256 previousStageStart;
+        for (uint256 i; i < configuration.stageConfigurations.length;) {
+            REVStageConfig memory stageConfiguration = configuration.stageConfigurations[i];
+            uint256 effectiveStart = (i == 0 && stageConfiguration.startsAtOrAfter == 0)
+                ? block.timestamp
+                : stageConfiguration.startsAtOrAfter;
+
+            if (i > 0 && effectiveStart <= previousStageStart) return bytes32(0);
+            previousStageStart = effectiveStart;
+
+            encodedConfiguration = abi.encode(
+                encodedConfiguration,
+                effectiveStart,
+                stageConfiguration.splitPercent,
+                stageConfiguration.initialIssuance,
+                stageConfiguration.issuanceCutFrequency,
+                stageConfiguration.issuanceCutPercent,
+                stageConfiguration.cashOutTaxRate,
+                stageConfiguration.extraMetadata
+            );
+
+            for (uint256 j; j < stageConfiguration.autoIssuances.length;) {
+                REVAutoIssuance memory autoIssuance = stageConfiguration.autoIssuances[j];
+                if (autoIssuance.count != 0) {
+                    encodedConfiguration = abi.encode(
+                        encodedConfiguration, autoIssuance.chainId, autoIssuance.beneficiary, autoIssuance.count
+                    );
+                }
+                unchecked {
+                    ++j;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        return keccak256(encodedConfiguration);
+    }
+
+    function _reservedSplitIsCanonical(
+        uint256 projectId,
+        address payable expectedBeneficiary
+    )
+        internal
+        view
+        returns (bool)
+    {
+        (JBRuleset memory ruleset,) = _controller.currentRulesetOf(projectId);
+        if (ruleset.id == 0) {
+            (ruleset,) = _rulesets.latestQueuedOf(projectId);
+        }
+        JBSplit[] memory reservedSplits =
+            _controller.SPLITS().splitsOf(projectId, ruleset.id, JBSplitGroupIds.RESERVED_TOKENS);
+
+        if (reservedSplits.length != 1) return false;
+
+        JBSplit memory split = reservedSplits[0];
+        if (split.percent != JBConstants.SPLITS_TOTAL_PERCENT) return false;
+        if (split.projectId != 0) return false;
+        if (split.beneficiary != expectedBeneficiary) return false;
+        if (split.preferAddToBalance) return false;
+        if (split.lockedUntil != 0) return false;
+        if (address(split.hook) != address(0)) return false;
+
+        return true;
+    }
+
+    function _nativeTerminalConfigIsCanonical(uint256 projectId) internal view returns (bool) {
+        if (_directory.primaryTerminalOf(projectId, JBConstants.NATIVE_TOKEN) != _terminal) return false;
+
+        if (!_directory.isTerminalOf(projectId, IJBTerminal(address(_routerTerminalRegistry)))) return false;
+
+        JBAccountingContext memory accountingContext =
+            _terminal.accountingContextForTokenOf({projectId: projectId, token: JBConstants.NATIVE_TOKEN});
+
+        if (accountingContext.token != JBConstants.NATIVE_TOKEN) return false;
+        if (accountingContext.decimals != DECIMALS) return false;
+        if (accountingContext.currency != NATIVE_CURRENCY) return false;
+
         return true;
     }
 

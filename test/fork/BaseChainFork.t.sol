@@ -235,6 +235,8 @@ contract BaseChainForkTest is TestBaseWorkflow {
         // Deploy the REVDeployer that orchestrates revnet creation.
         REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_Base"}(
             jbController(),
+            jbMultiTerminal(),
+            jbMultiTerminal(),
             SUCKER_REGISTRY,
             FEE_PROJECT_ID,
             HOOK_DEPLOYER,
@@ -261,7 +263,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
     function _buildConfig(uint16 cashOutTaxRate)
         internal
         view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
+        returns (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         // Configure a single accounting context for native ETH.
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
@@ -271,12 +273,8 @@ contract BaseChainForkTest is TestBaseWorkflow {
             currency: uint32(uint160(JBConstants.NATIVE_TOKEN)) // Currency matches native token address.
         });
 
-        // Single terminal configuration accepting ETH.
-        tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({
-            terminal: jbMultiTerminal(), // Use the deployed multi-terminal.
-            accountingContextsToAccept: acc // Accept native ETH.
-        });
+        // Single accounting context accepting ETH.
+        tc = acc;
 
         // A single split sending all reserved tokens to multisig.
         JBSplit[] memory splits = new JBSplit[](1);
@@ -316,7 +314,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
     /// @dev Deploys the fee project revnet (required before deploying user revnets).
     function _deployFeeProject(uint16 cashOutTaxRate) internal {
         // Build config for the fee project.
-        (REVConfig memory feeCfg, JBTerminalConfig[] memory feeTc, REVSuckerDeploymentConfig memory feeSdc) =
+        (REVConfig memory feeCfg, JBAccountingContext[] memory feeTc, REVSuckerDeploymentConfig memory feeSdc) =
             _buildConfig(cashOutTaxRate);
 
         // Override description for the fee project.
@@ -327,7 +325,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
         REV_DEPLOYER.deployFor({
             revnetId: FEE_PROJECT_ID,
             configuration: feeCfg,
-            terminalConfigurations: feeTc,
+            accountingContextsToAccept: feeTc,
             suckerDeploymentConfiguration: feeSdc
         });
     }
@@ -335,12 +333,12 @@ contract BaseChainForkTest is TestBaseWorkflow {
     /// @dev Deploys a new revnet and returns its project ID.
     function _deployRevnet(uint16 cashOutTaxRate) internal returns (uint256 revnetId) {
         // Build config for a fresh revnet.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildConfig(cashOutTaxRate);
 
         // Deploy the revnet; revnetId=0 means "create new project".
         (revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
     }
 
@@ -489,14 +487,15 @@ contract BaseChainForkTest is TestBaseWorkflow {
         _deployFeeProject(5000);
 
         // Build config with a 20% reserved split (2000 out of 10_000 basis points).
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) = _buildConfig(5000);
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+            _buildConfig(5000);
 
         // Set 20% of minted tokens as reserved for splits.
         cfg.stageConfigurations[0].splitPercent = 2000;
 
         // Deploy the revnet with the modified config.
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay into the revnet to generate tokens (some will be reserved).

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
+
 import /* {*} from */ "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {IJB721TiersHook} from "@bananapus/721-hook-v6/src/interfaces/IJB721TiersHook.sol";
@@ -11,7 +13,6 @@ import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerD
 import {REVDeploy721TiersHookConfig} from "@rev-net/core-v6/src/structs/REVDeploy721TiersHookConfig.sol";
 import {REVCroptopAllowedPost} from "@rev-net/core-v6/src/structs/REVCroptopAllowedPost.sol";
 import {REVLoan} from "@rev-net/core-v6/src/structs/REVLoan.sol";
-import {REVLoanSource} from "@rev-net/core-v6/src/structs/REVLoanSource.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
@@ -123,14 +124,14 @@ contract FullStackForkTest is RevnetForkBase {
         assertGt(borrowable, 0, "should have borrowable amount");
 
         _grantBurnPermission(BORROWER, revnetId);
-        REVLoanSource memory source = _nativeLoanSource();
+        address source = _nativeLoanSource();
 
         uint256 borrowerEthBefore = BORROWER.balance;
 
         vm.startPrank(BORROWER);
         (uint256 loanId, REVLoan memory loan) = LOANS_CONTRACT.borrowFrom({
             revnetId: revnetId,
-            source: source,
+            token: source,
             minBorrowAmount: 0,
             collateralCount: borrowerTokens,
             beneficiary: payable(BORROWER),
@@ -215,12 +216,12 @@ contract FullStackForkTest is RevnetForkBase {
     function test_fullStack_reservedTokenDistribution() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildNativeConfig(5000);
         cfg.stageConfigurations[0].splitPercent = 2000;
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _setupNativePool(revnetId, 10_000 ether);
@@ -239,11 +240,11 @@ contract FullStackForkTest is RevnetForkBase {
     function test_fullStack_crossStageTransition() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageNativeConfig(7000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _setupNativePool(revnetId, 10_000 ether);
@@ -309,12 +310,12 @@ contract FullStackForkTest is RevnetForkBase {
 
         // 2. Borrow against tokens.
         _grantBurnPermission(BORROWER, revnetId);
-        REVLoanSource memory source = _nativeLoanSource();
+        address source = _nativeLoanSource();
 
         vm.startPrank(BORROWER);
         (uint256 loanId, REVLoan memory loan) = LOANS_CONTRACT.borrowFrom({
             revnetId: revnetId,
-            source: source,
+            token: source,
             minBorrowAmount: 0,
             collateralCount: borrowerTokens,
             beneficiary: payable(BORROWER),

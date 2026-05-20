@@ -18,7 +18,6 @@ import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
 import {REVStageConfig, REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
 import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
 import {REVLoan} from "@rev-net/core-v6/src/structs/REVLoan.sol";
-import {REVLoanSource} from "@rev-net/core-v6/src/structs/REVLoanSource.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 
@@ -88,7 +87,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
     function _buildTwoStageUSDCConfig()
         internal
         view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
+        returns (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         // Set up USDC accounting context with 6 decimals.
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
@@ -99,8 +98,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         });
 
         // Configure the primary terminal to accept USDC.
-        tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        tc = acc;
 
         // Reserved token splits: 100% to multisig.
         JBSplit[] memory splits = new JBSplit[](1);
@@ -243,12 +241,9 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         return jbTerminalStore().balanceOf(terminal, projectId, token);
     }
 
-    /// @notice Build a USDC loan source pointing to the primary terminal.
-    function _usdcLoanSource() internal view returns (REVLoanSource memory) {
-        return REVLoanSource({
-            token: address(usdc), // USDC token address.
-            terminal: IJBPayoutTerminal(address(jbMultiTerminal())) // Primary terminal.
-        });
+    /// @notice Build a USDC loan source token.
+    function _usdcLoanSource() internal view returns (address) {
+        return address(usdc);
     }
 
     /// @notice Grant MIGRATE_TERMINAL permission to an account for a project.
@@ -307,12 +302,12 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
 
         // ──────────────── Step 1: Deploy two-stage USDC revnet
         // ────────────────
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageUSDCConfig();
 
         // Deploy the revnet and get its ID.
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Verify: stage 1 is active with expected cashout tax rate.
@@ -342,8 +337,8 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         // Grant the loans contract permission to burn borrower's tokens as collateral.
         _grantBurnPermission(BORROWER, revnetId);
 
-        // Build the loan source pointing to USDC on the primary terminal.
-        REVLoanSource memory source = _usdcLoanSource();
+        // Build the loan source token. The canonical multi terminal supplies its accounting context.
+        address source = _usdcLoanSource();
 
         // Check borrowable amount with 6-decimal USDC precision.
         uint256 borrowable = LOANS_CONTRACT.borrowableAmountFrom(
@@ -361,7 +356,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         vm.startPrank(BORROWER);
         (uint256 loanId, REVLoan memory loan) = LOANS_CONTRACT.borrowFrom({
             revnetId: revnetId,
-            source: source,
+            token: source,
             minBorrowAmount: 0, // Accept any amount for testing.
             collateralCount: borrowerTokens, // Use all tokens as collateral.
             beneficiary: payable(BORROWER), // Borrower receives USDC proceeds.
@@ -476,7 +471,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         // ────────────────
 
         // Mint USDC to the borrower to cover loan repayment (amount + fees).
-        // Repayment goes to the OLD terminal (loan.source.terminal) via addToBalanceOf.
+        // Repayment goes to the canonical multi terminal via addToBalanceOf.
         usdc.mint(BORROWER, loanAmount * 3); // Overfund to cover any fees.
 
         // Build an empty allowance (no permit2 needed — direct USDC approval).
@@ -516,8 +511,8 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         uint16 finalTax = uint16((rulesetFinal.metadata >> 20) & 0xFFFF);
         assertEq(finalTax, 2000, "stage 2 tax should still be active after full lifecycle");
 
-        // 8e: Repayment added USDC back to old terminal (loan source target).
-        // Since loan repayment calls addToBalanceOf on the source terminal, the old terminal
+        // 8e: Repayment added USDC back to the canonical multi terminal.
+        // Since loan repayment calls addToBalanceOf on the deployer-pinned multi terminal, that terminal
         // should have a non-zero balance again from the repaid loan.
         uint256 oldTermBalAfterRepay = _terminalBalanceOf(address(jbMultiTerminal()), revnetId, address(usdc));
         assertGt(oldTermBalAfterRepay, 0, "old terminal should have balance from loan repayment");

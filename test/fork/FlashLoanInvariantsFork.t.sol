@@ -7,6 +7,7 @@ import /* {*} from */ "@bananapus/core-v6/test/helpers/TestBaseWorkflow.sol";
 // Core
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
+import {JBTerminalConfig} from "@bananapus/core-v6/src/structs/JBTerminalConfig.sol";
 import {IJBRulesetApprovalHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetApprovalHook.sol";
 
 /// @notice Flash loan invariant tests on mainnet fork.
