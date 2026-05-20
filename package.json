@@ -61,7 +61,7 @@
     "@croptop/core-v6": "^0.0.51",
     "@openzeppelin/contracts": "5.6.1",
     "@openzeppelin/uniswap-hooks": "1.1.1",
-    "@rev-net/core-v6": "git+https://github.com/rev-net/revnet-core-v6.git#codex/audit-hardening-v6",
+    "@rev-net/core-v6": "git+https://github.com/rev-net/revnet-core-v6.git#33153c6bf1eb9249c65cfbd6b6e5a3b11136af37",
     "@uniswap/permit2": "github:Uniswap/permit2#cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
     "@uniswap/v3-core": "github:Uniswap/v3-core#6562c52e8f75f0c10f9deaf44861847585fc8129",
     "@uniswap/v3-periphery": "github:Uniswap/v3-periphery#b325bb0905d922ae61fcc7df85ee802e8df5e96c",
