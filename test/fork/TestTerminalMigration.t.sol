@@ -205,8 +205,8 @@ contract TestTerminalMigration is RevnetForkBase {
         );
     }
 
-    /// @notice Plain JB migration projects are not valid REVLoans sources.
-    function test_mig_plainProjectCannotUseRevLoans() public {
+    /// @notice REVLoans only reads surplus from its constructor-pinned multi terminal.
+    function test_mig_revLoansDoNotFollowPlainProjectTerminalMigration() public {
         _deployFeeProject(5000);
         uint256 projectId = _launchMigrationProject();
 
@@ -221,10 +221,15 @@ contract TestTerminalMigration is RevnetForkBase {
         uint256 migrated = jbMultiTerminal().migrateBalanceOf(projectId, JBConstants.NATIVE_TOKEN, jbMultiTerminal2());
         assertGt(migrated, 0, "should migrate non-zero balance");
 
-        // REVLoans only supports Revnets with a REVOwner data hook, because that hook resolves the canonical
-        // deployer-pinned multi terminal. Plain JB migration projects intentionally fail closed.
-        vm.expectRevert(abi.encodeWithSelector(REVLoans.REVLoans_InvalidTerminal.selector, address(0), projectId));
-        LOANS_CONTRACT.borrowableAmountFrom(projectId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
+        // REVLoans sources loans from its constructor-pinned multi terminal. Migrating a plain project's balance to
+        // another terminal does not move the loan source, so the canonical terminal has no borrowable surplus.
+        uint256 borrowable = LOANS_CONTRACT.borrowableAmountFrom({
+            revnetId: projectId,
+            collateralCount: borrowerTokens,
+            decimals: 18,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        });
+        assertEq(borrowable, 0, "migrated-away balance should not be borrowable");
     }
 
     /// @notice Verify that payments into the new terminal work after migration.

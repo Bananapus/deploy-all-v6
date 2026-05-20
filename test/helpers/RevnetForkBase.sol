@@ -158,6 +158,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
 
         LOANS_CONTRACT = new REVLoans({
             controller: jbController(),
+            multiTerminal: jbMultiTerminal(),
             suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
             revId: FEE_PROJECT_ID,
             owner: address(this),

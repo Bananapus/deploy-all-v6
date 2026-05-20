@@ -1834,6 +1834,7 @@ contract Deploy is Script, Sphinx {
                     salt: REV_LOANS_SALT,
                     ctorArgs: abi.encode(
                         _controller,
+                        _terminal,
                         IJBSuckerRegistry(address(_suckerRegistry)),
                         _revProjectId,
                         safeAddress(),
