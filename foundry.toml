@@ -6,7 +6,9 @@ via_ir = true
 optimizer = true
 optimizer_runs = 200
 libs = ["node_modules", "lib"]
-fs_permissions = [{ access = "read-write", path = "./"}]
+fs_permissions = [
+  { access = "read-write", path = "./"}
+]
 memory_limit = 1073741824
 gas_limit = 9223372036854775807
 extra_output = ['storageLayout']

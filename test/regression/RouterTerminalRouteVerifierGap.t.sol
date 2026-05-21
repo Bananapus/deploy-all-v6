@@ -244,7 +244,7 @@ contract MockFeelessAddresses {
         _feeless = feeless_;
     }
 
-    function isFeelessFor(address addr, uint256) external view returns (bool) {
+    function isFeelessFor(address addr, uint256, address) external view returns (bool) {
         return addr == _feeless;
     }
 }

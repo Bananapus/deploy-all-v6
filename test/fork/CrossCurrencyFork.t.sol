@@ -103,14 +103,13 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     function _buildCrossCurrencyConfig()
         internal
         view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
+        returns (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         JBAccountingContext[] memory acc = new JBAccountingContext[](2);
         acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency});
         acc[1] = JBAccountingContext({token: address(usdc), decimals: 6, currency: usdcCurrency});
 
-        tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        tc = acc;
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -329,11 +328,11 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     function test_cc_usdBaseProject_payWithETH() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 1 ETH to USD-base project.
@@ -353,11 +352,11 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     function test_cc_usdBaseProject_payWithUSDC() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 2000 USDC to USD-base project (= $2000, same as 1 ETH).
@@ -373,14 +372,14 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     function test_cc_721TiersInUSD_payWithETH() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDTiers();
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -408,14 +407,14 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     function test_cc_721TiersInUSD_payWithUSDC() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDTiers();
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -451,14 +450,14 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     function test_cc_721TiersInUSD_payWithUSDC_withSplit() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDTiersWithSplit(true);
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -505,8 +504,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
 
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency});
-        JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        JBAccountingContext[] memory tc = acc;
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0].beneficiary = payable(multisig());
@@ -539,7 +537,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         });
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay with ETH -> should revert because no nativeCurrency -> 999 feed exists.
@@ -560,7 +558,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     function test_cc_721_noPricesContract_silentSkip() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
 
         // Build 721 config with prices=address(0) but USD-priced tiers.
@@ -614,7 +612,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -632,11 +630,11 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     function test_cc_dustPayment_zeroMint() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 1 wei USDC.
@@ -655,11 +653,11 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     function test_cc_multiTokenSurplus() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildCrossCurrencyConfig();
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 1 ETH (= $2000) + 2000 USDC (= $2000).
@@ -682,8 +680,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         // Build ETH-base config (not USD-base).
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency});
-        JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        JBAccountingContext[] memory tc = acc;
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0].beneficiary = payable(multisig());
@@ -719,7 +716,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)

@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression: build-artifacts.sh must `forge clean` source repos before building
+/// @notice Regression: build-artifacts.sh must build into a fresh per-repo output directory
 /// (so stale out/*.json can't be picked up), validate that the source file exists in the source
 /// repo, and validate that the copied artifact's metadata.settings.compilationTarget binds the
 /// expected (sourcePath, contractName) pair.
@@ -12,12 +12,15 @@ contract PostDeployStaleSourceArtifactGapTest is Test {
         string memory buildSource = vm.readFile("script/build-artifacts.sh");
         string memory deploySource = vm.readFile("script/Deploy.s.sol");
 
-        // build_repo() runs `forge clean` before `forge build` so no out/*.json from a previous
-        // compilation can survive into this run.
+        // build_repo() removes and recreates a repo-scoped temporary output directory, then forces
+        // Forge to write into it. No source-repo out/*.json from a previous compilation can be used.
         string memory buildRepoBlock =
-            _section({haystack: buildSource, startNeedle: "build_repo() {", endNeedle: "# Capture git commit"});
-        assertTrue(_contains(buildRepoBlock, "forge clean"), "source repo build runs forge clean first");
-        assertTrue(_contains(buildRepoBlock, "forge build"), "source repos are built after the clean step");
+            _section({haystack: buildSource, startNeedle: "build_repo() {", endNeedle: "# Capture source provenance"});
+        assertTrue(_contains(buildRepoBlock, "rm -rf \"$repo_out_dir\""), "stale repo-scoped build output is removed");
+        assertTrue(_contains(buildRepoBlock, "mkdir -p \"$repo_out_dir\""), "fresh repo-scoped build output is created");
+        assertTrue(_contains(buildRepoBlock, "forge build"), "source repos are built");
+        assertTrue(_contains(buildRepoBlock, "--out \"$repo_out_dir\""), "build writes to the fresh output directory");
+        assertTrue(_contains(buildRepoBlock, "--force"), "build is forced rather than reading stale cached output");
 
         // The artifact-copy block validates source-file existence AND artifact compilation target
         // before the copy.
@@ -27,8 +30,8 @@ contract PostDeployStaleSourceArtifactGapTest is Test {
             endNeedle: "# Compose manifest entry"
         });
         assertTrue(
-            _contains(copyBlock, "artifact=\"$repo_dir/out/$src_filename/$contract.json\""),
-            "artifact is loaded from the source repo out directory"
+            _contains(copyBlock, "artifact=\"${REPO_OUT_DIR[$repo]}/$src_filename/$contract.json\""),
+            "artifact is loaded from the fresh repo-scoped output directory"
         );
         assertTrue(_contains(copyBlock, "if [[ ! -f \"$artifact\" ]]"), "artifact existence is checked");
         assertTrue(_contains(copyBlock, "cp \"$artifact\" \"$ARTIFACTS_DIR/$contract.json\""), "out JSON is copied");

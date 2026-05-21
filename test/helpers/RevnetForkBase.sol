@@ -59,7 +59,6 @@ import {REVBaseline721HookConfig} from "@rev-net/core-v6/src/structs/REVBaseline
 import {REV721TiersHookFlags} from "@rev-net/core-v6/src/structs/REV721TiersHookFlags.sol";
 import {REVCroptopAllowedPost} from "@rev-net/core-v6/src/structs/REVCroptopAllowedPost.sol";
 import {REVLoan} from "@rev-net/core-v6/src/structs/REVLoan.sol";
-import {REVLoanSource} from "@rev-net/core-v6/src/structs/REVLoanSource.sol";
 
 // Uniswap V4
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -159,6 +158,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
 
         LOANS_CONTRACT = new REVLoans({
             controller: jbController(),
+            terminal: jbMultiTerminal(),
             suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
             revId: FEE_PROJECT_ID,
             owner: address(this),
@@ -177,6 +177,10 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
 
         REV_DEPLOYER = new REVDeployer{salt: _deployerSalt()}(
             jbController(),
+            jbMultiTerminal(),
+            // The router-terminal registry is a distinct canonical terminal slot; use the second test terminal so
+            // launchRulesetsFor does not receive duplicate terminals while exercising the same two-terminal shape.
+            jbMultiTerminal2(),
             SUCKER_REGISTRY,
             FEE_PROJECT_ID,
             HOOK_DEPLOYER,
@@ -227,7 +231,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
     // ═══════════════════════════════════════════════════════════════════
 
     function _deployFeeProject(uint16 cashOutTaxRate) internal {
-        (REVConfig memory feeCfg, JBTerminalConfig[] memory feeTc, REVSuckerDeploymentConfig memory feeSdc) =
+        (REVConfig memory feeCfg, JBAccountingContext[] memory feeTc, REVSuckerDeploymentConfig memory feeSdc) =
             _buildNativeConfig(cashOutTaxRate);
         feeCfg.description = REVDescription("Fee", "FEE", "ipfs://fee", "FEE_SALT");
 
@@ -239,7 +243,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         REV_DEPLOYER.deployFor({
             revnetId: FEE_PROJECT_ID,
             configuration: feeCfg,
-            terminalConfigurations: feeTc,
+            accountingContextsToAccept: feeTc,
             suckerDeploymentConfiguration: feeSdc
         });
     }
@@ -251,14 +255,13 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
     function _buildNativeConfig(uint16 cashOutTaxRate)
         internal
         view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
+        returns (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({
             token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
         });
-        tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        tc = acc;
 
         REVStageConfig[] memory stages = new REVStageConfig[](1);
         JBSplit[] memory splits = new JBSplit[](1);
@@ -295,14 +298,13 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
     )
         internal
         view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
+        returns (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({
             token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
         });
-        tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        tc = acc;
 
         REVStageConfig[] memory stages = new REVStageConfig[](2);
         JBSplit[] memory splits = new JBSplit[](1);
@@ -412,23 +414,23 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
     // ═══════════════════════════════════════════════════════════════════
 
     function _deployRevnet(uint16 cashOutTaxRate) internal returns (uint256 revnetId) {
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildNativeConfig(cashOutTaxRate);
 
         (revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
     }
 
     function _deployRevnetWith721(uint16 cashOutTaxRate) internal returns (uint256 revnetId, IJB721TiersHook hook) {
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildNativeConfig(cashOutTaxRate);
         REVDeploy721TiersHookConfig memory hookConfig = _build721Config();
 
         (revnetId, hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -487,8 +489,8 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         return jbTerminalStore().balanceOf(address(jbMultiTerminal()), projectId, token);
     }
 
-    function _nativeLoanSource() internal view returns (REVLoanSource memory) {
-        return REVLoanSource({token: JBConstants.NATIVE_TOKEN, terminal: jbMultiTerminal()});
+    function _nativeLoanSource() internal pure returns (address) {
+        return JBConstants.NATIVE_TOKEN;
     }
 
     function _grantBurnPermission(address account, uint256 revnetId) internal {

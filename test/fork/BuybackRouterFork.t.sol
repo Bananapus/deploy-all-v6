@@ -57,14 +57,13 @@ contract BuybackRouterForkTest is RevnetEcosystemBase {
     )
         internal
         view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
+        returns (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({
             token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
         });
-        tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        tc = acc;
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -162,11 +161,11 @@ contract BuybackRouterForkTest is RevnetEcosystemBase {
         _deployFeeProject(5000);
 
         // Deploy revnet with HIGH weight: 10,000 tokens per ETH, 20% reserved.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(10_000e18), 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Set up pool with low liquidity at tick 0 (1:1 price).
@@ -192,11 +191,11 @@ contract BuybackRouterForkTest is RevnetEcosystemBase {
     function test_buybackRouter_issuanceOptimal_varyingOrderSizes() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(10_000e18), 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _setupBuybackPool(revnetId, 1 ether);
@@ -233,11 +232,11 @@ contract BuybackRouterForkTest is RevnetEcosystemBase {
         _deployFeeProject(5000);
 
         // Deploy revnet with LOW weight: 1 token per ETH, 20% reserved.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(1e18), 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Set up pool with deep liquidity and mock TWAP at tick 23028 (~10 tokens per ETH).
@@ -271,11 +270,11 @@ contract BuybackRouterForkTest is RevnetEcosystemBase {
     function test_buybackRouter_ammOptimal_varyingOrderSizes() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(1e18), 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Deep liquidity and favorable TWAP tick (~10:1 tokens/ETH).
@@ -313,11 +312,11 @@ contract BuybackRouterForkTest is RevnetEcosystemBase {
         _deployFeeProject(5000);
 
         // Weight = 500 tokens/ETH, 20% reserved.
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildRevnetConfig(uint112(500e18), 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Phase 1: Pool at tick 0 (1:1 ratio). Mint path (400 tokens) >> swap path (~1 token).

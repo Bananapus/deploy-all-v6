@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
 import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
+import {CREATE3} from "solady/src/utils/CREATE3.sol";
 
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import {JBPermissions} from "@bananapus/core-v6/src/JBPermissions.sol";
@@ -148,8 +149,8 @@ contract ResumeDeployHarness is IERC721Receiver {
         _deployRouterTerminal();
         _deployLpSplitHook();
         _deploySuckers();
-        _deployOmnichainDeployer();
         _deployPeriphery();
+        _deployOmnichainDeployer();
         cpnProjectId = _ensureProjectExists(_CPN_PROJECT_ID);
         revProjectId = _ensureProjectExists(_REV_PROJECT_ID);
     }
@@ -183,7 +184,7 @@ contract ResumeDeployHarness is IERC721Receiver {
                 rulesets,
                 splits,
                 tokens,
-                address(omnichainDeployer),
+                _omnichainDeployerAddress(),
                 trustedForwarder
             )
         );
@@ -524,28 +525,28 @@ contract ResumeDeployHarness is IERC721Receiver {
     }
 
     function _deployOmnichainDeployer() internal {
-        (address deployerAddress, bool deployed) = _isDeployed(
-            OMNICHAIN_DEPLOYER_SALT,
-            type(JBOmnichainDeployer).creationCode,
-            abi.encode(
-                suckerRegistry,
-                IJB721TiersHookDeployer(address(hookDeployer)),
-                permissions,
-                projects,
-                directory,
-                trustedForwarder
-            )
-        );
-        omnichainDeployer = deployed
-            ? JBOmnichainDeployer(deployerAddress)
-            : new JBOmnichainDeployer{salt: OMNICHAIN_DEPLOYER_SALT}(
-                suckerRegistry,
-                IJB721TiersHookDeployer(address(hookDeployer)),
-                permissions,
-                projects,
-                directory,
-                trustedForwarder
+        address expected = _omnichainDeployerAddress();
+        omnichainDeployer = expected.code.length != 0
+            ? JBOmnichainDeployer(expected)
+            : JBOmnichainDeployer(
+                CREATE3.deployDeterministic(
+                    abi.encodePacked(
+                        type(JBOmnichainDeployer).creationCode,
+                        abi.encode(
+                            suckerRegistry,
+                            IJB721TiersHookDeployer(address(hookDeployer)),
+                            permissions,
+                            controller,
+                            trustedForwarder
+                        )
+                    ),
+                    OMNICHAIN_DEPLOYER_SALT
+                )
             );
+    }
+
+    function _omnichainDeployerAddress() internal view returns (address) {
+        return CREATE3.predictDeterministicAddress({salt: OMNICHAIN_DEPLOYER_SALT, deployer: address(this)});
     }
 
     function _deployPeriphery() internal {
@@ -583,7 +584,7 @@ contract ResumeDeployHarness is IERC721Receiver {
                 rulesets,
                 splits,
                 tokens,
-                address(omnichainDeployer),
+                _omnichainDeployerAddress(),
                 trustedForwarder
             )
         );
@@ -598,7 +599,7 @@ contract ResumeDeployHarness is IERC721Receiver {
                 rulesets: rulesets,
                 splits: splits,
                 tokens: tokens,
-                omnichainRulesetOperator: address(omnichainDeployer),
+                omnichainRulesetOperator: _omnichainDeployerAddress(),
                 trustedForwarder: trustedForwarder
             });
 
@@ -787,7 +788,7 @@ contract ResumeDeployForkTest is Test {
         assertTrue(harness.suckerRegistry().suckerDeployerIsAllowed(address(0x1001)), "deployer 1 not allowlisted");
         assertTrue(harness.suckerRegistry().suckerDeployerIsAllowed(address(0x1002)), "deployer 2 not allowlisted");
         assertFalse(
-            harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}),
+            harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0, caller: address(0)}),
             "router terminal must NOT be globally feeless"
         );
         assertTrue(
@@ -826,7 +827,7 @@ contract ResumeDeployForkTest is Test {
             "router terminal not preserved"
         );
         assertFalse(
-            harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0}),
+            harness.feeless().isFeelessFor({addr: address(harness.routerTerminal()), projectId: 0, caller: address(0)}),
             "router terminal must NOT be globally feeless"
         );
         assertEq(address(harness.uniswapV4Hook()), harness.expectedUniswapV4HookAddress(), "hook address drifted");

@@ -1040,7 +1040,9 @@ contract Verify is Script {
                 // grant: the router was forwarding fees from arbitrary projects on its own balance, which
                 // is too broad. Per-project feeless wiring (if needed) is the explicit path going forward.
                 _check({
-                    condition: !feelessAddresses.isFeelessFor({addr: address(routerTerminal), projectId: 0}),
+                    condition: !feelessAddresses.isFeelessFor({
+                        addr: address(routerTerminal), projectId: 0, caller: address(0)
+                    }),
                     label: "RouterTerminal is NOT globally feeless",
                     critical: true
                 });
@@ -1709,7 +1711,7 @@ contract Verify is Script {
             for (uint256 i; i < parts.length; i++) {
                 address feeless = vm.parseAddress(parts[i]);
                 if (feeless != address(0)) {
-                    bool isFeeless = feelessAddresses.isFeelessFor({addr: feeless, projectId: 0});
+                    bool isFeeless = feelessAddresses.isFeelessFor({addr: feeless, projectId: 0, caller: address(0)});
                     _check({
                         condition: isFeeless, label: string.concat(vm.toString(feeless), " is feeless"), critical: true
                     });

@@ -61,12 +61,11 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
     )
         internal
         view
-        returns (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc)
+        returns (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc)
     {
         JBAccountingContext[] memory acc = new JBAccountingContext[](1);
         acc[0] = JBAccountingContext({token: address(usdc), decimals: 6, currency: uint32(uint160(address(usdc)))});
-        tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        tc = acc;
 
         JBSplit[] memory splits = new JBSplit[](2);
         splits[0] = JBSplit({
@@ -253,14 +252,14 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
     function test_eco_usdc_preAMM_payFromTerminal() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageUSDCConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDC();
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -276,14 +275,14 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
     function test_eco_usdc_preAMM_payWith721TierSplit() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageUSDCConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDC();
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)
@@ -316,11 +315,11 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
     function test_eco_usdc_lpSplitHookAccumulates() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageUSDCConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _payRevnetUSDC(revnetId, PAYER, 10_000e6);
@@ -341,11 +340,11 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
     function test_eco_usdc_postAMM_payFromTerminal() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageUSDCConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _setupUSDCBuybackPool(revnetId, 10_000e6);
@@ -359,11 +358,11 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
     function test_eco_usdc_crossStageWithBuyback() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageUSDCConfigWithLPSplit(7000, 2000, 2000);
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         _setupUSDCBuybackPool(revnetId, 10_000e6);
@@ -388,14 +387,14 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
     function test_eco_usdc_fullLifecycle() public {
         _deployFeeProject(5000);
 
-        (REVConfig memory cfg, JBTerminalConfig[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
             _buildTwoStageUSDCConfigWithLPSplit(7000, 2000, 2000);
         REVDeploy721TiersHookConfig memory hookConfig = _build721ConfigUSDC();
 
         (uint256 revnetId, IJB721TiersHook hook) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: cfg,
-            terminalConfigurations: tc,
+            accountingContextsToAccept: tc,
             suckerDeploymentConfiguration: sdc,
             tiered721HookConfiguration: hookConfig,
             allowedPosts: new REVCroptopAllowedPost[](0)

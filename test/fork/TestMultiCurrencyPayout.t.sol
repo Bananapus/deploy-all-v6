@@ -344,8 +344,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
         JBAccountingContext[] memory acc = new JBAccountingContext[](2);
         acc[0] = JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: nativeCurrency});
         acc[1] = JBAccountingContext({token: address(usdc), decimals: 6, currency: usdcCurrency});
-        JBTerminalConfig[] memory tc = new JBTerminalConfig[](1);
-        tc[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        JBAccountingContext[] memory tc = acc;
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0].beneficiary = payable(multisig());
@@ -377,7 +376,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
         });
 
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
-            revnetId: 0, configuration: cfg, terminalConfigurations: tc, suckerDeploymentConfiguration: sdc
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
         // Pay 1 ETH (= $2000 at mock price).

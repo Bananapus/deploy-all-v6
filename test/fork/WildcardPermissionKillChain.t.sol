@@ -13,6 +13,7 @@ import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
 import {JBPermissionsData} from "@bananapus/core-v6/src/structs/JBPermissionsData.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
+import {JBTerminalConfig} from "@bananapus/core-v6/src/structs/JBTerminalConfig.sol";
 import {JBRulesetConfig} from "@bananapus/core-v6/src/structs/JBRulesetConfig.sol";
 import {JBPermissioned} from "@bananapus/core-v6/src/abstract/JBPermissioned.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
@@ -96,8 +97,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
             SUCKER_REGISTRY,
             HOOK_DEPLOYER,
             jbPermissions(),
-            jbProjects(),
-            jbDirectory(),
+            jbController(),
             address(0xB2b5841DBeF766d4b521221732F9B618fCf34A87)
         );
 
@@ -568,10 +568,8 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         acc[0] = JBAccountingContext({
             token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
         });
-        // Build terminal config with one terminal.
-        JBTerminalConfig[] memory termConfigs = new JBTerminalConfig[](1);
-        // Assign multi-terminal with ETH accounting.
-        termConfigs[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
+        // Revnet deployer pins the terminal; the config only chooses accounting contexts.
+        JBAccountingContext[] memory termConfigs = acc;
 
         // Empty sucker deployment config (no suckers needed).
         REVSuckerDeploymentConfig memory suckerConfig;
@@ -580,7 +578,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         (uint256 revnetId,) = REV_DEPLOYER.deployFor({
             revnetId: 0,
             configuration: revConfig,
-            terminalConfigurations: termConfigs,
+            accountingContextsToAccept: termConfigs,
             suckerDeploymentConfiguration: suckerConfig
         });
 
