@@ -158,7 +158,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
 
         LOANS_CONTRACT = new REVLoans({
             controller: jbController(),
-            multiTerminal: jbMultiTerminal(),
+            terminal: jbMultiTerminal(),
             suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
             revId: FEE_PROJECT_ID,
             owner: address(this),
@@ -178,7 +178,9 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         REV_DEPLOYER = new REVDeployer{salt: _deployerSalt()}(
             jbController(),
             jbMultiTerminal(),
-            jbMultiTerminal(),
+            // The router-terminal registry is a distinct canonical terminal slot; use the second test terminal so
+            // launchRulesetsFor does not receive duplicate terminals while exercising the same two-terminal shape.
+            jbMultiTerminal2(),
             SUCKER_REGISTRY,
             FEE_PROJECT_ID,
             HOOK_DEPLOYER,

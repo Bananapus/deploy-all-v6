@@ -215,7 +215,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
         // Deploy loans contract (required by REVDeployer).
         LOANS_CONTRACT = new REVLoans({
             controller: jbController(),
-            multiTerminal: jbMultiTerminal(),
+            terminal: jbMultiTerminal(),
             suckerRegistry: IJBSuckerRegistry(address(SUCKER_REGISTRY)),
             revId: FEE_PROJECT_ID,
             owner: address(this),
@@ -237,7 +237,8 @@ contract BaseChainForkTest is TestBaseWorkflow {
         REV_DEPLOYER = new REVDeployer{salt: "REVDeployer_Base"}(
             jbController(),
             jbMultiTerminal(),
-            jbMultiTerminal(),
+            // The router-terminal registry occupies a separate canonical terminal slot from the multi terminal.
+            jbMultiTerminal2(),
             SUCKER_REGISTRY,
             FEE_PROJECT_ID,
             HOOK_DEPLOYER,

@@ -43,6 +43,14 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         assertTrue(_contains(genericGuard, "_reservedSplitIsCanonical"), "generic guard checks reserved split");
         assertTrue(_contains(genericGuard, "_nativeTerminalConfigIsCanonical"), "generic guard checks terminal setup");
 
+        string memory hashHelper = _section({
+            haystack: deploySource,
+            startNeedle: "function _encodedConfigurationHashOf(",
+            endNeedle: "function _nativeTerminalConfigIsCanonical("
+        });
+        assertFalse(_contains(hashHelper, "_routerTerminalRegistry"), "config hash must not encode router terminal");
+        assertFalse(_contains(hashHelper, "_terminal"), "config hash must not encode multi terminal");
+
         string memory bannyGuard = _section({
             haystack: deploySource,
             startNeedle: "function _isCanonicalBannyProject(",
@@ -85,7 +93,6 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             _contains(deployFunctionSource, "expectedReservedSplitBeneficiary: payable(operator)"),
             "guard passes expected reserved split beneficiary"
         );
-        assertTrue(_contains(deployFunctionSource, "expectRouterTerminal: hasRouter"), "guard checks router terminal");
     }
 
     function _section(

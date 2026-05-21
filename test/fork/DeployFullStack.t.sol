@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import "forge-std/Test.sol";
 import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {CREATE3} from "solady/src/utils/CREATE3.sol";
 
 // ── Core ──
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
@@ -130,6 +131,7 @@ contract DeployFullStackTest is Test {
 
     IPermit2 private constant _PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     uint256 private constant FEE_PROJECT_ID = 1;
+    bytes32 private constant OMNICHAIN_DEPLOYER_SALT = "JBOmnichainDeployerV6_";
 
     // ════════════════════════════════════════════════════════════════════
     //  Chain configs
@@ -502,14 +504,25 @@ contract DeployFullStackTest is Test {
 
     /// @dev Phase 04: Omnichain Deployer. Mirrors Deploy._deployOmnichainDeployer().
     function _deployOmnichainDeployer() internal {
-        _omnichainDeployer = new JBOmnichainDeployer(
-            _suckerRegistry,
-            IJB721TiersHookDeployer(address(_hookDeployer)),
-            _permissions,
-            _projects,
-            _directory,
-            _trustedForwarder
+        _omnichainDeployer = JBOmnichainDeployer(
+            CREATE3.deployDeterministic(
+                abi.encodePacked(
+                    type(JBOmnichainDeployer).creationCode,
+                    abi.encode(
+                        _suckerRegistry,
+                        IJB721TiersHookDeployer(address(_hookDeployer)),
+                        _permissions,
+                        _controller,
+                        _trustedForwarder
+                    )
+                ),
+                OMNICHAIN_DEPLOYER_SALT
+            )
         );
+    }
+
+    function _omnichainDeployerAddress() internal view returns (address) {
+        return CREATE3.predictDeterministicAddress({salt: OMNICHAIN_DEPLOYER_SALT, deployer: address(this)});
     }
 
     /// @dev Phase 05: Periphery (Controller + Price Feeds + Deadlines). Mirrors Deploy._deployPeriphery().
@@ -543,7 +556,8 @@ contract DeployFullStackTest is Test {
         new JBDeadline3Days();
         new JBDeadline7Days();
 
-        // Controller (must come after omnichain deployer).
+        // Controller stores the counterfactual CREATE3 omnichain deployer address. The deployer is created right after
+        // the controller so its own constructor can pin the controller address.
         _controller = new JBController({
             directory: _directory,
             fundAccessLimits: _fundAccess,
@@ -553,7 +567,7 @@ contract DeployFullStackTest is Test {
             rulesets: _rulesets,
             splits: _splits,
             tokens: _tokens,
-            omnichainRulesetOperator: address(_omnichainDeployer),
+            omnichainRulesetOperator: _omnichainDeployerAddress(),
             trustedForwarder: _trustedForwarder
         });
 
@@ -835,11 +849,11 @@ contract DeployFullStackTest is Test {
         // Phase 03f: Cross-Chain Suckers
         _deploySuckers(cfg);
 
-        // Phase 04: Omnichain Deployer
-        _deployOmnichainDeployer();
-
         // Phase 05: Periphery (Controller + Price Feeds + Deadlines)
         _deployPeriphery(cfg);
+
+        // Phase 04: Omnichain Deployer
+        _deployOmnichainDeployer();
 
         vm.stopPrank();
     }
@@ -961,7 +975,7 @@ contract DeployFullStackTest is Test {
             string.concat(chainName, ": Router default terminal mismatch")
         );
         assertFalse(
-            _feeless.isFeelessFor({addr: address(_routerTerminal), projectId: 0}),
+            _feeless.isFeelessFor({addr: address(_routerTerminal), projectId: 0, caller: address(0)}),
             string.concat(chainName, ": Router terminal must NOT be globally feeless")
         );
 

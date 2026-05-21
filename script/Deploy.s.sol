@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script, stdJson, VmSafe} from "forge-std/Script.sol";
 import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
+import {CREATE3} from "solady/src/utils/CREATE3.sol";
 
 // ── Core ──
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
@@ -173,6 +174,7 @@ contract Deploy is Script, Sphinx {
     error Deploy_ProjectNotCanonical(uint256 projectId);
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
     error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
+    error Deploy_Create3DeploymentFailed(address expected);
     error Deploy_TimestampOverflow(uint256 timestamp);
     error Deploy_UnexpectedSafe(address expected, address actual);
 
@@ -538,12 +540,11 @@ contract Deploy is Script, Sphinx {
             _deployLpSplitHook();
         }
 
-        // Phase 04: Omnichain Deployer
-        _deployOmnichainDeployer();
-
-        // Phase 05: Periphery (Controller + Price Feeds + Deadlines)
-        // NOTE: Must come AFTER omnichain deployer — Controller needs its address.
+        // Phase 04/05: Periphery first, using the counterfactual CREATE3 omnichain deployer address as the
+        // controller's immutable omnichain operator. The omnichain deployer itself is deployed immediately after,
+        // once the controller address exists for its constructor.
         _deployPeriphery();
+        _deployOmnichainDeployer();
 
         // Phase 06: Croptop — creates CPN project (ID 2), deploys CT contracts
         _deployCroptop();
@@ -1532,15 +1533,14 @@ contract Deploy is Script, Sphinx {
 
     function _deployOmnichainDeployer() internal {
         _omnichainDeployer = JBOmnichainDeployer(
-            _deployPrecompiledIfNeeded({
+            _deployCreate3PrecompiledIfNeeded({
                 artifactName: "JBOmnichainDeployer",
                 salt: OMNICHAIN_DEPLOYER_SALT,
                 ctorArgs: abi.encode(
                     _suckerRegistry,
                     IJB721TiersHookDeployer(address(_hookDeployer)),
                     _permissions,
-                    _projects,
-                    _directory,
+                    _controller,
                     _trustedForwarder
                 )
             })
@@ -1594,7 +1594,9 @@ contract Deploy is Script, Sphinx {
         _deployPrecompiledIfNeeded({artifactName: "JBDeadline3Days", salt: DEADLINES_SALT, ctorArgs: ""});
         _deployPrecompiledIfNeeded({artifactName: "JBDeadline7Days", salt: DEADLINES_SALT, ctorArgs: ""});
 
-        // Deploy the Controller — uses the omnichain deployer address.
+        // Deploy the Controller — uses the counterfactual CREATE3 omnichain deployer address. CREATE3 keeps the
+        // address independent of the deployer's constructor args, which breaks the controller/deployer constructor
+        // cycle while preserving a deterministic cross-chain address.
         bytes32 coreSalt = keccak256(abi.encode(CORE_DEPLOYMENT_NONCE));
         _controller = JBController(
             _deployPrecompiledIfNeeded({
@@ -1609,7 +1611,7 @@ contract Deploy is Script, Sphinx {
                     _rulesets,
                     _splits,
                     _tokens,
-                    address(_omnichainDeployer),
+                    _create3Address({salt: OMNICHAIN_DEPLOYER_SALT}),
                     _trustedForwarder
                 )
             })
@@ -1860,8 +1862,9 @@ contract Deploy is Script, Sphinx {
             })
         );
 
-        // Predict REVDeployer's CREATE2 address so we can bind REVOwner BEFORE deploying it
-        // (REVDeployer's constructor reads REVOwner.DEPLOYER() during initialization on some paths).
+        // Predict REVDeployer's CREATE2 address so REVOwner can bind the only deployer allowed to update revnet
+        // runtime hook state. CREATE3 is not needed here: REVDeployer's constructor takes REVOwner's address, but no
+        // REVDeployer constructor argument depends on REVDeployer's own address.
         bytes memory revDeployerArgs = abi.encode(
             _controller,
             _terminal,
@@ -1880,6 +1883,10 @@ contract Deploy is Script, Sphinx {
         });
         if (address(_revOwner.deployer()) == address(0)) {
             _revOwner.setDeployer(IREVDeployer(predictedRevDeployer));
+        } else if (address(_revOwner.deployer()) != predictedRevDeployer) {
+            revert Deploy_ExistingAddressMismatch({
+                expected: predictedRevDeployer, actual: address(_revOwner.deployer())
+            });
         }
         _revDeployer = REVDeployer(
             _deployPrecompiledIfNeeded({
@@ -4123,8 +4130,8 @@ contract Deploy is Script, Sphinx {
             configuration.description.salt
         );
 
-        encodedConfiguration = abi.encode(encodedConfiguration, _terminal, _routerTerminalRegistry);
-
+        // Match REVDeployer's immutable revnet hash exactly. The canonical multi terminal and router-terminal registry
+        // are constructor-pinned by REVDeployer, so they are excluded from each revnet's per-project identity hash.
         uint256 previousStageStart;
         for (uint256 i; i < configuration.stageConfigurations.length;) {
             REVStageConfig memory stageConfiguration = configuration.stageConfigurations[i];
@@ -4356,6 +4363,46 @@ contract Deploy is Script, Sphinx {
                 factory: _CREATE2_FACTORY, salt: salt, creationCode: code, constructorArgs: ctorArgs
             });
         }
+    }
+
+    /// @dev Counterfactual target address for a CREATE3 deployment whose proxy is deployed by the canonical CREATE2
+    /// factory. The target address depends on the proxy deployer and salt, not the target init code.
+    function _create3Address(bytes32 salt) internal pure returns (address) {
+        return CREATE3.predictDeterministicAddress({salt: salt, deployer: _CREATE2_FACTORY});
+    }
+
+    /// @dev Deploys an artifact through CREATE3 using the canonical CREATE2 factory. This is used only where two
+    /// contracts need each other's immutable addresses: the controller stores the omnichain deployer address, while
+    /// the omnichain deployer stores the controller address.
+    function _deployCreate3PrecompiledIfNeeded(
+        string memory artifactName,
+        bytes32 salt,
+        bytes memory ctorArgs
+    )
+        internal
+        returns (address addr)
+    {
+        addr = _create3Address({salt: salt});
+        if (addr.code.length != 0) return addr;
+
+        // Deploy the one-shot CREATE3 proxy at the canonical factory/salt address if this is the first run.
+        (address proxy, bool proxyAlready) =
+            _isDeployed({salt: salt, creationCode: _create3ProxyInitCode(), arguments: ""});
+        if (!proxyAlready) {
+            proxy = _deployViaFactory({
+                factory: _CREATE2_FACTORY, salt: salt, creationCode: _create3ProxyInitCode(), constructorArgs: ""
+            });
+        }
+
+        // The proxy runtime treats calldata as init code and CREATEs it with nonce 1, yielding `_create3Address(salt)`.
+        (bool success,) = proxy.call(abi.encodePacked(_loadArtifact(artifactName), ctorArgs));
+        if (!success || addr.code.length == 0) revert Deploy_Create3DeploymentFailed({expected: addr});
+    }
+
+    /// @dev Solady CREATE3 proxy init code. Kept local so deployments still route through the canonical CREATE2
+    /// factory instead of the transient script contract.
+    function _create3ProxyInitCode() internal pure returns (bytes memory) {
+        return hex"67363d3d37363d34f03d5260086018f3";
     }
 
     function _findHookSalt(
