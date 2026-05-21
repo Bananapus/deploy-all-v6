@@ -15,9 +15,12 @@ import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
 import {REVDescription} from "@rev-net/core-v6/src/structs/REVDescription.sol";
 import {REVStageConfig, REVAutoIssuance} from "@rev-net/core-v6/src/structs/REVStageConfig.sol";
 import {REVSuckerDeploymentConfig} from "@rev-net/core-v6/src/structs/REVSuckerDeploymentConfig.sol";
+import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
+import {IWETH9 as IRouterWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 
 // Uniswap V4
+import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -34,6 +37,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 ///
 /// Run with: forge test --match-contract LPBuybackInteropForkTest -vvv
 contract LPBuybackInteropForkTest is RevnetEcosystemBase {
+    address internal constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+
     // ── Extra actor not in base
     address PAYER2 = makeAddr("payer2");
 
@@ -364,6 +369,81 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
 
         assertGt(tokens, 0, "should receive tokens through buyback hook");
         assertEq(payerTokensAfter, payerTokensBefore + tokens, "balance should increase by minted tokens");
+    }
+
+    /// @notice Router-terminal payments can reach a revnet whose buyback pool was created by the LP split hook.
+    /// @dev This keeps the cross-repo composition check in deploy-all instead of adding LP-hook dependencies to the
+    /// router-terminal repo: router terminal -> multi terminal -> buyback hook, after LP split hook has already created
+    /// the shared V4 pool through the real mainnet PoolManager and PositionManager on this fork.
+    function test_interop_revnet_routerTerminalUsesLPSplitPool() public {
+        _deployFeeProject(5000);
+
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+            _buildRevnetConfigWithLPSplit({cashOutTaxRate: 5000});
+
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
+        });
+
+        _mockDefaultOracle();
+
+        // Build pending reserved tokens so the LP split hook has project tokens to pair with terminal surplus.
+        _payRevnet({revnetId: revnetId, payer: PAYER, amount: 20 ether});
+        _payRevnet({revnetId: revnetId, payer: PAYER2, amount: 20 ether});
+        jbController().sendReservedTokensToSplitsOf({projectId: revnetId});
+
+        // Deploying through the split hook exercises the LP package, PositionManager, PoolManager, and Permit2 path.
+        _grantDeployPoolPermission({operator: address(this), projectId: revnetId});
+        LP_SPLIT_HOOK.deployPool({projectId: revnetId, minCashOutReturn: 0});
+
+        uint256 lpTokenId = LP_SPLIT_HOOK.tokenIdOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN});
+        assertGt(lpTokenId, 0, "LP split hook should own a position");
+
+        // Native-token buyback pools are stored under address(0), matching Uniswap V4's native Currency convention.
+        PoolKey memory buybackPoolKey = BUYBACK_HOOK.poolKeyOf({projectId: revnetId, terminalToken: address(0)});
+        assertEq(buybackPoolKey.fee, LP_SPLIT_HOOK.POOL_FEE(), "buyback should use LP pool fee");
+        assertEq(buybackPoolKey.tickSpacing, LP_SPLIT_HOOK.TICK_SPACING(), "buyback should use LP tick spacing");
+
+        // Add extra liquidity to the same pool so the routed payment can safely traverse the buyback preview/execution
+        // surface without relying on the initial LP position's exact price shape.
+        _seedBuybackPoolLiquidity({revnetId: revnetId, liquidityTokenAmount: 10_000 ether});
+
+        JBRouterTerminal router = new JBRouterTerminal({
+            directory: jbDirectory(),
+            tokens: jbTokens(),
+            permit2: permit2(),
+            buybackHook: address(BUYBACK_HOOK),
+            trustedForwarder: address(0),
+            deployer: address(this)
+        });
+        router.setChainSpecificConstants({
+            newWrappedNativeToken: IRouterWETH9(WETH_ADDR),
+            newFactory: IUniswapV3Factory(V3_FACTORY),
+            newPoolManager: poolManager,
+            newUniv4Hook: address(0)
+        });
+
+        uint256 payerTokensBefore = jbTokens().totalBalanceOf({holder: PAYER, projectId: revnetId});
+
+        vm.prank(PAYER);
+        uint256 tokens = router.pay{value: 1 ether}({
+            projectId: revnetId,
+            token: JBConstants.NATIVE_TOKEN,
+            amount: 1 ether,
+            beneficiary: PAYER,
+            minReturnedTokens: 0,
+            memo: "",
+            metadata: ""
+        });
+
+        assertGt(tokens, 0, "router-terminal payment should mint or buy back project tokens");
+        assertEq(
+            jbTokens().totalBalanceOf({holder: PAYER, projectId: revnetId}),
+            payerTokensBefore + tokens,
+            "payer balance should reflect the routed payment"
+        );
+        assertEq(address(router).balance, 0, "router should not retain native leftovers");
+        assertEq(weth.balanceOf(address(router)), 0, "router should not retain wrapped-native leftovers");
     }
 
     /// @notice Cash out works correctly after both hooks have set up the pool.
