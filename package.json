@@ -45,7 +45,7 @@
     "@bananapus/721-hook-v6": "^0.0.54",
     "@bananapus/address-registry-v6": "^0.0.26",
     "@bananapus/buyback-hook-v6": "^0.0.49",
-    "@bananapus/core-v6": "^0.0.58",
+    "@bananapus/core-v6": "^0.0.59",
     "@bananapus/distributor-v6": "^0.0.22",
     "@bananapus/omnichain-deployers-v6": "^0.0.46",
     "@bananapus/permission-ids-v6": "^0.0.26",

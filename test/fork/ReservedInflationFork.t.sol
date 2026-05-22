@@ -63,7 +63,8 @@ contract ReservedInflationForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 ethReceived = PAYER.balance - payerEthBefore;
@@ -287,7 +288,8 @@ contract ReservedInflationForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         // The terminal applies a 2.5% fee on the reclaimAmount when cashOutTaxRate != 0.

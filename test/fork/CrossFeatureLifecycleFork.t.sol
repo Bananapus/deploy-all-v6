@@ -235,7 +235,8 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT_USD, // $1000 USD
             currency: USD, // denominated in USD
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         assertGt(amountPaidOut, 0, "Step 4: payouts should send ETH"); // ETH was paid out
@@ -348,7 +349,8 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER2),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         // Verify PAYER2 received ETH from the cash out.

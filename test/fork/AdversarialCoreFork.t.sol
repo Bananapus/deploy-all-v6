@@ -64,7 +64,8 @@ contract CashOutReentrySplitHook is IJBSplitHook {
                 tokenToReclaim: token,
                 minTokensReclaimed: 0,
                 beneficiary: payable(address(this)),
-                metadata: ""
+                metadata: "",
+                referralProjectId: 0
             }) returns (
                 uint256 reclaimed
             ) {
@@ -438,7 +439,8 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(ACCOMPLICE),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 accompliceEthReceived = ACCOMPLICE.balance - accompliceEthBefore;
@@ -539,7 +541,8 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: 3 ether,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         // Step 7: Check results.
@@ -619,7 +622,8 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER2),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 ethReceivedA = PAYER2.balance - payer2EthBefore;
@@ -645,7 +649,8 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 payerEthReceived = PAYER.balance - payerEthBefore;
@@ -667,7 +672,8 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER2),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 ethReceivedB = PAYER2.balance - payer2EthBefore;
@@ -785,7 +791,8 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(latePayer),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 latePayerEthReceived = latePayer.balance - latePayerEthBefore;
@@ -804,7 +811,8 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(exactPayer),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 exactPayerEthReceived = exactPayer.balance - exactPayerEthBefore;
@@ -858,7 +866,8 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(feePayer),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 normalEthReceived = feePayer.balance - feePayerEthBefore;
@@ -901,7 +910,8 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(feePayer),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 mockedEthReceived = feePayer.balance - feePayerEthBefore;

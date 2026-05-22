@@ -123,7 +123,8 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(MOCK_SUCKER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         // Sucker should receive ETH.
@@ -183,7 +184,8 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(NON_SUCKER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         assertGt(nonSuckerReclaim, 0, "non-sucker should reclaim some ETH");
@@ -204,7 +206,8 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(MOCK_SUCKER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         assertGt(suckerReclaim, 0, "sucker should reclaim ETH");

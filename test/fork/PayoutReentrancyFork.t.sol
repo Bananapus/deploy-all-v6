@@ -51,7 +51,8 @@ contract MaliciousSplitHook is IJBSplitHook {
             // Attempt re-entry into sendPayoutsOf. This should return 0 because the payout limit
             // was already consumed by recordPayoutFor before splits execute.
             try terminal.sendPayoutsOf({
-                projectId: targetProjectId, token: token, amount: amount, currency: currency, minTokensPaidOut: 0
+                projectId: targetProjectId, token: token, amount: amount, currency: currency, minTokensPaidOut: 0,
+                referralProjectId: 0
             }) returns (
                 uint256 paidOut
             ) {
@@ -274,7 +275,8 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         // Verify the hook attempted re-entry.
@@ -308,7 +310,8 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
         assertEq(secondPaid, 0, "second payout should be clamped to zero");
     }
@@ -352,7 +355,8 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         // Verify the hook called addToBalanceOf.
@@ -384,7 +388,8 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
         assertEq(secondPaid, 0, "second payout should be clamped to zero");
     }
