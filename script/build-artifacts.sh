@@ -112,6 +112,7 @@ CONTRACTS=(
   "nana-core-v6:JBTokens:src/JBTokens.sol"
   "nana-core-v6:JBFundAccessLimits:src/JBFundAccessLimits.sol"
   "nana-core-v6:JBFeelessAddresses:src/JBFeelessAddresses.sol"
+  "nana-core-v6:JBHeldFees:src/libraries/JBHeldFees.sol"
   "nana-core-v6:JBPayoutSplitGroupLib:src/libraries/JBPayoutSplitGroupLib.sol"
   "nana-core-v6:JBTerminalStore:src/JBTerminalStore.sol"
   "nana-core-v6:JBMultiTerminal:src/JBMultiTerminal.sol"
@@ -474,6 +475,7 @@ CREATE2_FACTORY=0x4e59b44847b379578588920cA78FbF26c0B4956C
 # `_deployPrecompiledIfNeeded` in deploy-all-v6/script/Deploy.s.sol's
 # `_deployLibraries()` phase. These must match the SALT constants there.
 LIB_SALTS=(
+  "JBHeldFees:_JBHeldFeesV6_"
   "JBPayoutSplitGroupLib:_JBPayoutSplitGroupLibV6_"
   "JB721TiersHookLib:_JB721TiersHookLibV6_"
   "JBSuckerLib:_JBSuckerLibV6_"

@@ -215,6 +215,7 @@ contract Deploy is Script, Sphinx {
     ///      `libraries = [...]` entry in the corresponding source repo's foundry.toml — otherwise
     ///      DELEGATECALLs from contracts that depend on these libraries hit dead code.
     ///      All libraries are deployed by `_deployLibraries()` (Phase 00, before _deployCore).
+    bytes32 private constant HELD_FEES_LIB_SALT = keccak256("_JBHeldFeesV6_");
     bytes32 private constant PAYOUT_SPLIT_GROUP_LIB_SALT = keccak256("_JBPayoutSplitGroupLibV6_");
     bytes32 private constant TIERS_HOOK_LIB_SALT = keccak256("_JB721TiersHookLibV6_");
     bytes32 private constant SUCKER_LIB_SALT = keccak256("_JBSuckerLibV6_");
@@ -704,6 +705,10 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function _deployLibraries() internal {
+        // JBHeldFees — DELEGATECALL'd by JBMultiTerminal for held-fee storage operations
+        // (`heldFeesOf` view, `_returnHeldFees` from `addToBalanceOf({shouldReturnHeldFees: true})`).
+        // Held-fee paths silently revert without this library deployed at its CREATE2 address.
+        _deployPrecompiledIfNeeded({artifactName: "JBHeldFees", salt: HELD_FEES_LIB_SALT, ctorArgs: ""});
         // JBPayoutSplitGroupLib — DELEGATECALL'd by JBMultiTerminal.
         _deployPrecompiledIfNeeded({
             artifactName: "JBPayoutSplitGroupLib", salt: PAYOUT_SPLIT_GROUP_LIB_SALT, ctorArgs: ""
@@ -4505,6 +4510,7 @@ contract Deploy is Script, Sphinx {
         // all-precompile design routes every deploy through `_deployPrecompiledIfNeeded`).
 
         // External libraries — no constructor args, fixed salts.
+        _serializeLibrary({key: j, name: "JBHeldFees", salt: HELD_FEES_LIB_SALT});
         _serializeLibrary({key: j, name: "JBPayoutSplitGroupLib", salt: PAYOUT_SPLIT_GROUP_LIB_SALT});
         _serializeLibrary({key: j, name: "JB721TiersHookLib", salt: TIERS_HOOK_LIB_SALT});
         _serializeLibrary({key: j, name: "JBSuckerLib", salt: SUCKER_LIB_SALT});
