@@ -146,8 +146,8 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 | Risk | Severity | Description |
 |------|----------|-------------|
-| Sphinx Safe compromise | CRITICAL | The Sphinx Safe owns every deployed contract. Compromise of Safe signers means total protocol control: add malicious controllers, drain fee-exempt addresses, change sucker deployers, adjust splits on all revnets. |
-| Sphinx artifact name collision | LOW | `sphinxConfig.projectName = "juicebox-v6"`. If a previous deployment used a different project name, Sphinx may create a new deployment context rather than upgrading. |
+| Sphinx Safe compromise | HIGH | The V6 deployment Safe can execute the deployment proposal and one-shot chain-specific setup. Persistent critical owner roles are handed to the NANA operator Safe (`0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5`) before the proposal ends. |
+| Sphinx artifact name collision | LOW | `sphinxConfig.projectName = "V6"`. If a previous deployment used a different project name, Sphinx may create a new deployment context rather than upgrading. |
 
 ### Fee Project Configuration Risks
 

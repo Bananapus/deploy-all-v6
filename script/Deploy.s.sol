@@ -177,6 +177,7 @@ contract Deploy is Script, Sphinx {
     error Deploy_Create3DeploymentFailed(address expected);
     error Deploy_TimestampOverflow(uint256 timestamp);
     error Deploy_UnexpectedSafe(address expected, address actual);
+    error Deploy_OwnershipHandoffFailed(address target, address newOwner);
 
     // ════════════════════════════════════════════════════════════════════
     //  Constants
@@ -188,14 +189,13 @@ contract Deploy is Script, Sphinx {
     string private constant TRUSTED_FORWARDER_NAME = "Juicebox";
     uint256 private constant CORE_DEPLOYMENT_NONCE = 6;
 
-    /// @dev Canonical Sphinx Safe for the Juicebox V6 deployment. Derived from the Safe's owners +
-    /// threshold + saltNonce 6 (see sphinx.lock). This is the address that:
-    ///   (a) `safeAddress()` must resolve to during every deploy run, and
-    ///   (b) will own NANA project #1 immediately after `_deployRevFeeProject` creates it.
-    /// Any deploy run with a different Sphinx config produces a different `safeAddress()`, which
-    /// would silently fork the deployment to attacker-controlled state. The assertion at the top
-    /// of `run()` catches that misconfiguration before any side effects.
-    address private constant _EXPECTED_SAFE = 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5;
+    /// @dev Sphinx Safe used only to execute the deployment proposal. Derived from the V6 Jango
+    /// Safe's owners + threshold + saltNonce 10 (see sphinx.lock). Long-term protocol ownership is
+    /// handed to `_CRITICAL_INFRA_OWNER` at the end of the proposal.
+    address private constant _EXPECTED_SAFE = 0xd5136c794ee43BEf1eD4cF1eB6DEe45b7F803437;
+
+    /// @dev Canonical NANA operator Safe. This address owns critical infrastructure after deployment.
+    address private constant _CRITICAL_INFRA_OWNER = 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5;
 
     // ── Tempo chain constants (until CCIPHelper is published with these) ──
     uint256 private constant TEMPO_CHAIN_ID = 4217;
@@ -483,7 +483,7 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function configureSphinx() public override {
-        sphinxConfig.projectName = "juicebox-v6";
+        sphinxConfig.projectName = "V6";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
         sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
@@ -591,6 +591,9 @@ contract Deploy is Script, Sphinx {
         _deployProjectHandles();
         _deployDistributors();
         _deployProjectPayerDeployer();
+
+        // Phase 12: Handoff critical ownership from the deployment Safe to the NANA operator Safe.
+        _finalizeCriticalOwnership();
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1899,11 +1902,12 @@ contract Deploy is Script, Sphinx {
             })
         );
 
-        // Approve the deployer to configure the $REV project.
-        _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
-
         // Configure the $REV revnet.
-        if (address(_directory.controllerOf(_revProjectId)) == address(0)) _deployRevFeeProject();
+        if (address(_directory.controllerOf(_revProjectId)) == address(0)) {
+            // Approve the deployer to configure the $REV project.
+            _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
+            _deployRevFeeProject();
+        }
     }
 
     function _deployRevFeeProject() internal {
@@ -2174,7 +2178,7 @@ contract Deploy is Script, Sphinx {
 
     function _deployNanaRevnet() internal {
         uint256 feeProjectId = _FEE_PROJECT_ID;
-        address operator = 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5;
+        address operator = _CRITICAL_INFRA_OWNER;
 
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
@@ -3473,6 +3477,51 @@ contract Deploy is Script, Sphinx {
     }
 
     // ════════════════════════════════════════════════════════════════════
+    //  Phase 12: Critical Ownership Handoff
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @notice Hands persistent protocol owner roles from the deployment Safe to the NANA operator Safe.
+    /// @dev Deployment-only configurator immutables intentionally stay pointed at `safeAddress()`, because those
+    /// permissions are consumed by one-shot initialization calls earlier in this proposal.
+    function _finalizeCriticalOwnership() internal {
+        address newOwner = _CRITICAL_INFRA_OWNER;
+
+        _transferProjectIfOwnedByDeploymentSafe(_FEE_PROJECT_ID, newOwner);
+
+        _transferOwnableIfOwnedByDeploymentSafe(address(_projects), newOwner);
+        _transferOwnableIfOwnedByDeploymentSafe(address(_directory), newOwner);
+        _transferOwnableIfOwnedByDeploymentSafe(address(_prices), newOwner);
+        _transferOwnableIfOwnedByDeploymentSafe(address(_feeless), newOwner);
+        _transferOwnableIfOwnedByDeploymentSafe(address(_buybackRegistry), newOwner);
+        _transferOwnableIfOwnedByDeploymentSafe(address(_routerTerminalRegistry), newOwner);
+        _transferOwnableIfOwnedByDeploymentSafe(address(_suckerRegistry), newOwner);
+        _transferOwnableIfOwnedByDeploymentSafe(address(_revLoans), newOwner);
+    }
+
+    function _transferProjectIfOwnedByDeploymentSafe(uint256 projectId, address newOwner) internal {
+        if (_projects.count() < projectId) return;
+        if (_projects.ownerOf(projectId) != safeAddress()) return;
+
+        _projects.transferFrom({from: safeAddress(), to: newOwner, tokenId: projectId});
+    }
+
+    function _transferOwnableIfOwnedByDeploymentSafe(address target, address newOwner) internal {
+        if (_ownableOwnerOf(target) != safeAddress()) return;
+
+        (bool success,) = target.call(abi.encodeWithSignature("transferOwnership(address)", newOwner));
+        if (!success) revert Deploy_OwnershipHandoffFailed({target: target, newOwner: newOwner});
+    }
+
+    function _ownableOwnerOf(address target) internal view returns (address owner) {
+        if (target == address(0)) return address(0);
+
+        (bool success, bytes memory data) = target.staticcall(abi.encodeWithSignature("owner()"));
+        if (!success || data.length < 32) return address(0);
+
+        owner = abi.decode(data, (address));
+    }
+
+    // ════════════════════════════════════════════════════════════════════
     //  Phase 10: Defifa
     // ════════════════════════════════════════════════════════════════════
 
@@ -4233,7 +4282,8 @@ contract Deploy is Script, Sphinx {
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {
         uint256 count = _projects.count();
         if (count >= expectedProjectId) {
-            if (_projects.ownerOf(expectedProjectId) != safeAddress()) {
+            address projectOwner = _projects.ownerOf(expectedProjectId);
+            if (projectOwner != safeAddress() && projectOwner != _CRITICAL_INFRA_OWNER) {
                 revert Deploy_ProjectNotOwned(expectedProjectId);
             }
             return expectedProjectId;

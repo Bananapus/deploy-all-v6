@@ -14,14 +14,14 @@ contract PostDeployDistributeArtifactGapTest is Test {
 
         assertTrue(_contains(manifest, '"ERC2771Forwarder"'), "manifest includes deploy-all owned forwarder");
         assertTrue(_contains(manifest, '"repo": "deploy-all-v6"'), "forwarder source repo is deploy-all-v6");
-        assertTrue(_contains(chainsConfig, '"deploy-all-v6": "juicebox-v6"'), "deploy-all maps to aggregator project");
+        assertTrue(_contains(chainsConfig, '"deploy-all-v6": "V6"'), "deploy-all maps to aggregator project");
 
         assertTrue(
             _contains(
                 distributeSource,
-                "const aggregatorPath = path.join(DEPLOY_ROOT, 'deployments', 'juicebox-v6', chain.alias, file);"
+                "const aggregatorPath = path.join(DEPLOY_ROOT, 'deployments', 'V6', chain.alias, file);"
             ),
-            "aggregator path is the juicebox-v6 deployment path"
+            "aggregator path is the V6 deployment path"
         );
         assertTrue(
             _contains(
@@ -35,7 +35,7 @@ contract PostDeployDistributeArtifactGapTest is Test {
                 distributeSource,
                 "const perRepoPath = path.join(repoDir, 'deployments', sphinxProject, chain.alias, file);"
             ),
-            "per-repo path uses the same juicebox-v6 sphinx project"
+            "per-repo path uses the same V6 sphinx project"
         );
         // Fixed iteration uses `new Set([aggregatorPath, perRepoPath])` so deploy-all-owned cases
         // (where the two paths coincide) are visited exactly once. The previous buggy guard
@@ -50,8 +50,8 @@ contract PostDeployDistributeArtifactGapTest is Test {
             "old buggy double-skip guard is gone"
         );
 
-        string memory aggregatorPath = "deploy-all-v6/deployments/juicebox-v6/ethereum/ERC2771Forwarder.json";
-        string memory perRepoPath = "deploy-all-v6/deployments/juicebox-v6/ethereum/ERC2771Forwarder.json";
+        string memory aggregatorPath = "deploy-all-v6/deployments/V6/ethereum/ERC2771Forwarder.json";
+        string memory perRepoPath = "deploy-all-v6/deployments/V6/ethereum/ERC2771Forwarder.json";
         assertEq(
             keccak256(bytes(aggregatorPath)), keccak256(bytes(perRepoPath)), "deploy-all destinations are identical"
         );
