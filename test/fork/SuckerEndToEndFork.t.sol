@@ -276,7 +276,8 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             projectTokenCount: prepareCount,
             beneficiary: remoteBeneficiary,
             minTokensReclaimed: 0,
-            token: JBConstants.NATIVE_TOKEN
+            token: JBConstants.NATIVE_TOKEN,
+            metadata: bytes32(0)
         });
 
         // Tokens should have been transferred from payer.
@@ -346,7 +347,8 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             projectTokenCount: tokens / 2,
             beneficiary: bytes32(uint256(uint160(PAYER))),
             minTokensReclaimed: 0,
-            token: JBConstants.NATIVE_TOKEN
+            token: JBConstants.NATIVE_TOKEN,
+            metadata: bytes32(0)
         });
     }
 
@@ -372,7 +374,8 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             projectTokenCount: prepareCount,
             beneficiary: remoteBeneficiary,
             minTokensReclaimed: 0,
-            token: JBConstants.NATIVE_TOKEN
+            token: JBConstants.NATIVE_TOKEN,
+            metadata: bytes32(0)
         });
 
         // Grant SUCKER_SAFETY permission to project owner.
@@ -394,7 +397,8 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             projectTokenCount: 1e18,
             beneficiary: remoteBeneficiary,
             minTokensReclaimed: 0,
-            token: JBConstants.NATIVE_TOKEN
+            token: JBConstants.NATIVE_TOKEN,
+            metadata: bytes32(0)
         });
     }
 }

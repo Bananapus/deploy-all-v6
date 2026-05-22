@@ -263,7 +263,8 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         // Fee project balance should NOT change with holdFees=true.
@@ -463,7 +464,8 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 ethReceived = PAYER.balance - payerEthBefore;
@@ -578,7 +580,8 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
                 tokenToReclaim: JBConstants.NATIVE_TOKEN,
                 minTokensReclaimed: 0,
                 beneficiary: payable(ATTACKER),
-                metadata: ""
+                metadata: "",
+                referralProjectId: 0
             });
 
             uint256 attackerReclaimed = ATTACKER.balance - attackerEthBefore;
@@ -603,7 +606,8 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
                 tokenToReclaim: JBConstants.NATIVE_TOKEN,
                 minTokensReclaimed: 0,
                 beneficiary: payable(HONEST_PAYER),
-                metadata: ""
+                metadata: "",
+                referralProjectId: 0
             });
 
             uint256 honestReclaimed = HONEST_PAYER.balance - honestEthBefore;
@@ -692,7 +696,8 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         // The preview reclaimAmount is the bonding curve output BEFORE the terminal's 2.5% fee.
@@ -832,7 +837,8 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         uint256 ethReceived = PAYER.balance - payerEthBefore;

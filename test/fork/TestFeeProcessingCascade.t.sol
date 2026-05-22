@@ -173,7 +173,8 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
             currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         // Fee = 5 ETH * 25/1000 = 0.125 ETH should be held.
@@ -304,7 +305,8 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         assertGt(reclaimed, 0, "should reclaim some ETH");
@@ -340,7 +342,8 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
             currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         // Verify held fees exist.
@@ -469,7 +472,8 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
             currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         // Advance time by 1 day.
@@ -482,7 +486,8 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             token: JBConstants.NATIVE_TOKEN,
             amount: 3 ether,
             currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         // Check we have 2 held fees.
@@ -655,7 +660,8 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
             currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0
+            minTokensPaidOut: 0,
+            referralProjectId: 0
         });
 
         // Clear the mock so subsequent calls work normally.

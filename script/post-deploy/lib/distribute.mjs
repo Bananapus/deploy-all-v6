@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // distribute.mjs — Fan out generated artifacts to:
 //
-//   1. deploy-all-v6/deployments/juicebox-v6/<chain_alias>/<Contract>.json
+//   1. deploy-all-v6/deployments/V6/<chain_alias>/<Contract>.json
 //      (aggregator copy — every contract on this chain in one place)
 //
 //   2. <monorepo>/<repo>/deployments/<sphinxProject>/<chain_alias>/<Contract>.json
@@ -109,9 +109,9 @@ for (const target of targets) {
   }
 
   // Aggregator destination — always written.
-  const aggregatorPath = path.join(DEPLOY_ROOT, 'deployments', 'juicebox-v6', chain.alias, file);
+  const aggregatorPath = path.join(DEPLOY_ROOT, 'deployments', 'V6', chain.alias, file);
 
-  // Per-repo destination. Special case: deploy-all-v6 = juicebox-v6 → same as aggregator (skip duplicate).
+  // Per-repo destination. Special case: deploy-all-v6 = V6 -> same as aggregator (skip duplicate).
   const repoDir = manifestEntry.repo === 'deploy-all-v6' ? DEPLOY_ROOT : path.join(MONOREPO_ROOT, manifestEntry.repo);
   const perRepoPath = path.join(repoDir, 'deployments', sphinxProject, chain.alias, file);
 

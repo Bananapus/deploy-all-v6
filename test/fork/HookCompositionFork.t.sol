@@ -49,7 +49,8 @@ contract HookCompositionForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         // Fee project balance should have increased (2.5% fee on cashout).
@@ -93,7 +94,8 @@ contract HookCompositionForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(BORROWER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
         uint256 feeAfterNormalCashout = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
         assertGt(feeAfterNormalCashout, 0, "normal cashout should accrue fees");
@@ -122,7 +124,8 @@ contract HookCompositionForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         // Main assertion: cashout succeeded (try-catch worked).
@@ -234,7 +237,8 @@ contract HookCompositionForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         assertGt(PAYER.balance, payerEthBefore, "inv: payer received ETH from cashout");
@@ -264,7 +268,8 @@ contract HookCompositionForkTest is EcosystemForkTest {
                 tokenToReclaim: JBConstants.NATIVE_TOKEN,
                 minTokensReclaimed: 0,
                 beneficiary: payable(BORROWER),
-                metadata: ""
+                metadata: "",
+                referralProjectId: 0
             });
             assertGt(BORROWER.balance, borrowerEthBefore, "inv: borrower received ETH");
 
@@ -323,7 +328,8 @@ contract HookCompositionForkTest is EcosystemForkTest {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         // Payer should receive ETH (full pro-rata with 0% tax).

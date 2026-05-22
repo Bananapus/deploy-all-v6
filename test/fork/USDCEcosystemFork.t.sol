@@ -451,7 +451,8 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
             tokenToReclaim: address(usdc),
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         assertGt(usdc.balanceOf(PAYER), payerUSDCBefore, "should receive USDC from cashout");

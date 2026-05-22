@@ -364,7 +364,8 @@ contract EcosystemForkTest is RevnetEcosystemBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: ""
+            metadata: "",
+            referralProjectId: 0
         });
 
         assertGt(PAYER.balance, payerEthBefore, "should receive ETH from cashout");

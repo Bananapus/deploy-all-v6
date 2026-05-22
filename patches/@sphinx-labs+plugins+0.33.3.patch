@@ -1,0 +1,13 @@
+diff --git a/node_modules/@sphinx-labs/plugins/dist/cli/propose/index.js b/node_modules/@sphinx-labs/plugins/dist/cli/propose/index.js
+index f7b6128..a578f74 100644
+--- a/node_modules/@sphinx-labs/plugins/dist/cli/propose/index.js
++++ b/node_modules/@sphinx-labs/plugins/dist/cli/propose/index.js
+@@ -191,7 +191,7 @@ const propose = async (args) => {
+             chainStatus,
+         },
+     };
+-    const deploymentConfigData = JSON.stringify(deploymentConfig, null, 2);
++    const deploymentConfigData = JSON.stringify(deploymentConfig, null, 2).replace(/__\$[0-9a-fA-F]{34}\$__/g, '0000000000000000000000000000000000000000');
+     if (isDryRun) {
+         spinner.succeed(`Proposal dry run succeeded.`);
+     }

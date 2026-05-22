@@ -270,7 +270,8 @@ contract WildcardPermissionKillChain is RevnetForkBase {
             minTokensPaidOut: 0,
             beneficiary: payable(address(REV_DEPLOYER)),
             feeBeneficiary: payable(address(REV_DEPLOYER)), // fee beneficiary for the payout
-            memo: "drain surplus"
+            memo: "drain surplus",
+            referralProjectId: 0
         });
     }
 
@@ -336,7 +337,8 @@ contract WildcardPermissionKillChain is RevnetForkBase {
             minTokensPaidOut: 0,
             beneficiary: payable(address(CT_DEPLOYER)),
             feeBeneficiary: payable(address(CT_DEPLOYER)), // fee beneficiary for the payout
-            memo: "steal funds"
+            memo: "steal funds",
+            referralProjectId: 0
         });
     }
 

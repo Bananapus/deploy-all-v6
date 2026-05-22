@@ -466,7 +466,8 @@ contract BaseChainForkTest is TestBaseWorkflow {
             tokenToReclaim: JBConstants.NATIVE_TOKEN, // Reclaim native ETH.
             minTokensReclaimed: 0, // Accept any reclaim amount.
             beneficiary: payable(PAYER), // ETH goes back to PAYER.
-            metadata: "" // No metadata.
+            metadata: "", // No metadata.
+            referralProjectId: 0
         });
 
         // PAYER should receive some ETH (less than deposited due to tax + fees).

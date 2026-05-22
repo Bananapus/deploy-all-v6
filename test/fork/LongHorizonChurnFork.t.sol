@@ -196,7 +196,8 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
                 token: JBConstants.NATIVE_TOKEN,
                 amount: PAYOUT_LIMIT_ETH,
                 currency: uint256(nativeCurrency),
-                minTokensPaidOut: 0
+                minTokensPaidOut: 0,
+                referralProjectId: 0
             }); // send payouts from A
             uint256 projectBBalanceAfter = _terminalBalance(projectB, JBConstants.NATIVE_TOKEN); // check B's balance
             // Verify Project B received funds from the payout (minus fees).
@@ -228,7 +229,8 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
                         tokenToReclaim: JBConstants.NATIVE_TOKEN,
                         minTokensReclaimed: 0,
                         beneficiary: payable(PAYER),
-                        metadata: ""
+                        metadata: "",
+                        referralProjectId: 0
                     }); // execute the cash out
                 }
             }
