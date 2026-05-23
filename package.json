@@ -1,6 +1,6 @@
 {
   "name": "@bananapus/deploy-all-v6",
-  "version": "0.0.39",
+  "version": "0.0.40",
   "license": "MIT",
   "description": "One-shot deployment orchestrator for the Juicebox V6 ecosystem.",
   "private": true,
@@ -31,8 +31,8 @@
     "build": "forge build",
     "postinstall": "patch-package",
     "artifacts": "./script/build-artifacts.sh",
-    "deploy:propose:testnets": "npx sphinx propose script/Deploy.s.sol --networks testnets",
-    "deploy:propose:mainnets": "npx sphinx propose script/Deploy.s.sol --networks mainnets",
+    "deploy:propose:testnets": "DEFIFA_REV_START_TIME=$(($(date +%s) + 86400)) npx sphinx propose script/Deploy.s.sol --networks testnets",
+    "deploy:propose:mainnets": "DEFIFA_REV_START_TIME=$(($(date +%s) + 86400)) npx sphinx propose script/Deploy.s.sol --networks mainnets",
     "deploy:post": "./script/post-deploy.sh",
     "deploy:post:testnets": "./script/post-deploy.sh --chains=all-testnets",
     "deploy:post:mainnets": "./script/post-deploy.sh --chains=all-mainnets",
