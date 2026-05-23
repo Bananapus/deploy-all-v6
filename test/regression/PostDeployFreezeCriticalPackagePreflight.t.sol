@@ -33,18 +33,15 @@ contract PostDeployFreezeCriticalPackagePreflightTest is Test {
         assertTrue(_contains(buildSource, "nana-omnichain-deployers-v6"), "omnichain deployer package is covered");
         assertTrue(_contains(buildSource, "croptop-core-v6"), "Croptop package is covered");
         assertTrue(
-            _contains(buildSource, "_requireExplicitSuckerPeerPermissionFrom"),
-            "explicit sucker peer permission wrappers are covered"
+            _contains(buildSource, "if (peer != bytes32(0))"), "wrapper packages must gate every explicit nonzero peer"
         );
         assertTrue(
-            _contains(
-                buildSource, "allOperatorPermissions = new uint256[](10 + customOperatorPermissionIndexes.length)"
-            ),
-            "revnet package must include 10-permission operator envelope"
+            _contains(buildSource, "if (configuration.peer != bytes32(0))"),
+            "sucker registry must gate every explicit nonzero peer"
         );
         assertTrue(
-            _contains(buildSource, "allOperatorPermissions[4] = JBPermissionIds.SET_SUCKER_PEER"),
-            "revnet package must grant SET_SUCKER_PEER"
+            _contains(buildSource, "including this registry's address"),
+            "sucker registry must not treat the registry address as a default peer sentinel"
         );
     }
 

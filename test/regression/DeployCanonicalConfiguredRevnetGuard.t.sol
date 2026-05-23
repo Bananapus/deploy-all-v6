@@ -39,9 +39,9 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             "generic guard checks exact config hash"
         );
         assertTrue(_contains(genericGuard, "isOperatorOf"), "generic guard checks expected operator");
-        assertTrue(
+        assertFalse(
             _contains(genericGuard, "_revnetOperatorCanSetSuckerPeer"),
-            "generic guard checks explicit sucker peer permission"
+            "generic guard must not require an unnecessary SET_SUCKER_PEER operator grant"
         );
         assertTrue(_contains(genericGuard, "uriOf(projectId)"), "generic guard checks project URI");
         assertTrue(_contains(genericGuard, "_reservedSplitIsCanonical"), "generic guard checks reserved split");
@@ -62,8 +62,9 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         });
         assertTrue(_contains(bannyGuard, "_isCanonicalRevnetProjectShape"), "Banny checks exact revnet shape");
         assertTrue(_contains(bannyGuard, "_BAN_OPS_OPERATOR"), "Banny accepts finalized ops operator");
-        assertTrue(
-            _contains(bannyGuard, "_revnetOperatorCanSetSuckerPeer"), "Banny checks explicit sucker peer permission"
+        assertFalse(
+            _contains(bannyGuard, "_revnetOperatorCanSetSuckerPeer"),
+            "Banny guard must not require an unnecessary SET_SUCKER_PEER operator grant"
         );
         assertTrue(
             _contains(bannySource, "partialResumeOperator: safeAddress()"), "Banny passes the deployment safe operator"
@@ -72,34 +73,24 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         assertTrue(_contains(bannyGuard, "BANNY"), "Banny checks tiered hook identity");
     }
 
-    function test_revnetDeploymentsRequireExplicitSuckerPeerOperatorGrant() public view {
+    function test_revnetDeploymentsDoNotRequireExplicitSuckerPeerOperatorGrant() public view {
         string memory deploySource = vm.readFile("script/Deploy.s.sol");
-        string memory revSource = _section({
-            haystack: deploySource,
-            startNeedle: "function _deployRevFeeProject()",
-            endNeedle: "function _deployCpnRevnet()"
-        });
-        string memory cpnSource = _section({
-            haystack: deploySource,
-            startNeedle: "function _deployCpnRevnet()",
-            endNeedle: "function _deployNanaRevnet()"
-        });
-        string memory helperSource = _section({
-            haystack: deploySource,
-            startNeedle: "function _requireRevnetOperatorCanSetSuckerPeer(",
-            endNeedle: "function _ensureProjectExists("
-        });
 
-        assertTrue(
-            _contains(revSource, "_requireRevnetOperatorCanSetSuckerPeer"),
-            "REV deploy checks explicit peer operator permission"
+        assertFalse(
+            _contains(deploySource, "_requireRevnetOperatorCanSetSuckerPeer"),
+            "revnet deployments must not require an unnecessary SET_SUCKER_PEER operator grant"
         );
-        assertTrue(
-            _contains(cpnSource, "_requireRevnetOperatorCanSetSuckerPeer"),
-            "CPN deploy checks explicit peer operator permission"
+        assertFalse(
+            _contains(deploySource, "_revnetOperatorCanSetSuckerPeer"),
+            "revnet replay guards must not require an unnecessary SET_SUCKER_PEER operator grant"
         );
-        assertTrue(
-            _contains(helperSource, "JBPermissionIds.SET_SUCKER_PEER"), "helper checks SET_SUCKER_PEER permission"
+        assertFalse(
+            _contains(deploySource, "JBPermissionIds.SET_SUCKER_PEER"),
+            "deploy script must not grant the revnet operator explicit peer-setting power"
+        );
+        assertFalse(
+            _contains(deploySource, "Deploy_MissingPermission"),
+            "deploy script no longer has a revnet peer-permission preflight"
         );
     }
 
@@ -155,9 +146,9 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             "guard passes exact config hash"
         );
         assertTrue(_contains(deployFunctionSource, "expectedOperator: operator"), "guard passes expected operator");
-        assertTrue(
+        assertFalse(
             _contains(deployFunctionSource, "_requireRevnetOperatorCanSetSuckerPeer"),
-            "deploy checks explicit sucker peer permission after launch"
+            "deploy must not require an unnecessary SET_SUCKER_PEER operator grant after launch"
         );
         assertTrue(_contains(deployFunctionSource, 'expectedUri: ""'), "guard passes expected URI");
         assertTrue(

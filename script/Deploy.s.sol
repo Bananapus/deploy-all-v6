@@ -21,7 +21,6 @@ import {JBFundAccessLimits} from "@bananapus/core-v6/src/JBFundAccessLimits.sol"
 import {JBController} from "@bananapus/core-v6/src/JBController.sol";
 import {JBTerminalStore} from "@bananapus/core-v6/src/JBTerminalStore.sol";
 import {JBMultiTerminal} from "@bananapus/core-v6/src/JBMultiTerminal.sol";
-import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
 import {ERC2771Forwarder} from "@openzeppelin/contracts/metatx/ERC2771Forwarder.sol";
 
 // ── Core Libraries ──
@@ -176,7 +175,6 @@ contract Deploy is Script, Sphinx {
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
     error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
     error Deploy_Create3DeploymentFailed(address expected);
-    error Deploy_MissingPermission(address operator, address account, uint256 projectId, uint256 permissionId);
     error Deploy_TimestampOverflow(uint256 timestamp);
     error Deploy_UnexpectedSafe(address expected, address actual);
     error Deploy_OwnershipHandoffFailed(address target, address newOwner);
@@ -2030,7 +2028,6 @@ contract Deploy is Script, Sphinx {
             accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
         });
-        _requireRevnetOperatorCanSetSuckerPeer({projectId: _revProjectId, operator: operator});
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2194,7 +2191,6 @@ contract Deploy is Script, Sphinx {
                 tiered721HookConfiguration: hookConfig,
                 allowedPosts: allowedPosts
             });
-            _requireRevnetOperatorCanSetSuckerPeer({projectId: _cpnProjectId, operator: operator});
         }
     }
 
@@ -2279,7 +2275,6 @@ contract Deploy is Script, Sphinx {
             accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
         });
-        _requireRevnetOperatorCanSetSuckerPeer({projectId: feeProjectId, operator: operator});
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2566,7 +2561,6 @@ contract Deploy is Script, Sphinx {
             allowedPosts: new REVCroptopAllowedPost[](0)
         });
         if (banProjectId != _BAN_PROJECT_ID) revert Deploy_BannyProjectIdMismatch(banProjectId, _BAN_PROJECT_ID);
-        _requireRevnetOperatorCanSetSuckerPeer({projectId: _BAN_PROJECT_ID, operator: operator});
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -3502,7 +3496,6 @@ contract Deploy is Script, Sphinx {
         // After this, the safe no longer has ADJUST_721_TIERS / MINT_721 etc. on project 4; the Banny
         // ops account does.
         _revDeployer.setOperatorOf({revnetId: _BAN_PROJECT_ID, newOperator: _BAN_OPS_OPERATOR});
-        _requireRevnetOperatorCanSetSuckerPeer({projectId: _BAN_PROJECT_ID, operator: _BAN_OPS_OPERATOR});
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -3728,7 +3721,6 @@ contract Deploy is Script, Sphinx {
         if (defifaProjectId != _DEFIFA_REV_PROJECT_ID) {
             revert Deploy_ProjectIdMismatch(_DEFIFA_REV_PROJECT_ID, defifaProjectId);
         }
-        _requireRevnetOperatorCanSetSuckerPeer({projectId: _DEFIFA_REV_PROJECT_ID, operator: operator});
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -3859,7 +3851,6 @@ contract Deploy is Script, Sphinx {
         if (artProjectId != _ART_PROJECT_ID) {
             revert Deploy_ProjectIdMismatch(_ART_PROJECT_ID, artProjectId);
         }
-        _requireRevnetOperatorCanSetSuckerPeer({projectId: _ART_PROJECT_ID, operator: operator});
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -3972,7 +3963,6 @@ contract Deploy is Script, Sphinx {
         if (markeeProjectId != _MARKEE_PROJECT_ID) {
             revert Deploy_ProjectIdMismatch(_MARKEE_PROJECT_ID, markeeProjectId);
         }
-        _requireRevnetOperatorCanSetSuckerPeer({projectId: _MARKEE_PROJECT_ID, operator: operator});
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -4116,11 +4106,9 @@ contract Deploy is Script, Sphinx {
 
         // During a partial resume the Sphinx Safe may still hold the operator role so it can finish drop
         // registration. After finalization the role must belong to the canonical Banny ops address.
-        bool partialResumeOperatorIsCanonical = _revDeployer.isOperatorOf({
-            revnetId: _BAN_PROJECT_ID, addr: partialResumeOperator
-        }) && _revnetOperatorCanSetSuckerPeer({projectId: _BAN_PROJECT_ID, operator: partialResumeOperator});
-        bool finalOperatorIsCanonical = _revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: _BAN_OPS_OPERATOR})
-            && _revnetOperatorCanSetSuckerPeer({projectId: _BAN_PROJECT_ID, operator: _BAN_OPS_OPERATOR});
+        bool partialResumeOperatorIsCanonical =
+            _revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: partialResumeOperator});
+        bool finalOperatorIsCanonical = _revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: _BAN_OPS_OPERATOR});
         if (!partialResumeOperatorIsCanonical && !finalOperatorIsCanonical) return false;
 
         if (address(_revOwner) == address(0)) return false;
@@ -4158,7 +4146,6 @@ contract Deploy is Script, Sphinx {
                 expectedReservedSplitBeneficiary: expectedReservedSplitBeneficiary
             })) return false;
         if (!_revDeployer.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
-        if (!_revnetOperatorCanSetSuckerPeer({projectId: projectId, operator: expectedOperator})) return false;
         return true;
     }
 
@@ -4201,7 +4188,6 @@ contract Deploy is Script, Sphinx {
         if (_revDeployer.FEE_REVNET_ID() != projectId) return false;
         if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
         if (!_revDeployer.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
-        if (!_revnetOperatorCanSetSuckerPeer({projectId: projectId, operator: expectedOperator})) return false;
         if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "NANA"})) return false;
         if (
             keccak256(bytes(_controller.uriOf(projectId)))
@@ -4324,42 +4310,6 @@ contract Deploy is Script, Sphinx {
         if (!success || data.length < 32) return false;
 
         return keccak256(bytes(abi.decode(data, (string)))) == keccak256(bytes(expectedSymbol));
-    }
-
-    /// @notice Revert unless `operator` can set sucker peers through the revnet deployer for `projectId`.
-    /// @param projectId The ID of the revnet project whose operator permissions are checked.
-    /// @param operator The operator that must be able to set sucker peers.
-    function _requireRevnetOperatorCanSetSuckerPeer(uint256 projectId, address operator) internal view {
-        if (!_revnetOperatorCanSetSuckerPeer({projectId: projectId, operator: operator})) {
-            revert Deploy_MissingPermission({
-                operator: operator,
-                account: address(_revDeployer),
-                projectId: projectId,
-                permissionId: JBPermissionIds.SET_SUCKER_PEER
-            });
-        }
-    }
-
-    /// @notice Whether `operator` can set sucker peers through the revnet deployer for `projectId`.
-    /// @param projectId The ID of the revnet project whose operator permissions are checked.
-    /// @param operator The operator to check.
-    /// @return canSetSuckerPeer Whether the operator has `SET_SUCKER_PEER` for the revnet deployer.
-    function _revnetOperatorCanSetSuckerPeer(
-        uint256 projectId,
-        address operator
-    )
-        internal
-        view
-        returns (bool canSetSuckerPeer)
-    {
-        return _permissions.hasPermission({
-            operator: operator,
-            account: address(_revDeployer),
-            projectId: projectId,
-            permissionId: JBPermissionIds.SET_SUCKER_PEER,
-            includeRoot: true,
-            includeWildcardProjectId: true
-        });
     }
 
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {

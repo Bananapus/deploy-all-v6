@@ -218,8 +218,7 @@ Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so th
 Before compiling, `build-artifacts.sh` checks the installed npm package sources for
 freeze-critical post-audit fixes: buyback partial-sell residue return, Uniswap V4
 zero-tax cash-out previews, Omnichain/Croptop explicit sucker-peer permission
-wrappers, Sucker registry nonzero-peer permission gating, and the Revnet
-10-permission operator envelope. This intentionally checks source markers instead
+wrappers, and Sucker registry nonzero-peer permission gating. This intentionally checks source markers instead
 of versions, because some local fixes may land before the package version is
 bumped. If this preflight fails, update `node_modules` and `package-lock.json` to
 the package builds being proposed for deployment, publishing new package versions
@@ -395,17 +394,11 @@ export VERIFY_CONFIG_HASH_7=0x...           # MARKEE(7)
 
 # Per-project split-operator manifest — required on production for projects 2..4
 # so the verifier can authenticate the `splitOperator` (the address allowed to call
-# OPERATOR-gated revnet functions, including explicit sucker-peer setup) against the
-# operator's commit.
+# OPERATOR-gated revnet functions) against the operator's commit.
 export VERIFY_OPERATOR_2=0x...              # CPN(2) splitOperator
 export VERIFY_OPERATOR_3=0x...              # REV(3) splitOperator
 export VERIFY_OPERATOR_4=0x...              # BAN(4) splitOperator
 ```
-
-The deploy script also checks `SET_SUCKER_PEER` immediately after each revnet launch.
-If proposal simulation fails on `Deploy_MissingPermission`, update the installed
-`@rev-net/core-v6` package/artifacts to a build that grants the 10-permission operator
-set.
 
 The artifact preflight also fails until `@bananapus/suckers-v6` contains the
 nonzero-peer gate where only `bytes32(0)` keeps deterministic same-address peering.
@@ -620,9 +613,8 @@ ADJUST_721_TIERS, plus the per-revnet split-operator grant sets), but cannot pro
       caller)` events from `JBPermissions` for the deployment block range.
 - [ ] Confirm the set matches the canonical manifest:
   - The four wildcard grants above (`projectId == 0`).
-  - The 10-permission split-operator grant for each of canonical projects 2 / 3 / 4 (CPN /
-    REV / BAN), including `SET_SUCKER_PEER` → operator addresses supplied via
-    `VERIFY_OPERATOR_{2,3,4}`.
+  - The 9-permission split-operator grant for each of canonical projects 2 / 3 / 4 (CPN /
+    REV / BAN) → operator addresses supplied via `VERIFY_OPERATOR_{2,3,4}`.
   - Any per-project grants the deployment script makes when launching each canonical project.
 - [ ] Flag any grant outside that manifest — every extra wildcard or canonical-project grant
       gives an unintended operator owner-equivalent powers and must be revoked or accepted

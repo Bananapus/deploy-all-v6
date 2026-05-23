@@ -190,7 +190,7 @@ contract PermissionVerifierGapTest is Test {
         harness.verifyPermissionsAndForwarder();
     }
 
-    function test_permissionsVerifierRejectsMissingOperatorSetSuckerPeerGrant() public {
+    function test_permissionsVerifierDoesNotRequireOperatorSetSuckerPeerGrant() public {
         address trustedForwarder = makeAddr("trusted forwarder");
         JBPermissions permissions = new JBPermissions(trustedForwarder);
 
@@ -253,15 +253,6 @@ contract PermissionVerifierGapTest is Test {
 
         vm.setEnv("VERIFY_OPERATOR_2", vm.toString(operator));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Verify.Verify_CriticalCheckFailed.selector,
-                string.concat(
-                    "Permissions: Project 2 (CPN) operator has permission ",
-                    vm.toString(uint256(JBPermissionIds.SET_SUCKER_PEER))
-                )
-            )
-        );
         harness.verifyPermissionsAndForwarder();
 
         vm.setEnv("VERIFY_OPERATOR_2", "0x0000000000000000000000000000000000000000");

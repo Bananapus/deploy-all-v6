@@ -160,18 +160,6 @@ require_freeze_critical_package_sources() {
     "src/JBSuckerRegistry.sol" \
     "including this registry's address" \
     "Sucker registry treats the registry address as an explicit peer"
-
-  require_package_source_contains \
-    "revnet-core-v6" \
-    "src/REVDeployer.sol" \
-    "allOperatorPermissions = new uint256[](10 + customOperatorPermissionIndexes.length);" \
-    "Revnet operator permission envelope includes explicit peer grant"
-
-  require_package_source_contains \
-    "revnet-core-v6" \
-    "src/REVDeployer.sol" \
-    "allOperatorPermissions[4] = JBPermissionIds.SET_SUCKER_PEER;" \
-    "Revnet operator permission envelope grants SET_SUCKER_PEER"
 }
 
 require_freeze_critical_package_sources
