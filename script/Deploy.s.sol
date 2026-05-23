@@ -632,6 +632,8 @@ contract Deploy is Script, Sphinx {
         }
         // Ethereum Sepolia
         else if (block.chainid == 11_155_111) {
+            // Sepolia has multiple WETH9 deployments. Use Uniswap's WETH so router/univ4 integrations match the
+            // token used by Uniswap's Sepolia surfaces, not the older common WETH at 0x7b799...E7f9.
             _wrappedNativeToken = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14; // WETH
             _usdcToken = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // USDC
             _v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
