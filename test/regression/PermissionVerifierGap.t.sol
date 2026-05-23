@@ -189,6 +189,83 @@ contract PermissionVerifierGapTest is Test {
         );
         harness.verifyPermissionsAndForwarder();
     }
+
+    function test_permissionsVerifierRejectsMissingOperatorSetSuckerPeerGrant() public {
+        address trustedForwarder = makeAddr("trusted forwarder");
+        JBPermissions permissions = new JBPermissions(trustedForwarder);
+
+        address revDeployer = makeAddr("rev deployer");
+        address revLoans = makeAddr("rev loans");
+        address operator = makeAddr("operator");
+
+        // O's prior checks call .PERMISSIONS() and trustedForwarder() on revDeployer / revLoans.
+        vm.mockCall(revDeployer, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
+        vm.mockCall(revLoans, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
+        vm.mockCall(revDeployer, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
+        vm.mockCall(revLoans, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
+
+        uint8[] memory useAllowanceIds = new uint8[](1);
+        useAllowanceIds[0] = JBPermissionIds.USE_ALLOWANCE;
+        vm.prank(revDeployer);
+        permissions.setPermissionsFor({
+            account: revDeployer,
+            permissionsData: JBPermissionsData({operator: revLoans, projectId: 0, permissionIds: useAllowanceIds})
+        });
+
+        uint8[] memory operatorIds = new uint8[](9);
+        operatorIds[0] = JBPermissionIds.SET_SPLIT_GROUPS;
+        operatorIds[1] = JBPermissionIds.SET_BUYBACK_POOL;
+        operatorIds[2] = JBPermissionIds.SET_BUYBACK_TWAP;
+        operatorIds[3] = JBPermissionIds.SET_PROJECT_URI;
+        operatorIds[4] = JBPermissionIds.SUCKER_SAFETY;
+        operatorIds[5] = JBPermissionIds.SET_BUYBACK_HOOK;
+        operatorIds[6] = JBPermissionIds.SET_ROUTER_TERMINAL;
+        operatorIds[7] = JBPermissionIds.SET_TOKEN_METADATA;
+        operatorIds[8] = JBPermissionIds.SIGN_FOR_ERC20;
+        vm.prank(revDeployer);
+        permissions.setPermissionsFor({
+            account: revDeployer,
+            permissionsData: JBPermissionsData({operator: operator, projectId: 2, permissionIds: operatorIds})
+        });
+
+        assertFalse(
+            permissions.hasPermission({
+                operator: operator,
+                account: revDeployer,
+                projectId: 2,
+                permissionId: JBPermissionIds.SET_SUCKER_PEER,
+                includeRoot: true,
+                includeWildcardProjectId: true
+            }),
+            "setup must omit the explicit sucker peer grant"
+        );
+
+        VerifyPermissionHarness harness = new VerifyPermissionHarness();
+        harness.setPermissionMocks({
+            permissions_: address(permissions),
+            controller_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
+            terminal_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
+            directory_: address(new MockPermissioned(address(permissions))),
+            projects_: address(new MockTrustedForwarder(trustedForwarder)),
+            expectedTrustedForwarder_: trustedForwarder
+        });
+        harness.setPermissionGrantMocks({revDeployer_: revDeployer, revLoans_: revLoans, buybackRegistry_: address(0)});
+
+        vm.setEnv("VERIFY_OPERATOR_2", vm.toString(operator));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                string.concat(
+                    "Permissions: Project 2 (CPN) operator has permission ",
+                    vm.toString(uint256(JBPermissionIds.SET_SUCKER_PEER))
+                )
+            )
+        );
+        harness.verifyPermissionsAndForwarder();
+
+        vm.setEnv("VERIFY_OPERATOR_2", "0x0000000000000000000000000000000000000000");
+    }
 }
 
 contract VerifyPermissionHarness is Verify {

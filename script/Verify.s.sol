@@ -2487,7 +2487,7 @@ contract Verify is Script {
 
         // Per-revnet operator grants. The operator is configured at revnet launch and
         // exposed via VERIFY_OPERATOR_{2,3,4} env vars. When set, the verifier asserts the
-        // operator has the 9 canonical operator permissions on its revnet.
+        // operator has the 10 canonical operator permissions on its revnet.
         _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_2", projectId: _CPN_PROJECT_ID, label: "Project 2 (CPN)"});
         _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_3", projectId: _REV_PROJECT_ID, label: "Project 3 (REV)"});
         _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_4", projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN)"});
@@ -2498,7 +2498,7 @@ contract Verify is Script {
         console.log("  [INFO] No on-chain enumeration - see DEPLOY.md for off-chain grant reconciliation");
     }
 
-    /// Asserts the 9 canonical operator permissions on `projectId` for the operator named by
+    /// Asserts the 10 canonical operator permissions on `projectId` for the operator named by
     /// `envVar`. On production chains the env var is mandatory (fail-closed); on testnets and
     /// partial-stack chains the check skips when the env var is not set.
     function _verifyOperatorGrantsFor(string memory envVar, uint256 projectId, string memory label) internal {
@@ -2521,11 +2521,12 @@ contract Verify is Script {
             _skipped += 1;
             return;
         }
-        uint8[9] memory expectedPermissions = [
+        uint8[10] memory expectedPermissions = [
             JBPermissionIds.SET_SPLIT_GROUPS,
             JBPermissionIds.SET_BUYBACK_POOL,
             JBPermissionIds.SET_BUYBACK_TWAP,
             JBPermissionIds.SET_PROJECT_URI,
+            JBPermissionIds.SET_SUCKER_PEER,
             JBPermissionIds.SUCKER_SAFETY,
             JBPermissionIds.SET_BUYBACK_HOOK,
             JBPermissionIds.SET_ROUTER_TERMINAL,

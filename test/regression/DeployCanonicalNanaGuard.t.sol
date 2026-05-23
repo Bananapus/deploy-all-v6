@@ -23,6 +23,10 @@ contract DeployCanonicalNanaGuardTest is Test {
             _contains(deployNanaSource, "_isCanonicalNanaRevnetProject"),
             "NANA replay path uses the strict canonical guard"
         );
+        assertTrue(
+            _contains(deployNanaSource, "_requireRevnetOperatorCanSetSuckerPeer"),
+            "NANA deploy checks explicit sucker peer permission after launch"
+        );
         assertFalse(
             _contains(deployNanaSource, '_isCanonicalRevnetProject({projectId: feeProjectId, expectedSymbol: "NANA"})'),
             "NANA replay path must not use the generic nonzero-hash guard"
@@ -34,6 +38,9 @@ contract DeployCanonicalNanaGuardTest is Test {
             "guard checks exact revnet hash"
         );
         assertTrue(_contains(guardSource, "isOperatorOf"), "guard checks expected operator permissions");
+        assertTrue(
+            _contains(guardSource, "_revnetOperatorCanSetSuckerPeer"), "guard checks explicit sucker peer permission"
+        );
         assertTrue(_contains(guardSource, "uriOf(projectId)"), "guard checks project URI");
         assertTrue(_contains(guardSource, "_reservedSplitIsCanonical"), "guard checks reserved split routing");
         assertTrue(_contains(guardSource, "_nativeTerminalConfigIsCanonical"), "guard checks terminal setup");

@@ -41,10 +41,6 @@ command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required (brew install jq)
 command -v forge >/dev/null 2>&1 || { echo "ERROR: forge is required (foundry)"; exit 1; }
 command -v git >/dev/null 2>&1 || { echo "ERROR: git is required"; exit 1; }
 
-# Clean previous artifacts.
-rm -rf "$ARTIFACTS_DIR"
-mkdir -p "$ARTIFACTS_DIR"
-
 # ── Per-repo compile profile ──────────────────────────────────────────────
 # Keyed by repo name. Values: "viaIr|optimizer|optimizerRuns|evmVersion|solcVersion".
 declare -A REPO_PROFILE=(
@@ -90,6 +86,93 @@ declare -A NPM_PACKAGE=(
   [nana-distributor-v6]="@bananapus/distributor-v6"
   [nana-project-payer-v6]="@bananapus/project-payer-v6"
 )
+
+errors=0
+
+# ── Freeze-critical source preflight ──────────────────────────────────────
+# Deployment artifacts are compiled from installed npm package sources, not
+# from sibling workspace checkouts. Fail before artifact generation if the
+# installed sources do not contain the post-audit fixes that deployment must
+# package.
+require_package_source_contains() {
+  local repo="$1"
+  local rel_path="$2"
+  local needle="$3"
+  local label="$4"
+  local package="${NPM_PACKAGE[$repo]:-}"
+  local source_file
+
+  if [[ -z "$package" ]]; then
+    echo "ERROR: no NPM_PACKAGE mapping for $repo ($label)"
+    errors=$((errors + 1))
+    return
+  fi
+
+  source_file="$DEPLOY_ROOT/node_modules/$package/$rel_path"
+  if [[ ! -f "$source_file" ]]; then
+    echo "ERROR: source file missing for $label: $source_file"
+    errors=$((errors + 1))
+    return
+  fi
+
+  if ! grep -Fq "$needle" "$source_file"; then
+    echo "ERROR: installed package source is missing freeze-critical fix: $label"
+    echo "  package:  $package"
+    echo "  file:     $source_file"
+    echo "  expected: $needle"
+    errors=$((errors + 1))
+  fi
+}
+
+require_freeze_critical_package_sources() {
+  require_package_source_contains \
+    "nana-buyback-hook-v6" \
+    "src/JBBuybackHook.sol" \
+    "IERC20(projectToken).safeTransfer({to: context.holder, value: unsoldProjectTokenCount});" \
+    "buyback partial sell returns unsold remint to holder"
+
+  require_package_source_contains \
+    "univ4-router-v6" \
+    "src/JBUniswapV4Hook.sol" \
+    "if (cashOutTaxRate == 0) return effectiveReclaim;" \
+    "Uniswap V4 router zero-tax cash-out preview avoids standard-fee haircut"
+
+  require_package_source_contains \
+    "nana-omnichain-deployers-v6" \
+    "src/JBOmnichainDeployer.sol" \
+    "_requireExplicitSuckerPeerPermissionFrom" \
+    "omnichain deploySuckersFor explicit peer permission preflight"
+
+  require_package_source_contains \
+    "croptop-core-v6" \
+    "src/CTDeployer.sol" \
+    "_requireExplicitSuckerPeerPermissionFrom" \
+    "Croptop deploySuckersFor explicit peer permission preflight"
+
+  require_package_source_contains \
+    "revnet-core-v6" \
+    "src/REVDeployer.sol" \
+    "allOperatorPermissions = new uint256[](10 + customOperatorPermissionIndexes.length);" \
+    "Revnet operator permission envelope includes explicit peer grant"
+
+  require_package_source_contains \
+    "revnet-core-v6" \
+    "src/REVDeployer.sol" \
+    "allOperatorPermissions[4] = JBPermissionIds.SET_SUCKER_PEER;" \
+    "Revnet operator permission envelope grants SET_SUCKER_PEER"
+}
+
+require_freeze_critical_package_sources
+if [[ $errors -gt 0 ]]; then
+  echo ""
+  echo "ERROR: freeze-critical package source preflight failed."
+  echo "Publish/install fixed package builds and update package-lock before building deployment artifacts."
+  exit 1
+fi
+
+# Clean previous artifacts.
+rm -rf "$ARTIFACTS_DIR"
+mkdir -p "$ARTIFACTS_DIR"
 
 # ── Mapping: every contract Deploy.s.sol deploys → source repo + src path ─
 # Each entry is "repo:ContractName:src_path".
@@ -214,8 +297,6 @@ declare -A REPO_SOURCE_PACKAGE
 declare -A REPO_SOURCE_VERSION
 declare -A REPO_BUILD_TARGET
 declare -A REPO_OUT_DIR
-
-errors=0
 
 build_repo() {
   local repo="$1"

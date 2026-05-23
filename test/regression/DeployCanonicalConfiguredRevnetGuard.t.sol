@@ -39,6 +39,10 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             "generic guard checks exact config hash"
         );
         assertTrue(_contains(genericGuard, "isOperatorOf"), "generic guard checks expected operator");
+        assertTrue(
+            _contains(genericGuard, "_revnetOperatorCanSetSuckerPeer"),
+            "generic guard checks explicit sucker peer permission"
+        );
         assertTrue(_contains(genericGuard, "uriOf(projectId)"), "generic guard checks project URI");
         assertTrue(_contains(genericGuard, "_reservedSplitIsCanonical"), "generic guard checks reserved split");
         assertTrue(_contains(genericGuard, "_nativeTerminalConfigIsCanonical"), "generic guard checks terminal setup");
@@ -59,10 +63,44 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         assertTrue(_contains(bannyGuard, "_isCanonicalRevnetProjectShape"), "Banny checks exact revnet shape");
         assertTrue(_contains(bannyGuard, "_BAN_OPS_OPERATOR"), "Banny accepts finalized ops operator");
         assertTrue(
+            _contains(bannyGuard, "_revnetOperatorCanSetSuckerPeer"), "Banny checks explicit sucker peer permission"
+        );
+        assertTrue(
             _contains(bannySource, "partialResumeOperator: safeAddress()"), "Banny passes the deployment safe operator"
         );
         assertTrue(_contains(bannyGuard, "partialResumeOperator"), "Banny accepts partial-resume safe operator");
         assertTrue(_contains(bannyGuard, "BANNY"), "Banny checks tiered hook identity");
+    }
+
+    function test_revnetDeploymentsRequireExplicitSuckerPeerOperatorGrant() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+        string memory revSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _deployRevFeeProject()",
+            endNeedle: "function _deployCpnRevnet()"
+        });
+        string memory cpnSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _deployCpnRevnet()",
+            endNeedle: "function _deployNanaRevnet()"
+        });
+        string memory helperSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _requireRevnetOperatorCanSetSuckerPeer(",
+            endNeedle: "function _ensureProjectExists("
+        });
+
+        assertTrue(
+            _contains(revSource, "_requireRevnetOperatorCanSetSuckerPeer"),
+            "REV deploy checks explicit peer operator permission"
+        );
+        assertTrue(
+            _contains(cpnSource, "_requireRevnetOperatorCanSetSuckerPeer"),
+            "CPN deploy checks explicit peer operator permission"
+        );
+        assertTrue(
+            _contains(helperSource, "JBPermissionIds.SET_SUCKER_PEER"), "helper checks SET_SUCKER_PEER permission"
+        );
     }
 
     function test_routerlessChainsDoNotRequireRouterTerminalInReplayGuard() public view {
@@ -117,6 +155,10 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             "guard passes exact config hash"
         );
         assertTrue(_contains(deployFunctionSource, "expectedOperator: operator"), "guard passes expected operator");
+        assertTrue(
+            _contains(deployFunctionSource, "_requireRevnetOperatorCanSetSuckerPeer"),
+            "deploy checks explicit sucker peer permission after launch"
+        );
         assertTrue(_contains(deployFunctionSource, 'expectedUri: ""'), "guard passes expected URI");
         assertTrue(
             _contains(deployFunctionSource, "expectedReservedSplitBeneficiary: payable(operator)"),

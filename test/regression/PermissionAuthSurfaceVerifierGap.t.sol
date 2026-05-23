@@ -103,6 +103,10 @@ contract PermissionAuthSurfaceVerifierGapTest is Test {
             _contains(verifySource, "CTPublisher wildcard ADJUST_721_TIERS granted by CTDeployer"),
             "verifier asserts ADJUST_721_TIERS wildcard grant"
         );
+        assertTrue(
+            _contains(verifySource, "JBPermissionIds.SET_SUCKER_PEER"),
+            "verifier asserts explicit sucker peer operator grant"
+        );
 
         // Production-required operator manifest.
         assertTrue(

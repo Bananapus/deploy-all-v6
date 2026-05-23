@@ -75,6 +75,21 @@ contract MockOPBridge {
     function bridgeERC20To(address, address, address, uint256, uint32, bytes calldata) external {}
 }
 
+/// @notice Test-local view of referral split hook burn-policy functions that may not exist in the installed package
+/// yet.
+interface IJBReferralSplitHookBurnPolicy {
+    /// @notice Burn credit for a referral chain that has no corresponding sucker route.
+    /// @param referralChainId The chain ID whose credit cannot be bridged.
+    /// @param referralProjectId The referral project ID whose credit should be burned.
+    /// @return burned The amount of fee-project tokens burned.
+    function burnUnbridgeableCreditFor(
+        uint256 referralChainId,
+        uint256 referralProjectId
+    )
+        external
+        returns (uint256 burned);
+}
+
 /// @notice Full end-to-end fork tests for the cross-chain referral reward flow.
 ///
 /// The full path under test, for every test case below, is:
@@ -107,6 +122,26 @@ contract MockOPBridge {
 ///
 /// Run with: forge test --match-contract ReferralRewardCrossChainForkTest -vvv
 contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
+    /// @notice The provided chain ID was zero.
+    error JBReferralSplitHook_ZeroChainId();
+
+    /// @notice A sucker already exists for the chain whose credit was requested to be burned.
+    /// @param sucker The sucker which already routes to the chain.
+    /// @param chainId The chain ID with an existing sucker route.
+    error JBReferralSplitHook_SuckerExistsForChain(address sucker, uint256 chainId);
+
+    /// @notice Fee-project tokens minted from a remote claim were burned because the local twin has no token.
+    /// @param originChainId The chain ID where the remote claim originated.
+    /// @param referralProjectId The local referral project ID without a token.
+    /// @param feeProjectBurned The amount of fee-project tokens burned.
+    event BurnedOnStrand(uint256 indexed originChainId, uint256 indexed referralProjectId, uint256 feeProjectBurned);
+
+    /// @notice Fee-project credit was burned because no sucker route exists for the referral chain.
+    /// @param referralChainId The chain ID whose credit cannot be bridged.
+    /// @param referralProjectId The referral project ID whose credit was burned.
+    /// @param amount The amount of fee-project tokens burned.
+    event BurnedUnbridgeable(uint256 indexed referralChainId, uint256 indexed referralProjectId, uint256 amount);
+
     // ═══════════════════════════════════════════════════════════════════════
     //  Constants
     // ═══════════════════════════════════════════════════════════════════════
@@ -1097,7 +1132,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         uint256 feeProjectBalanceBefore = _terminalBalance(feeProjectId, JBConstants.NATIVE_TOKEN);
 
         vm.expectEmit(true, true, false, true, address(hook));
-        emit IJBReferralSplitHook.BurnedOnStrand({
+        emit BurnedOnStrand({
             originChainId: OPTIMISM_CHAIN_ID, referralProjectId: noTokenLocalId, feeProjectBurned: projectTokensMinted
         });
 
@@ -1701,7 +1736,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     /// @notice bridgeRemote must reject `referralChainId == 0` with a clear, dedicated error rather than
     /// falling through to downstream sucker checks.
     function test_bridgeRemote_revertsOnZeroChainId() public {
-        vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
+        vm.expectRevert(JBReferralSplitHook_ZeroChainId.selector);
         hook.bridgeRemote({
             referralChainId: 0, referralProjectId: 42, sucker: opSucker, terminalToken: JBConstants.NATIVE_TOKEN
         });
@@ -1723,7 +1758,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             proof: proof
         });
 
-        vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
+        vm.expectRevert(JBReferralSplitHook_ZeroChainId.selector);
         hook.claimAndPush({
             originChainId: 0, referralProjectId: referrerProjectIdLocalTwin, sucker: opSucker, claimData: claimData
         });
@@ -1778,12 +1813,12 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         uint256 hookBalanceBefore = IERC20(feeToken).balanceOf(address(hook));
 
         vm.expectEmit(true, true, false, true, address(hook));
-        emit IJBReferralSplitHook.BurnedUnbridgeable({
+        emit BurnedUnbridgeable({
             referralChainId: arbChainId, referralProjectId: arbReferrerProjectId, amount: expectedBurn
         });
 
-        uint256 burned =
-            hook.burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
+        uint256 burned = IJBReferralSplitHookBurnPolicy(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
         assertEq(burned, expectedBurn, "burned == entitled pro-rata share");
 
         // Supply decreased by exactly `burned`; the hook's balance decreased by the same amount (so the
@@ -1803,8 +1838,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         );
 
         // Calling again with no new volume is a noop.
-        uint256 second =
-            hook.burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
+        uint256 second = IJBReferralSplitHookBurnPolicy(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
         assertEq(second, 0, "second burn with no new volume must be a noop");
     }
 
@@ -1818,32 +1853,35 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_SuckerExistsForChain.selector,
-                address(opSucker),
-                OPTIMISM_CHAIN_ID
+                JBReferralSplitHook_SuckerExistsForChain.selector, address(opSucker), OPTIMISM_CHAIN_ID
             )
         );
-        hook.burnUnbridgeableCreditFor({referralChainId: OPTIMISM_CHAIN_ID, referralProjectId: 42});
+        IJBReferralSplitHookBurnPolicy(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: OPTIMISM_CHAIN_ID, referralProjectId: 42});
     }
 
     /// @notice `burnUnbridgeableCreditFor` malformed-args guards: chainId=0, chainId=block.chainid,
     /// projectId=0, projectId=FEE_PROJECT_ID all revert.
     function test_burnUnbridgeable_revertsOnMalformedArgs() public {
         vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_InvalidReferralProjectId.selector);
-        hook.burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: 0});
+        IJBReferralSplitHookBurnPolicy(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: 0});
 
         vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_InvalidReferralProjectId.selector);
-        hook.burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: feeProjectId});
+        IJBReferralSplitHookBurnPolicy(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: feeProjectId});
 
-        vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
-        hook.burnUnbridgeableCreditFor({referralChainId: 0, referralProjectId: 42});
+        vm.expectRevert(JBReferralSplitHook_ZeroChainId.selector);
+        IJBReferralSplitHookBurnPolicy(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: 0, referralProjectId: 42});
 
         vm.expectRevert(
             abi.encodeWithSelector(
                 IJBReferralSplitHook.JBReferralSplitHook_WrongBridgeTarget.selector, block.chainid, block.chainid
             )
         );
-        hook.burnUnbridgeableCreditFor({referralChainId: block.chainid, referralProjectId: 42});
+        IJBReferralSplitHookBurnPolicy(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: block.chainid, referralProjectId: 42});
     }
 
     /// @notice After a burn, if a sucker IS later deployed for the previously-unbridgeable chain, only
@@ -1857,7 +1895,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // Round 1: accumulate credit, burn it.
         _payAndCashOutWithReferral(PAYER, 5 ether, chainId, projectId);
         _distributeFeeReservedTokens();
-        uint256 burned = hook.burnUnbridgeableCreditFor({referralChainId: chainId, referralProjectId: projectId});
+        uint256 burned = IJBReferralSplitHookBurnPolicy(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: chainId, referralProjectId: projectId});
         assertGt(burned, 0, "round 1 burn moves tokens");
 
         // Round 2: more credit accrues to the same referrer.
