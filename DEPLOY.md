@@ -215,15 +215,6 @@ Rehearsal flow (only for local testing on a fork):
 
 Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so the deployed runtime code is byte-equal to the artifact's `deployedBytecode.object`. This lets the verifier compare `extcodehash` directly against the artifact's runtime code hash; without `bytecode_hash = "none"`, solc embeds a per-build IPFS metadata hash in the trailing bytes which makes two byte-identical source compiles produce different on-chain code hashes.
 
-Before compiling, `build-artifacts.sh` checks the installed npm package sources for
-freeze-critical post-audit fixes: buyback partial-sell residue return, Uniswap V4
-zero-tax cash-out previews, Omnichain/Croptop explicit sucker-peer permission
-wrappers, and Sucker registry nonzero-peer permission gating. This intentionally checks source markers instead
-of versions, because some local fixes may land before the package version is
-bumped. If this preflight fails, update `node_modules` and `package-lock.json` to
-the package builds being proposed for deployment, publishing new package versions
-first if the registry builds do not yet contain the fixed sources.
-
 `./script/build-artifacts.sh` runs `forge clean` in each source repo before its `forge build` step, so a stale `out/*.json` from a previous compilation cannot be picked up. After the build, before copying the artifact, the script also verifies that (a) the source file exists at the path declared in `CONTRACTS`, and (b) the copied artifact's `metadata.settings.compilationTarget` binds the expected `(sourcePath, contractName)` pair. Any mismatch is a hard error.
 
 `artifacts.mjs` prunes `post-deploy/.cache/artifacts-<chainId>/` before writing each run's targets, and `distribute.mjs` derives its target list from the current `addresses-<chainId>.json` dump (not from `readdirSync` on the cache). Each artifact's `address` and `chainId` are validated against the current target before the file is copied to `deployments/`. Together these guarantee that the canonical published JSON tree never receives a stale file from a previous run. `post-deploy.sh` also skips distribution for any chain whose artifact emission failed.
