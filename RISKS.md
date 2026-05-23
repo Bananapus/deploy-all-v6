@@ -194,6 +194,7 @@ For each of the 8 target chains, verify every expected contract is deployed at t
 
 - [ ] `JBDirectory.isAllowedToSetFirstController(controllerAddress)` returns `true`
 - [ ] `JBBuybackHookRegistry.defaultHook()` returns the buyback hook address
+- [ ] `JBUniswapV4Hook.poolManager()` returns the canonical Uniswap V4 PoolManager
 - [ ] `JBRouterTerminalRegistry.defaultTerminal()` returns the router terminal address
 - [ ] All sucker deployers registered in `JBSuckerRegistry` (call `suckerDeployerIsAllowed` for each)
 

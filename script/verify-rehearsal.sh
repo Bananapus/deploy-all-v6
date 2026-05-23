@@ -103,6 +103,7 @@ export VERIFY_721_DISTRIBUTOR=$(addr_of JB721Distributor)
 export VERIFY_TOKEN_DISTRIBUTOR=$(addr_of JBTokenDistributor)
 export VERIFY_PROJECT_PAYER_DEPLOYER=$(addr_of JBProjectPayerDeployer)
 export VERIFY_LP_SPLIT_HOOK_DEPLOYER=$(addr_of JBUniswapV4LPSplitHookDeployer)
+export VERIFY_UNISWAP_V4_HOOK=$(addr_of JBUniswapV4Hook)
 export VERIFY_CHECKPOINTS_DEPLOYER=$(addr_of JB721CheckpointsDeployer)
 export VERIFY_BUYBACK_HOOK=$(addr_of JBBuybackHook)
 
