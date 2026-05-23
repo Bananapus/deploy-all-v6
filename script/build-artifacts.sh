@@ -140,14 +140,26 @@ require_freeze_critical_package_sources() {
   require_package_source_contains \
     "nana-omnichain-deployers-v6" \
     "src/JBOmnichainDeployer.sol" \
-    "_requireExplicitSuckerPeerPermissionFrom" \
-    "omnichain deploySuckersFor explicit peer permission preflight"
+    "if (peer != bytes32(0)) {" \
+    "Omnichain wrapper gates every explicit nonzero sucker peer"
 
   require_package_source_contains \
     "croptop-core-v6" \
     "src/CTDeployer.sol" \
-    "_requireExplicitSuckerPeerPermissionFrom" \
-    "Croptop deploySuckersFor explicit peer permission preflight"
+    "if (peer != bytes32(0)) {" \
+    "Croptop wrapper gates every explicit nonzero sucker peer"
+
+  require_package_source_contains \
+    "nana-suckers-v6" \
+    "src/JBSuckerRegistry.sol" \
+    "if (configuration.peer != bytes32(0)) {" \
+    "Sucker registry gates every explicit nonzero peer"
+
+  require_package_source_contains \
+    "nana-suckers-v6" \
+    "src/JBSuckerRegistry.sol" \
+    "including this registry's address" \
+    "Sucker registry treats the registry address as an explicit peer"
 
   require_package_source_contains \
     "revnet-core-v6" \

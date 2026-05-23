@@ -218,12 +218,12 @@ Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so th
 Before compiling, `build-artifacts.sh` checks the installed npm package sources for
 freeze-critical post-audit fixes: buyback partial-sell residue return, Uniswap V4
 zero-tax cash-out previews, Omnichain/Croptop explicit sucker-peer permission
-wrappers, and the Revnet 10-permission operator envelope. This intentionally checks
-source markers instead of versions, because some local fixes may land before the
-package version is bumped. If this preflight fails, update `node_modules` and
-`package-lock.json` to the package builds being proposed for deployment, publishing
-new package versions first if the registry builds do not yet contain the fixed
-sources.
+wrappers, Sucker registry nonzero-peer permission gating, and the Revnet
+10-permission operator envelope. This intentionally checks source markers instead
+of versions, because some local fixes may land before the package version is
+bumped. If this preflight fails, update `node_modules` and `package-lock.json` to
+the package builds being proposed for deployment, publishing new package versions
+first if the registry builds do not yet contain the fixed sources.
 
 `./script/build-artifacts.sh` runs `forge clean` in each source repo before its `forge build` step, so a stale `out/*.json` from a previous compilation cannot be picked up. After the build, before copying the artifact, the script also verifies that (a) the source file exists at the path declared in `CONTRACTS`, and (b) the copied artifact's `metadata.settings.compilationTarget` binds the expected `(sourcePath, contractName)` pair. Any mismatch is a hard error.
 
@@ -406,6 +406,10 @@ The deploy script also checks `SET_SUCKER_PEER` immediately after each revnet la
 If proposal simulation fails on `Deploy_MissingPermission`, update the installed
 `@rev-net/core-v6` package/artifacts to a build that grants the 10-permission operator
 set.
+
+The artifact preflight also fails until `@bananapus/suckers-v6` contains the
+nonzero-peer gate where only `bytes32(0)` keeps deterministic same-address peering.
+The registry address is a normal explicit peer value, not a default sentinel.
 
 #### Sucker deployer allowlist (mandatory on production)
 
