@@ -12,16 +12,6 @@
     "node": "25.9.0"
   },
   "files": [
-    "ADMINISTRATION.md",
-    "ARCHITECTURE.md",
-    "AUDIT_INSTRUCTIONS.md",
-    "CHANGELOG.md",
-    "DEPLOY.md",
-    "README.md",
-    "RISKS.md",
-    "SKILLS.md",
-    "STYLE_GUIDE.md",
-    "USER_JOURNEYS.md",
     "foundry.toml",
     "references/",
     "remappings.txt",
