@@ -549,8 +549,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         if (deployErc20) {
             vm.prank(owner);
-            jbController()
-                .deployERC20For(projectId, "RefToken", "REF", keccak256(abi.encodePacked("REF", projectId)));
+            jbController().deployERC20For(projectId, "RefToken", "REF", keccak256(abi.encodePacked("REF", projectId)));
         }
     }
 
@@ -561,10 +560,10 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         vm.prank(from);
         jbPermissions()
             .setPermissionsFor(
-            from,
-            // forge-lint: disable-next-line(unsafe-typecast)
-            JBPermissionsData({operator: operator, projectId: uint64(_projectId), permissionIds: ids})
-        );
+                from,
+                // forge-lint: disable-next-line(unsafe-typecast)
+                JBPermissionsData({operator: operator, projectId: uint64(_projectId), permissionIds: ids})
+            );
     }
 
     /// @notice Mint `amount` of project tokens to `to` (as ERC-20) and self-delegate so `getPastVotes` returns
@@ -602,8 +601,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     {
         // Pay first to get project tokens.
         vm.prank(payer);
-        uint256 tokens = jbMultiTerminal()
-            .pay{value: amount}({
+        uint256 tokens = jbMultiTerminal().pay{value: amount}({
             projectId: payerProjectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: amount,
@@ -624,7 +622,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // Burn the project tokens for surplus — the protocol fee on the reclaimed amount becomes the referral
         // credit. cashOutTokensOf takes the referral as a separate uint256.
         vm.prank(payer);
-        jbMultiTerminal().cashOutTokensOf({
+        jbMultiTerminal()
+            .cashOutTokensOf({
             holder: payer,
             projectId: payerProjectId,
             cashOutCount: tokens,
@@ -678,7 +677,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         vm.prank(address(messenger));
         JBSucker(payable(address(sucker)))
             .fromRemote(
-            JBMessageRoot({
+                JBMessageRoot({
                 version: 1,
                 token: bytes32(uint256(uint160(token))),
                 amount: terminalTokenAmount,
@@ -690,7 +689,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
                 sourceBalance: 0,
                 sourceTimestamp: uint64(block.timestamp)
             })
-        );
+            );
 
         // Fund the sucker with the terminal tokens so `_handleClaim`'s `_addToBalance` has something to forward
         // to the fee project's terminal.
@@ -779,8 +778,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     /// pushTo → distributor balance grows for the referrer's IVotes token.
     function test_sameChain_endToEnd_basicHappyPath() public {
         // Step 1+2: credit volume for the local referrer.
-        uint256 credited =
-            _payAndCashOutWithReferral(PAYER, 10 ether, block.chainid, referrerProjectIdLocal);
+        uint256 credited = _payAndCashOutWithReferral(PAYER, 10 ether, block.chainid, referrerProjectIdLocal);
         assertGt(credited, 0, "fee volume should be credited");
 
         // Step 3+4: process reserved tokens into the hook. Round up first to break ground on the first ruleset.
@@ -796,9 +794,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         address feeToken = address(jbTokens().tokenOf(feeProjectId));
         address refToken = address(jbTokens().tokenOf(referrerProjectIdLocal));
         assertEq(
-            distributor.balanceOf(refToken, IERC20(feeToken)),
-            pushed,
-            "distributor balance should equal pushed amount"
+            distributor.balanceOf(refToken, IERC20(feeToken)), pushed, "distributor balance should equal pushed amount"
         );
     }
 
@@ -814,8 +810,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         _distributeFeeReservedTokens();
 
-        uint256 vol1 = jbTerminalStore()
-            .feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocal);
+        uint256 vol1 =
+            jbTerminalStore().feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocal);
         uint256 vol2 = jbTerminalStore()
             .feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocalTwin);
         uint256 totalVol = jbTerminalStore().totalFeeVolumeOf(address(jbMultiTerminal()));
@@ -829,8 +825,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         uint256 expected2 = (totalDeposited * vol2) / totalVol;
 
         uint256 pushed1 = hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocal});
-        uint256 pushed2 =
-            hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocalTwin});
+        uint256 pushed2 = hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocalTwin});
 
         assertEq(pushed1, expected1, "referrer 1 share must equal pro-rata");
         assertEq(pushed2, expected2, "referrer 2 share must equal pro-rata");
@@ -1083,8 +1078,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         uint256 projectTokensMinted = 4e18;
         bytes32 beneficiary = bytes32(uint256(uint160(address(hook))));
-        bytes32 metadata =
-            hook.packLeafMetadata({originChainId: OPTIMISM_CHAIN_ID, referralProjectId: noTokenLocalId});
+        bytes32 metadata = hook.packLeafMetadata({originChainId: OPTIMISM_CHAIN_ID, referralProjectId: noTokenLocalId});
 
         (, bytes32[32] memory proof,) = _stageInboxLeaf({
             sucker: opSucker,
@@ -1104,9 +1098,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         vm.expectEmit(true, true, false, true, address(hook));
         emit IJBReferralSplitHook.BurnedOnStrand({
-            originChainId: OPTIMISM_CHAIN_ID,
-            referralProjectId: noTokenLocalId,
-            feeProjectBurned: projectTokensMinted
+            originChainId: OPTIMISM_CHAIN_ID, referralProjectId: noTokenLocalId, feeProjectBurned: projectTokensMinted
         });
 
         uint256 pushed = hook.claimAndPush({
@@ -1336,10 +1328,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // The vested rewards that were begun + collected are gone from `_balanceOf`. What remains should be
         // the undelegated share that nobody could claim, modulo tiny mulDiv rounding.
         assertApproxEqAbs(
-            distributorRetained,
-            expectedRetainedForLaterRounds,
-            2,
-            "undelegated share must remain in distributor pool"
+            distributorRetained, expectedRetainedForLaterRounds, 2, "undelegated share must remain in distributor pool"
         );
     }
 
@@ -1372,8 +1361,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         uint256 totalDeposited = hook.totalDeposited();
 
         uint256 pushed1 = hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocal});
-        uint256 pushed2 =
-            hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocalTwin});
+        uint256 pushed2 = hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocalTwin});
 
         assertLe(pushed1 + pushed2, totalDeposited, "sum of pushed must be bounded by totalDeposited");
         // Sum should also be CLOSE to totalDeposited — only mulDiv rounding (≤ N referrers wei) loss.
@@ -1391,9 +1379,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         uint256 pushed1 = hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocal});
         assertEq(hook.pushedLocallyOf(referrerProjectIdLocal), pushed1, "after push1, hwm matches push1");
         assertEq(
-            hook.bridgedOutOf({referralChainId: OPTIMISM_CHAIN_ID, referralProjectId: 200}),
-            0,
-            "bridgedOut untouched"
+            hook.bridgedOutOf({referralChainId: OPTIMISM_CHAIN_ID, referralProjectId: 200}), 0, "bridgedOut untouched"
         );
 
         // Stage 2: cross-chain referrer accrues volume.
@@ -1422,9 +1408,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         // pushedLocallyOf strictly increased; bridgedOutOf untouched.
         assertGt(pushed2, 0, "second push moves tokens");
-        assertGt(
-            hook.pushedLocallyOf(referrerProjectIdLocal), pushed1, "pushedLocallyOf must strictly increase"
-        );
+        assertGt(hook.pushedLocallyOf(referrerProjectIdLocal), pushed1, "pushedLocallyOf must strictly increase");
         assertEq(
             hook.bridgedOutOf({referralChainId: OPTIMISM_CHAIN_ID, referralProjectId: 200}),
             bridged1,
@@ -1470,8 +1454,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         _payAndCashOutWithReferral(PAYER, vol2, block.chainid, referrerProjectIdLocalTwin);
         _distributeFeeReservedTokens();
 
-        uint256 refVol = jbTerminalStore()
-            .feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocal);
+        uint256 refVol =
+            jbTerminalStore().feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocal);
         uint256 totalVol = jbTerminalStore().totalFeeVolumeOf(address(jbMultiTerminal()));
         uint256 totalDeposited = hook.totalDeposited();
         uint256 expected = (totalDeposited * refVol) / totalVol;
@@ -1499,11 +1483,9 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // the `new MockPriceFeed(...)` inside the call to `addPriceFeedFor` would consume the prank early.
         IJBPriceFeed usdcFeed = IJBPriceFeed(address(new MockPriceFeed({price: 3000e18, feedDecimals: 18})));
         vm.prank(multisig());
-        jbPrices().addPriceFeedFor({
-            projectId: 0,
-            pricingCurrency: usdcCurrency,
-            unitCurrency: uint256(NATIVE_CURRENCY),
-            feed: usdcFeed
+        jbPrices()
+            .addPriceFeedFor({
+            projectId: 0, pricingCurrency: usdcCurrency, unitCurrency: uint256(NATIVE_CURRENCY), feed: usdcFeed
         });
 
         // Add USDC accounting context to the fee project so it can receive USDC-denominated fee payments.
@@ -1589,8 +1571,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         // Pay the USDC-denominated project (no msg.value).
         vm.prank(PAYER);
-        uint256 tokens = jbMultiTerminal()
-            .pay{value: 0}({
+        uint256 tokens = jbMultiTerminal().pay{value: 0}({
             projectId: payerProjectIdUsdc,
             token: address(usdc),
             amount: 1000e6, // $1,000 in USDC
@@ -1606,7 +1587,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // NATIVE 18-decimal via the price feed we registered in `_setUpUsdc`.
         uint256 encodedReferral = (block.chainid << 48) | referrerProjectIdLocal;
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
+        jbMultiTerminal()
+            .cashOutTokensOf({
             holder: PAYER,
             projectId: payerProjectIdUsdc,
             cashOutCount: tokens,
@@ -1618,8 +1600,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         });
 
         // Volume must be recorded NATIVE-normalized — i.e. NOT in raw 6-decimal USDC.
-        uint256 refVol = jbTerminalStore()
-            .feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocal);
+        uint256 refVol =
+            jbTerminalStore().feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocal);
         uint256 totalVol = jbTerminalStore().totalFeeVolumeOf(address(jbMultiTerminal()));
         assertGt(refVol, 0, "USDC referral credit must record positive volume");
         assertEq(refVol, totalVol, "single-referrer => refVol == totalVol");
@@ -1642,9 +1624,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         address feeToken = address(jbTokens().tokenOf(feeProjectId));
         address refToken = address(jbTokens().tokenOf(referrerProjectIdLocal));
         assertEq(
-            distributor.balanceOf(refToken, IERC20(feeToken)),
-            pushed,
-            "distributor balance must equal pushed amount"
+            distributor.balanceOf(refToken, IERC20(feeToken)), pushed, "distributor balance must equal pushed amount"
         );
     }
 
@@ -1664,8 +1644,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         usdc.approve(address(jbMultiTerminal()), type(uint256).max);
 
         vm.prank(PAYER);
-        uint256 tokensUsdc = jbMultiTerminal()
-            .pay{value: 0}({
+        uint256 tokensUsdc = jbMultiTerminal().pay{value: 0}({
             projectId: payerProjectIdUsdc,
             token: address(usdc),
             amount: 3000e6,
@@ -1676,7 +1655,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         });
         uint256 encodedB = (block.chainid << 48) | referrerProjectIdLocalTwin;
         vm.prank(PAYER);
-        jbMultiTerminal().cashOutTokensOf({
+        jbMultiTerminal()
+            .cashOutTokensOf({
             holder: PAYER,
             projectId: payerProjectIdUsdc,
             cashOutCount: tokensUsdc,
@@ -1688,8 +1668,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         });
 
         // Both volume slots must be in matching units (NATIVE 18-dec). Their ratio reflects ETH-equivalent.
-        uint256 volA = jbTerminalStore()
-            .feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocal);
+        uint256 volA =
+            jbTerminalStore().feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocal);
         uint256 volB = jbTerminalStore()
             .feeVolumeByReferralOf(address(jbMultiTerminal()), block.chainid, referrerProjectIdLocalTwin);
         uint256 totalVol = jbTerminalStore().totalFeeVolumeOf(address(jbMultiTerminal()));
@@ -1706,8 +1686,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         _distributeFeeReservedTokens();
         uint256 totalDeposited = hook.totalDeposited();
         uint256 pushedA = hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocal});
-        uint256 pushedB =
-            hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocalTwin});
+        uint256 pushedB = hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocalTwin});
         assertLe(pushedA + pushedB, totalDeposited, "mixed-currency pushes still bounded by totalDeposited");
 
         // And each share matches its NATIVE-normalized volume fraction.
@@ -1724,10 +1703,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     function test_bridgeRemote_revertsOnZeroChainId() public {
         vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
         hook.bridgeRemote({
-            referralChainId: 0,
-            referralProjectId: 42,
-            sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            referralChainId: 0, referralProjectId: 42, sucker: opSucker, terminalToken: JBConstants.NATIVE_TOKEN
         });
     }
 
@@ -1749,10 +1725,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
         hook.claimAndPush({
-            originChainId: 0,
-            referralProjectId: referrerProjectIdLocalTwin,
-            sucker: opSucker,
-            claimData: claimData
+            originChainId: 0, referralProjectId: referrerProjectIdLocalTwin, sucker: opSucker, claimData: claimData
         });
     }
 
@@ -1781,9 +1754,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // trigger — burn is the explicit `burnUnbridgeableCreditFor` entrypoint).
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_SuckerPeerMismatch.selector,
-                arbChainId,
-                OPTIMISM_CHAIN_ID
+                IJBReferralSplitHook.JBReferralSplitHook_SuckerPeerMismatch.selector, arbChainId, OPTIMISM_CHAIN_ID
             )
         );
         hook.bridgeRemote({
@@ -1797,8 +1768,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // confirms none peer to Arbitrum, computes the entitled share, and burns it.
         uint256 expectedBurn = (totalDeposited * 1) / 1; // single referrer => entire totalDeposited
         // Adjust expectedBurn to the exact pro-rata math (single referrer pool):
-        uint256 vol = jbTerminalStore()
-            .feeVolumeByReferralOf(address(jbMultiTerminal()), arbChainId, arbReferrerProjectId);
+        uint256 vol =
+            jbTerminalStore().feeVolumeByReferralOf(address(jbMultiTerminal()), arbChainId, arbReferrerProjectId);
         uint256 totalVol = jbTerminalStore().totalFeeVolumeOf(address(jbMultiTerminal()));
         expectedBurn = (totalDeposited * vol) / totalVol;
 
@@ -1811,18 +1782,13 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: arbChainId, referralProjectId: arbReferrerProjectId, amount: expectedBurn
         });
 
-        uint256 burned = hook.burnUnbridgeableCreditFor({
-            referralChainId: arbChainId, referralProjectId: arbReferrerProjectId
-        });
+        uint256 burned =
+            hook.burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
         assertEq(burned, expectedBurn, "burned == entitled pro-rata share");
 
         // Supply decreased by exactly `burned`; the hook's balance decreased by the same amount (so the
         // remaining hook balance correctly reflects no allocation for the dead chain).
-        assertEq(
-            IERC20(feeToken).totalSupply(),
-            supplyBefore - burned,
-            "fee-project supply decreased by burned amount"
-        );
+        assertEq(IERC20(feeToken).totalSupply(), supplyBefore - burned, "fee-project supply decreased by burned amount");
         assertEq(
             IERC20(feeToken).balanceOf(address(hook)),
             hookBalanceBefore - burned,
@@ -1837,9 +1803,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         );
 
         // Calling again with no new volume is a noop.
-        uint256 second = hook.burnUnbridgeableCreditFor({
-            referralChainId: arbChainId, referralProjectId: arbReferrerProjectId
-        });
+        uint256 second =
+            hook.burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
         assertEq(second, 0, "second burn with no new volume must be a noop");
     }
 
@@ -1907,9 +1872,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             abi.encodeWithSelector(IJBSuckerRegistry.isSuckerOf.selector, feeProjectId, address(mockSucker)),
             abi.encode(true)
         );
-        vm.mockCall(
-            address(mockSucker), abi.encodeWithSelector(IJBSucker.peerChainId.selector), abi.encode(chainId)
-        );
+        vm.mockCall(address(mockSucker), abi.encodeWithSelector(IJBSucker.peerChainId.selector), abi.encode(chainId));
         vm.mockCall(address(mockSucker), abi.encodeWithSelector(IJBSucker.prepare.selector), abi.encode());
 
         uint256 bridged = hook.bridgeRemote({
@@ -1942,9 +1905,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             abi.encodeWithSelector(IJBSuckerRegistry.isSuckerOf.selector, feeProjectId, address(mockSucker)),
             abi.encode(true)
         );
-        vm.mockCall(
-            address(mockSucker), abi.encodeWithSelector(IJBSucker.peerChainId.selector), abi.encode(chainId)
-        );
+        vm.mockCall(address(mockSucker), abi.encodeWithSelector(IJBSucker.peerChainId.selector), abi.encode(chainId));
         vm.mockCall(address(mockSucker), abi.encodeWithSelector(IJBSucker.prepare.selector), abi.encode());
 
         // First batch of credit.
