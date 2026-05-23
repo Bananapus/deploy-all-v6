@@ -362,7 +362,8 @@ contract Deploy is Script, Sphinx {
     uint104 private constant ART_BASE_AUTO_ISSUANCE = 957_902_762_145_312_613_270_859_503;
 
     // ── Distributor constants ──
-    uint256 private constant VESTING_ROUNDS = 52;
+    // Four weekly rounds vest distributor rewards over 28 days.
+    uint256 private constant VESTING_ROUNDS = 4;
 
     // ── Common ──
     uint32 private constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
