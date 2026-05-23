@@ -4106,10 +4106,10 @@ contract Deploy is Script, Sphinx {
 
         // During a partial resume the Sphinx Safe may still hold the operator role so it can finish drop
         // registration. After finalization the role must belong to the canonical Banny ops address.
-        if (
-            !_revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: partialResumeOperator})
-                && !_revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: _BAN_OPS_OPERATOR})
-        ) return false;
+        bool partialResumeOperatorIsCanonical =
+            _revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: partialResumeOperator});
+        bool finalOperatorIsCanonical = _revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: _BAN_OPS_OPERATOR});
+        if (!partialResumeOperatorIsCanonical && !finalOperatorIsCanonical) return false;
 
         if (address(_revOwner) == address(0)) return false;
 

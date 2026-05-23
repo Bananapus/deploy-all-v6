@@ -39,6 +39,10 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             "generic guard checks exact config hash"
         );
         assertTrue(_contains(genericGuard, "isOperatorOf"), "generic guard checks expected operator");
+        assertFalse(
+            _contains(genericGuard, "_revnetOperatorCanSetSuckerPeer"),
+            "generic guard must not require an unnecessary SET_SUCKER_PEER operator grant"
+        );
         assertTrue(_contains(genericGuard, "uriOf(projectId)"), "generic guard checks project URI");
         assertTrue(_contains(genericGuard, "_reservedSplitIsCanonical"), "generic guard checks reserved split");
         assertTrue(_contains(genericGuard, "_nativeTerminalConfigIsCanonical"), "generic guard checks terminal setup");
@@ -58,11 +62,36 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         });
         assertTrue(_contains(bannyGuard, "_isCanonicalRevnetProjectShape"), "Banny checks exact revnet shape");
         assertTrue(_contains(bannyGuard, "_BAN_OPS_OPERATOR"), "Banny accepts finalized ops operator");
+        assertFalse(
+            _contains(bannyGuard, "_revnetOperatorCanSetSuckerPeer"),
+            "Banny guard must not require an unnecessary SET_SUCKER_PEER operator grant"
+        );
         assertTrue(
             _contains(bannySource, "partialResumeOperator: safeAddress()"), "Banny passes the deployment safe operator"
         );
         assertTrue(_contains(bannyGuard, "partialResumeOperator"), "Banny accepts partial-resume safe operator");
         assertTrue(_contains(bannyGuard, "BANNY"), "Banny checks tiered hook identity");
+    }
+
+    function test_revnetDeploymentsDoNotRequireExplicitSuckerPeerOperatorGrant() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+
+        assertFalse(
+            _contains(deploySource, "_requireRevnetOperatorCanSetSuckerPeer"),
+            "revnet deployments must not require an unnecessary SET_SUCKER_PEER operator grant"
+        );
+        assertFalse(
+            _contains(deploySource, "_revnetOperatorCanSetSuckerPeer"),
+            "revnet replay guards must not require an unnecessary SET_SUCKER_PEER operator grant"
+        );
+        assertFalse(
+            _contains(deploySource, "JBPermissionIds.SET_SUCKER_PEER"),
+            "deploy script must not grant the revnet operator explicit peer-setting power"
+        );
+        assertFalse(
+            _contains(deploySource, "Deploy_MissingPermission"),
+            "deploy script no longer has a revnet peer-permission preflight"
+        );
     }
 
     function test_routerlessChainsDoNotRequireRouterTerminalInReplayGuard() public view {
@@ -117,6 +146,10 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             "guard passes exact config hash"
         );
         assertTrue(_contains(deployFunctionSource, "expectedOperator: operator"), "guard passes expected operator");
+        assertFalse(
+            _contains(deployFunctionSource, "_requireRevnetOperatorCanSetSuckerPeer"),
+            "deploy must not require an unnecessary SET_SUCKER_PEER operator grant after launch"
+        );
         assertTrue(_contains(deployFunctionSource, 'expectedUri: ""'), "guard passes expected URI");
         assertTrue(
             _contains(deployFunctionSource, "expectedReservedSplitBeneficiary: payable(operator)"),

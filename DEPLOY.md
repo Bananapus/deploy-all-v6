@@ -391,6 +391,10 @@ export VERIFY_OPERATOR_3=0x...              # REV(3) splitOperator
 export VERIFY_OPERATOR_4=0x...              # BAN(4) splitOperator
 ```
 
+The artifact preflight also fails until `@bananapus/suckers-v6` contains the
+nonzero-peer gate where only `bytes32(0)` keeps deterministic same-address peering.
+The registry address is a normal explicit peer value, not a default sentinel.
+
 #### Sucker deployer allowlist (mandatory on production)
 
 The sucker registry's allowlist isn't enumerable on-chain, so the verifier accepts a

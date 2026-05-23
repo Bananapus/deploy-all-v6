@@ -1782,8 +1782,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: arbChainId, referralProjectId: arbReferrerProjectId, amount: expectedBurn
         });
 
-        uint256 burned =
-            hook.burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
+        uint256 burned = IJBReferralSplitHook(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
         assertEq(burned, expectedBurn, "burned == entitled pro-rata share");
 
         // Supply decreased by exactly `burned`; the hook's balance decreased by the same amount (so the
@@ -1803,8 +1803,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         );
 
         // Calling again with no new volume is a noop.
-        uint256 second =
-            hook.burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
+        uint256 second = IJBReferralSplitHook(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
         assertEq(second, 0, "second burn with no new volume must be a noop");
     }
 
@@ -1823,27 +1823,30 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
                 OPTIMISM_CHAIN_ID
             )
         );
-        hook.burnUnbridgeableCreditFor({referralChainId: OPTIMISM_CHAIN_ID, referralProjectId: 42});
+        IJBReferralSplitHook(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: OPTIMISM_CHAIN_ID, referralProjectId: 42});
     }
 
     /// @notice `burnUnbridgeableCreditFor` malformed-args guards: chainId=0, chainId=block.chainid,
     /// projectId=0, projectId=FEE_PROJECT_ID all revert.
     function test_burnUnbridgeable_revertsOnMalformedArgs() public {
         vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_InvalidReferralProjectId.selector);
-        hook.burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: 0});
+        IJBReferralSplitHook(address(hook)).burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: 0});
 
         vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_InvalidReferralProjectId.selector);
-        hook.burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: feeProjectId});
+        IJBReferralSplitHook(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: feeProjectId});
 
         vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
-        hook.burnUnbridgeableCreditFor({referralChainId: 0, referralProjectId: 42});
+        IJBReferralSplitHook(address(hook)).burnUnbridgeableCreditFor({referralChainId: 0, referralProjectId: 42});
 
         vm.expectRevert(
             abi.encodeWithSelector(
                 IJBReferralSplitHook.JBReferralSplitHook_WrongBridgeTarget.selector, block.chainid, block.chainid
             )
         );
-        hook.burnUnbridgeableCreditFor({referralChainId: block.chainid, referralProjectId: 42});
+        IJBReferralSplitHook(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: block.chainid, referralProjectId: 42});
     }
 
     /// @notice After a burn, if a sucker IS later deployed for the previously-unbridgeable chain, only
@@ -1857,7 +1860,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // Round 1: accumulate credit, burn it.
         _payAndCashOutWithReferral(PAYER, 5 ether, chainId, projectId);
         _distributeFeeReservedTokens();
-        uint256 burned = hook.burnUnbridgeableCreditFor({referralChainId: chainId, referralProjectId: projectId});
+        uint256 burned = IJBReferralSplitHook(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: chainId, referralProjectId: projectId});
         assertGt(burned, 0, "round 1 burn moves tokens");
 
         // Round 2: more credit accrues to the same referrer.

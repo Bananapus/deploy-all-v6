@@ -41,10 +41,6 @@ command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required (brew install jq)
 command -v forge >/dev/null 2>&1 || { echo "ERROR: forge is required (foundry)"; exit 1; }
 command -v git >/dev/null 2>&1 || { echo "ERROR: git is required"; exit 1; }
 
-# Clean previous artifacts.
-rm -rf "$ARTIFACTS_DIR"
-mkdir -p "$ARTIFACTS_DIR"
-
 # ── Per-repo compile profile ──────────────────────────────────────────────
 # Keyed by repo name. Values: "viaIr|optimizer|optimizerRuns|evmVersion|solcVersion".
 declare -A REPO_PROFILE=(
@@ -90,6 +86,12 @@ declare -A NPM_PACKAGE=(
   [nana-distributor-v6]="@bananapus/distributor-v6"
   [nana-project-payer-v6]="@bananapus/project-payer-v6"
 )
+
+errors=0
+
+# Clean previous artifacts.
+rm -rf "$ARTIFACTS_DIR"
+mkdir -p "$ARTIFACTS_DIR"
 
 # ── Mapping: every contract Deploy.s.sol deploys → source repo + src path ─
 # Each entry is "repo:ContractName:src_path".
@@ -214,8 +216,6 @@ declare -A REPO_SOURCE_PACKAGE
 declare -A REPO_SOURCE_VERSION
 declare -A REPO_BUILD_TARGET
 declare -A REPO_OUT_DIR
-
-errors=0
 
 build_repo() {
   local repo="$1"
