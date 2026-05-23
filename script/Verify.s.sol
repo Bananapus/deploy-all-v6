@@ -245,8 +245,8 @@ contract Verify is Script {
     uint256 private constant _ART_PROJECT_ID = 6;
     // The MARKEE project is always project 7.
     uint256 private constant _MARKEE_PROJECT_ID = 7;
-    // Distributor vesting rounds must match Deploy.s.sol.
-    uint256 private constant _VESTING_ROUNDS = 52;
+    // Distributor vesting rounds must match Deploy.s.sol: four weekly rounds = 28 days.
+    uint256 private constant _VESTING_ROUNDS = 4;
 
     // ════════════════════════════════════════════════════════════════════
     //  Entry Point
