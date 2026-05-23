@@ -65,6 +65,35 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         assertTrue(_contains(bannyGuard, "BANNY"), "Banny checks tiered hook identity");
     }
 
+    function test_routerlessChainsDoNotRequireRouterTerminalInReplayGuard() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+        string memory terminalGuard = _section({
+            haystack: deploySource,
+            startNeedle: "function _nativeTerminalConfigIsCanonical(",
+            endNeedle: "function _projectTokenSymbolIs("
+        });
+
+        assertTrue(_contains(terminalGuard, "_shouldDeployUniswapStack()"), "guard branches on router availability");
+        assertTrue(_contains(terminalGuard, "terminals.length != 1"), "routerless chains require only one terminal");
+        assertTrue(_contains(terminalGuard, "terminals[0] != _terminal"), "routerless terminal must be JBMultiTerminal");
+    }
+
+    function test_defifaStartTimePinnedBeforeSphinxPerChainCollection() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+        string memory packageJson = vm.readFile("package.json");
+        string memory anchorSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _initializeDeploymentAnchors()",
+            endNeedle: "function _setupChainAddresses()"
+        });
+
+        assertTrue(_contains(anchorSource, 'vm.envOr({name: "DEFIFA_REV_START_TIME"'), "deploy reads pinned anchor");
+        assertTrue(
+            _contains(packageJson, "DEFIFA_REV_START_TIME=$(($(date +%s) + 86400)) npx sphinx propose"),
+            "proposal scripts pin one anchor before Sphinx loops chains"
+        );
+    }
+
     function _assertStrictConfiguredRevnetGuard(
         string memory deployFunctionSource,
         string memory projectIdName,

@@ -442,6 +442,7 @@ contract Deploy is Script, Sphinx {
     DefifaGovernor private _defifaGovernor;
     JB721TiersHookStore private _defifaHookStore;
     DefifaDeployer private _defifaDeployer;
+    uint48 private _defifaRevStartTime;
 
     // Project Handles
     JBProjectHandles private _projectHandles;
@@ -500,12 +501,15 @@ contract Deploy is Script, Sphinx {
             revert Deploy_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
         }
 
+        _initializeDeploymentAnchors();
         _setupChainAddresses();
         deploy();
         _dumpAddresses();
     }
 
     function deploy() public sphinx {
+        _initializeDeploymentAnchors();
+
         // Phase 00: External libraries (must come BEFORE any contract that DELEGATECALLs into them).
         _deployLibraries();
 
@@ -596,6 +600,21 @@ contract Deploy is Script, Sphinx {
         _finalizeCriticalOwnership();
     }
 
+    function _initializeDeploymentAnchors() internal {
+        if (_defifaRevStartTime != 0) return;
+
+        if (DEFIFA_REV_START_TIME != 0) {
+            _defifaRevStartTime = DEFIFA_REV_START_TIME;
+            return;
+        }
+
+        // Sphinx collects each chain in a separate Forge process. The package proposal scripts set this env var once
+        // before Sphinx enters that per-chain collection loop so every chain gets the same not-yet-launched anchor.
+        uint256 scriptedStartTime = vm.envOr({name: "DEFIFA_REV_START_TIME", defaultValue: uint256(0)});
+        _defifaRevStartTime =
+            scriptedStartTime == 0 ? _timestamp48(block.timestamp + 1 days) : _timestamp48(scriptedStartTime);
+    }
+
     // ════════════════════════════════════════════════════════════════════
     //  Chain-Specific Address Setup
     // ════════════════════════════════════════════════════════════════════
@@ -613,7 +632,9 @@ contract Deploy is Script, Sphinx {
         }
         // Ethereum Sepolia
         else if (block.chainid == 11_155_111) {
-            _wrappedNativeToken = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9; // WETH
+            // Sepolia has multiple WETH9 deployments. Use Uniswap's WETH so router/univ4 integrations match the
+            // token used by Uniswap's Sepolia surfaces, not the older common WETH at 0x7b799...E7f9.
+            _wrappedNativeToken = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14; // WETH
             _usdcToken = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // USDC
             _v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
             _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
@@ -3619,12 +3640,10 @@ contract Deploy is Script, Sphinx {
         REVStageConfig[] memory stages = new REVStageConfig[](3);
 
         // DEFIFA is the only revnet that hasn't yet launched. `DEFIFA_REV_START_TIME == 0`
-        // signals "not-yet-launched"; the actual stage-0 start is pinned to one day past
-        // `block.timestamp` so REVDeployer's monotonic-stage-time guard holds and the start is
-        // far enough in the future that re-org / slow safe-execution windows on any chain still
-        // leave the stage in the future at inclusion time. Downstream stage offsets (720 days,
-        // 3600 days) are then added to that same future anchor.
-        uint48 defifaStage0Start = DEFIFA_REV_START_TIME == 0 ? uint48(block.timestamp + 1 days) : DEFIFA_REV_START_TIME;
+        // signals "not-yet-launched"; the actual stage-0 start is pinned once at script start so each chain in the
+        // same deployment proposal uses the same future anchor. Downstream stage offsets (720 days, 3600 days) are
+        // then added to that same value.
+        uint48 defifaStage0Start = _defifaRevStartTime;
 
         stages[0] = REVStageConfig({
             startsAtOrAfter: defifaStage0Start,
@@ -4060,6 +4079,13 @@ contract Deploy is Script, Sphinx {
         return uint40(timestamp);
     }
 
+    function _timestamp48(uint256 timestamp) internal pure returns (uint48) {
+        if (timestamp > type(uint48).max) revert Deploy_TimestampOverflow({timestamp: timestamp});
+        // Safe because the bound check above rejects values outside uint48.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint48(timestamp);
+    }
+
     /// @dev Canonical identity gate for the Banny project (ID 4).
     function _isCanonicalBannyProject(
         bytes32 expectedConfigurationHash,
@@ -4257,7 +4283,13 @@ contract Deploy is Script, Sphinx {
     function _nativeTerminalConfigIsCanonical(uint256 projectId) internal view returns (bool) {
         if (_directory.primaryTerminalOf(projectId, JBConstants.NATIVE_TOKEN) != _terminal) return false;
 
-        if (!_directory.isTerminalOf(projectId, IJBTerminal(address(_routerTerminalRegistry)))) return false;
+        if (_shouldDeployUniswapStack()) {
+            if (!_directory.isTerminalOf(projectId, IJBTerminal(address(_routerTerminalRegistry)))) return false;
+        } else {
+            IJBTerminal[] memory terminals = _directory.terminalsOf(projectId);
+            if (terminals.length != 1) return false;
+            if (terminals[0] != _terminal) return false;
+        }
 
         JBAccountingContext memory accountingContext =
             _terminal.accountingContextForTokenOf({projectId: projectId, token: JBConstants.NATIVE_TOKEN});
