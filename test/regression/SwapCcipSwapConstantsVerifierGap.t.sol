@@ -94,9 +94,41 @@ contract SwapCcipSwapConstantsVerifierGapTest is Test {
         );
         harness.checkSwapConstants(deployer);
     }
+
+    function test_swapCcipVerifierRejectsWrongUniswapV4HookOnMainnet() public {
+        vm.chainId(1);
+
+        address canonicalV4Hook = makeAddr("canonical v4 hook");
+        address wrongV4Hook = makeAddr("wrong v4 hook");
+        assertTrue(wrongV4Hook != canonicalV4Hook, "test must use a noncanonical v4 hook");
+
+        VerifySwapCcipSwapConstantsHarness harness = new VerifySwapCcipSwapConstantsHarness();
+        harness.setUniswapV4Hook(canonicalV4Hook);
+        address deployer = address(
+            new MockSwapCcipDeployer({
+                bridgeToken_: CANONICAL_MAINNET_USDC,
+                poolManager_: CANONICAL_MAINNET_V4_POOL_MANAGER,
+                v3Factory_: CANONICAL_MAINNET_V3_FACTORY,
+                univ4Hook_: wrongV4Hook,
+                wrappedNativeToken_: CANONICAL_MAINNET_WETH
+            })
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                string.concat("Swap-CCIP deployer ", vm.toString(deployer), " univ4Hook == canonical")
+            )
+        );
+        harness.checkSwapConstants(deployer);
+    }
 }
 
 contract VerifySwapCcipSwapConstantsHarness is Verify {
+    function setUniswapV4Hook(address hook_) external {
+        uniswapV4Hook = hook_;
+    }
+
     function checkSwapConstants(address deployer) external {
         _checkSwapCcipSwapConstants(deployer);
     }

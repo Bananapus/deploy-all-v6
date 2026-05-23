@@ -150,6 +150,10 @@ contract Verify is Script {
     /// carries the canonical V4 PositionManager. Loaded from `VERIFY_LP_SPLIT_HOOK_DEPLOYER`;
     /// `address(0)` when the chain has no canonical PositionManager.
     address public lpSplitHookDeployer;
+    /// actual deployed JBUniswapV4Hook used by buyback, router, LP-split, and swap-CCIP wiring.
+    /// Loaded from `VERIFY_UNISWAP_V4_HOOK`; this is distinct from BuybackRegistry.defaultHook(),
+    /// which points at JBBuybackHook.
+    address public uniswapV4Hook;
     /// per-type sucker-deployer slots so each bridge/CCIP endpoint manifest can be
     /// asserted against the canonical chain constants. `address(0)` means the deployer is not
     /// listed for this verify run (testnet / partial stack); production chains fail closed.
@@ -386,6 +390,7 @@ contract Verify is Script {
         checkpointsDeployer =
             JB721CheckpointsDeployer(vm.envOr({name: "VERIFY_CHECKPOINTS_DEPLOYER", defaultValue: address(0)}));
         lpSplitHookDeployer = vm.envOr({name: "VERIFY_LP_SPLIT_HOOK_DEPLOYER", defaultValue: address(0)});
+        uniswapV4Hook = vm.envOr({name: "VERIFY_UNISWAP_V4_HOOK", defaultValue: address(0)});
 
         // per-type sucker-deployer addresses so each endpoint manifest (OP messenger
         // + standard bridge, Arbitrum inbox + gateway router, CCIP router + remote selector +
@@ -433,6 +438,7 @@ contract Verify is Script {
                 address(projectPayerDeployer) != address(0),
                 "Verify: VERIFY_PROJECT_PAYER_DEPLOYER required on production chain"
             );
+            require(uniswapV4Hook != address(0), "Verify: VERIFY_UNISWAP_V4_HOOK required on production chain");
             require(expectedSafe != address(0), "Verify: VERIFY_SAFE required on production chain");
             require(
                 expectedTrustedForwarder != address(0), "Verify: VERIFY_TRUSTED_FORWARDER required on production chain"
@@ -3523,17 +3529,25 @@ contract Verify is Script {
         // controlled fee/observation semantics survives without these checks.
         address expectedV3Factory = _expectedV3Factory();
         address expectedV4PoolManager = _expectedV4PoolManager();
-        if (address(_uniswapV4Hook()) != address(0)) {
-            if (expectedV4PoolManager != address(0)) {
-                (bool okPm, bytes memory pmData) =
-                    address(_uniswapV4Hook()).staticcall(abi.encodeWithSignature("poolManager()"));
-                if (okPm && pmData.length >= 32) {
+        address expectedV4Hook = _uniswapV4Hook();
+        if (expectedV4PoolManager != address(0)) {
+            if (expectedV4Hook == address(0)) {
+                if (_isProductionChain()) {
                     _check({
-                        condition: abi.decode(pmData, (address)) == expectedV4PoolManager,
-                        label: "JBUniswapV4Hook.poolManager == canonical V4 PoolManager",
+                        condition: false,
+                        label: "VERIFY_UNISWAP_V4_HOOK MUST be set on production for V4 hook identity",
                         critical: true
                     });
+                } else {
+                    _skip("JBUniswapV4Hook identity (VERIFY_UNISWAP_V4_HOOK not set on non-production chain)");
                 }
+            } else {
+                (bool okPm, bytes memory pmData) = expectedV4Hook.staticcall(abi.encodeWithSignature("poolManager()"));
+                _check({
+                    condition: okPm && pmData.length >= 32 && abi.decode(pmData, (address)) == expectedV4PoolManager,
+                    label: "JBUniswapV4Hook.poolManager == canonical V4 PoolManager",
+                    critical: true
+                });
             }
         }
         if (address(buybackRegistry) != address(0) && expectedV3Factory != address(0)) {
@@ -3591,7 +3605,7 @@ contract Verify is Script {
                     critical: true
                 });
             }
-            address expectedOracleHook = _uniswapV4Hook();
+            address expectedOracleHook = expectedV4Hook;
             if (expectedOracleHook != address(0)) {
                 (bool okOh, bytes memory ohData) =
                     lpSplitHookDeployer.staticcall(abi.encodeWithSignature("oracleHook()"));
@@ -3842,15 +3856,9 @@ contract Verify is Script {
         }
     }
 
-    /// @notice Returns the registered Uniswap V4 hook address. Used by the external-address
-    /// sweep to chain into V4 PoolManager identity. Reads from the loaded buyback registry
-    /// rather than introducing a new state var — the registry's defaultHook on production
-    /// chains is the V4 hook.
+    /// @notice Returns the deployed Uniswap V4 hook address loaded from VERIFY_UNISWAP_V4_HOOK.
     function _uniswapV4Hook() internal view returns (address) {
-        if (address(buybackRegistry) == address(0)) return address(0);
-        (bool ok, bytes memory data) = address(buybackRegistry).staticcall(abi.encodeWithSignature("defaultHook()"));
-        if (!ok || data.length < 32) return address(0);
-        return abi.decode(data, (address));
+        return uniswapV4Hook;
     }
 
     function _checkpointsDeployer() internal view returns (address) {
@@ -4259,7 +4267,7 @@ contract Verify is Script {
     /// - Revnet stack: REVDeployer, REVOwner, REVLoans
     /// - Omnichain: JBOmnichainDeployer, JBSuckerRegistry
     /// - Hook & registry singletons: JB721TiersHookDeployer/Store/ProjectDeployer,
-    ///   JBBuybackHookRegistry, JBRouterTerminalRegistry
+    ///   JBBuybackHookRegistry, JBRouterTerminalRegistry, JBUniswapV4Hook
     /// - Croptop: CTPublisher, CTDeployer, CTProjectOwner
     /// - Buyback hook (default implementation)
     /// - 721 tiers hook (base implementation)
@@ -4327,6 +4335,9 @@ contract Verify is Script {
             artifactName: "JBRouterTerminalRegistry",
             deployed: address(routerTerminalRegistry),
             label: "JBRouterTerminalRegistry"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JBUniswapV4Hook", deployed: _uniswapV4Hook(), label: "JBUniswapV4Hook"
         });
 
         // Croptop.
@@ -4618,8 +4629,8 @@ contract Verify is Script {
     /// @notice Helper: assert each swap-CCIP deployer's swap-side endpoint pointers match the
     /// canonical per-chain manifest. `bridgeToken` is USDC across the supported chains;
     /// `poolManager`, `v3Factory`, and `wrappedNativeToken` reuse the existing external-address
-    /// manifests; `univ4Hook` is the per-chain `JBUniswapV4Hook` (read via the buyback registry's
-    /// `defaultHook`).
+    /// manifests; `univ4Hook` is the per-chain `JBUniswapV4Hook` loaded from
+    /// `VERIFY_UNISWAP_V4_HOOK`.
     function _checkSwapCcipSwapConstants(address deployer) internal {
         // bridgeToken == per-chain canonical USDC.
         address expectedBridgeToken = _expectedBridgeToken();
@@ -4665,8 +4676,7 @@ contract Verify is Script {
             });
         }
 
-        // univ4Hook == the registered JBUniswapV4Hook (sourced from buyback registry's
-        // defaultHook). Skip if the buyback registry isn't loaded on this chain.
+        // univ4Hook == the deployed JBUniswapV4Hook. Skip if VERIFY_UNISWAP_V4_HOOK isn't loaded.
         address expectedV4Hook = _uniswapV4Hook();
         if (expectedV4Hook != address(0)) {
             (bool okH, bytes memory hData) = deployer.staticcall(abi.encodeWithSignature("univ4Hook()"));

@@ -19,6 +19,8 @@ contract ExternalAddressVerifierGapTest is Test {
     address internal constant CANONICAL_PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address internal constant CANONICAL_MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant CANONICAL_MAINNET_TYPEFACE = 0xA77b7D93E79f1E6B4f77FaB29d9ef85733A3D44A;
+    address internal constant CANONICAL_MAINNET_V4_POOL_MANAGER = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+    address internal constant CANONICAL_MAINNET_V4_POSITION_MANAGER = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
 
     function test_externalAddressVerifierRejectsWrongNonzeroPermit2OnMainnet() public {
         // Coverage engages on production chains. Set chain id to mainnet so the canonical Permit2
@@ -120,8 +122,10 @@ contract ExternalAddressVerifierGapTest is Test {
         vm.chainId(1);
 
         address wrongPositionManager = makeAddr("wrong position manager");
-        address canonicalPositionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
-        assertTrue(wrongPositionManager != canonicalPositionManager, "test must use a noncanonical PositionManager");
+        assertTrue(
+            wrongPositionManager != CANONICAL_MAINNET_V4_POSITION_MANAGER,
+            "test must use a noncanonical PositionManager"
+        );
 
         address directory = makeAddr("directory");
 
@@ -133,6 +137,7 @@ contract ExternalAddressVerifierGapTest is Test {
             revLoans_: address(new MockRevLoans(CANONICAL_PERMIT2)),
             omnichainDeployer_: address(new MockOmnichainDeployer(directory))
         });
+        _setCanonicalV4Hook(harness);
         harness.setLpSplitHookDeployer(address(new MockLpSplitHookDeployer(wrongPositionManager)));
 
         vm.expectRevert(
@@ -150,10 +155,8 @@ contract ExternalAddressVerifierGapTest is Test {
     function test_externalAddressVerifierRejectsWrongLpSplitPoolManagerOnMainnet() public {
         vm.chainId(1);
 
-        address canonicalPositionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
-        address canonicalV4PoolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
         address wrongPoolManager = makeAddr("wrong v4 pool manager");
-        assertTrue(wrongPoolManager != canonicalV4PoolManager, "test must use a noncanonical V4 PoolManager");
+        assertTrue(wrongPoolManager != CANONICAL_MAINNET_V4_POOL_MANAGER, "test must use a noncanonical V4 PoolManager");
 
         address directory = makeAddr("directory");
 
@@ -165,13 +168,13 @@ contract ExternalAddressVerifierGapTest is Test {
             revLoans_: address(new MockRevLoans(CANONICAL_PERMIT2)),
             omnichainDeployer_: address(new MockOmnichainDeployer(directory))
         });
-        // ORACLE_HOOK is sourced via `_uniswapV4Hook()` which reads buybackRegistry.defaultHook().
-        // Leave the buyback registry unloaded so the ORACLE_HOOK assertion is skipped — this test
-        // focuses on the POOL_MANAGER branch.
+        _setCanonicalV4Hook(harness);
         harness.setLpSplitHookDeployer(
             address(
                 new MockLpSplitHookDeployerFull({
-                    positionManager_: canonicalPositionManager, poolManager_: wrongPoolManager, oracleHook_: address(0)
+                    positionManager_: CANONICAL_MAINNET_V4_POSITION_MANAGER,
+                    poolManager_: wrongPoolManager,
+                    oracleHook_: address(0)
                 })
             )
         );
@@ -180,6 +183,68 @@ contract ExternalAddressVerifierGapTest is Test {
             abi.encodeWithSelector(
                 Verify.Verify_CriticalCheckFailed.selector,
                 "JBUniswapV4LPSplitHookDeployer.poolManager == canonical V4 PoolManager"
+            )
+        );
+        harness.verifyExternalAddresses();
+    }
+
+    /// @dev Coverage: on production chains the actual JBUniswapV4Hook env var is required, because
+    /// BuybackRegistry.defaultHook points at JBBuybackHook.
+    function test_externalAddressVerifierFailsClosedWhenUniswapV4HookUnsetOnMainnet() public {
+        vm.chainId(1);
+
+        address directory = makeAddr("directory");
+
+        VerifyExternalAddressHarness harness = new VerifyExternalAddressHarness();
+        harness.setExternalAddressMocks({
+            directory_: directory,
+            terminal_: address(new MockTerminal(CANONICAL_PERMIT2)),
+            routerTerminal_: address(new MockRouterTerminal(CANONICAL_PERMIT2, CANONICAL_MAINNET_WETH)),
+            revLoans_: address(new MockRevLoans(CANONICAL_PERMIT2)),
+            omnichainDeployer_: address(new MockOmnichainDeployer(directory))
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                "VERIFY_UNISWAP_V4_HOOK MUST be set on production for V4 hook identity"
+            )
+        );
+        harness.verifyExternalAddresses();
+    }
+
+    /// @dev Coverage: the LP split hook deployer's ORACLE_HOOK must be the actual JBUniswapV4Hook,
+    /// not whatever hook is stored in the buyback registry.
+    function test_externalAddressVerifierRejectsWrongLpSplitOracleHookOnMainnet() public {
+        vm.chainId(1);
+
+        address wrongOracleHook = makeAddr("wrong oracle hook");
+        address directory = makeAddr("directory");
+
+        VerifyExternalAddressHarness harness = new VerifyExternalAddressHarness();
+        address canonicalV4Hook = _setCanonicalV4Hook(harness);
+        assertTrue(wrongOracleHook != canonicalV4Hook, "test must use a noncanonical oracle hook");
+        harness.setExternalAddressMocks({
+            directory_: directory,
+            terminal_: address(new MockTerminal(CANONICAL_PERMIT2)),
+            routerTerminal_: address(new MockRouterTerminal(CANONICAL_PERMIT2, CANONICAL_MAINNET_WETH)),
+            revLoans_: address(new MockRevLoans(CANONICAL_PERMIT2)),
+            omnichainDeployer_: address(new MockOmnichainDeployer(directory))
+        });
+        harness.setLpSplitHookDeployer(
+            address(
+                new MockLpSplitHookDeployerFull({
+                    positionManager_: CANONICAL_MAINNET_V4_POSITION_MANAGER,
+                    poolManager_: CANONICAL_MAINNET_V4_POOL_MANAGER,
+                    oracleHook_: wrongOracleHook
+                })
+            )
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                "JBUniswapV4LPSplitHookDeployer.oracleHook == canonical JBUniswapV4Hook"
             )
         );
         harness.verifyExternalAddresses();
@@ -201,6 +266,7 @@ contract ExternalAddressVerifierGapTest is Test {
             revLoans_: address(new MockRevLoans(CANONICAL_PERMIT2)),
             omnichainDeployer_: address(new MockOmnichainDeployer(directory))
         });
+        _setCanonicalV4Hook(harness);
         // Intentionally leave `lpSplitHookDeployer` unset (defaults to address(0)).
 
         vm.expectRevert(
@@ -210,6 +276,11 @@ contract ExternalAddressVerifierGapTest is Test {
             )
         );
         harness.verifyExternalAddresses();
+    }
+
+    function _setCanonicalV4Hook(VerifyExternalAddressHarness harness) internal returns (address hook) {
+        hook = address(new MockUniswapV4Hook(CANONICAL_MAINNET_V4_POOL_MANAGER));
+        harness.setUniswapV4Hook(hook);
     }
 }
 
@@ -258,6 +329,22 @@ contract VerifyExternalAddressHarness is Verify {
 
     function setLpSplitHookDeployer(address deployer_) external {
         lpSplitHookDeployer = deployer_;
+    }
+
+    function setUniswapV4Hook(address hook_) external {
+        uniswapV4Hook = hook_;
+    }
+}
+
+contract MockUniswapV4Hook {
+    address internal immutable _poolManager;
+
+    constructor(address poolManager_) {
+        _poolManager = poolManager_;
+    }
+
+    function poolManager() external view returns (address) {
+        return _poolManager;
     }
 }
 

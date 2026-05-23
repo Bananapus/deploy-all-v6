@@ -74,7 +74,7 @@ contract CanonicalBuybackHookVerifierGapTest is Test {
         VerifyBuybackHookHarness harness = new VerifyBuybackHookHarness();
         harness.setBuybackRegistry(address(registry));
 
-        vm.setEnv("VERIFY_BUYBACK_HOOK", ""); // explicit clear in case a sibling test leaked
+        vm.setEnv("VERIFY_BUYBACK_HOOK", "0x0000000000000000000000000000000000000000");
 
         vm.expectRevert(
             abi.encodeWithSelector(
