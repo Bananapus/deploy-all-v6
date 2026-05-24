@@ -1911,18 +1911,22 @@ contract Deploy is Script, Sphinx {
         (address predictedRevDeployer,) = _isDeployed({
             salt: REV_DEPLOYER_SALT, creationCode: _loadArtifact("REVDeployer"), arguments: revDeployerArgs
         });
-        if (address(_revOwner.deployer()) == address(0)) {
-            _revOwner.setDeployer(IREVDeployer(predictedRevDeployer));
-        } else if (address(_revOwner.deployer()) != predictedRevDeployer) {
+        if (address(_revOwner.deployer()) != address(0) && address(_revOwner.deployer()) != predictedRevDeployer) {
             revert Deploy_ExistingAddressMismatch({
                 expected: predictedRevDeployer, actual: address(_revOwner.deployer())
             });
         }
+        // Lay down REVDeployer's bytecode BEFORE binding it on REVOwner. `setDeployer` reads CONTROLLER/PERMISSIONS/
+        // PROJECTS off the bound deployer, so binding a CREATE2 prediction with no code would revert the fresh-chain
+        // deploy. The CREATE2 address is deterministic, so binding after the bytecode lands does not change identity.
         _revDeployer = REVDeployer(
             _deployPrecompiledIfNeeded({
                 artifactName: "REVDeployer", salt: REV_DEPLOYER_SALT, ctorArgs: revDeployerArgs
             })
         );
+        if (address(_revOwner.deployer()) == address(0)) {
+            _revOwner.setDeployer(IREVDeployer(address(_revDeployer)));
+        }
 
         // Configure the $REV revnet.
         if (address(_directory.controllerOf(_revProjectId)) == address(0)) {
