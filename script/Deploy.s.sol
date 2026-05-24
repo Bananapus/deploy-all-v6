@@ -3495,7 +3495,7 @@ contract Deploy is Script, Sphinx {
         // Transfer the BAN operator role from the Sphinx Safe to the canonical Banny ops EOA.
         // After this, the safe no longer has ADJUST_721_TIERS / MINT_721 etc. on project 4; the Banny
         // ops account does.
-        _revDeployer.setOperatorOf({revnetId: _BAN_PROJECT_ID, newOperator: _BAN_OPS_OPERATOR});
+        _revOwner.setOperatorOf({revnetId: _BAN_PROJECT_ID, newOperator: _BAN_OPS_OPERATOR});
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -4107,8 +4107,8 @@ contract Deploy is Script, Sphinx {
         // During a partial resume the Sphinx Safe may still hold the operator role so it can finish drop
         // registration. After finalization the role must belong to the canonical Banny ops address.
         bool partialResumeOperatorIsCanonical =
-            _revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: partialResumeOperator});
-        bool finalOperatorIsCanonical = _revDeployer.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: _BAN_OPS_OPERATOR});
+            _revOwner.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: partialResumeOperator});
+        bool finalOperatorIsCanonical = _revOwner.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: _BAN_OPS_OPERATOR});
         if (!partialResumeOperatorIsCanonical && !finalOperatorIsCanonical) return false;
 
         if (address(_revOwner) == address(0)) return false;
@@ -4145,7 +4145,7 @@ contract Deploy is Script, Sphinx {
                 expectedUri: expectedUri,
                 expectedReservedSplitBeneficiary: expectedReservedSplitBeneficiary
             })) return false;
-        if (!_revDeployer.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
+        if (!_revOwner.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
         return true;
     }
 
@@ -4187,7 +4187,7 @@ contract Deploy is Script, Sphinx {
         if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
         if (_revDeployer.FEE_REVNET_ID() != projectId) return false;
         if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
-        if (!_revDeployer.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
+        if (!_revOwner.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
         if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "NANA"})) return false;
         if (
             keccak256(bytes(_controller.uriOf(projectId)))
