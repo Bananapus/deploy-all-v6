@@ -4164,7 +4164,9 @@ contract Deploy is Script, Sphinx {
         view
         returns (bool)
     {
-        if (_projects.ownerOf(projectId) != address(_revDeployer)) return false;
+        // Project NFT lives on `_revOwner` for every canonical revnet (handed over at the end of `deployFor`).
+        // Reject anything still parked on the deployer or any other address — that's an in-flight or attacker shape.
+        if (_projects.ownerOf(projectId) != address(_revOwner)) return false;
         if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
         if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
         if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: expectedSymbol})) return false;
@@ -4187,7 +4189,9 @@ contract Deploy is Script, Sphinx {
         view
         returns (bool)
     {
-        if (_projects.ownerOf(projectId) != address(_revDeployer)) return false;
+        // Project NFT lives on `_revOwner` for every canonical revnet (handed over at the end of `deployFor`).
+        // Reject anything still parked on the deployer or any other address — that's an in-flight or attacker shape.
+        if (_projects.ownerOf(projectId) != address(_revOwner)) return false;
         if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
         if (_revDeployer.FEE_REVNET_ID() != projectId) return false;
         if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;

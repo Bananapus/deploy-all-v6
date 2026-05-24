@@ -666,9 +666,12 @@ contract Verify is Script {
 
     function _verifyCanonicalRevnetProject(uint256 projectId, string memory symbol, string memory label) internal {
         try projects.ownerOf(projectId) returns (address owner) {
+            // Canonical revnet project NFTs live on REVOwner after deploy — the deployer transfers ownership at the
+            // end of `deployFor`. Anything still parked on REVDeployer (or anywhere else) means the deploy is mid-
+            // flight or has been tampered with.
             _check({
-                condition: owner == address(revDeployer),
-                label: string.concat(label, " project NFT is owned by REVDeployer"),
+                condition: owner == address(revOwner),
+                label: string.concat(label, " project NFT is owned by REVOwner"),
                 critical: true
             });
         } catch {
