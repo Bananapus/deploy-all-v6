@@ -346,10 +346,12 @@ contract Deploy is Script, Sphinx {
 
     // ── Defifa Revnet constants ──
     uint48 private constant DEFIFA_REV_START_TIME = 0;
-    string private constant DEFIFA_REV_URI = "ipfs://QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn";
+    string private constant DEFIFA_REV_URI =
+        "https://jbm.infura-ipfs.io/ipfs/QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn";
 
     // ── MARKEE constants ──
-    string private constant MARKEE_URI = "ipfs://QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E";
+    string private constant MARKEE_URI =
+        "https://jbm.infura-ipfs.io/ipfs/QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E";
     uint48 private constant MARKEE_START_TIME = 1_766_329_380;
     uint48 private constant MARKEE_STAGE_1_START_TIME = 1_797_886_116;
     uint48 private constant MARKEE_STAGE_2_START_TIME = 1_860_999_588;
@@ -360,7 +362,7 @@ contract Deploy is Script, Sphinx {
     uint104 private constant MARKEE_ARB_AUTO_ISSUANCE = 0;
 
     // ── ART constants ──
-    string private constant ART_URI = "ipfs://QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S";
+    string private constant ART_URI = "https://jbm.infura-ipfs.io/ipfs/QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S";
     uint48 private constant ART_START_TIME = 1_758_234_169;
     uint48 private constant ART_STAGE_1_START_TIME = 1_767_306_169;
     uint48 private constant ART_STAGE_2_START_TIME = 1_839_882_169;

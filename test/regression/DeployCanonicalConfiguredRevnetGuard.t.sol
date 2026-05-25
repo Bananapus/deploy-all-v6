@@ -23,15 +23,15 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         });
 
         assertTrue(
-            _contains(deploySource, 'DEFIFA_REV_URI = "ipfs://QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn"'),
+            _contains(deploySource, '"https://jbm.infura-ipfs.io/ipfs/QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn"'),
             "DEFIFA URI is pinned"
         );
         assertTrue(
-            _contains(deploySource, 'ART_URI = "ipfs://QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S"'),
+            _contains(deploySource, '"https://jbm.infura-ipfs.io/ipfs/QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S"'),
             "ART URI is pinned"
         );
         assertTrue(
-            _contains(deploySource, 'MARKEE_URI = "ipfs://QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E"'),
+            _contains(deploySource, '"https://jbm.infura-ipfs.io/ipfs/QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E"'),
             "MARKEE URI is pinned"
         );
 
