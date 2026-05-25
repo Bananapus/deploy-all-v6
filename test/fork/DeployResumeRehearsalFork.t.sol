@@ -664,7 +664,7 @@ contract InstrumentedDeployer is IERC721Receiver {
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {
         uint256 count = projects.count(); // Read current count.
         if (count >= expectedProjectId) return expectedProjectId; // Already exists.
-        return projects.createFor(address(this)); // Create new.
+        return projects.createFor{value: projects.creationFee()}(address(this)); // Create new.
     }
 
     function _ensureDefaultPriceFeed(

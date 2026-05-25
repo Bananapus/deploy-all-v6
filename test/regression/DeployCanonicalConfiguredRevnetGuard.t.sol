@@ -123,6 +123,35 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         );
     }
 
+    function test_newProjectDeploymentPathsForwardCreationFee() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+
+        string memory bannySource = _section({
+            haystack: deploySource, startNeedle: "function _deployBanny()", endNeedle: "function _registerBannyDrop1()"
+        });
+        string memory defifaSource = _section({
+            haystack: deploySource, startNeedle: "function _deployDefifaRevnet()", endNeedle: "function _deployArt()"
+        });
+        string memory artSource = _section({
+            haystack: deploySource, startNeedle: "function _deployArt()", endNeedle: "function _deployMarkee()"
+        });
+        string memory markeeSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _deployMarkee()",
+            endNeedle: "function _deployProjectHandles()"
+        });
+        string memory ensureSource = _section({
+            haystack: deploySource, startNeedle: "function _ensureProjectExists(", endNeedle: "function _isDeployed("
+        });
+
+        assertTrue(_contains(bannySource, "deployFor{value: _projects.creationFee()}"), "Banny pays mint fee");
+        assertTrue(_contains(defifaSource, "deployFor{value: _projects.creationFee()}"), "DEFIFA pays mint fee");
+        assertTrue(_contains(artSource, "deployFor{value: _projects.creationFee()}"), "ART pays mint fee");
+        assertTrue(_contains(artSource, "createFor{value: _projects.creationFee()}"), "ART placeholder pays mint fee");
+        assertTrue(_contains(markeeSource, "deployFor{value: _projects.creationFee()}"), "MARKEE pays mint fee");
+        assertTrue(_contains(ensureSource, "createFor{value: _projects.creationFee()}"), "blank projects pay mint fee");
+    }
+
     function _assertStrictConfiguredRevnetGuard(
         string memory deployFunctionSource,
         string memory projectIdName,

@@ -129,7 +129,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         poolManager = IPoolManager(POOL_MANAGER_ADDR);
         liqHelper = new V4LiquidityHelper(poolManager);
 
-        FEE_PROJECT_ID = jbProjects().createFor(multisig());
+        FEE_PROJECT_ID = jbProjects().createFor{value: jbProjects().creationFee()}(multisig());
 
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();

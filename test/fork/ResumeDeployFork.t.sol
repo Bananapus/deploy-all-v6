@@ -652,7 +652,7 @@ contract ResumeDeployHarness is IERC721Receiver {
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {
         uint256 count = projects.count();
         if (count >= expectedProjectId) return expectedProjectId;
-        return projects.createFor(address(this));
+        return projects.createFor{value: projects.creationFee()}(address(this));
     }
 
     function _hookSalt() internal view returns (uint160, bytes32 salt) {

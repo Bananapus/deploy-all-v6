@@ -2556,7 +2556,7 @@ contract Deploy is Script, Sphinx {
         });
 
         // Deploy the $BAN revnet with 721 tiers (revnetId: 0 creates new project).
-        (uint256 banProjectId,) = _revDeployer.deployFor({
+        (uint256 banProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
             revnetId: 0,
             configuration: banConfig,
             accountingContextsToAccept: accountingContexts,
@@ -3716,7 +3716,7 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        (uint256 defifaProjectId,) = _revDeployer.deployFor({
+        (uint256 defifaProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
             revnetId: 0,
             configuration: defifaConfig,
             accountingContextsToAccept: accountingContexts,
@@ -3747,7 +3747,7 @@ contract Deploy is Script, Sphinx {
         // No controller, terminals, or revnet wiring — only the project ID is allocated.
         if (!isBase) {
             if (_projects.count() < _ART_PROJECT_ID) {
-                uint256 newId = _projects.createFor(operator);
+                uint256 newId = _projects.createFor{value: _projects.creationFee()}(operator);
                 if (newId != _ART_PROJECT_ID) {
                     revert Deploy_ProjectIdMismatch(_ART_PROJECT_ID, newId);
                 }
@@ -3846,7 +3846,7 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        (uint256 artProjectId,) = _revDeployer.deployFor({
+        (uint256 artProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
             revnetId: 0,
             configuration: artConfig,
             accountingContextsToAccept: accountingContexts,
@@ -3958,7 +3958,7 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        (uint256 markeeProjectId,) = _revDeployer.deployFor({
+        (uint256 markeeProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
             revnetId: 0,
             configuration: markeeConfig,
             accountingContextsToAccept: accountingContexts,
@@ -4330,7 +4330,7 @@ contract Deploy is Script, Sphinx {
             return expectedProjectId;
         }
 
-        uint256 created = _projects.createFor(safeAddress());
+        uint256 created = _projects.createFor{value: _projects.creationFee()}(safeAddress());
         if (created != expectedProjectId) revert Deploy_ProjectIdMismatch(expectedProjectId, created);
         return created;
     }

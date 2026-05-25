@@ -162,7 +162,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
         super.setUp();
 
         // Create a fee project that the REVDeployer will route fees to.
-        FEE_PROJECT_ID = jbProjects().createFor(multisig());
+        FEE_PROJECT_ID = jbProjects().createFor{value: jbProjects().creationFee()}(multisig());
 
         // Deploy sucker registry (required dependency; no actual suckers configured).
         SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));

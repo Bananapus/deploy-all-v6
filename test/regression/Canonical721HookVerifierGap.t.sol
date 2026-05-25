@@ -21,9 +21,9 @@ import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 contract Canonical721HookVerifierGapTest is Test {
     function test_canonicalIdentityVerifierRejectsMissingCpnTiered721Hook() public {
         MockRevDeployer revDeployer = new MockRevDeployer();
-        MockProjects projects = new MockProjects(address(revDeployer));
         MockTokens tokens = new MockTokens();
         MockRevOwner revOwner = new MockRevOwner();
+        MockProjects projects = new MockProjects(address(revOwner));
 
         tokens.setTokenOf(1, address(new MockToken("NANA")));
         tokens.setTokenOf(2, address(new MockToken("CPN")));
@@ -154,10 +154,10 @@ contract VerifyCanonical721HookHarness is Verify {
 }
 
 contract MockProjects {
-    address internal immutable _revDeployer;
+    address internal immutable _projectOwner;
 
-    constructor(address revDeployer_) {
-        _revDeployer = revDeployer_;
+    constructor(address projectOwner_) {
+        _projectOwner = projectOwner_;
     }
 
     /// @notice This mock only injects the 4 baseline projects; `count()` returns 0 so the
@@ -170,7 +170,7 @@ contract MockProjects {
     }
 
     function ownerOf(uint256) external view returns (address) {
-        return _revDeployer;
+        return _projectOwner;
     }
 }
 
