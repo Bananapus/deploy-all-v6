@@ -152,6 +152,44 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         assertTrue(_contains(ensureSource, "createFor{value: _projects.creationFee()}"), "blank projects pay mint fee");
     }
 
+    function test_defaultProjectCreationFeeRoutesToNanaPayer() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+        string memory verifySource = vm.readFile("script/Verify.s.sol");
+
+        string memory deployFlow = _section({
+            haystack: deploySource,
+            startNeedle: "_deployProjectPayerDeployer();",
+            endNeedle: "_finalizeCriticalOwnership();"
+        });
+        string memory feeConfig = _section({
+            haystack: deploySource,
+            startNeedle: "function _configureProjectCreationFee()",
+            endNeedle: "function _projectCreationFeeReceiverIsCanonical("
+        });
+        string memory canonicalCheck = _section({
+            haystack: deploySource,
+            startNeedle: "function _projectCreationFeeReceiverIsCanonical(",
+            endNeedle: "function _buildSuckerConfig("
+        });
+
+        assertTrue(_contains(deployFlow, "_configureProjectCreationFee();"), "fee is configured before handoff");
+        assertTrue(_contains(deploySource, "PROJECT_CREATION_FEE = 0.0001 ether"), "fee constant is 0.0001 ETH");
+        assertTrue(_contains(feeConfig, "deployProjectPayer"), "fee receiver is a project payer clone");
+        assertTrue(_contains(feeConfig, "defaultProjectId: _FEE_PROJECT_ID"), "fee payer routes to NANA");
+        assertTrue(_contains(feeConfig, "defaultAddToBalance: true"), "fee payer adds balance without minting");
+        assertTrue(_contains(feeConfig, "_projects.setCreationFee"), "JBProjects fee is configured");
+        assertTrue(_contains(canonicalCheck, "defaultProjectId()"), "canonical check pins payer project");
+        assertTrue(_contains(canonicalCheck, "defaultAddToBalance()"), "canonical check pins add-to-balance");
+        assertTrue(
+            _contains(deploySource, "JBProjectPayer__ProjectCreationFeeReceiver"), "fee payer is emitted in dump"
+        );
+        assertTrue(_contains(verifySource, "_verifyProjectCreationFee();"), "post-deploy verifier checks fee");
+        assertTrue(_contains(verifySource, "JBProjects creation fee == 0.0001 ETH"), "verifier checks amount");
+        assertTrue(
+            _contains(verifySource, "Creation fee payer default project == NANA"), "verifier checks payer routing"
+        );
+    }
+
     function _assertStrictConfiguredRevnetGuard(
         string memory deployFunctionSource,
         string memory projectIdName,

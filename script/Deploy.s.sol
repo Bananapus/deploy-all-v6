@@ -161,6 +161,7 @@ import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.s
 import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
 
 // ── Project Payer ──
+import {IJBProjectPayer} from "@bananapus/project-payer-v6/src/interfaces/IJBProjectPayer.sol";
 import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectPayerDeployer.sol";
 
 /// @title Deploy — Juicebox V6 Ecosystem
@@ -313,6 +314,7 @@ contract Deploy is Script, Sphinx {
 
     // ── Project Payer salt ──
     bytes32 private constant PROJECT_PAYER_DEPLOYER_SALT = "JBProjectPayerDeployerV6";
+    uint256 private constant PROJECT_CREATION_FEE = 0.0001 ether;
 
     // ── REV constants ──
     uint48 private constant REV_START_TIME = 1_740_089_444;
@@ -596,6 +598,7 @@ contract Deploy is Script, Sphinx {
         _deployProjectHandles();
         _deployDistributors();
         _deployProjectPayerDeployer();
+        _configureProjectCreationFee();
 
         // Phase 12: Handoff critical ownership from the deployment Safe to the NANA operator Safe.
         _finalizeCriticalOwnership();
@@ -4009,6 +4012,62 @@ contract Deploy is Script, Sphinx {
         );
     }
 
+    function _configureProjectCreationFee() internal {
+        address payable receiver = _projects.creationFeeReceiver();
+        if (_projects.creationFee() == PROJECT_CREATION_FEE && _projectCreationFeeReceiverIsCanonical(receiver)) {
+            return;
+        }
+
+        IJBProjectPayer projectPayer = _projectPayerDeployer.deployProjectPayer({
+            defaultProjectId: _FEE_PROJECT_ID,
+            defaultBeneficiary: payable(address(0)),
+            defaultMemo: "Project creation fee",
+            defaultMetadata: "",
+            defaultAddToBalance: true,
+            owner: _CRITICAL_INFRA_OWNER
+        });
+
+        _projects.setCreationFee(PROJECT_CREATION_FEE, payable(address(projectPayer)));
+    }
+
+    function _projectCreationFeeReceiverIsCanonical(address payable receiver) internal view returns (bool) {
+        if (receiver == address(0) || receiver.code.length == 0) return false;
+
+        IJBProjectPayer projectPayer = IJBProjectPayer(receiver);
+
+        try projectPayer.DIRECTORY() returns (IJBDirectory directory) {
+            if (address(directory) != address(_directory)) return false;
+        } catch {
+            return false;
+        }
+
+        try projectPayer.DEPLOYER() returns (address deployer) {
+            if (deployer != address(_projectPayerDeployer)) return false;
+        } catch {
+            return false;
+        }
+
+        try projectPayer.defaultProjectId() returns (uint256 projectId) {
+            if (projectId != _FEE_PROJECT_ID) return false;
+        } catch {
+            return false;
+        }
+
+        try projectPayer.defaultBeneficiary() returns (address payable beneficiary) {
+            if (beneficiary != address(0)) return false;
+        } catch {
+            return false;
+        }
+
+        try projectPayer.defaultAddToBalance() returns (bool addToBalance) {
+            if (!addToBalance) return false;
+        } catch {
+            return false;
+        }
+
+        return _ownableOwnerOf(receiver) == _CRITICAL_INFRA_OWNER;
+    }
+
     // ════════════════════════════════════════════════════════════════════
     //  Helpers
     // ════════════════════════════════════════════════════════════════════
@@ -4595,6 +4654,9 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JBTokenDistributor", addr: address(_tokenDistributor)});
         _serializeIfSet({key: j, name: "JBProjectPayerDeployer", addr: address(_projectPayerDeployer)});
         _serializeImplementationFromDeployer({key: j, name: "JBProjectPayer", deployer: address(_projectPayerDeployer)});
+        _serializeIfSet({
+            key: j, name: "JBProjectPayer__ProjectCreationFeeReceiver", addr: _projects.creationFeeReceiver()
+        });
 
         // ── Single-instance contracts not held in state vars ──
         // Computed via _isDeployed against the canonical CREATE2 factory (since the

@@ -249,6 +249,8 @@ contract Verify is Script {
     uint256 private constant _ART_PROJECT_ID = 6;
     // The MARKEE project is always project 7.
     uint256 private constant _MARKEE_PROJECT_ID = 7;
+    // Project creation fees are routed through a payer into the NANA project.
+    uint256 private constant _PROJECT_CREATION_FEE = 0.0001 ether;
     // Distributor vesting rounds must match Deploy.s.sol: four weekly rounds = 28 days.
     uint256 private constant _VESTING_ROUNDS = 4;
 
@@ -283,6 +285,7 @@ contract Verify is Script {
         _verifyAllowlists();
         _verifyRoutes();
         _verifyPeripheryExtensions();
+        _verifyProjectCreationFee();
         _verifyTokenImplementation();
         _verifyOwnership();
         _verifyPermissionsAndForwarder();
@@ -2045,6 +2048,66 @@ contract Verify is Script {
                 _check({
                     condition: JBProjectPayer(payable(implementation)).DEPLOYER() == address(projectPayerDeployer),
                     label: "ProjectPayer implementation DEPLOYER == deployer",
+                    critical: true
+                });
+            }
+        }
+
+        console.log("");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Category 11b: Project Creation Fee
+    // ════════════════════════════════════════════════════════════════════
+
+    function _verifyProjectCreationFee() internal {
+        console.log("--- Category 11b: Project Creation Fee ---");
+
+        address payable receiver = projects.creationFeeReceiver();
+
+        _check({
+            condition: projects.creationFee() == _PROJECT_CREATION_FEE,
+            label: "JBProjects creation fee == 0.0001 ETH",
+            critical: true
+        });
+        _check({
+            condition: receiver != address(0), label: "JBProjects creation fee receiver configured", critical: true
+        });
+        _check({condition: receiver.code.length > 0, label: "Creation fee receiver has code", critical: true});
+
+        if (receiver.code.length > 0) {
+            JBProjectPayer projectPayer = JBProjectPayer(receiver);
+
+            _check({
+                condition: address(projectPayer.DIRECTORY()) == address(directory),
+                label: "Creation fee payer DIRECTORY == directory",
+                critical: true
+            });
+            _check({
+                condition: projectPayer.DEPLOYER() == address(projectPayerDeployer),
+                label: "Creation fee payer DEPLOYER == ProjectPayerDeployer",
+                critical: true
+            });
+            _check({
+                condition: projectPayer.defaultProjectId() == _FEE_PROJECT_ID,
+                label: "Creation fee payer default project == NANA",
+                critical: true
+            });
+            _check({
+                condition: projectPayer.defaultBeneficiary() == address(0),
+                label: "Creation fee payer default beneficiary unset",
+                critical: true
+            });
+            _check({
+                condition: projectPayer.defaultAddToBalance(),
+                label: "Creation fee payer adds fees to project balance",
+                critical: true
+            });
+
+            if (expectedSafe != address(0)) {
+                _check({
+                    condition: _staticAddress({target: receiver, signature: "owner()"}) == expectedSafe,
+                    label: "Creation fee payer owner == safe",
                     critical: true
                 });
             }
