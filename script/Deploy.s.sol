@@ -371,7 +371,7 @@ contract Deploy is Script, Sphinx {
     // ── Distributor constants ──
     // Four weekly rounds vest distributor rewards over 28 days.
     uint256 private constant VESTING_ROUNDS = 4;
-    uint48 private constant CLAIM_DURATION = 0;
+    uint48 private constant CLAIM_DURATION = 420 days;
 
     // ── Common ──
     uint32 private constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));

@@ -253,8 +253,8 @@ contract Verify is Script {
     uint256 private constant _PROJECT_CREATION_FEE = 0.0001 ether;
     // Distributor vesting rounds must match Deploy.s.sol: four weekly rounds = 28 days.
     uint256 private constant _VESTING_ROUNDS = 4;
-    // Zero keeps reward rounds from expiring after they become claimable.
-    uint48 private constant _CLAIM_DURATION = 0;
+    // Reward rounds expire 420 days after they become claimable.
+    uint48 private constant _CLAIM_DURATION = 420 days;
 
     // ════════════════════════════════════════════════════════════════════
     //  Entry Point
