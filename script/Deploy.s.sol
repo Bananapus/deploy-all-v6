@@ -371,6 +371,7 @@ contract Deploy is Script, Sphinx {
     // ── Distributor constants ──
     // Four weekly rounds vest distributor rewards over 28 days.
     uint256 private constant VESTING_ROUNDS = 4;
+    uint48 private constant CLAIM_DURATION = 0;
 
     // ── Common ──
     uint32 private constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
@@ -3996,7 +3997,9 @@ contract Deploy is Script, Sphinx {
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JB721Distributor",
                     salt: DISTRIBUTOR_721_SALT,
-                    ctorArgs: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
+                    ctorArgs: abi.encode(
+                        _directory, _controller, _revLoans, _revOwner, _roundDuration, VESTING_ROUNDS, CLAIM_DURATION
+                    )
                 }))
         );
 
@@ -4004,7 +4007,9 @@ contract Deploy is Script, Sphinx {
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBTokenDistributor",
                     salt: DISTRIBUTOR_TOKEN_SALT,
-                    ctorArgs: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
+                    ctorArgs: abi.encode(
+                        _directory, _controller, _revLoans, _revOwner, _roundDuration, VESTING_ROUNDS, CLAIM_DURATION
+                    )
                 }))
         );
     }

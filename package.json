@@ -36,7 +36,7 @@
     "@bananapus/address-registry-v6": "^0.0.28",
     "@bananapus/buyback-hook-v6": "^0.0.53",
     "@bananapus/core-v6": "^0.0.64",
-    "@bananapus/distributor-v6": "^0.0.24",
+    "@bananapus/distributor-v6": "^0.0.29",
     "@bananapus/omnichain-deployers-v6": "^0.0.50",
     "@bananapus/permission-ids-v6": "^0.0.27",
     "@bananapus/project-handles-v6": "^0.0.18",

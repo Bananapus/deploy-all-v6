@@ -43,6 +43,8 @@ import {IOPStandardBridge} from "@bananapus/suckers-v6/src/interfaces/IOPStandar
 // Distributor
 import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
 import {IJBDistributor} from "@bananapus/distributor-v6/src/interfaces/IJBDistributor.sol";
+import {IREVLoans} from "@rev-net/core-v6/src/interfaces/IREVLoans.sol";
+import {IREVOwner} from "@rev-net/core-v6/src/interfaces/IREVOwner.sol";
 
 // Referral hook
 import {JBReferralSplitHook} from "@bananapus/referral-split-hook-v6/src/JBReferralSplitHook.sol";
@@ -260,7 +262,13 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // ── 4. Deploy the distributor + hook. The hook reads its immutables from the distributor + registry;
         // they must already exist.
         distributor = new JBTokenDistributor({
-            directory: jbDirectory(), initialRoundDuration: ROUND_DURATION, initialVestingRounds: VESTING_ROUNDS
+            directory: jbDirectory(),
+            controller: IJBController(address(jbController())),
+            revLoans: IREVLoans(address(0)),
+            revOwner: IREVOwner(address(0)),
+            initialRoundDuration: ROUND_DURATION,
+            initialVestingRounds: VESTING_ROUNDS,
+            initialClaimDuration: 0
         });
 
         hook = new JBReferralSplitHook({
@@ -1251,16 +1259,18 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         _payAndCashOutWithReferral(PAYER, 20 ether, block.chainid, referrerProjectIdLocal);
         _distributeFeeReservedTokens();
 
+        // The distributor locks the round's stake snapshot when funds enter the distributor. Advance one block so the
+        // setup-time mint/delegate checkpoints are visible to the funding snapshot.
+        vm.roll(block.number + 1);
+
         uint256 pushed = hook.pushTo({referralChainId: block.chainid, referralProjectId: referrerProjectIdLocal});
         require(pushed > 0, "pushTo did not move tokens");
 
         address feeToken = address(jbTokens().tokenOf(feeProjectId));
         address refToken = address(jbTokens().tokenOf(referrerProjectIdLocal));
 
-        // Advance to the next round so that `getPastVotes(snapshotBlock)` returns the staker balances. The
-        // snapshot block is recorded by the first interaction in a round; we advance time + blocks, then poke.
-        // `vm.warp` alone leaves `block.number` unchanged, but ERC20Votes' `getPastVotes` requires the snapshot
-        // block to be strictly in the past — so always pair a `vm.warp` with `vm.roll` here.
+        // Advance to the next round so the funded round becomes claimable. `vm.warp` alone leaves `block.number`
+        // unchanged, so pair it with `vm.roll` for ERC20Votes' historical lookups.
         vm.warp(block.timestamp + ROUND_DURATION);
         vm.roll(block.number + 1);
         distributor.poke();

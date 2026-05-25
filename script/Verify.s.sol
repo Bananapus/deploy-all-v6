@@ -253,6 +253,8 @@ contract Verify is Script {
     uint256 private constant _PROJECT_CREATION_FEE = 0.0001 ether;
     // Distributor vesting rounds must match Deploy.s.sol: four weekly rounds = 28 days.
     uint256 private constant _VESTING_ROUNDS = 4;
+    // Zero keeps reward rounds from expiring after they become claimable.
+    uint48 private constant _CLAIM_DURATION = 0;
 
     // ════════════════════════════════════════════════════════════════════
     //  Entry Point
@@ -1993,8 +1995,9 @@ contract Verify is Script {
                 critical: true
             });
             _verifyDistributorTiming({
-                roundDuration: distributor721.roundDuration(),
-                vestingRounds: distributor721.vestingRounds(),
+                claimDuration: distributor721.CLAIM_DURATION(),
+                roundDuration: distributor721.ROUND_DURATION(),
+                vestingRounds: distributor721.VESTING_ROUNDS(),
                 expectedRoundDuration: expectedRoundDuration
             });
         }
@@ -2013,8 +2016,9 @@ contract Verify is Script {
                 critical: true
             });
             _verifyDistributorTiming({
-                roundDuration: tokenDistributor.roundDuration(),
-                vestingRounds: tokenDistributor.vestingRounds(),
+                claimDuration: tokenDistributor.CLAIM_DURATION(),
+                roundDuration: tokenDistributor.ROUND_DURATION(),
+                vestingRounds: tokenDistributor.VESTING_ROUNDS(),
                 expectedRoundDuration: expectedRoundDuration
             });
         }
@@ -4281,6 +4285,7 @@ contract Verify is Script {
     // ════════════════════════════════════════════════════════════════════
 
     function _verifyDistributorTiming(
+        uint48 claimDuration,
         uint256 roundDuration,
         uint256 vestingRounds,
         uint256 expectedRoundDuration
@@ -4293,6 +4298,7 @@ contract Verify is Script {
             });
         }
         _check({condition: vestingRounds == _VESTING_ROUNDS, label: "Distributor vesting rounds", critical: true});
+        _check({condition: claimDuration == _CLAIM_DURATION, label: "Distributor claim duration", critical: true});
     }
 
     function _expectedRoundDuration() internal pure returns (uint256) {
