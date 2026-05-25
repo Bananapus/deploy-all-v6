@@ -346,8 +346,10 @@ contract Deploy is Script, Sphinx {
 
     // ── Defifa Revnet constants ──
     uint48 private constant DEFIFA_REV_START_TIME = 0;
+    string private constant DEFIFA_REV_URI = "ipfs://QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn";
 
     // ── MARKEE constants ──
+    string private constant MARKEE_URI = "ipfs://QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E";
     uint48 private constant MARKEE_START_TIME = 1_766_329_380;
     uint48 private constant MARKEE_STAGE_1_START_TIME = 1_797_886_116;
     uint48 private constant MARKEE_STAGE_2_START_TIME = 1_860_999_588;
@@ -358,6 +360,7 @@ contract Deploy is Script, Sphinx {
     uint104 private constant MARKEE_ARB_AUTO_ISSUANCE = 0;
 
     // ── ART constants ──
+    string private constant ART_URI = "ipfs://QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S";
     uint48 private constant ART_START_TIME = 1_758_234_169;
     uint48 private constant ART_STAGE_1_START_TIME = 1_767_306_169;
     uint48 private constant ART_STAGE_2_START_TIME = 1_839_882_169;
@@ -3691,7 +3694,9 @@ contract Deploy is Script, Sphinx {
         });
 
         REVConfig memory defifaConfig = REVConfig({
-            description: REVDescription({name: "Defifa", ticker: "DEFIFA", uri: "", salt: DEFIFA_REV_ERC20_SALT}),
+            description: REVDescription({
+                name: "Defifa", ticker: "DEFIFA", uri: DEFIFA_REV_URI, salt: DEFIFA_REV_ERC20_SALT
+            }),
             baseCurrency: USD_CURRENCY,
             operator: operator,
             scopeCashOutsToLocalBalances: false,
@@ -3711,7 +3716,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "DEFIFA",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "",
+                    expectedUri: DEFIFA_REV_URI,
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_DEFIFA_REV_PROJECT_ID);
@@ -3822,7 +3827,7 @@ contract Deploy is Script, Sphinx {
         });
 
         REVConfig memory artConfig = REVConfig({
-            description: REVDescription({name: "Artizen", ticker: "ART", uri: "", salt: ART_ERC20_SALT}),
+            description: REVDescription({name: "Artizen", ticker: "ART", uri: ART_URI, salt: ART_ERC20_SALT}),
             baseCurrency: USD_CURRENCY,
             operator: operator,
             scopeCashOutsToLocalBalances: false,
@@ -3841,7 +3846,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "ART",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "",
+                    expectedUri: ART_URI,
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
@@ -3933,7 +3938,7 @@ contract Deploy is Script, Sphinx {
         });
 
         REVConfig memory markeeConfig = REVConfig({
-            description: REVDescription({name: "Markee", ticker: "MARKEE", uri: "", salt: MARKEE_ERC20_SALT}),
+            description: REVDescription({name: "Markee", ticker: "MARKEE", uri: MARKEE_URI, salt: MARKEE_ERC20_SALT}),
             baseCurrency: ETH_CURRENCY,
             operator: operator,
             scopeCashOutsToLocalBalances: false,
@@ -3953,7 +3958,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "MARKEE",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "",
+                    expectedUri: MARKEE_URI,
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_MARKEE_PROJECT_ID);

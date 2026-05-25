@@ -22,9 +22,37 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             haystack: deploySource, startNeedle: "function _deployBanny()", endNeedle: "function _registerBannyDrop1()"
         });
 
-        _assertStrictConfiguredRevnetGuard(defifaSource, "_DEFIFA_REV_PROJECT_ID", "DEFIFA");
-        _assertStrictConfiguredRevnetGuard(artSource, "_ART_PROJECT_ID", "ART");
-        _assertStrictConfiguredRevnetGuard(markeeSource, "_MARKEE_PROJECT_ID", "MARKEE");
+        assertTrue(
+            _contains(deploySource, 'DEFIFA_REV_URI = "ipfs://QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn"'),
+            "DEFIFA URI is pinned"
+        );
+        assertTrue(
+            _contains(deploySource, 'ART_URI = "ipfs://QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S"'),
+            "ART URI is pinned"
+        );
+        assertTrue(
+            _contains(deploySource, 'MARKEE_URI = "ipfs://QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E"'),
+            "MARKEE URI is pinned"
+        );
+
+        _assertStrictConfiguredRevnetGuard({
+            deployFunctionSource: defifaSource,
+            projectIdName: "_DEFIFA_REV_PROJECT_ID",
+            expectedSymbol: "DEFIFA",
+            expectedUri: "DEFIFA_REV_URI"
+        });
+        _assertStrictConfiguredRevnetGuard({
+            deployFunctionSource: artSource,
+            projectIdName: "_ART_PROJECT_ID",
+            expectedSymbol: "ART",
+            expectedUri: "ART_URI"
+        });
+        _assertStrictConfiguredRevnetGuard({
+            deployFunctionSource: markeeSource,
+            projectIdName: "_MARKEE_PROJECT_ID",
+            expectedSymbol: "MARKEE",
+            expectedUri: "MARKEE_URI"
+        });
 
         assertTrue(_contains(bannySource, "_encodedConfigurationHashOf"), "Banny computes expected config hash");
         assertTrue(_contains(bannySource, "_isCanonicalBannyProject"), "Banny uses strict canonical guard");
@@ -193,7 +221,8 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
     function _assertStrictConfiguredRevnetGuard(
         string memory deployFunctionSource,
         string memory projectIdName,
-        string memory expectedSymbol
+        string memory expectedSymbol,
+        string memory expectedUri
     )
         internal
         pure
@@ -217,7 +246,9 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             _contains(deployFunctionSource, "_requireRevnetOperatorCanSetSuckerPeer"),
             "deploy must not require an unnecessary SET_SUCKER_PEER operator grant after launch"
         );
-        assertTrue(_contains(deployFunctionSource, 'expectedUri: ""'), "guard passes expected URI");
+        assertTrue(
+            _contains(deployFunctionSource, string.concat("expectedUri: ", expectedUri)), "guard passes expected URI"
+        );
         assertTrue(
             _contains(deployFunctionSource, "expectedReservedSplitBeneficiary: payable(operator)"),
             "guard passes expected reserved split beneficiary"
