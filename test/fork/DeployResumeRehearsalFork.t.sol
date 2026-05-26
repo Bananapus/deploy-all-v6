@@ -535,16 +535,15 @@ contract InstrumentedDeployer is IERC721Receiver {
         (address d, bool dD) = _isDeployed(
             LP_SPLIT_HOOK_DEPLOYER_SALT,
             type(JBUniswapV4LPSplitHookDeployer).creationCode,
-            abi.encode(IJBAddressRegistry(address(addressRegistry)), address(this))
+            abi.encode(IJBAddressRegistry(address(addressRegistry)), lpSplitHook, address(this))
         );
         lpSplitHookDeployer = dD
             ? JBUniswapV4LPSplitHookDeployer(d)
             : new JBUniswapV4LPSplitHookDeployer{salt: LP_SPLIT_HOOK_DEPLOYER_SALT}(
-                IJBAddressRegistry(address(addressRegistry)), address(this)
+                IJBAddressRegistry(address(addressRegistry)), lpSplitHook, address(this)
             );
-        if (address(lpSplitHookDeployer.hookImplementation()) == address(0)) {
+        if (address(lpSplitHookDeployer.poolManager()) == address(0)) {
             lpSplitHookDeployer.setChainSpecificConstants({
-                newHookImplementation: lpSplitHook,
                 newPoolManager: IPoolManager(POOL_MANAGER),
                 newPositionManager: IPositionManager(POSITION_MANAGER),
                 newOracleHook: IHooks(address(uniswapV4Hook))

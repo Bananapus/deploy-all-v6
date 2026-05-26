@@ -3619,7 +3619,8 @@ contract Deploy is Script, Sphinx {
             _addressRegistry,
             _DEFIFA_REV_PROJECT_ID,
             _FEE_PROJECT_ID,
-            _defifaHookStore
+            _defifaHookStore,
+            safeAddress()
         );
         (, bool deployerExisted) =
             _isDeployed({salt: DEFIFA_SALT, creationCode: _loadArtifact("DefifaDeployer"), arguments: deployerArgs});
