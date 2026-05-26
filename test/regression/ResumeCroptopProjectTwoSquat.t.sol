@@ -37,6 +37,23 @@ contract ResumeCroptopProjectTwoSquatTest is Test {
 
         assertEq(projects.ownerOf(CPN_PROJECT_ID), attacker, "attacker keeps project two");
     }
+
+    function test_resumePaysProjectCreationFeeWhenProjectTwoIsMinted() public {
+        projects = new MockProjects();
+        directory = new MockDirectory();
+        harness = new ResumeCroptopHarness(IJBProjects(address(projects)), IJBDirectory(address(directory)), deployer);
+
+        uint256 fee = 0.42 ether;
+        projects.setCount(CPN_PROJECT_ID - 1);
+        projects.setCreationFee(fee, payable(attacker));
+        vm.deal(address(harness), fee);
+
+        harness.resumeCroptop();
+
+        assertEq(projects.ownerOf(CPN_PROJECT_ID), deployer, "project two owner");
+        assertEq(projects.lastCreationFeePaid(), fee, "fee paid");
+        assertEq(attacker.balance, fee, "fee receiver paid");
+    }
 }
 
 contract ResumeCroptopHarness {
@@ -74,7 +91,7 @@ contract ResumeCroptopHarness {
             return expectedProjectId;
         }
 
-        uint256 created = PROJECTS.createFor(DEPLOYER);
+        uint256 created = PROJECTS.createFor{value: PROJECTS.creationFee()}(DEPLOYER);
         if (created != expectedProjectId) revert("Resume_ProjectIdMismatch");
         return created;
     }
@@ -86,8 +103,14 @@ contract ResumeCroptopHarness {
 }
 
 contract MockProjects {
+    error InvalidCreationFee(uint256 value, uint256 requiredFee);
+    error ZeroCreationFeeReceiver();
+
     mapping(uint256 => address) internal _ownerOf;
     uint256 internal _count;
+    uint256 public creationFee;
+    address payable public creationFeeReceiver;
+    uint256 public lastCreationFeePaid;
 
     function setCount(uint256 newCount) external {
         _count = newCount;
@@ -95,6 +118,11 @@ contract MockProjects {
 
     function setOwner(uint256 projectId, address owner) external {
         _ownerOf[projectId] = owner;
+    }
+
+    function setCreationFee(uint256 fee, address payable receiver) external {
+        creationFee = fee;
+        creationFeeReceiver = receiver;
     }
 
     function count() external view returns (uint256) {
@@ -105,11 +133,22 @@ contract MockProjects {
         return _ownerOf[projectId];
     }
 
-    function createFor(address owner) external returns (uint256) {
+    function createFor(address owner) external payable returns (uint256) {
+        uint256 fee = creationFee;
+        if (msg.value != fee) revert InvalidCreationFee(msg.value, fee);
+
         unchecked {
             ++_count;
         }
         _ownerOf[_count] = owner;
+        lastCreationFeePaid = msg.value;
+
+        if (fee != 0) {
+            address payable receiver = creationFeeReceiver;
+            if (receiver == address(0)) revert ZeroCreationFeeReceiver();
+            receiver.transfer(fee);
+        }
+
         return _count;
     }
 }

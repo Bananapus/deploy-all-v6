@@ -58,7 +58,7 @@ declare -A REPO_PROFILE=(
   [banny-retail-v6]="true|true|200|cancun|0.8.28"
   [defifa]="true|true|200|cancun|0.8.28"
   [nana-project-handles-v6]="false|true|200|cancun|0.8.28"
-  [nana-distributor-v6]="false|true|200|cancun|0.8.28"
+  [nana-distributor-v6]="true|true|200|cancun|0.8.28"
   [nana-project-payer-v6]="true|true|200|cancun|0.8.28"
   # deploy-all-v6 hosts ERC2771Forwarder (compiled from node_modules/@openzeppelin).
   [deploy-all-v6]="true|true|200|cancun|0.8.28"

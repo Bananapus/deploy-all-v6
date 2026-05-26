@@ -22,9 +22,37 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             haystack: deploySource, startNeedle: "function _deployBanny()", endNeedle: "function _registerBannyDrop1()"
         });
 
-        _assertStrictConfiguredRevnetGuard(defifaSource, "_DEFIFA_REV_PROJECT_ID", "DEFIFA");
-        _assertStrictConfiguredRevnetGuard(artSource, "_ART_PROJECT_ID", "ART");
-        _assertStrictConfiguredRevnetGuard(markeeSource, "_MARKEE_PROJECT_ID", "MARKEE");
+        assertTrue(
+            _contains(deploySource, '"https://jbm.infura-ipfs.io/ipfs/QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn"'),
+            "DEFIFA URI is pinned"
+        );
+        assertTrue(
+            _contains(deploySource, '"https://jbm.infura-ipfs.io/ipfs/QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S"'),
+            "ART URI is pinned"
+        );
+        assertTrue(
+            _contains(deploySource, '"https://jbm.infura-ipfs.io/ipfs/QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E"'),
+            "MARKEE URI is pinned"
+        );
+
+        _assertStrictConfiguredRevnetGuard({
+            deployFunctionSource: defifaSource,
+            projectIdName: "_DEFIFA_REV_PROJECT_ID",
+            expectedSymbol: "DEFIFA",
+            expectedUri: "DEFIFA_REV_URI"
+        });
+        _assertStrictConfiguredRevnetGuard({
+            deployFunctionSource: artSource,
+            projectIdName: "_ART_PROJECT_ID",
+            expectedSymbol: "ART",
+            expectedUri: "ART_URI"
+        });
+        _assertStrictConfiguredRevnetGuard({
+            deployFunctionSource: markeeSource,
+            projectIdName: "_MARKEE_PROJECT_ID",
+            expectedSymbol: "MARKEE",
+            expectedUri: "MARKEE_URI"
+        });
 
         assertTrue(_contains(bannySource, "_encodedConfigurationHashOf"), "Banny computes expected config hash");
         assertTrue(_contains(bannySource, "_isCanonicalBannyProject"), "Banny uses strict canonical guard");
@@ -123,10 +151,78 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         );
     }
 
+    function test_newProjectDeploymentPathsForwardCreationFee() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+
+        string memory bannySource = _section({
+            haystack: deploySource, startNeedle: "function _deployBanny()", endNeedle: "function _registerBannyDrop1()"
+        });
+        string memory defifaSource = _section({
+            haystack: deploySource, startNeedle: "function _deployDefifaRevnet()", endNeedle: "function _deployArt()"
+        });
+        string memory artSource = _section({
+            haystack: deploySource, startNeedle: "function _deployArt()", endNeedle: "function _deployMarkee()"
+        });
+        string memory markeeSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _deployMarkee()",
+            endNeedle: "function _deployProjectHandles()"
+        });
+        string memory ensureSource = _section({
+            haystack: deploySource, startNeedle: "function _ensureProjectExists(", endNeedle: "function _isDeployed("
+        });
+
+        assertTrue(_contains(bannySource, "deployFor{value: _projects.creationFee()}"), "Banny pays mint fee");
+        assertTrue(_contains(defifaSource, "deployFor{value: _projects.creationFee()}"), "DEFIFA pays mint fee");
+        assertTrue(_contains(artSource, "deployFor{value: _projects.creationFee()}"), "ART pays mint fee");
+        assertTrue(_contains(artSource, "createFor{value: _projects.creationFee()}"), "ART placeholder pays mint fee");
+        assertTrue(_contains(markeeSource, "deployFor{value: _projects.creationFee()}"), "MARKEE pays mint fee");
+        assertTrue(_contains(ensureSource, "createFor{value: _projects.creationFee()}"), "blank projects pay mint fee");
+    }
+
+    function test_defaultProjectCreationFeeRoutesToNanaPayer() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+        string memory verifySource = vm.readFile("script/Verify.s.sol");
+
+        string memory deployFlow = _section({
+            haystack: deploySource,
+            startNeedle: "_deployProjectPayerDeployer();",
+            endNeedle: "_finalizeCriticalOwnership();"
+        });
+        string memory feeConfig = _section({
+            haystack: deploySource,
+            startNeedle: "function _configureProjectCreationFee()",
+            endNeedle: "function _projectCreationFeeReceiverIsCanonical("
+        });
+        string memory canonicalCheck = _section({
+            haystack: deploySource,
+            startNeedle: "function _projectCreationFeeReceiverIsCanonical(",
+            endNeedle: "function _buildSuckerConfig("
+        });
+
+        assertTrue(_contains(deployFlow, "_configureProjectCreationFee();"), "fee is configured before handoff");
+        assertTrue(_contains(deploySource, "PROJECT_CREATION_FEE = 0.0001 ether"), "fee constant is 0.0001 ETH");
+        assertTrue(_contains(feeConfig, "deployProjectPayer"), "fee receiver is a project payer clone");
+        assertTrue(_contains(feeConfig, "defaultProjectId: _FEE_PROJECT_ID"), "fee payer routes to NANA");
+        assertTrue(_contains(feeConfig, "defaultAddToBalance: true"), "fee payer adds balance without minting");
+        assertTrue(_contains(feeConfig, "_projects.setCreationFee"), "JBProjects fee is configured");
+        assertTrue(_contains(canonicalCheck, "defaultProjectId()"), "canonical check pins payer project");
+        assertTrue(_contains(canonicalCheck, "defaultAddToBalance()"), "canonical check pins add-to-balance");
+        assertTrue(
+            _contains(deploySource, "JBProjectPayer__ProjectCreationFeeReceiver"), "fee payer is emitted in dump"
+        );
+        assertTrue(_contains(verifySource, "_verifyProjectCreationFee();"), "post-deploy verifier checks fee");
+        assertTrue(_contains(verifySource, "JBProjects creation fee == 0.0001 ETH"), "verifier checks amount");
+        assertTrue(
+            _contains(verifySource, "Creation fee payer default project == NANA"), "verifier checks payer routing"
+        );
+    }
+
     function _assertStrictConfiguredRevnetGuard(
         string memory deployFunctionSource,
         string memory projectIdName,
-        string memory expectedSymbol
+        string memory expectedSymbol,
+        string memory expectedUri
     )
         internal
         pure
@@ -150,7 +246,9 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             _contains(deployFunctionSource, "_requireRevnetOperatorCanSetSuckerPeer"),
             "deploy must not require an unnecessary SET_SUCKER_PEER operator grant after launch"
         );
-        assertTrue(_contains(deployFunctionSource, 'expectedUri: ""'), "guard passes expected URI");
+        assertTrue(
+            _contains(deployFunctionSource, string.concat("expectedUri: ", expectedUri)), "guard passes expected URI"
+        );
         assertTrue(
             _contains(deployFunctionSource, "expectedReservedSplitBeneficiary: payable(operator)"),
             "guard passes expected reserved split beneficiary"

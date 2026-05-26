@@ -161,6 +161,7 @@ import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.s
 import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
 
 // ── Project Payer ──
+import {IJBProjectPayer} from "@bananapus/project-payer-v6/src/interfaces/IJBProjectPayer.sol";
 import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectPayerDeployer.sol";
 
 /// @title Deploy — Juicebox V6 Ecosystem
@@ -313,6 +314,7 @@ contract Deploy is Script, Sphinx {
 
     // ── Project Payer salt ──
     bytes32 private constant PROJECT_PAYER_DEPLOYER_SALT = "JBProjectPayerDeployerV6";
+    uint256 private constant PROJECT_CREATION_FEE = 0.0001 ether;
 
     // ── REV constants ──
     uint48 private constant REV_START_TIME = 1_740_089_444;
@@ -344,8 +346,12 @@ contract Deploy is Script, Sphinx {
 
     // ── Defifa Revnet constants ──
     uint48 private constant DEFIFA_REV_START_TIME = 0;
+    string private constant DEFIFA_REV_URI =
+        "https://jbm.infura-ipfs.io/ipfs/QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn";
 
     // ── MARKEE constants ──
+    string private constant MARKEE_URI =
+        "https://jbm.infura-ipfs.io/ipfs/QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E";
     uint48 private constant MARKEE_START_TIME = 1_766_329_380;
     uint48 private constant MARKEE_STAGE_1_START_TIME = 1_797_886_116;
     uint48 private constant MARKEE_STAGE_2_START_TIME = 1_860_999_588;
@@ -356,6 +362,7 @@ contract Deploy is Script, Sphinx {
     uint104 private constant MARKEE_ARB_AUTO_ISSUANCE = 0;
 
     // ── ART constants ──
+    string private constant ART_URI = "https://jbm.infura-ipfs.io/ipfs/QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S";
     uint48 private constant ART_START_TIME = 1_758_234_169;
     uint48 private constant ART_STAGE_1_START_TIME = 1_767_306_169;
     uint48 private constant ART_STAGE_2_START_TIME = 1_839_882_169;
@@ -364,6 +371,7 @@ contract Deploy is Script, Sphinx {
     // ── Distributor constants ──
     // Four weekly rounds vest distributor rewards over 28 days.
     uint256 private constant VESTING_ROUNDS = 4;
+    uint48 private constant CLAIM_DURATION = 420 days;
 
     // ── Common ──
     uint32 private constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
@@ -596,6 +604,7 @@ contract Deploy is Script, Sphinx {
         _deployProjectHandles();
         _deployDistributors();
         _deployProjectPayerDeployer();
+        _configureProjectCreationFee();
 
         // Phase 12: Handoff critical ownership from the deployment Safe to the NANA operator Safe.
         _finalizeCriticalOwnership();
@@ -2556,7 +2565,7 @@ contract Deploy is Script, Sphinx {
         });
 
         // Deploy the $BAN revnet with 721 tiers (revnetId: 0 creates new project).
-        (uint256 banProjectId,) = _revDeployer.deployFor({
+        (uint256 banProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
             revnetId: 0,
             configuration: banConfig,
             accountingContextsToAccept: accountingContexts,
@@ -3688,7 +3697,9 @@ contract Deploy is Script, Sphinx {
         });
 
         REVConfig memory defifaConfig = REVConfig({
-            description: REVDescription({name: "Defifa", ticker: "DEFIFA", uri: "", salt: DEFIFA_REV_ERC20_SALT}),
+            description: REVDescription({
+                name: "Defifa", ticker: "DEFIFA", uri: DEFIFA_REV_URI, salt: DEFIFA_REV_ERC20_SALT
+            }),
             baseCurrency: USD_CURRENCY,
             operator: operator,
             scopeCashOutsToLocalBalances: false,
@@ -3708,7 +3719,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "DEFIFA",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "",
+                    expectedUri: DEFIFA_REV_URI,
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_DEFIFA_REV_PROJECT_ID);
@@ -3716,7 +3727,7 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        (uint256 defifaProjectId,) = _revDeployer.deployFor({
+        (uint256 defifaProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
             revnetId: 0,
             configuration: defifaConfig,
             accountingContextsToAccept: accountingContexts,
@@ -3747,7 +3758,7 @@ contract Deploy is Script, Sphinx {
         // No controller, terminals, or revnet wiring — only the project ID is allocated.
         if (!isBase) {
             if (_projects.count() < _ART_PROJECT_ID) {
-                uint256 newId = _projects.createFor(operator);
+                uint256 newId = _projects.createFor{value: _projects.creationFee()}(operator);
                 if (newId != _ART_PROJECT_ID) {
                     revert Deploy_ProjectIdMismatch(_ART_PROJECT_ID, newId);
                 }
@@ -3819,7 +3830,7 @@ contract Deploy is Script, Sphinx {
         });
 
         REVConfig memory artConfig = REVConfig({
-            description: REVDescription({name: "Artizen", ticker: "ART", uri: "", salt: ART_ERC20_SALT}),
+            description: REVDescription({name: "Artizen", ticker: "ART", uri: ART_URI, salt: ART_ERC20_SALT}),
             baseCurrency: USD_CURRENCY,
             operator: operator,
             scopeCashOutsToLocalBalances: false,
@@ -3838,7 +3849,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "ART",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "",
+                    expectedUri: ART_URI,
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
@@ -3846,7 +3857,7 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        (uint256 artProjectId,) = _revDeployer.deployFor({
+        (uint256 artProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
             revnetId: 0,
             configuration: artConfig,
             accountingContextsToAccept: accountingContexts,
@@ -3930,7 +3941,7 @@ contract Deploy is Script, Sphinx {
         });
 
         REVConfig memory markeeConfig = REVConfig({
-            description: REVDescription({name: "Markee", ticker: "MARKEE", uri: "", salt: MARKEE_ERC20_SALT}),
+            description: REVDescription({name: "Markee", ticker: "MARKEE", uri: MARKEE_URI, salt: MARKEE_ERC20_SALT}),
             baseCurrency: ETH_CURRENCY,
             operator: operator,
             scopeCashOutsToLocalBalances: false,
@@ -3950,7 +3961,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "MARKEE",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "",
+                    expectedUri: MARKEE_URI,
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_MARKEE_PROJECT_ID);
@@ -3958,7 +3969,7 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        (uint256 markeeProjectId,) = _revDeployer.deployFor({
+        (uint256 markeeProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
             revnetId: 0,
             configuration: markeeConfig,
             accountingContextsToAccept: accountingContexts,
@@ -3986,7 +3997,9 @@ contract Deploy is Script, Sphinx {
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JB721Distributor",
                     salt: DISTRIBUTOR_721_SALT,
-                    ctorArgs: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
+                    ctorArgs: abi.encode(
+                        _directory, _controller, _revLoans, _revOwner, _roundDuration, VESTING_ROUNDS, CLAIM_DURATION
+                    )
                 }))
         );
 
@@ -3994,7 +4007,9 @@ contract Deploy is Script, Sphinx {
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBTokenDistributor",
                     salt: DISTRIBUTOR_TOKEN_SALT,
-                    ctorArgs: abi.encode(_directory, _roundDuration, VESTING_ROUNDS)
+                    ctorArgs: abi.encode(
+                        _directory, _controller, _revLoans, _revOwner, _roundDuration, VESTING_ROUNDS, CLAIM_DURATION
+                    )
                 }))
         );
     }
@@ -4007,6 +4022,62 @@ contract Deploy is Script, Sphinx {
                 ctorArgs: abi.encode(_directory)
             })
         );
+    }
+
+    function _configureProjectCreationFee() internal {
+        address payable receiver = _projects.creationFeeReceiver();
+        if (_projects.creationFee() == PROJECT_CREATION_FEE && _projectCreationFeeReceiverIsCanonical(receiver)) {
+            return;
+        }
+
+        IJBProjectPayer projectPayer = _projectPayerDeployer.deployProjectPayer({
+            defaultProjectId: _FEE_PROJECT_ID,
+            defaultBeneficiary: payable(address(0)),
+            defaultMemo: "Project creation fee",
+            defaultMetadata: "",
+            defaultAddToBalance: true,
+            owner: _CRITICAL_INFRA_OWNER
+        });
+
+        _projects.setCreationFee(PROJECT_CREATION_FEE, payable(address(projectPayer)));
+    }
+
+    function _projectCreationFeeReceiverIsCanonical(address payable receiver) internal view returns (bool) {
+        if (receiver == address(0) || receiver.code.length == 0) return false;
+
+        IJBProjectPayer projectPayer = IJBProjectPayer(receiver);
+
+        try projectPayer.DIRECTORY() returns (IJBDirectory directory) {
+            if (address(directory) != address(_directory)) return false;
+        } catch {
+            return false;
+        }
+
+        try projectPayer.DEPLOYER() returns (address deployer) {
+            if (deployer != address(_projectPayerDeployer)) return false;
+        } catch {
+            return false;
+        }
+
+        try projectPayer.defaultProjectId() returns (uint256 projectId) {
+            if (projectId != _FEE_PROJECT_ID) return false;
+        } catch {
+            return false;
+        }
+
+        try projectPayer.defaultBeneficiary() returns (address payable beneficiary) {
+            if (beneficiary != address(0)) return false;
+        } catch {
+            return false;
+        }
+
+        try projectPayer.defaultAddToBalance() returns (bool addToBalance) {
+            if (!addToBalance) return false;
+        } catch {
+            return false;
+        }
+
+        return _ownableOwnerOf(receiver) == _CRITICAL_INFRA_OWNER;
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -4330,7 +4401,7 @@ contract Deploy is Script, Sphinx {
             return expectedProjectId;
         }
 
-        uint256 created = _projects.createFor(safeAddress());
+        uint256 created = _projects.createFor{value: _projects.creationFee()}(safeAddress());
         if (created != expectedProjectId) revert Deploy_ProjectIdMismatch(expectedProjectId, created);
         return created;
     }
@@ -4595,6 +4666,9 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JBTokenDistributor", addr: address(_tokenDistributor)});
         _serializeIfSet({key: j, name: "JBProjectPayerDeployer", addr: address(_projectPayerDeployer)});
         _serializeImplementationFromDeployer({key: j, name: "JBProjectPayer", deployer: address(_projectPayerDeployer)});
+        _serializeIfSet({
+            key: j, name: "JBProjectPayer__ProjectCreationFeeReceiver", addr: _projects.creationFeeReceiver()
+        });
 
         // ── Single-instance contracts not held in state vars ──
         // Computed via _isDeployed against the canonical CREATE2 factory (since the

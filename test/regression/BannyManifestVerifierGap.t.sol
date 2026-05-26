@@ -22,7 +22,6 @@ contract BannyManifestVerifierGapTest is Test {
         vm.setEnv("VERIFY_CONFIG_HASHES", "");
 
         MockRevDeployer revDeployer = new MockRevDeployer();
-        MockProjects projects = new MockProjects(address(revDeployer));
         MockTokens tokens = new MockTokens();
 
         tokens.setTokenOf(1, address(new MockToken("NANA")));
@@ -43,6 +42,7 @@ contract BannyManifestVerifierGapTest is Test {
         MockBannyHook bannyHook =
             new MockBannyHook({hookStore_: address(hookStore), contractUri_: "wrong-contract-uri"});
         MockRevOwner revOwner = new MockRevOwner(address(bannyHook));
+        MockProjects projects = new MockProjects(address(revOwner));
         // The verifier now requires the CPN hook to be wired with PROJECT_ID==2 /
         // STORE==hookStore / symbol=="CPN". This test targets Banny manifest behaviour, so satisfy
         // that gate with a minimal mock so we reach the Banny assertions.
@@ -95,10 +95,10 @@ contract VerifyBannyManifestHarness is Verify {
 }
 
 contract MockProjects {
-    address internal immutable _revDeployer;
+    address internal immutable _projectOwner;
 
-    constructor(address revDeployer_) {
-        _revDeployer = revDeployer_;
+    constructor(address projectOwner_) {
+        _projectOwner = projectOwner_;
     }
 
     /// @notice This mock only injects the 4 baseline projects; `count()` returns 0 so the
@@ -109,7 +109,7 @@ contract MockProjects {
     }
 
     function ownerOf(uint256) external view returns (address) {
-        return _revDeployer;
+        return _projectOwner;
     }
 }
 
