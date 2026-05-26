@@ -424,9 +424,8 @@ contract DeployFullStackTest is Test {
             IJBSuckerRegistry(address(_suckerRegistry))
         );
         _lpSplitHookDeployer =
-            new JBUniswapV4LPSplitHookDeployer(IJBAddressRegistry(address(_addressRegistry)), _deployer);
+            new JBUniswapV4LPSplitHookDeployer(IJBAddressRegistry(address(_addressRegistry)), _lpSplitHook, _deployer);
         _lpSplitHookDeployer.setChainSpecificConstants({
-            newHookImplementation: _lpSplitHook,
             newPoolManager: IPoolManager(cfg.poolManager),
             newPositionManager: IPositionManager(cfg.positionManager),
             newOracleHook: IHooks(address(_uniswapV4Hook))

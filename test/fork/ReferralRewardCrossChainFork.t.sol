@@ -1106,7 +1106,10 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         vm.expectEmit(true, true, false, true, address(hook));
         emit IJBReferralSplitHook.BurnedOnStrand({
-            originChainId: OPTIMISM_CHAIN_ID, referralProjectId: noTokenLocalId, feeProjectBurned: projectTokensMinted
+            originChainId: OPTIMISM_CHAIN_ID,
+            referralProjectId: noTokenLocalId,
+            feeProjectBurned: projectTokensMinted,
+            caller: address(this)
         });
 
         uint256 pushed = hook.claimAndPush({
@@ -1789,7 +1792,10 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         vm.expectEmit(true, true, false, true, address(hook));
         emit IJBReferralSplitHook.BurnedUnbridgeable({
-            referralChainId: arbChainId, referralProjectId: arbReferrerProjectId, amount: expectedBurn
+            referralChainId: arbChainId,
+            referralProjectId: arbReferrerProjectId,
+            amount: expectedBurn,
+            caller: address(this)
         });
 
         uint256 burned = IJBReferralSplitHook(address(hook))
