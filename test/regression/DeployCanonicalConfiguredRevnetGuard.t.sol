@@ -130,7 +130,10 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             endNeedle: "function _projectTokenSymbolIs("
         });
 
-        assertTrue(_contains(terminalGuard, "_shouldDeployUniswapStack()"), "guard branches on router availability");
+        assertTrue(
+            _contains(terminalGuard, "address(_routerTerminalRegistry) != address(0)"),
+            "guard branches on deployed router registry"
+        );
         assertTrue(_contains(terminalGuard, "terminals.length != 1"), "routerless chains require only one terminal");
         assertTrue(_contains(terminalGuard, "terminals[0] != _terminal"), "routerless terminal must be JBMultiTerminal");
     }

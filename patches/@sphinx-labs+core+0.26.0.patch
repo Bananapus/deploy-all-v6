@@ -20,6 +20,28 @@ index 552e942..92b5d5b 100644
                  const result = await (0, exports.attemptVerification)(address, encodedConstructorArgs, fullyQualifiedName, buildInfo.solcLongVersion, minimumCompilerInput, provider, networkConfig.chainId, apiKey);
                  if (result.success) {
                      success = true;
+diff --git a/node_modules/@sphinx-labs/core/dist/actions/execute.js b/node_modules/@sphinx-labs/core/dist/actions/execute.js
+index e5a4a99..56959e8 100644
+--- a/node_modules/@sphinx-labs/core/dist/actions/execute.js
++++ b/node_modules/@sphinx-labs/core/dist/actions/execute.js
+@@ -212,7 +212,7 @@ const estimateGasViaManagedService = (moduleAddress, batch, chainId) => {
+         0.3789 * moduleCallData.length +
+         10205.7165;
+     const estimate = 21000 + callDataGas + estimateModuleExecutionGas(batch) + managedServiceGas;
+-    return Math.round(estimate * 1.08 + 40000);
++    return Math.round(estimate * 1.08 + 80000);
+ };
+ exports.estimateGasViaManagedService = estimateGasViaManagedService;
+ const estimateGasViaSigner = (moduleAddress, batch, chainId) => {
+@@ -223,7 +223,7 @@ const estimateGasViaSigner = (moduleAddress, batch, chainId) => {
+         .map((e) => getGasPerCalldata(e, chainId))
+         .reduce((a, b) => a + b, 0);
+     const estimate = 21000 + callDataGas + estimateModuleExecutionGas(batch);
+-    return Math.round(estimate * 1.08 + 40000);
++    return Math.round(estimate * 1.08 + 80000);
+ };
+ exports.estimateGasViaSigner = estimateGasViaSigner;
+ const estimateModuleExecutionGas = (batch) => {
 diff --git a/node_modules/@sphinx-labs/core/dist/utils.js b/node_modules/@sphinx-labs/core/dist/utils.js
 index a690846..d6776e4 100644
 --- a/node_modules/@sphinx-labs/core/dist/utils.js

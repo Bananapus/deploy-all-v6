@@ -179,6 +179,7 @@ contract Deploy is Script, Sphinx {
     error Deploy_TimestampOverflow(uint256 timestamp);
     error Deploy_UnexpectedSafe(address expected, address actual);
     error Deploy_OwnershipHandoffFailed(address target, address newOwner);
+    error Deploy_MissingDependency(string name, address expected);
 
     // ════════════════════════════════════════════════════════════════════
     //  Constants
@@ -503,13 +504,11 @@ contract Deploy is Script, Sphinx {
     //  Entry Point
     // ════════════════════════════════════════════════════════════════════
 
-    function run() public {
+    function run() public virtual {
         // Sanity-gate the entire deploy: refuse to proceed unless the Sphinx Safe resolves to the
         // canonical address. Catches misconfigured sphinx.lock or stale Safe-factory state before
         // anything is deployed or any project ownership is granted.
-        if (safeAddress() != _EXPECTED_SAFE) {
-            revert Deploy_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
-        }
+        _requireExpectedSafe();
 
         _initializeDeploymentAnchors();
         _setupChainAddresses();
@@ -536,6 +535,10 @@ contract Deploy is Script, Sphinx {
         // chains without Uniswap V4. The registry passes through gracefully when no hook is configured.
         _deployBuybackRegistry();
 
+        // Phase 03d (registry only): Router Terminal Registry — deployed unconditionally so REVDeployer keeps
+        // byte-identical constructor args across chains. Chains without Uniswap V4 leave its default unset.
+        _deployRouterTerminalRegistry();
+
         if (_shouldDeployUniswapStack()) {
             // Phase 03b: Uniswap V4 Router Hook
             _deployUniswapV4Hook();
@@ -543,7 +546,7 @@ contract Deploy is Script, Sphinx {
             // Phase 03c (hook): Buyback Hook — requires Uniswap V4 PoolManager
             _deployBuybackHook();
 
-            // Phase 03d: Router Terminal
+            // Phase 03d (terminal): Router Terminal
             _deployRouterTerminal();
         }
 
@@ -571,22 +574,10 @@ contract Deploy is Script, Sphinx {
         _deployCpnRevnet();
         _deployNanaRevnet();
 
-        // Phase 09: Banny — creates BAN project (ID 4)
+        // Phase 09: Banny — creates BAN project (ID 4), its baseline 721 hook, and resolver. Retail drop
+        // registration is deferred to `DeployBannyDrops.s.sol` so every project and critical deploy path can clear
+        // in the first proposal.
         _deployBanny();
-
-        // Phase 09b: Banny Drop 1 — registers the 47 retail items on the BAN project's 721 hook + resolver.
-        // Idempotent: skipped when the hook already has the drop tiers.
-        _registerBannyDrop1();
-
-        // Phase 09c: Banny Drop 2 — registers the 17 outfit items on top of Drop 1.
-        // Idempotent: skipped when the hook already has the drop tiers. Must run before
-        // `_finalizeBannyOwnership` so the Sphinx Safe still holds operator + resolver ownership.
-        _registerBannyDrop2();
-
-        // Phase 09d: Finalize Banny ownership — transfers resolver ownership + BAN operator role
-        // from the Sphinx Safe to `_BAN_OPS_OPERATOR`. Idempotent: skipped when the resolver is already
-        // owned by `_BAN_OPS_OPERATOR`.
-        _finalizeBannyOwnership();
 
         // Phase 10a: Defifa Revnet (project ID 5) — creates the DEFIFA revnet (USDC-based, all chains).
         // Must come BEFORE _deployDefifa so the revnet project ID can be used as the Defifa fee project.
@@ -624,6 +615,12 @@ contract Deploy is Script, Sphinx {
         uint256 scriptedStartTime = vm.envOr({name: "DEFIFA_REV_START_TIME", defaultValue: uint256(0)});
         _defifaRevStartTime =
             scriptedStartTime == 0 ? _timestamp48(block.timestamp + 1 days) : _timestamp48(scriptedStartTime);
+    }
+
+    function _requireExpectedSafe() internal {
+        if (safeAddress() != _EXPECTED_SAFE) {
+            revert Deploy_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -995,7 +992,7 @@ contract Deploy is Script, Sphinx {
     //  Phase 03d: Router Terminal
     // ════════════════════════════════════════════════════════════════════
 
-    function _deployRouterTerminal() internal {
+    function _deployRouterTerminalRegistry() internal {
         _routerTerminalRegistry = JBRouterTerminalRegistry(
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBRouterTerminalRegistry",
@@ -1003,7 +1000,9 @@ contract Deploy is Script, Sphinx {
                     ctorArgs: abi.encode(_permissions, _projects, _PERMIT2, safeAddress(), _trustedForwarder)
                 }))
         );
+    }
 
+    function _deployRouterTerminal() internal {
         // Chain-same CREATE2: constructor inputs are byte-identical across chains. The chain-specific
         // wrapped-native-token, V3 factory, V4 PoolManager, and V4 hook are wired in afterwards via the
         // DEPLOYER-gated one-shot setChainSpecificConstants setter on the terminal (mirrors JBBuybackHook).
@@ -2583,6 +2582,31 @@ contract Deploy is Script, Sphinx {
     //  Phase 09b: Banny Drop 1 (47 retail items)
     // ════════════════════════════════════════════════════════════════════
 
+    /// @notice Rehydrates only the deployed context needed by `DeployBannyDrops.s.sol`.
+    /// @dev The follow-up script must not replay the main deploy path. Banny's project NFT is owned by
+    /// `REVOwner`, so `JBProjects.ownerOf(4)` is the narrowest reliable way to discover the rev owner after the
+    /// mission-critical deployment has landed.
+    function _hydrateBannyDropContext() internal {
+        bytes32 coreSalt = keccak256(abi.encode(CORE_DEPLOYMENT_NONCE));
+
+        _trustedForwarder = _requireDeployedPrecompiled({
+            artifactName: "ERC2771Forwarder", salt: coreSalt, ctorArgs: abi.encode(TRUSTED_FORWARDER_NAME)
+        });
+        _projects = JBProjects(
+            _requireDeployedPrecompiled({
+                artifactName: "JBProjects",
+                salt: coreSalt,
+                ctorArgs: abi.encode(safeAddress(), safeAddress(), _trustedForwarder)
+            })
+        );
+
+        address revOwner = _projects.ownerOf(_BAN_PROJECT_ID);
+        if (revOwner.code.length == 0) {
+            revert Deploy_MissingDependency({name: "REVOwner__ProjectBAN", expected: revOwner});
+        }
+        _revOwner = REVOwner(revOwner);
+    }
+
     /// @notice Adds the Drop 1 product set (47 tiered NFT items, categories 1-16) to the BAN project's
     /// JB721TiersHook and registers their names + SVG hashes on the Banny URI resolver.
     /// @dev Mirrors `banny-retail-v6/script/Drop1.s.sol` so the entire BAN launch (project creation +
@@ -3610,26 +3634,58 @@ contract Deploy is Script, Sphinx {
         );
 
         // ── DefifaDeployer (factory that creates new Defifa games) ──
-        // We need to detect first-time deploy so we know whether to transfer governor ownership.
-        bytes memory deployerArgs = abi.encode(
-            address(_defifaHook),
-            _defifaTokenUriResolver,
-            _defifaGovernor,
-            _controller,
-            _addressRegistry,
-            _DEFIFA_REV_PROJECT_ID,
-            _FEE_PROJECT_ID,
-            _defifaHookStore,
-            safeAddress()
-        );
-        (, bool deployerExisted) =
-            _isDeployed({salt: DEFIFA_SALT, creationCode: _loadArtifact("DefifaDeployer"), arguments: deployerArgs});
+        // Chain-same CREATE2: constructor inputs are byte-identical across chains. Chain-specific dependencies are
+        // wired afterwards via the DEPLOYER-gated one-shot `setChainSpecificConstants` setter.
+        bytes memory deployerArgs = abi.encode(safeAddress(), safeAddress());
         _defifaDeployer = DefifaDeployer(
             _deployPrecompiledIfNeeded({artifactName: "DefifaDeployer", salt: DEFIFA_SALT, ctorArgs: deployerArgs})
         );
-        if (!deployerExisted) {
-            // First-time deploy: transfer governor ownership to the new deployer so it can initialize games.
+
+        if (address(_defifaDeployer.controller()) == address(0)) {
+            _defifaDeployer.setChainSpecificConstants({
+                newHookCodeOrigin: address(_defifaHook),
+                newTokenUriResolver: _defifaTokenUriResolver,
+                newGovernor: _defifaGovernor,
+                newController: _controller,
+                newRegistry: _addressRegistry,
+                newDefifaProjectId: _DEFIFA_REV_PROJECT_ID,
+                newBaseProtocolProjectId: _FEE_PROJECT_ID,
+                newHookStore: _defifaHookStore
+            });
+        } else {
+            if (_defifaDeployer.hookCodeOrigin() != address(_defifaHook)) {
+                revert Deploy_ExistingAddressMismatch(address(_defifaHook), _defifaDeployer.hookCodeOrigin());
+            }
+            if (address(_defifaDeployer.tokenUriResolver()) != address(_defifaTokenUriResolver)) {
+                revert Deploy_ExistingAddressMismatch(
+                    address(_defifaTokenUriResolver), address(_defifaDeployer.tokenUriResolver())
+                );
+            }
+            if (address(_defifaDeployer.governor()) != address(_defifaGovernor)) {
+                revert Deploy_ExistingAddressMismatch(address(_defifaGovernor), address(_defifaDeployer.governor()));
+            }
+            if (address(_defifaDeployer.controller()) != address(_controller)) {
+                revert Deploy_ExistingAddressMismatch(address(_controller), address(_defifaDeployer.controller()));
+            }
+            if (address(_defifaDeployer.registry()) != address(_addressRegistry)) {
+                revert Deploy_ExistingAddressMismatch(address(_addressRegistry), address(_defifaDeployer.registry()));
+            }
+            if (_defifaDeployer.defifaProjectId() != _DEFIFA_REV_PROJECT_ID) {
+                revert Deploy_ProjectIdMismatch(_DEFIFA_REV_PROJECT_ID, _defifaDeployer.defifaProjectId());
+            }
+            if (_defifaDeployer.baseProtocolProjectId() != _FEE_PROJECT_ID) {
+                revert Deploy_ProjectIdMismatch(_FEE_PROJECT_ID, _defifaDeployer.baseProtocolProjectId());
+            }
+            if (address(_defifaDeployer.hookStore()) != address(_defifaHookStore)) {
+                revert Deploy_ExistingAddressMismatch(address(_defifaHookStore), address(_defifaDeployer.hookStore()));
+            }
+        }
+
+        if (_defifaGovernor.owner() == safeAddress()) {
+            // Transfer governor ownership to the configured deployer so it can initialize games.
             _defifaGovernor.transferOwnership(address(_defifaDeployer));
+        } else if (_defifaGovernor.owner() != address(_defifaDeployer)) {
+            revert Deploy_ExistingAddressMismatch(address(_defifaDeployer), _defifaGovernor.owner());
         }
     }
 
@@ -4367,7 +4423,7 @@ contract Deploy is Script, Sphinx {
     function _nativeTerminalConfigIsCanonical(uint256 projectId) internal view returns (bool) {
         if (_directory.primaryTerminalOf(projectId, JBConstants.NATIVE_TOKEN) != _terminal) return false;
 
-        if (_shouldDeployUniswapStack()) {
+        if (address(_routerTerminalRegistry) != address(0)) {
             if (!_directory.isTerminalOf(projectId, IJBTerminal(address(_routerTerminalRegistry)))) return false;
         } else {
             IJBTerminal[] memory terminals = _directory.terminalsOf(projectId);
@@ -4456,6 +4512,20 @@ contract Deploy is Script, Sphinx {
     ///      `artifactName = "JBController"` → reads `artifacts/JBController.json`.
     function _loadArtifact(string memory artifactName) internal view returns (bytes memory) {
         return _loadCreationCode(string.concat("artifacts/", artifactName, ".json"));
+    }
+
+    function _requireDeployedPrecompiled(
+        string memory artifactName,
+        bytes32 salt,
+        bytes memory ctorArgs
+    )
+        internal
+        view
+        returns (address addr)
+    {
+        bool deployed;
+        (addr, deployed) = _isDeployed({salt: salt, creationCode: _loadArtifact(artifactName), arguments: ctorArgs});
+        if (!deployed) revert Deploy_MissingDependency({name: artifactName, expected: addr});
     }
 
     /// @dev Deploy via an external CREATE2 factory (e.g. the canonical 0x4e59… factory).
