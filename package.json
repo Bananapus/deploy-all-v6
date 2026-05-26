@@ -23,6 +23,8 @@
     "artifacts": "./script/build-artifacts.sh",
     "deploy:propose:testnets": "DEFIFA_REV_START_TIME=$(($(date +%s) + 86400)) npx sphinx propose script/Deploy.s.sol --networks testnets",
     "deploy:propose:mainnets": "DEFIFA_REV_START_TIME=$(($(date +%s) + 86400)) npx sphinx propose script/Deploy.s.sol --networks mainnets",
+    "deploy:propose:banny-drops:testnets": "npx sphinx propose script/DeployBannyDrops.s.sol --networks testnets",
+    "deploy:propose:banny-drops:mainnets": "npx sphinx propose script/DeployBannyDrops.s.sol --networks mainnets",
     "deploy:post": "./script/post-deploy.sh",
     "deploy:post:testnets": "./script/post-deploy.sh --chains=all-testnets",
     "deploy:post:mainnets": "./script/post-deploy.sh --chains=all-mainnets",
@@ -31,7 +33,7 @@
   },
   "dependencies": {
     "@arbitrum/nitro-contracts": "3.2.0",
-    "@ballkidz/defifa": "^0.0.45",
+    "@ballkidz/defifa": "^0.0.46",
     "@bananapus/721-hook-v6": "^0.0.57",
     "@bananapus/address-registry-v6": "^0.0.28",
     "@bananapus/buyback-hook-v6": "^0.0.58",
