@@ -371,6 +371,7 @@ contract Deploy is Script, Sphinx {
     // ── Distributor constants ──
     // Four weekly rounds vest distributor rewards over 28 days.
     uint256 private constant VESTING_ROUNDS = 4;
+    // Reward rounds expire 420 days after they become claimable.
     uint48 private constant CLAIM_DURATION = 420 days;
 
     // ── Common ──
@@ -1056,20 +1057,22 @@ contract Deploy is Script, Sphinx {
                 }))
         );
 
-        // Chain-same CREATE2 for the deployer factory: ctor takes only chain-same inputs. The implementation +
-        // chain-specific V4 addresses are wired afterwards via the DEPLOYER-gated one-shot setChainSpecificConstants
-        // setter; the factory uses these stored values when initializing each freshly cloned hook.
+        // Chain-same CREATE2 for the deployer factory: ctor takes only chain-same inputs. Chain-specific V4
+        // addresses are wired afterwards via the DEPLOYER-gated one-shot setChainSpecificConstants setter; the
+        // factory uses these stored values when initializing each freshly cloned hook.
+        bytes memory lpSplitHookDeployerCtorArgs =
+            abi.encode(IJBAddressRegistry(address(_addressRegistry)), _lpSplitHook, safeAddress());
+
         _lpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(
             _deployPrecompiledIfNeeded({
                 artifactName: "JBUniswapV4LPSplitHookDeployer",
                 salt: LP_SPLIT_HOOK_DEPLOYER_SALT,
-                ctorArgs: abi.encode(IJBAddressRegistry(address(_addressRegistry)), safeAddress())
+                ctorArgs: lpSplitHookDeployerCtorArgs
             })
         );
 
-        if (address(_lpSplitHookDeployer.hookImplementation()) == address(0)) {
+        if (address(_lpSplitHookDeployer.poolManager()) == address(0)) {
             _lpSplitHookDeployer.setChainSpecificConstants({
-                newHookImplementation: _lpSplitHook,
                 newPoolManager: IPoolManager(_poolManager),
                 newPositionManager: IPositionManager(_positionManager),
                 newOracleHook: IHooks(address(_uniswapV4Hook))
