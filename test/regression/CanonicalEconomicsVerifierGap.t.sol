@@ -9,7 +9,7 @@ import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 
 contract CanonicalEconomicsVerifierGapTest is Test {
     function test_canonicalEconomicsVerifierReadsDocumentedPerProjectHashEnvs() public view {
-        // Source-level assertion. The runtime behaviour is flaky in `forge test`'s parallel
+        // Source-level assertion. The runtime behavior is flaky in `forge test`'s parallel
         // contract execution because env vars are process-wide and sibling tests race on them;
         // this complementary check guarantees the verifier source wires the per-project env vars
         // through to a critical hash-equality check.

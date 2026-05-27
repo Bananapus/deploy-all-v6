@@ -113,7 +113,7 @@ contract CoreSupportSingletonVerifierGapTest is Test {
         prices = new CoreSupportMockOwned({owner_: safe});
         feelessAddresses = new CoreSupportMockOwned({owner_: safe});
         // The verifier asserts suckerRegistry.PERMISSIONS() — use a mock that exposes both
-        // owner() and PERMISSIONS() for this regression to still target core-support behaviour.
+        // owner() and PERMISSIONS() for this regression to still target core-support behavior.
         suckerRegistry = new CoreSupportMockOwnedPermissioned({owner_: safe, permissions_: address(permissions)});
         fundAccessLimits = new CoreSupportMockCode();
         rulesets = new CoreSupportMockCode();
