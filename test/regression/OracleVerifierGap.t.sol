@@ -44,7 +44,7 @@ contract OracleVerifierGapTest is Test {
         harness.setPrices(address(priceStore));
 
         assertEq(address(ethUsdFeed.FEED()), MAINNET_ETH_USD);
-        assertTrue(ethUsdFeed.THRESHOLD() != 3600, "test must use noncanonical threshold");
+        assertNotEq(ethUsdFeed.THRESHOLD(), 3600, "test must use noncanonical threshold");
 
         // Coverage: Verify.s.sol now asserts the wrapper's THRESHOLD matches the canonical 3600s.
         vm.expectRevert(
@@ -81,7 +81,7 @@ contract OracleVerifierGapTest is Test {
         VerifyOracleHarness harness = new VerifyOracleHarness();
         harness.setPrices(address(priceStore));
 
-        assertTrue(address(usdcUsdFeed.FEED()) != MAINNET_USDC_USD, "test must use noncanonical USDC/USD feed");
+        assertNotEq(address(usdcUsdFeed.FEED()), MAINNET_USDC_USD, "test must use noncanonical USDC/USD feed");
 
         // Coverage: Category 8 now also pins the USDC/USD aggregator to the per-chain expected.
         vm.expectRevert(

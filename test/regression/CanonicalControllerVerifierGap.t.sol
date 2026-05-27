@@ -31,7 +31,7 @@ contract CanonicalControllerVerifierGapTest is Test {
             projects_: projects, directory_: address(directory), controller_: canonicalController, terminal_: terminal
         });
 
-        assertTrue(fakeController != canonicalController, "setup must use wrong controller");
+        assertNotEq(fakeController, canonicalController, "setup must use wrong controller");
         assertEq(address(directory.controllerOf(1)), fakeController, "project resolves to fake controller");
 
         // Coverage: Category 2 now asserts directory.controllerOf(projectId) == canonical
