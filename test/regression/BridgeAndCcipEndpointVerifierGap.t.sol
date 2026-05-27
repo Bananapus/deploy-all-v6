@@ -24,7 +24,7 @@ contract BridgeAndCcipEndpointVerifierGapTest is Test {
         vm.chainId(1);
 
         address wrongMessenger = makeAddr("wrong op messenger");
-        assertTrue(wrongMessenger != CANONICAL_OP_L1_MESSENGER, "test must use a noncanonical messenger");
+        assertNotEq(wrongMessenger, CANONICAL_OP_L1_MESSENGER, "test must use a noncanonical messenger");
 
         address deployer = address(new MockOpDeployer(wrongMessenger, CANONICAL_OP_L1_BRIDGE));
 
@@ -43,7 +43,7 @@ contract BridgeAndCcipEndpointVerifierGapTest is Test {
         vm.chainId(1);
 
         address wrongBridge = makeAddr("wrong base bridge");
-        assertTrue(wrongBridge != CANONICAL_BASE_L1_BRIDGE, "test must use a noncanonical bridge");
+        assertNotEq(wrongBridge, CANONICAL_BASE_L1_BRIDGE, "test must use a noncanonical bridge");
 
         VerifyBridgeEndpointHarness harness = new VerifyBridgeEndpointHarness();
         _wireCanonicalNonFocused(harness);
@@ -62,7 +62,7 @@ contract BridgeAndCcipEndpointVerifierGapTest is Test {
         vm.chainId(1);
 
         address wrongGateway = makeAddr("wrong arb gateway");
-        assertTrue(wrongGateway != CANONICAL_ARB_L1_GATEWAY, "test must use a noncanonical gateway");
+        assertNotEq(wrongGateway, CANONICAL_ARB_L1_GATEWAY, "test must use a noncanonical gateway");
 
         VerifyBridgeEndpointHarness harness = new VerifyBridgeEndpointHarness();
         _wireCanonicalNonFocused(harness);
@@ -80,7 +80,7 @@ contract BridgeAndCcipEndpointVerifierGapTest is Test {
         vm.chainId(1);
 
         address wrongRouter = makeAddr("wrong ccip router");
-        assertTrue(wrongRouter != CANONICAL_ETH_CCIP_ROUTER, "test must use a noncanonical router");
+        assertNotEq(wrongRouter, CANONICAL_ETH_CCIP_ROUTER, "test must use a noncanonical router");
 
         address deployer = address(new MockCcipDeployer(wrongRouter, CANONICAL_OP_CHAIN_ID, CANONICAL_OP_SELECTOR));
 

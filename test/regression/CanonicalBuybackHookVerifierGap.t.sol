@@ -17,7 +17,7 @@ contract CanonicalBuybackHookVerifierGapTest is Test {
 
         address canonicalHook = makeAddr("canonical buyback hook");
         address forkedHook = makeAddr("forked buyback hook");
-        assertTrue(canonicalHook != forkedHook, "test must use distinct hooks");
+        assertNotEq(canonicalHook, forkedHook, "test must use distinct hooks");
 
         MockBuybackRegistry registry = new MockBuybackRegistry();
         registry.setDefaultHook(forkedHook);

@@ -20,7 +20,7 @@ contract SwapCcipSwapConstantsVerifierGapTest is Test {
         vm.chainId(1);
 
         address wrongBridgeToken = makeAddr("wrong bridge token");
-        assertTrue(wrongBridgeToken != CANONICAL_MAINNET_USDC, "test must use a noncanonical bridge token");
+        assertNotEq(wrongBridgeToken, CANONICAL_MAINNET_USDC, "test must use a noncanonical bridge token");
 
         VerifySwapCcipSwapConstantsHarness harness = new VerifySwapCcipSwapConstantsHarness();
         // Wire every other constant to canonical so the bridgeToken branch is the one that fails.
@@ -47,7 +47,7 @@ contract SwapCcipSwapConstantsVerifierGapTest is Test {
         vm.chainId(1);
 
         address wrongPoolManager = makeAddr("wrong v4 pool manager");
-        assertTrue(wrongPoolManager != CANONICAL_MAINNET_V4_POOL_MANAGER, "test must use a noncanonical pool manager");
+        assertNotEq(wrongPoolManager, CANONICAL_MAINNET_V4_POOL_MANAGER, "test must use a noncanonical pool manager");
 
         VerifySwapCcipSwapConstantsHarness harness = new VerifySwapCcipSwapConstantsHarness();
         address deployer = address(
@@ -73,7 +73,7 @@ contract SwapCcipSwapConstantsVerifierGapTest is Test {
         vm.chainId(1);
 
         address wrongWeth = makeAddr("wrong weth");
-        assertTrue(wrongWeth != CANONICAL_MAINNET_WETH, "test must use a noncanonical WETH");
+        assertNotEq(wrongWeth, CANONICAL_MAINNET_WETH, "test must use a noncanonical WETH");
 
         VerifySwapCcipSwapConstantsHarness harness = new VerifySwapCcipSwapConstantsHarness();
         address deployer = address(
@@ -100,7 +100,7 @@ contract SwapCcipSwapConstantsVerifierGapTest is Test {
 
         address canonicalV4Hook = makeAddr("canonical v4 hook");
         address wrongV4Hook = makeAddr("wrong v4 hook");
-        assertTrue(wrongV4Hook != canonicalV4Hook, "test must use a noncanonical v4 hook");
+        assertNotEq(wrongV4Hook, canonicalV4Hook, "test must use a noncanonical v4 hook");
 
         VerifySwapCcipSwapConstantsHarness harness = new VerifySwapCcipSwapConstantsHarness();
         harness.setUniswapV4Hook(canonicalV4Hook);
