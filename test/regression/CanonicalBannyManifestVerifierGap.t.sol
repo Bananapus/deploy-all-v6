@@ -39,7 +39,7 @@ contract CanonicalBannyManifestVerifierGapTest is Test {
 
         address forwarder = makeAddr("trusted forwarder");
         address wrongOwner = makeAddr("attacker");
-        assertTrue(wrongOwner != CANONICAL_BAN_OPS, "test must use a noncanonical owner");
+        assertNotEq(wrongOwner, CANONICAL_BAN_OPS, "test must use a noncanonical owner");
 
         MockBannyResolver resolver = new MockBannyResolver({
             owner_: wrongOwner,

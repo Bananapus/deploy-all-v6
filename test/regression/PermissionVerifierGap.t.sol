@@ -79,7 +79,7 @@ contract PermissionVerifierGapTest is Test {
             wrongPermissionsForwarder,
             "setup must give JBPermissions a noncanonical trusted forwarder"
         );
-        assertTrue(wrongPermissionsForwarder != canonicalForwarder, "forwarders must differ");
+        assertNotEq(wrongPermissionsForwarder, canonicalForwarder, "forwarders must differ");
 
         VerifyPermissionHarness harness = new VerifyPermissionHarness();
         harness.setPermissionMocks({

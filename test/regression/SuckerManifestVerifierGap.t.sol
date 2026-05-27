@@ -77,7 +77,7 @@ contract SuckerManifestVerifierGapTest is Test {
     function test_suckerManifestVerifierRejectsWrongPeerInExactManifest() public {
         bytes32 actualPeer = bytes32(uint256(uint160(makeAddr("actual remote sucker"))));
         bytes32 expectedPeerInManifest = bytes32(uint256(uint160(makeAddr("expected canonical remote"))));
-        assertTrue(actualPeer != expectedPeerInManifest, "test must use a peer different from the manifest");
+        assertNotEq(actualPeer, expectedPeerInManifest, "test must use a peer different from the manifest");
 
         MockSucker local = new MockSucker({
             peer_: actualPeer,
