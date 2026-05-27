@@ -176,6 +176,8 @@ contract Deploy is Script, Sphinx {
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
     error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
     error Deploy_Create3DeploymentFailed(address expected);
+    error Deploy_Create3CodehashMismatch(address addr, bytes32 expected, bytes32 actual);
+    error Deploy_Create3SandboxDeployFailed(bytes32 salt);
     error Deploy_TimestampOverflow(uint256 timestamp);
     error Deploy_UnexpectedSafe(address expected, address actual);
     error Deploy_OwnershipHandoffFailed(address target, address newOwner);
@@ -522,7 +524,7 @@ contract Deploy is Script, Sphinx {
         // Phase 00: External libraries (must come BEFORE any contract that DELEGATECALLs into them).
         _deployLibraries();
 
-        // Phase 01: Core Protocol
+        // Phase 01: Core Protocol + canonical project ID reservations
         _deployCore();
 
         // Phase 02: Address Registry
@@ -564,10 +566,10 @@ contract Deploy is Script, Sphinx {
         _deployPeriphery();
         _deployOmnichainDeployer();
 
-        // Phase 06: Croptop — creates CPN project (ID 2), deploys CT contracts
+        // Phase 06: Croptop — wires CPN project (ID 2), deploys CT contracts
         _deployCroptop();
 
-        // Phase 07: Revnet — creates REV project (ID 3), deploys REVLoans + REVDeployer, configures $REV
+        // Phase 07: Revnet — wires REV project (ID 3), deploys REVLoans + REVDeployer, configures $REV
         _deployRevnet();
 
         // Phase 08: Configure CPN (project 2) and NANA (project 1) as revnets
@@ -780,6 +782,7 @@ contract Deploy is Script, Sphinx {
                 ctorArgs: abi.encode(safeAddress(), safeAddress(), _trustedForwarder)
             })
         );
+        _reserveCanonicalProjectIds();
 
         _directory = JBDirectory(
             _deployPrecompiledIfNeeded({
@@ -1663,6 +1666,14 @@ contract Deploy is Script, Sphinx {
         }
     }
 
+    function _reserveCanonicalProjectIds() internal {
+        while (_projects.count() < _MARKEE_PROJECT_ID) {
+            uint256 expectedProjectId = _projects.count() + 1;
+            uint256 created = _projects.createFor{value: _projects.creationFee()}(safeAddress());
+            if (created != expectedProjectId) revert Deploy_ProjectIdMismatch(expectedProjectId, created);
+        }
+    }
+
     function _deployEthUsdFeed() internal returns (IJBPriceFeed feed) {
         uint256 l2GracePeriod = 3600 seconds;
 
@@ -1939,12 +1950,7 @@ contract Deploy is Script, Sphinx {
             _revOwner.setDeployer(IREVDeployer(address(_revDeployer)));
         }
 
-        // Configure the $REV revnet.
-        if (address(_directory.controllerOf(_revProjectId)) == address(0)) {
-            // Approve the deployer to configure the $REV project.
-            _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
-            _deployRevFeeProject();
-        }
+        _deployRevFeeProject();
     }
 
     function _deployRevFeeProject() internal {
@@ -2036,6 +2042,25 @@ contract Deploy is Script, Sphinx {
         });
 
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(REV_SUCKER_SALT);
+        bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: revConfig});
+
+        if (address(_directory.controllerOf(_revProjectId)) != address(0)) {
+            if (!_isCanonicalRevnetProject({
+                    projectId: _revProjectId,
+                    expectedSymbol: "REV",
+                    expectedConfigurationHash: expectedConfigurationHash,
+                    expectedOperator: operator,
+                    expectedUri: "ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W",
+                    expectedReservedSplitBeneficiary: payable(operator)
+                })) {
+                revert Deploy_ProjectNotCanonical(_revProjectId);
+            }
+            return;
+        }
+
+        if (_projects.ownerOf(_revProjectId) != safeAddress()) revert Deploy_ProjectNotOwned(_revProjectId);
+
+        _projects.approve({to: address(_revDeployer), tokenId: _revProjectId});
 
         _revDeployer.deployFor({
             revnetId: _revProjectId,
@@ -2127,6 +2152,7 @@ contract Deploy is Script, Sphinx {
         });
 
         REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(CPN_SUCKER_SALT);
+        bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: cpnConfig});
 
         REVDeploy721TiersHookConfig memory hookConfig = REVDeploy721TiersHookConfig({
             baseline721HookConfiguration: REVBaseline721HookConfig({
@@ -2194,19 +2220,32 @@ contract Deploy is Script, Sphinx {
             allowedAddresses: new address[](0)
         });
 
-        // Approve the deployer to configure CPN (project 2).
-        if (address(_directory.controllerOf(_cpnProjectId)) == address(0)) {
-            _projects.approve({to: address(_revDeployer), tokenId: _cpnProjectId});
-
-            _revDeployer.deployFor({
-                revnetId: _cpnProjectId,
-                configuration: cpnConfig,
-                accountingContextsToAccept: accountingContexts,
-                suckerDeploymentConfiguration: suckerConfig,
-                tiered721HookConfiguration: hookConfig,
-                allowedPosts: allowedPosts
-            });
+        if (address(_directory.controllerOf(_cpnProjectId)) != address(0)) {
+            if (!_isCanonicalRevnetProject({
+                    projectId: _cpnProjectId,
+                    expectedSymbol: "CPN",
+                    expectedConfigurationHash: expectedConfigurationHash,
+                    expectedOperator: operator,
+                    expectedUri: "ipfs://QmUAFevoMn1iqSEQR8LogQYRxm39TNxQTPYnuLuq5BmfEi",
+                    expectedReservedSplitBeneficiary: payable(operator)
+                })) {
+                revert Deploy_ProjectNotCanonical(_cpnProjectId);
+            }
+            return;
         }
+
+        if (_projects.ownerOf(_cpnProjectId) != safeAddress()) revert Deploy_ProjectNotOwned(_cpnProjectId);
+
+        _projects.approve({to: address(_revDeployer), tokenId: _cpnProjectId});
+
+        _revDeployer.deployFor({
+            revnetId: _cpnProjectId,
+            configuration: cpnConfig,
+            accountingContextsToAccept: accountingContexts,
+            suckerDeploymentConfiguration: suckerConfig,
+            tiered721HookConfiguration: hookConfig,
+            allowedPosts: allowedPosts
+        });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2566,9 +2605,12 @@ contract Deploy is Script, Sphinx {
             preventOperatorIncreasingDiscountPercent: false
         });
 
-        // Deploy the $BAN revnet with 721 tiers (revnetId: 0 creates new project).
-        (uint256 banProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
-            revnetId: 0,
+        if (_projects.ownerOf(_BAN_PROJECT_ID) != safeAddress()) revert Deploy_ProjectNotOwned(_BAN_PROJECT_ID);
+
+        _projects.approve({to: address(_revDeployer), tokenId: _BAN_PROJECT_ID});
+
+        (uint256 banProjectId,) = _revDeployer.deployFor({
+            revnetId: _BAN_PROJECT_ID,
             configuration: banConfig,
             accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig,
@@ -3787,8 +3829,14 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        (uint256 defifaProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
-            revnetId: 0,
+        if (_projects.ownerOf(_DEFIFA_REV_PROJECT_ID) != safeAddress()) {
+            revert Deploy_ProjectNotOwned(_DEFIFA_REV_PROJECT_ID);
+        }
+
+        _projects.approve({to: address(_revDeployer), tokenId: _DEFIFA_REV_PROJECT_ID});
+
+        (uint256 defifaProjectId,) = _revDeployer.deployFor({
+            revnetId: _DEFIFA_REV_PROJECT_ID,
             configuration: defifaConfig,
             accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
@@ -3814,14 +3862,20 @@ contract Deploy is Script, Sphinx {
         address operator = 0xbB96A6D3D251dFDA76F96d1650f9Cfd53b41c8d1;
         bool isBase = block.chainid == 8453 || block.chainid == 84_532;
 
-        // Off-Base path: reserve project 6 as a bare placeholder owned by the canonical operator.
+        // Off-Base path: leave project 6 as a bare placeholder owned by the canonical operator.
         // No controller, terminals, or revnet wiring — only the project ID is allocated.
         if (!isBase) {
             if (_projects.count() < _ART_PROJECT_ID) {
-                uint256 newId = _projects.createFor{value: _projects.creationFee()}(operator);
+                uint256 newId = _projects.createFor{value: _projects.creationFee()}(safeAddress());
                 if (newId != _ART_PROJECT_ID) {
                     revert Deploy_ProjectIdMismatch(_ART_PROJECT_ID, newId);
                 }
+            }
+            if (address(_directory.controllerOf(_ART_PROJECT_ID)) != address(0)) {
+                revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
+            }
+            if (_projects.ownerOf(_ART_PROJECT_ID) == safeAddress()) {
+                _projects.safeTransferFrom(safeAddress(), operator, _ART_PROJECT_ID);
             } else if (_projects.ownerOf(_ART_PROJECT_ID) != operator) {
                 // Placeholder already exists but isn't owned by the canonical operator — flag it.
                 revert Deploy_ProjectNotCanonical(_ART_PROJECT_ID);
@@ -3917,8 +3971,12 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        (uint256 artProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
-            revnetId: 0,
+        if (_projects.ownerOf(_ART_PROJECT_ID) != safeAddress()) revert Deploy_ProjectNotOwned(_ART_PROJECT_ID);
+
+        _projects.approve({to: address(_revDeployer), tokenId: _ART_PROJECT_ID});
+
+        (uint256 artProjectId,) = _revDeployer.deployFor({
+            revnetId: _ART_PROJECT_ID,
             configuration: artConfig,
             accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
@@ -4029,8 +4087,12 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
-        (uint256 markeeProjectId,) = _revDeployer.deployFor{value: _projects.creationFee()}({
-            revnetId: 0,
+        if (_projects.ownerOf(_MARKEE_PROJECT_ID) != safeAddress()) revert Deploy_ProjectNotOwned(_MARKEE_PROJECT_ID);
+
+        _projects.approve({to: address(_revDeployer), tokenId: _MARKEE_PROJECT_ID});
+
+        (uint256 markeeProjectId,) = _revDeployer.deployFor({
+            revnetId: _MARKEE_PROJECT_ID,
             configuration: markeeConfig,
             accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig
@@ -4454,6 +4516,8 @@ contract Deploy is Script, Sphinx {
     function _ensureProjectExists(uint256 expectedProjectId) internal returns (uint256) {
         uint256 count = _projects.count();
         if (count >= expectedProjectId) {
+            if (address(_directory.controllerOf(expectedProjectId)) != address(0)) return expectedProjectId;
+
             address projectOwner = _projects.ownerOf(expectedProjectId);
             if (projectOwner != safeAddress() && projectOwner != _CRITICAL_INFRA_OWNER) {
                 revert Deploy_ProjectNotOwned(expectedProjectId);
@@ -4615,6 +4679,18 @@ contract Deploy is Script, Sphinx {
     /// @dev Deploys an artifact through CREATE3 using the canonical CREATE2 factory. This is used only where two
     /// contracts need each other's immutable addresses: the controller stores the omnichain deployer address, while
     /// the omnichain deployer stores the controller address.
+    ///
+    /// **CREATE3 predeployment defense.** Both the CREATE3 proxy CREATE2 and the proxy's `call(initCode)` step are
+    /// permissionless. An attacker who knows the salt can pre-deploy the proxy, then call it with their own init
+    /// code — placing arbitrary bytecode at the predicted CREATE3 address before this script ever runs. The
+    /// previous `if (addr.code.length != 0) return addr` shortcut would have silently accepted that attacker
+    /// bytecode and baked an attacker contract into every consumer that hard-codes the predicted address as an
+    /// immutable (notably `JBController.OMNICHAIN_RULESET_OPERATOR`).
+    ///
+    /// To prevent that, the helper computes the runtime codehash we expect at `addr` and reverts on any mismatch.
+    /// The expected codehash is derived from a sandbox CREATE deploy of the artifact: this captures the runtime
+    /// bytecode AFTER constructor execution (immutables resolved), which is what `addr.codehash` should equal
+    /// when the deploy is genuinely ours. Both the early-return path and the post-deploy path enforce the check.
     function _deployCreate3PrecompiledIfNeeded(
         string memory artifactName,
         bytes32 salt,
@@ -4624,7 +4700,18 @@ contract Deploy is Script, Sphinx {
         returns (address addr)
     {
         addr = _create3Address({salt: salt});
-        if (addr.code.length != 0) return addr;
+
+        bytes memory initCode = abi.encodePacked(_loadArtifact(artifactName), ctorArgs);
+        bytes32 expectedCodehash = _runtimeCodehashOf({initCode: initCode, salt: salt});
+
+        // Early-return path: code is already at `addr`. Verify it matches what we expect before trusting it; an
+        // attacker may have placed their own bytecode there via the permissionless proxy call.
+        if (addr.code.length != 0) {
+            if (addr.codehash != expectedCodehash) {
+                revert Deploy_Create3CodehashMismatch({addr: addr, expected: expectedCodehash, actual: addr.codehash});
+            }
+            return addr;
+        }
 
         // Deploy the one-shot CREATE3 proxy at the canonical factory/salt address if this is the first run.
         (address proxy, bool proxyAlready) =
@@ -4636,8 +4723,31 @@ contract Deploy is Script, Sphinx {
         }
 
         // The proxy runtime treats calldata as init code and CREATEs it with nonce 1, yielding `_create3Address(salt)`.
-        (bool success,) = proxy.call(abi.encodePacked(_loadArtifact(artifactName), ctorArgs));
+        (bool success,) = proxy.call(initCode);
         if (!success || addr.code.length == 0) revert Deploy_Create3DeploymentFailed({expected: addr});
+
+        // Post-deploy: confirm what landed at `addr` is the bytecode we intended (defense-in-depth — also catches a
+        // proxy that was already advanced past nonce 1 so our CREATE landed at a different address).
+        if (addr.codehash != expectedCodehash) {
+            revert Deploy_Create3CodehashMismatch({addr: addr, expected: expectedCodehash, actual: addr.codehash});
+        }
+    }
+
+    /// @dev Compute the runtime codehash a contract will have AFTER constructor execution by sandbox-deploying it
+    /// via plain CREATE. Constructor-set immutables are baked into runtime bytecode, so a creation-code hash alone
+    /// is insufficient to predict `addr.codehash` — running the constructor is the only way to derive it.
+    ///
+    /// The sandbox lives at a per-run transient address (`address(this)` + script nonce) that no other contract
+    /// hard-codes, so any external side effects the constructor produces (e.g., the JBOmnichainDeployer constructor
+    /// granting the sucker registry a `MAP_SUCKER_TOKEN` wildcard on its own behalf) attach to a stale address and
+    /// are inert. The extra deploy cost is accepted as the price of frontrun-proofing CREATE3 deployments.
+    function _runtimeCodehashOf(bytes memory initCode, bytes32 salt) internal returns (bytes32 codehash) {
+        address sandbox;
+        assembly {
+            sandbox := create(0, add(initCode, 0x20), mload(initCode))
+        }
+        if (sandbox == address(0)) revert Deploy_Create3SandboxDeployFailed({salt: salt});
+        codehash = sandbox.codehash;
     }
 
     /// @dev Solady CREATE3 proxy init code. Kept local so deployments still route through the canonical CREATE2

@@ -243,6 +243,8 @@ If a deploy is interrupted (gas spike, RPC timeout, operator error), use `Resume
 
 Resume detects completed phases by checking `code.length != 0` at each contract's deterministic CREATE2 address. If a contract already has code, it's skipped. If not, it's deployed.
 
+For CREATE3 deploys (currently only `JBOmnichainDeployer`), `_deployCreate3PrecompiledIfNeeded` adds a `addr.codehash` check on top of the length test: the existing bytecode must match a sandbox-CREATE reference codehash before resume will accept it. This closes the predeployment attack where an attacker places bytecode at the predicted CREATE3 address via the permissionless canonical factory; a mismatch reverts with `Deploy_Create3CodehashMismatch` rather than silently treating attacker bytecode as a completed phase.
+
 State-mutating calls (e.g., `setDefaultHook`, `setIsAllowedToSetFirstController`, `allowSuckerDeployer`) are guarded by idempotent checks that read current on-chain state before writing.
 
 ### Running Resume

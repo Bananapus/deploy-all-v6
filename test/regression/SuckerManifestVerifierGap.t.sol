@@ -11,7 +11,16 @@ import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
 import {JBSuckersPair} from "@bananapus/suckers-v6/src/structs/JBSuckersPair.sol";
 
 contract SuckerManifestVerifierGapTest is Test {
-    function test_suckerManifestVerifierRejectsMalformedPairWithNoLocalSucker() public {
+    function test_suckerManifestVerifierRejectsMalformedPairsAndManifestDrift() public {
+        _suckerManifestVerifierRejectsMalformedPairWithNoLocalSucker();
+        _suckerManifestVerifierRejectsPairWithDisabledNativeTokenMapping();
+        _suckerManifestVerifierRejectsWrongPeerInExactManifest();
+        _suckerManifestVerifierRejectsWrongRemoteChainIdInExactManifest();
+    }
+
+    function _suckerManifestVerifierRejectsMalformedPairWithNoLocalSucker() internal {
+        _clearSuckerManifestEnv();
+
         MockSuckerRegistry registry = new MockSuckerRegistry();
         registry.setPairs(
             1,
@@ -35,7 +44,9 @@ contract SuckerManifestVerifierGapTest is Test {
         harness.verifySuckerManifest();
     }
 
-    function test_suckerManifestVerifierRejectsPairWithDisabledNativeTokenMapping() public {
+    function _suckerManifestVerifierRejectsPairWithDisabledNativeTokenMapping() internal {
+        _clearSuckerManifestEnv();
+
         MockSucker local = new MockSucker({
             peer_: bytes32(uint256(uint160(makeAddr("remote sucker")))),
             peerChainId_: 10,
@@ -72,12 +83,13 @@ contract SuckerManifestVerifierGapTest is Test {
     /// @dev Coverage: when the operator declares the exact per-pair manifest via
     /// `VERIFY_SUCKER_PAIR_<projectId>_<idx>`, the verifier asserts each field matches. A wrong
     /// peer bytes32 must trip the new check. Uses project ID 2 to keep the env var key
-    /// disjoint from the test below — Foundry runs tests in this contract concurrently and
-    /// `vm.setEnv` is process-wide.
-    function test_suckerManifestVerifierRejectsWrongPeerInExactManifest() public {
+    /// disjoint from the sequential subcase below.
+    function _suckerManifestVerifierRejectsWrongPeerInExactManifest() internal {
+        _clearSuckerManifestEnv();
+
         bytes32 actualPeer = bytes32(uint256(uint160(makeAddr("actual remote sucker"))));
         bytes32 expectedPeerInManifest = bytes32(uint256(uint160(makeAddr("expected canonical remote"))));
-        assertTrue(actualPeer != expectedPeerInManifest, "test must use a peer different from the manifest");
+        assertNotEq(actualPeer, expectedPeerInManifest, "test must use a peer different from the manifest");
 
         MockSucker local = new MockSucker({
             peer_: actualPeer,
@@ -125,7 +137,9 @@ contract SuckerManifestVerifierGapTest is Test {
 
     /// @dev Coverage: a wrong remote-chain-id in the manifest must trip the registry-
     /// side remoteChainId check first. Uses project ID 3 to avoid env collision with sibling tests.
-    function test_suckerManifestVerifierRejectsWrongRemoteChainIdInExactManifest() public {
+    function _suckerManifestVerifierRejectsWrongRemoteChainIdInExactManifest() internal {
+        _clearSuckerManifestEnv();
+
         bytes32 peer = bytes32(uint256(uint160(makeAddr("remote sucker"))));
 
         MockSucker local = new MockSucker({
@@ -164,6 +178,13 @@ contract SuckerManifestVerifierGapTest is Test {
             )
         );
         harness.verifySuckerManifest();
+    }
+
+    function _clearSuckerManifestEnv() internal {
+        for (uint256 projectId = 1; projectId <= 7; projectId++) {
+            vm.setEnv(string.concat("VERIFY_SUCKER_PAIRS_", vm.toString(projectId)), "");
+            vm.setEnv(string.concat("VERIFY_SUCKER_PAIR_", vm.toString(projectId), "_0"), "");
+        }
     }
 
     function _singlePair(
