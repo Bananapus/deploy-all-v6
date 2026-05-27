@@ -6,7 +6,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Bananapus/deploy-all-v6"
+    "url": "git+https://github.com/Bananapus/deploy-all-v6.git"
   },
   "engines": {
     "node": ">=20.0.0"
