@@ -44,7 +44,7 @@ contract BannyManifestVerifierGapTest is Test {
         MockRevOwner revOwner = new MockRevOwner(address(bannyHook));
         MockProjects projects = new MockProjects(address(revOwner));
         // The verifier now requires the CPN hook to be wired with PROJECT_ID==2 /
-        // STORE==hookStore / symbol=="CPN". This test targets Banny manifest behaviour, so satisfy
+        // STORE==hookStore / symbol=="CPN". This test targets Banny manifest behavior, so satisfy
         // that gate with a minimal mock so we reach the Banny assertions.
         revOwner.setCpnHook(address(new MockCpnHookForCpn(address(hookStore))));
 
@@ -139,7 +139,7 @@ contract MockRevOwner {
         _bannyHook = bannyHook_;
     }
 
-    /// @notice The CPN hook is required by the verifier; tests that target Banny-only behaviour
+    /// @notice The CPN hook is required by the verifier; tests that target Banny-only behavior
     /// set a satisfying CPN mock through this so they don't trip the CPN gate.
     function setCpnHook(address cpnHook_) external {
         _cpnHook = cpnHook_;
@@ -209,7 +209,7 @@ contract MockBannyHook is MockToken {
 }
 
 /// @notice CPN hook mock matching the canonical-economics gate (PROJECT_ID == 2, canonical store,
-/// "CPN" symbol). Used by sibling tests that target Banny manifest behaviour but need a CPN hook
+/// "CPN" symbol). Used by sibling tests that target Banny manifest behavior but need a CPN hook
 /// in place to reach the Banny assertions.
 contract MockCpnHookForCpn is MockToken {
     address internal immutable _hookStore;
