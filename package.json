@@ -9,7 +9,7 @@
     "url": "git+https://github.com/Bananapus/deploy-all-v6"
   },
   "engines": {
-    "node": "25.9.0"
+    "node": ">=20.0.0"
   },
   "files": [
     "foundry.toml",
