@@ -898,7 +898,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: OPTIMISM_CHAIN_ID,
             referralProjectId: remoteRefId,
             sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
 
         assertGt(bridged, 0, "must bridge a positive amount");
@@ -927,7 +928,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: OPTIMISM_CHAIN_ID,
             referralProjectId: remoteRefId,
             sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
         assertGt(first, 0, "first bridge should move tokens");
 
@@ -935,7 +937,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: OPTIMISM_CHAIN_ID,
             referralProjectId: remoteRefId,
             sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
         assertEq(second, 0, "second bridge with no new volume must noop");
         assertEq(
@@ -960,7 +963,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: BASE_CHAIN_ID,
             referralProjectId: 400,
             sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
     }
 
@@ -976,13 +980,15 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: OPTIMISM_CHAIN_ID,
             referralProjectId: 42,
             sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
         uint256 bridgedBase = hook.bridgeRemote({
             referralChainId: BASE_CHAIN_ID,
             referralProjectId: 42,
             sucker: baseSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
 
         assertGt(bridgedOp, 0, "OP referrer #42 should bridge");
@@ -1004,7 +1010,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: block.chainid,
             referralProjectId: referrerProjectIdLocal,
             sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
     }
 
@@ -1403,7 +1410,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: OPTIMISM_CHAIN_ID,
             referralProjectId: 200,
             sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
         assertGt(bridged1, 0, "bridge moves tokens");
         assertEq(
@@ -1451,7 +1459,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: OPTIMISM_CHAIN_ID,
             referralProjectId: 200,
             sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
         assertEq(hook.totalDeposited(), t2, "bridgeRemote must not change totalDeposited");
     }
@@ -1716,7 +1725,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     function test_bridgeRemote_revertsOnZeroChainId() public {
         vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
         hook.bridgeRemote({
-            referralChainId: 0, referralProjectId: 42, sucker: opSucker, terminalToken: JBConstants.NATIVE_TOKEN
+            referralChainId: 0, referralProjectId: 42, sucker: opSucker, terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
     }
 
@@ -1774,7 +1784,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: arbChainId,
             referralProjectId: arbReferrerProjectId,
             sucker: opSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
 
         // 2) `burnUnbridgeableCreditFor` is the right entrypoint. It iterates the project's suckers,
@@ -1899,7 +1910,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: chainId,
             referralProjectId: projectId,
             sucker: mockSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
         assertGt(bridged, 0, "incremental credit bridges");
 
@@ -1935,7 +1947,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: chainId,
             referralProjectId: projectId,
             sucker: mockSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
         assertGt(firstBridged, 0, "first batch bridged");
 
@@ -1946,7 +1959,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: chainId,
             referralProjectId: projectId,
             sucker: mockSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
         assertGt(secondBridged, 0, "second batch bridged");
 
@@ -1962,7 +1976,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             referralChainId: chainId,
             referralProjectId: projectId,
             sucker: mockSucker,
-            terminalToken: JBConstants.NATIVE_TOKEN
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: 0
         });
         assertEq(thirdBridged, 0, "no new volume -> no new bridge");
     }
