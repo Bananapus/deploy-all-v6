@@ -29,6 +29,7 @@ Use this repo when the question is "does the combined deployment still work?" Do
 | `script/Deploy.s.sol` | Main end-to-end deployment entrypoint |
 | `script/Resume.s.sol` | Resume and recovery tooling for interrupted deployments |
 | `script/Verify.s.sol` | Post-deploy verification checks |
+| `script/LivePostDeploySmoke.s.sol` | Budgeted Sphinx proposal for live post-deploy buyback, loan, and ops smoke checks |
 
 ## Mental Model
 
@@ -39,8 +40,9 @@ This repo owns sequencing, not business logic. It is where the intended cross-re
 1. `script/Deploy.s.sol`
 2. `script/Resume.s.sol`
 3. `script/Verify.s.sol`
-4. `test/fork/DeployFullStack.t.sol`
-5. `test/fork/DeployResumeRehearsalFork.t.sol`
+4. `script/LivePostDeploySmoke.s.sol`
+5. `test/fork/DeployFullStack.t.sol`
+6. `test/fork/DeployResumeRehearsalFork.t.sol`
 
 ## High-Signal Tests
 
@@ -88,6 +90,7 @@ script/
   Deploy.s.sol
   Resume.s.sol
   Verify.s.sol
+  LivePostDeploySmoke.s.sol
 test/fork/
   full-stack, recovery, cross-feature, and long-horizon deployment rehearsals
 ```

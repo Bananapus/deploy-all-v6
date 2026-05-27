@@ -152,6 +152,8 @@ Key points:
 
 **Verify.s.sol** is read-only and requires no broadcast. It reads deployed state and validates wiring.
 
+**LivePostDeploySmoke.s.sol** is executed through Sphinx after read-only verification. It proposes a small, budgeted set of real production actions from the V6 deployment Safe: core-project buyback payments, partial cash-outs when available, a REV loan open/repay round trip, and distributor keeper checks.
+
 ### Post-Deploy: Verification + Artifact Emission
 
 **Sphinx's auto-verification and auto-artifact pipeline are intentionally bypassed in v6.** Every contract that Deploy.s.sol routes through `_loadCreationCode` + `_deployFromArtifact` is pre-compiled from its installed npm package with the manifest's recorded compile profile (`via_ir` + `optimizerRuns`), then deployed via raw bytecode. Sphinx's bundled verifier doesn't know about that pre-compile step and would submit the wrong settings to Etherscan. Instead, v6 ships a local pipeline at `script/post-deploy.sh`.
@@ -492,6 +494,31 @@ forge script script/Verify.s.sol:Verify \
 
 This is a read-only script — no `--broadcast` needed.
 
+### Live Smoke Proposal
+
+After `Verify.s.sol` is green and the V6 deployment Safe is funded, run the live smoke proposal. It uses `safeAddress()` as the holder, beneficiary, and loan owner, so the Safe must have enough native token on each target chain for the configured smoke budgets plus gas.
+
+```bash
+# Defaults spend at most 0.05 ETH-equivalent on buyback payment checks and 0.05 ETH-equivalent on loan checks per chain.
+npm run deploy:propose:live-smoke:mainnets
+```
+
+Optional budget and behavior overrides:
+
+```bash
+export SMOKE_BUYBACK_BUDGET=50000000000000000
+export SMOKE_BUYBACK_PAYMENT_AMOUNT=5000000000000000
+export SMOKE_LOAN_BUDGET=50000000000000000
+export SMOKE_LOAN_PAYMENT_AMOUNT=25000000000000000
+export SMOKE_LOAN_PROJECT_ID=3
+export SMOKE_BUYBACK_CASH_OUT_DIVISOR=4      # set 0 to skip the cash-out leg
+export SMOKE_POKE_DISTRIBUTORS=true
+```
+
+The script reuses the core `VERIFY_*` addresses from `Verify.s.sol`. Set `VERIFY_BUYBACK_HOOK` to pin the expected hook implementation. If a buyback or loan budget is set to `0`, that section is skipped.
+
+Optimism Sepolia skips the Uniswap-dependent smoke sections because that deployment intentionally has no PositionManager-backed buyback hook, router terminal, or REV loan surface.
+
 ### Verification Categories
 
 Verify checks 20 categories in order:
@@ -574,7 +601,14 @@ This is the complete sequence for deploying to a new chain:
 - [ ] Confirm 0 failures in the summary
 - [ ] Review any skipped checks — confirm they correspond to intentionally omitted components
 
-### 6. Post-Verification Spot Checks
+### 6. Live Smoke Proposal
+
+- [ ] Fund the V6 deployment Safe with at least `SMOKE_BUYBACK_BUDGET + SMOKE_LOAN_BUDGET` native token plus gas per chain
+- [ ] `npm run deploy:propose:live-smoke:testnets` or `npm run deploy:propose:live-smoke:mainnets`
+- [ ] Safe signers approve and execute the smoke proposal
+- [ ] Confirm buyback project payments, partial cash-outs, REV loan borrow/repay, and distributor ops pass
+
+### 7. Post-Verification Spot Checks
 
 These manual checks complement the automated verification:
 
