@@ -33,6 +33,7 @@ import {JBMessageRoot} from "@bananapus/suckers-v6/src/structs/JBMessageRoot.sol
 import {JBOutboxTree} from "@bananapus/suckers-v6/src/structs/JBOutboxTree.sol";
 import {JBInboxTreeRoot} from "@bananapus/suckers-v6/src/structs/JBInboxTreeRoot.sol";
 import {JBSucker} from "@bananapus/suckers-v6/src/JBSucker.sol";
+import {JBSuckerState} from "@bananapus/suckers-v6/src/enums/JBSuckerState.sol";
 import {JBOptimismSucker} from "@bananapus/suckers-v6/src/JBOptimismSucker.sol";
 import {JBOptimismSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBOptimismSuckerDeployer.sol";
 import {JBBaseSucker} from "@bananapus/suckers-v6/src/JBBaseSucker.sol";
@@ -1725,7 +1726,10 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     function test_bridgeRemote_revertsOnZeroChainId() public {
         vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
         hook.bridgeRemote({
-            referralChainId: 0, referralProjectId: 42, sucker: opSucker, terminalToken: JBConstants.NATIVE_TOKEN,
+            referralChainId: 0,
+            referralProjectId: 42,
+            sucker: opSucker,
+            terminalToken: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0
         });
     }
@@ -1903,6 +1907,9 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             abi.encodeWithSelector(IJBSuckerRegistry.isSuckerOf.selector, feeProjectId, address(mockSucker)),
             abi.encode(true)
         );
+        vm.mockCall(
+            address(mockSucker), abi.encodeWithSelector(IJBSucker.state.selector), abi.encode(JBSuckerState.ENABLED)
+        );
         vm.mockCall(address(mockSucker), abi.encodeWithSelector(IJBSucker.peerChainId.selector), abi.encode(chainId));
         vm.mockCall(address(mockSucker), abi.encodeWithSelector(IJBSucker.prepare.selector), abi.encode());
 
@@ -1936,6 +1943,9 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             address(suckerRegistry),
             abi.encodeWithSelector(IJBSuckerRegistry.isSuckerOf.selector, feeProjectId, address(mockSucker)),
             abi.encode(true)
+        );
+        vm.mockCall(
+            address(mockSucker), abi.encodeWithSelector(IJBSucker.state.selector), abi.encode(JBSuckerState.ENABLED)
         );
         vm.mockCall(address(mockSucker), abi.encodeWithSelector(IJBSucker.peerChainId.selector), abi.encode(chainId));
         vm.mockCall(address(mockSucker), abi.encodeWithSelector(IJBSucker.prepare.selector), abi.encode());
@@ -1980,5 +1990,236 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             minTokensReclaimed: 0
         });
         assertEq(thirdBridged, 0, "no new volume -> no new bridge");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  GROUP 8 — Hardening additions (front-run, sandwich, deprecated-sucker)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @notice A third party can call the permissionless `sucker.claim(claimData)` directly, which mints
+    /// fee-project tokens into the hook (the leaf's beneficiary) and consumes the leaf. The hook's
+    /// `claimAndPush` must still successfully settle by detecting the front-run via
+    /// `sucker.executedLeafHashOf` and authenticating the caller's claim data against the stored hash
+    /// before forwarding the freshly-minted tokens to the local distributor.
+    function test_claimAndPush_frontRunByDirectSuckerClaim_stillSettles() public {
+        bytes32 metadata =
+            hook.packLeafMetadata({originChainId: OPTIMISM_CHAIN_ID, referralProjectId: referrerProjectIdLocalTwin});
+        bytes32 beneficiary = bytes32(uint256(uint160(address(hook))));
+        uint256 projectTokens = 3e18;
+        uint256 terminalAmount = 1 ether;
+
+        (, bytes32[32] memory proof,) = _stageInboxLeaf({
+            sucker: opSucker,
+            messenger: mockOpMessenger,
+            token: JBConstants.NATIVE_TOKEN,
+            projectTokenCount: projectTokens,
+            terminalTokenAmount: terminalAmount,
+            beneficiary: beneficiary,
+            metadata: metadata,
+            nonce: 7
+        });
+
+        JBClaim memory claim = JBClaim({
+            token: JBConstants.NATIVE_TOKEN,
+            leaf: JBLeaf({
+                index: 0,
+                beneficiary: beneficiary,
+                projectTokenCount: projectTokens,
+                terminalTokenAmount: terminalAmount,
+                metadata: metadata
+            }),
+            proof: proof
+        });
+
+        // FRONT-RUN: Eve calls sucker.claim directly. The sucker mints fee-project tokens to the leaf's
+        // beneficiary (= the hook) and stores the executed leaf hash. The leaf is now consumed.
+        address eve = makeAddr("eve");
+        vm.prank(eve);
+        opSucker.claim(claim);
+
+        address feeToken = address(jbTokens().tokenOf(feeProjectId));
+        assertGt(
+            IERC20(feeToken).balanceOf(address(hook)),
+            0,
+            "front-run: tokens minted to hook even though Eve called claim"
+        );
+        assertFalse(
+            hook.settledLeafOf({sucker: opSucker, terminalToken: JBConstants.NATIVE_TOKEN, leafIndex: 0}),
+            "hook hasn't settled the leaf yet"
+        );
+
+        // RECOVERY: legitimate caller invokes hook.claimAndPush with the same claim data. The hook detects
+        // the leaf is already executed (storedHash != 0), re-derives the leaf hash from claimData, matches
+        // against the sucker's stored hash, and settles from the existing balance.
+        vm.expectEmit(true, true, true, true, address(hook));
+        emit IJBReferralSplitHook.ClaimedFromFrontRun({
+            originChainId: OPTIMISM_CHAIN_ID,
+            referralProjectId: referrerProjectIdLocalTwin,
+            leafIndex: 0,
+            feeProjectMinted: projectTokens,
+            caller: address(this)
+        });
+
+        uint256 pushed = hook.claimAndPush({
+            originChainId: OPTIMISM_CHAIN_ID,
+            referralProjectId: referrerProjectIdLocalTwin,
+            sucker: opSucker,
+            claimData: claim
+        });
+
+        assertEq(pushed, projectTokens, "front-run path forwards the leaf's projectTokenCount");
+        assertEq(
+            IERC20(feeToken).balanceOf(address(hook)),
+            0,
+            "hook forwarded the front-run-minted tokens to the distributor"
+        );
+        assertTrue(
+            hook.settledLeafOf({sucker: opSucker, terminalToken: JBConstants.NATIVE_TOKEN, leafIndex: 0}),
+            "leaf marked as settled after recovery"
+        );
+
+        // Idempotency: re-attempting the same settlement reverts.
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IJBReferralSplitHook.JBReferralSplitHook_LeafAlreadySettled.selector,
+                address(opSucker),
+                JBConstants.NATIVE_TOKEN,
+                uint256(0)
+            )
+        );
+        hook.claimAndPush({
+            originChainId: OPTIMISM_CHAIN_ID,
+            referralProjectId: referrerProjectIdLocalTwin,
+            sucker: opSucker,
+            claimData: claim
+        });
+    }
+
+    /// @notice After a front-run, an attacker who submits FAKE claimData (same index, tampered metadata)
+    /// must be rejected: the sucker stores the hash of the REAL leaf, the hook re-derives the hash from
+    /// the caller's data, and the mismatch reverts on `FrontRunLeafMismatch`.
+    function test_claimAndPush_frontRunWithFakeMetadata_reverts() public {
+        bytes32 realMetadata =
+            hook.packLeafMetadata({originChainId: OPTIMISM_CHAIN_ID, referralProjectId: referrerProjectIdLocalTwin});
+        bytes32 beneficiary = bytes32(uint256(uint160(address(hook))));
+        uint256 projectTokens = 2e18;
+        uint256 terminalAmount = 1 ether;
+
+        (, bytes32[32] memory proof,) = _stageInboxLeaf({
+            sucker: opSucker,
+            messenger: mockOpMessenger,
+            token: JBConstants.NATIVE_TOKEN,
+            projectTokenCount: projectTokens,
+            terminalTokenAmount: terminalAmount,
+            beneficiary: beneficiary,
+            metadata: realMetadata,
+            nonce: 8
+        });
+
+        // Real claim consumes the leaf.
+        JBClaim memory realClaim = JBClaim({
+            token: JBConstants.NATIVE_TOKEN,
+            leaf: JBLeaf({
+                index: 0,
+                beneficiary: beneficiary,
+                projectTokenCount: projectTokens,
+                terminalTokenAmount: terminalAmount,
+                metadata: realMetadata
+            }),
+            proof: proof
+        });
+        opSucker.claim(realClaim);
+
+        // Attacker fabricates claimData with the SAME leaf index but tampered metadata pointing to a
+        // different referrer project (referrerProjectIdNoToken instead of referrerProjectIdLocalTwin).
+        bytes32 fakeMetadata =
+            hook.packLeafMetadata({originChainId: OPTIMISM_CHAIN_ID, referralProjectId: referrerProjectIdNoToken});
+        JBClaim memory fakeClaim = JBClaim({
+            token: JBConstants.NATIVE_TOKEN,
+            leaf: JBLeaf({
+                index: 0,
+                beneficiary: beneficiary,
+                projectTokenCount: projectTokens,
+                terminalTokenAmount: terminalAmount,
+                metadata: fakeMetadata
+            }),
+            proof: proof
+        });
+
+        bytes32 realLeafHash = _buildLeafHash(projectTokens, terminalAmount, beneficiary, realMetadata);
+        bytes32 fakeLeafHash = _buildLeafHash(projectTokens, terminalAmount, beneficiary, fakeMetadata);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IJBReferralSplitHook.JBReferralSplitHook_FrontRunLeafMismatch.selector, fakeLeafHash, realLeafHash
+            )
+        );
+        hook.claimAndPush({
+            originChainId: OPTIMISM_CHAIN_ID,
+            referralProjectId: referrerProjectIdNoToken,
+            sucker: opSucker,
+            claimData: fakeClaim
+        });
+    }
+
+    /// @notice `bridgeRemote` with a `minTokensReclaimed` higher than the bonding-curve cash-out can deliver
+    /// must revert — the caller's slippage bound protects against MEV sandwich on the cash-out leg.
+    function test_bridgeRemote_minTokensReclaimedTooHigh_reverts() public {
+        uint256 remoteRefId = 4242;
+        _payAndCashOutWithReferral(PAYER, 10 ether, OPTIMISM_CHAIN_ID, remoteRefId);
+        _distributeFeeReservedTokens();
+
+        // An impossibly-high minimum reclaim — the bonding-curve cash-out of `entitled` fee tokens can
+        // never produce `type(uint128).max` terminal tokens. The terminal's `cashOutTokensOf` reverts
+        // when reclaim < min, and that revert propagates up through `sucker.prepare` to here.
+        vm.expectRevert();
+        hook.bridgeRemote({
+            referralChainId: OPTIMISM_CHAIN_ID,
+            referralProjectId: remoteRefId,
+            sucker: opSucker,
+            terminalToken: JBConstants.NATIVE_TOKEN,
+            minTokensReclaimed: type(uint128).max
+        });
+
+        // The HWM must NOT have advanced — the revert rolled back the speculative write.
+        assertEq(
+            hook.bridgedOutOf({referralChainId: OPTIMISM_CHAIN_ID, referralProjectId: remoteRefId}),
+            0,
+            "failed bridge must not advance HWM"
+        );
+    }
+
+    /// @notice `burnUnbridgeableCreditFor` must refuse to burn credit for a chain whose sucker has been
+    /// DEPRECATED and removed from the active set — that sucker is still bridgeable (it retains mint
+    /// permission until truly destroyed), so the credit is NOT stranded.
+    function test_burnUnbridgeable_revertsWhenDeprecatedSuckerPeersToChain() public {
+        // Deprecate the Base sucker (project-owner permission, deprecation timestamp must be > now +
+        // 14-day messaging delay).
+        uint40 depTime = uint40(block.timestamp + 14 days + 1);
+        vm.prank(FEE_PROJECT_OWNER);
+        JBSucker(payable(address(baseSucker))).setDeprecation(depTime);
+
+        // Warp past the deprecation timestamp so the sucker's `state()` returns DEPRECATED. Then call
+        // `removeDeprecatedSucker` to move it to `_SUCKER_DEPRECATED` in the registry — at which point
+        // `suckersOf` no longer includes it, but `allSuckersOf` still does.
+        vm.warp(depTime + 1);
+        suckerRegistry.removeDeprecatedSucker({projectId: feeProjectId, sucker: address(baseSucker)});
+
+        // Generate volume crediting a Base referrer so there's something to (attempt to) burn.
+        uint256 remoteRefId = 5151;
+        _payAndCashOutWithReferral(PAYER, 5 ether, BASE_CHAIN_ID, remoteRefId);
+        _distributeFeeReservedTokens();
+
+        // Burn attempt must revert because `allSuckersOf` still includes the deprecated baseSucker, which
+        // peers to BASE_CHAIN_ID. The pre-hardening code iterated `suckersOf` (which filters out
+        // deprecated entries) and would have happily burned the credit here.
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IJBReferralSplitHook.JBReferralSplitHook_SuckerExistsForChain.selector,
+                address(baseSucker),
+                BASE_CHAIN_ID
+            )
+        );
+        hook.burnUnbridgeableCreditFor({referralChainId: BASE_CHAIN_ID, referralProjectId: remoteRefId});
     }
 }
