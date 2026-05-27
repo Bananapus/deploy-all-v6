@@ -7,6 +7,16 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
     function test_configuredRevnetReplayGuardsRequireExactCanonicalShape() public view {
         string memory deploySource = vm.readFile("script/Deploy.s.sol");
 
+        string memory revSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _deployRevFeeProject()",
+            endNeedle: "function _deployCpnRevnet()"
+        });
+        string memory cpnSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _deployCpnRevnet()",
+            endNeedle: "function _deployNanaRevnet()"
+        });
         string memory defifaSource = _section({
             haystack: deploySource, startNeedle: "function _deployDefifaRevnet()", endNeedle: "function _deployArt()"
         });
@@ -35,6 +45,18 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             "MARKEE URI is pinned"
         );
 
+        _assertStrictConfiguredRevnetGuard({
+            deployFunctionSource: revSource,
+            projectIdName: "_revProjectId",
+            expectedSymbol: "REV",
+            expectedUri: '"ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W"'
+        });
+        _assertStrictConfiguredRevnetGuard({
+            deployFunctionSource: cpnSource,
+            projectIdName: "_cpnProjectId",
+            expectedSymbol: "CPN",
+            expectedUri: '"ipfs://QmUAFevoMn1iqSEQR8LogQYRxm39TNxQTPYnuLuq5BmfEi"'
+        });
         _assertStrictConfiguredRevnetGuard({
             deployFunctionSource: defifaSource,
             projectIdName: "_DEFIFA_REV_PROJECT_ID",
@@ -154,9 +176,14 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         );
     }
 
-    function test_newProjectDeploymentPathsForwardCreationFee() public view {
+    function test_reservedProjectDeploymentPathsUseExplicitIds() public view {
         string memory deploySource = vm.readFile("script/Deploy.s.sol");
 
+        string memory reserveSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _reserveCanonicalProjectIds()",
+            endNeedle: "function _deployEthUsdFeed()"
+        });
         string memory bannySource = _section({
             haystack: deploySource, startNeedle: "function _deployBanny()", endNeedle: "function _registerBannyDrop1()"
         });
@@ -175,11 +202,18 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             haystack: deploySource, startNeedle: "function _ensureProjectExists(", endNeedle: "function _isDeployed("
         });
 
-        assertTrue(_contains(bannySource, "deployFor{value: _projects.creationFee()}"), "Banny pays mint fee");
-        assertTrue(_contains(defifaSource, "deployFor{value: _projects.creationFee()}"), "DEFIFA pays mint fee");
-        assertTrue(_contains(artSource, "deployFor{value: _projects.creationFee()}"), "ART pays mint fee");
-        assertTrue(_contains(artSource, "createFor{value: _projects.creationFee()}"), "ART placeholder pays mint fee");
-        assertTrue(_contains(markeeSource, "deployFor{value: _projects.creationFee()}"), "MARKEE pays mint fee");
+        assertTrue(_contains(deploySource, "_reserveCanonicalProjectIds();"), "core deploy reserves project IDs");
+        assertTrue(_contains(reserveSource, "_projects.count() < _MARKEE_PROJECT_ID"), "reservation runs through ID 7");
+        assertTrue(_contains(reserveSource, "createFor{value: _projects.creationFee()}"), "reservations pay mint fee");
+        assertFalse(_contains(bannySource, "deployFor{value:"), "Banny uses reserved project ID");
+        assertFalse(_contains(defifaSource, "deployFor{value:"), "DEFIFA uses reserved project ID");
+        assertFalse(_contains(artSource, "deployFor{value:"), "ART uses reserved project ID");
+        assertFalse(_contains(markeeSource, "deployFor{value:"), "MARKEE uses reserved project ID");
+        assertTrue(_contains(bannySource, "revnetId: _BAN_PROJECT_ID"), "Banny initializes reserved ID");
+        assertTrue(_contains(defifaSource, "revnetId: _DEFIFA_REV_PROJECT_ID"), "DEFIFA initializes reserved ID");
+        assertTrue(_contains(artSource, "revnetId: _ART_PROJECT_ID"), "ART initializes reserved ID");
+        assertTrue(_contains(markeeSource, "revnetId: _MARKEE_PROJECT_ID"), "MARKEE initializes reserved ID");
+        assertTrue(_contains(artSource, "createFor{value: _projects.creationFee()}"), "ART fallback pays mint fee");
         assertTrue(_contains(ensureSource, "createFor{value: _projects.creationFee()}"), "blank projects pay mint fee");
     }
 
