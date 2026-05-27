@@ -176,6 +176,8 @@ contract Deploy is Script, Sphinx {
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
     error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
     error Deploy_Create3DeploymentFailed(address expected);
+    error Deploy_Create3CodehashMismatch(address addr, bytes32 expected, bytes32 actual);
+    error Deploy_Create3SandboxDeployFailed(bytes32 salt);
     error Deploy_TimestampOverflow(uint256 timestamp);
     error Deploy_UnexpectedSafe(address expected, address actual);
     error Deploy_OwnershipHandoffFailed(address target, address newOwner);
@@ -4615,6 +4617,18 @@ contract Deploy is Script, Sphinx {
     /// @dev Deploys an artifact through CREATE3 using the canonical CREATE2 factory. This is used only where two
     /// contracts need each other's immutable addresses: the controller stores the omnichain deployer address, while
     /// the omnichain deployer stores the controller address.
+    ///
+    /// **CREATE3 predeployment defense.** Both the CREATE3 proxy CREATE2 and the proxy's `call(initCode)` step are
+    /// permissionless. An attacker who knows the salt can pre-deploy the proxy, then call it with their own init
+    /// code — placing arbitrary bytecode at the predicted CREATE3 address before this script ever runs. The
+    /// previous `if (addr.code.length != 0) return addr` shortcut would have silently accepted that attacker
+    /// bytecode and baked an attacker contract into every consumer that hard-codes the predicted address as an
+    /// immutable (notably `JBController.OMNICHAIN_RULESET_OPERATOR`).
+    ///
+    /// To prevent that, the helper computes the runtime codehash we expect at `addr` and reverts on any mismatch.
+    /// The expected codehash is derived from a sandbox CREATE deploy of the artifact: this captures the runtime
+    /// bytecode AFTER constructor execution (immutables resolved), which is what `addr.codehash` should equal
+    /// when the deploy is genuinely ours. Both the early-return path and the post-deploy path enforce the check.
     function _deployCreate3PrecompiledIfNeeded(
         string memory artifactName,
         bytes32 salt,
@@ -4624,7 +4638,18 @@ contract Deploy is Script, Sphinx {
         returns (address addr)
     {
         addr = _create3Address({salt: salt});
-        if (addr.code.length != 0) return addr;
+
+        bytes memory initCode = abi.encodePacked(_loadArtifact(artifactName), ctorArgs);
+        bytes32 expectedCodehash = _runtimeCodehashOf({initCode: initCode, salt: salt});
+
+        // Early-return path: code is already at `addr`. Verify it matches what we expect before trusting it; an
+        // attacker may have placed their own bytecode there via the permissionless proxy call.
+        if (addr.code.length != 0) {
+            if (addr.codehash != expectedCodehash) {
+                revert Deploy_Create3CodehashMismatch({addr: addr, expected: expectedCodehash, actual: addr.codehash});
+            }
+            return addr;
+        }
 
         // Deploy the one-shot CREATE3 proxy at the canonical factory/salt address if this is the first run.
         (address proxy, bool proxyAlready) =
@@ -4636,8 +4661,31 @@ contract Deploy is Script, Sphinx {
         }
 
         // The proxy runtime treats calldata as init code and CREATEs it with nonce 1, yielding `_create3Address(salt)`.
-        (bool success,) = proxy.call(abi.encodePacked(_loadArtifact(artifactName), ctorArgs));
+        (bool success,) = proxy.call(initCode);
         if (!success || addr.code.length == 0) revert Deploy_Create3DeploymentFailed({expected: addr});
+
+        // Post-deploy: confirm what landed at `addr` is the bytecode we intended (defense-in-depth — also catches a
+        // proxy that was already advanced past nonce 1 so our CREATE landed at a different address).
+        if (addr.codehash != expectedCodehash) {
+            revert Deploy_Create3CodehashMismatch({addr: addr, expected: expectedCodehash, actual: addr.codehash});
+        }
+    }
+
+    /// @dev Compute the runtime codehash a contract will have AFTER constructor execution by sandbox-deploying it
+    /// via plain CREATE. Constructor-set immutables are baked into runtime bytecode, so a creation-code hash alone
+    /// is insufficient to predict `addr.codehash` — running the constructor is the only way to derive it.
+    ///
+    /// The sandbox lives at a per-run transient address (`address(this)` + script nonce) that no other contract
+    /// hard-codes, so any external side effects the constructor produces (e.g., the JBOmnichainDeployer constructor
+    /// granting the sucker registry a `MAP_SUCKER_TOKEN` wildcard on its own behalf) attach to a stale address and
+    /// are inert. The extra deploy cost is accepted as the price of frontrun-proofing CREATE3 deployments.
+    function _runtimeCodehashOf(bytes memory initCode, bytes32 salt) internal returns (bytes32 codehash) {
+        address sandbox;
+        assembly {
+            sandbox := create(0, add(initCode, 0x20), mload(initCode))
+        }
+        if (sandbox == address(0)) revert Deploy_Create3SandboxDeployFailed({salt: salt});
+        codehash = sandbox.codehash;
     }
 
     /// @dev Solady CREATE3 proxy init code. Kept local so deployments still route through the canonical CREATE2

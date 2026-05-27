@@ -183,6 +183,23 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         assertTrue(_contains(ensureSource, "createFor{value: _projects.creationFee()}"), "blank projects pay mint fee");
     }
 
+    function test_directLaunchPackagesForwardCreationFee() public view {
+        string memory hookSource =
+            vm.readFile("node_modules/@bananapus/721-hook-v6/src/JB721TiersHookProjectDeployer.sol");
+        string memory defifaSource = vm.readFile("node_modules/@ballkidz/defifa/src/DefifaDeployer.sol");
+
+        assertTrue(_contains(hookSource, "external\n        payable\n        override"), "721 launch is payable");
+        assertTrue(
+            _contains(hookSource, "projects.createFor{value: msg.value}(address(this))"),
+            "721 launch forwards creation fee"
+        );
+        assertTrue(_contains(defifaSource, "external\n        payable\n        override"), "Defifa launch is payable");
+        assertTrue(
+            _contains(defifaSource, "controller.PROJECTS().createFor{value: msg.value}(address(this))"),
+            "Defifa launch forwards creation fee"
+        );
+    }
+
     function test_defaultProjectCreationFeeRoutesToNanaPayer() public view {
         string memory deploySource = vm.readFile("script/Deploy.s.sol");
         string memory verifySource = vm.readFile("script/Verify.s.sol");
