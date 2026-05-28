@@ -81,21 +81,24 @@ contract CrossChainArbHandler is Test {
     address public immutable JB_TERMINAL_STORE;
     address public immutable JB_PERMISSIONS;
 
-    // ── Tracked actors & loans ──────────────────────────────────────────
+    // ── Tracked actors & loans
+    // ──────────────────────────────────────────
     address[] public holders;
     uint256[] public loanIds;
     /// @dev Pre-allocated proof to keep handler calls cheap (the test contract stages roots).
     uint64 internal _nonce;
     uint256 internal _leafIndex;
 
-    // ── ETH-flow ledgers (used by the invariants) ───────────────────────
-    uint256 public totalPaidIn;        // ETH paid to revnet on R
-    uint256 public totalBridgedIn;     // ETH delivered into R via simulated L→R bridges
+    // ── ETH-flow ledgers (used by the invariants)
+    // ───────────────────────
+    uint256 public totalPaidIn; // ETH paid to revnet on R
+    uint256 public totalBridgedIn; // ETH delivered into R via simulated L→R bridges
     uint256 public totalCashedOutGross; // ETH withdrawn from R via cashOuts (gross, before fees)
-    uint256 public totalBorrowedOut;   // ETH delivered to borrowers (loan principal)
-    uint256 public totalRepaid;        // ETH paid back via repay()
+    uint256 public totalBorrowedOut; // ETH delivered to borrowers (loan principal)
+    uint256 public totalRepaid; // ETH paid back via repay()
 
-    // ── Stats ───────────────────────────────────────────────────────────
+    // ── Stats
+    // ───────────────────────────────────────────────────────────
     uint256 public payCalls;
     uint256 public claimCalls;
     uint256 public cashOutCalls;
@@ -149,8 +152,7 @@ contract CrossChainArbHandler is Test {
         vm.deal(holder, holder.balance + amount);
 
         vm.prank(holder);
-        (bool ok,) = TERMINAL
-            .call{value: amount}(
+        (bool ok,) = TERMINAL.call{value: amount}(
             abi.encodeWithSignature(
                 "pay(uint256,address,uint256,address,uint256,string,bytes)",
                 REVNET_ID,
@@ -177,8 +179,7 @@ contract CrossChainArbHandler is Test {
         bytes32 beneficiary = bytes32(uint256(uint160(holder)));
 
         // Ask test contract to stage the inbox root for this leaf.
-        (bool stageOk,) = TEST_CONTRACT
-            .call(
+        (bool stageOk,) = TEST_CONTRACT.call(
             abi.encodeWithSignature(
                 "handlerStageInboxLeaf(uint256,uint256,bytes32,uint64,uint256)",
                 tokensOnL,
@@ -196,16 +197,15 @@ contract CrossChainArbHandler is Test {
                 JBClaim({
                 token: JBConstants.NATIVE_TOKEN,
                 leaf: JBLeaf({
-                    index: _leafIndex,
-                    beneficiary: beneficiary,
-                    projectTokenCount: tokensOnL,
-                    terminalTokenAmount: amount,
-                    metadata: bytes32(0)
-                }),
+                index: _leafIndex,
+                beneficiary: beneficiary,
+                projectTokenCount: tokensOnL,
+                terminalTokenAmount: amount,
+                metadata: bytes32(0)
+            }),
                 proof: proof
             })
-            )
-        {
+            ) {
             totalBridgedIn += amount;
             claimCalls++;
             _leafIndex++;
@@ -223,8 +223,7 @@ contract CrossChainArbHandler is Test {
 
         uint256 beforeBalance = holder.balance;
         vm.prank(holder);
-        (bool ok,) = TERMINAL
-            .call(
+        (bool ok,) = TERMINAL.call(
             abi.encodeWithSignature(
                 "cashOutTokensOf(address,uint256,address,uint256,uint256,address,bytes)",
                 holder,
@@ -250,14 +249,12 @@ contract CrossChainArbHandler is Test {
         uint256 collateral = bound(amountSeed, 1, bal);
 
         // Read prepaid fee before pranking.
-        (, bytes memory prepRes) =
-            LOANS.staticcall(abi.encodeWithSignature("MIN_PREPAID_FEE_PERCENT()"));
+        (, bytes memory prepRes) = LOANS.staticcall(abi.encodeWithSignature("MIN_PREPAID_FEE_PERCENT()"));
         uint256 prepaidFee = abi.decode(prepRes, (uint256));
 
         uint256 ethBefore = holder.balance;
         vm.prank(holder);
-        (bool ok, bytes memory res) = LOANS
-            .call(
+        (bool ok, bytes memory res) = LOANS.call(
             abi.encodeWithSignature(
                 "borrowFrom(uint256,address,uint256,uint256,address,uint256,address)",
                 REVNET_ID,
@@ -281,8 +278,7 @@ contract CrossChainArbHandler is Test {
         if (loanIds.length == 0) return;
         uint256 loanId = loanIds[loanSeed % loanIds.length];
 
-        (, bytes memory loanRes) =
-            LOANS.staticcall(abi.encodeWithSignature("loanOf(uint256)", loanId));
+        (, bytes memory loanRes) = LOANS.staticcall(abi.encodeWithSignature("loanOf(uint256)", loanId));
         if (loanRes.length == 0) return;
         REVLoan memory l = abi.decode(loanRes, (REVLoan));
         if (l.amount == 0) return;
@@ -296,15 +292,9 @@ contract CrossChainArbHandler is Test {
         uint256 payerBefore = payer.balance;
 
         vm.prank(payer);
-        (bool ok,) = LOANS
-            .call{value: repayAmount}(
+        (bool ok,) = LOANS.call{value: repayAmount}(
             abi.encodeWithSignature(
-                "repayLoan(uint256,uint256,uint256,address,bytes)",
-                loanId,
-                type(uint256).max,
-                0,
-                payer,
-                ""
+                "repayLoan(uint256,uint256,uint256,address,bytes)", loanId, type(uint256).max, 0, payer, ""
             )
         );
         if (!ok) return;
@@ -327,8 +317,7 @@ contract CrossChainArbHandler is Test {
 
     function outstandingPrincipal() external view returns (uint256 total) {
         for (uint256 i; i < loanIds.length; ++i) {
-            (, bytes memory loanRes) =
-                LOANS.staticcall(abi.encodeWithSignature("loanOf(uint256)", loanIds[i]));
+            (, bytes memory loanRes) = LOANS.staticcall(abi.encodeWithSignature("loanOf(uint256)", loanIds[i]));
             REVLoan memory l = abi.decode(loanRes, (REVLoan));
             total += uint256(l.amount);
         }
@@ -336,8 +325,7 @@ contract CrossChainArbHandler is Test {
 
     function outstandingCollateral() external view returns (uint256 total) {
         for (uint256 i; i < loanIds.length; ++i) {
-            (, bytes memory loanRes) =
-                LOANS.staticcall(abi.encodeWithSignature("loanOf(uint256)", loanIds[i]));
+            (, bytes memory loanRes) = LOANS.staticcall(abi.encodeWithSignature("loanOf(uint256)", loanIds[i]));
             REVLoan memory l = abi.decode(loanRes, (REVLoan));
             total += uint256(l.collateral);
         }
@@ -357,14 +345,11 @@ contract CrossChainArbHandler is Test {
         uint8[] memory permissionIds = new uint8[](1);
         permissionIds[0] = 11; // BURN_TOKENS
         vm.prank(holder);
-        (bool ok,) = JB_PERMISSIONS
-            .call(
+        (bool ok,) = JB_PERMISSIONS.call(
             abi.encodeWithSignature(
                 "setPermissionsFor(address,(address,uint64,uint8[]))",
                 holder,
-                JBPermissionsData({
-                operator: LOANS, projectId: uint64(REVNET_ID), permissionIds: permissionIds
-            })
+                JBPermissionsData({operator: LOANS, projectId: uint64(REVNET_ID), permissionIds: permissionIds})
             )
         );
         ok;

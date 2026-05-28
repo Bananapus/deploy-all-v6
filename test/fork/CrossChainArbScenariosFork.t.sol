@@ -157,7 +157,8 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         // Step 4: direct cashOut during delay must revert.
         vm.expectRevert(); // REVOwner_CashOutDelayNotFinished
         vm.prank(holderL);
-        jbMultiTerminal().cashOutTokensOf({
+        jbMultiTerminal()
+            .cashOutTokensOf({
             holder: holderL,
             projectId: revnetL,
             cashOutCount: holderL_tokens,
@@ -191,13 +192,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         address primingBeneficiary = makeAddr("primingBeneficiary");
 
         _stageInboxLeafOn(
-            suckerL,
-            primeTokens,
-            primeEth,
-            bytes32(uint256(uint160(primingBeneficiary))),
-            bytes32(0),
-            1,
-            0
+            suckerL, primeTokens, primeEth, bytes32(uint256(uint160(primingBeneficiary))), bytes32(0), 1, 0
         );
 
         IJBSucker(suckerL)
@@ -205,12 +200,12 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
                 JBClaim({
                 token: JBConstants.NATIVE_TOKEN,
                 leaf: JBLeaf({
-                    index: 0,
-                    beneficiary: bytes32(uint256(uint160(primingBeneficiary))),
-                    projectTokenCount: primeTokens,
-                    terminalTokenAmount: primeEth,
-                    metadata: bytes32(0)
-                }),
+                index: 0,
+                beneficiary: bytes32(uint256(uint160(primingBeneficiary))),
+                projectTokenCount: primeTokens,
+                terminalTokenAmount: primeEth,
+                metadata: bytes32(0)
+            }),
                 proof: _emptyBranchProof()
             })
             );
@@ -226,18 +221,14 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         // No actual R→L bridge happened (we simulated the leaf), so R unchanged in this single-fork model.
         // The honest aggregated check: L grew by primeEth (~10 ETH); the simulated R-side burn never
         // happened on this fork because we modeled only the leaf injection. We assert the directionality.
-        assertApproxEqAbs(
-            surplusR_final, surplusR_initial, 1 wei, "R unchanged in simulated leaf injection"
-        );
-        assertGe(
-            surplusL_afterPrime, surplusL_beforePrime + primeEth - 1 wei,
-            "L grew by approximately primeEth"
-        );
+        assertApproxEqAbs(surplusR_final, surplusR_initial, 1 wei, "R unchanged in simulated leaf injection");
+        assertGe(surplusL_afterPrime, surplusL_beforePrime + primeEth - 1 wei, "L grew by approximately primeEth");
 
         // Step 8: after the delay elapses, normal operations resume on L.
         vm.warp(cashOutDelay + 1);
         vm.prank(holderL);
-        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
+        uint256 reclaimed = jbMultiTerminal()
+            .cashOutTokensOf({
             holder: holderL,
             projectId: revnetL,
             cashOutCount: holderL_tokens,
@@ -286,7 +277,8 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         uint256 whaleTokens = jbTokens().totalBalanceOf(holderA, revnetR);
         uint256 whaleCashOut = (whaleTokens * 80) / 100;
         vm.prank(holderA);
-        jbMultiTerminal().cashOutTokensOf({
+        jbMultiTerminal()
+            .cashOutTokensOf({
             holder: holderA,
             projectId: revnetR,
             cashOutCount: whaleCashOut,
@@ -335,16 +327,15 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
                     JBClaim({
                     token: JBConstants.NATIVE_TOKEN,
                     leaf: JBLeaf({
-                        index: leafIdx,
-                        beneficiary: bytes32(uint256(uint160(arb))),
-                        projectTokenCount: cycleTokens,
-                        terminalTokenAmount: cycleEth,
-                        metadata: bytes32(0)
-                    }),
+                    index: leafIdx,
+                    beneficiary: bytes32(uint256(uint160(arb))),
+                    projectTokenCount: cycleTokens,
+                    terminalTokenAmount: cycleEth,
+                    metadata: bytes32(0)
+                }),
                     proof: _emptyBranchProof()
                 })
-                )
-            {
+                ) {
                 leafIdx++;
             } catch {
                 break;
@@ -358,8 +349,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
             uint256 prepaidFee = LOANS_CONTRACT.MIN_PREPAID_FEE_PERCENT();
             uint256 ethBefore = arb.balance;
             vm.prank(arb);
-            try LOANS_CONTRACT
-                .borrowFrom({
+            try LOANS_CONTRACT.borrowFrom({
                 revnetId: revnetR,
                 token: JBConstants.NATIVE_TOKEN,
                 minBorrowAmount: 0,
@@ -367,9 +357,9 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
                 beneficiary: payable(arb),
                 prepaidFeePercent: prepaidFee,
                 holder: arb
-            })
-                returns (uint256, REVLoan memory)
-            {
+            }) returns (
+                uint256, REVLoan memory
+            ) {
                 uint256 borrowed = arb.balance - ethBefore;
                 if (borrowed > cycleEth) {
                     totalArbProfit += borrowed - cycleEth;
@@ -434,10 +424,12 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         uint256 holderTokens = jbTokens().totalBalanceOf(holder, revnetL);
         assertGt(holderTokens, 0, "holder has tokens after payment");
 
-        // ── (a) direct cashOut reverts ─────────────────────────────────────────
+        // ── (a) direct cashOut reverts
+        // ─────────────────────────────────────────
         vm.expectRevert();
         vm.prank(holder);
-        jbMultiTerminal().cashOutTokensOf({
+        jbMultiTerminal()
+            .cashOutTokensOf({
             holder: holder,
             projectId: revnetL,
             cashOutCount: holderTokens,
@@ -448,7 +440,8 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
             referralProjectId: 0
         });
 
-        // ── (b) direct borrow reverts ──────────────────────────────────────────
+        // ── (b) direct borrow reverts
+        // ──────────────────────────────────────────
         _grantBurnPermission(holder, revnetL);
         uint256 prepaidFee = LOANS_CONTRACT.MIN_PREPAID_FEE_PERCENT();
         vm.expectRevert();
@@ -463,7 +456,8 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
             holder: holder
         });
 
-        // ── (c) sucker.prepare SUCCEEDS during delay ───────────────────────────
+        // ── (c) sucker.prepare SUCCEEDS during delay
+        // ───────────────────────────
         // The sucker's prepare path goes through `cashOutTokensOf` where holder = sucker (address(this)
         // in the sucker's `_pullBackingAssets`). The REVOwner data hook's `_isSuckerOf` check
         // short-circuits the delay (and tax/fees) for sucker callers — this is the intentional asymmetry
@@ -484,7 +478,8 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         // Holder calls sucker.prepare(...) — this triggers sucker's internal cashOutTokensOf call which
         // bypasses the delay via _isSuckerOf in REVOwner.
         vm.prank(holder);
-        IJBSucker(suckerL).prepare({
+        IJBSucker(suckerL)
+            .prepare({
             projectTokenCount: holderTokens,
             beneficiary: bytes32(uint256(uint160(holder))),
             minTokensReclaimed: 0,
@@ -539,9 +534,8 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: descriptionSalt
-        });
+        REVSuckerDeploymentConfig memory sdc =
+            REVSuckerDeploymentConfig({deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: descriptionSalt});
 
         (uint256 newId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, accountingContextsToAccept: acc, suckerDeploymentConfiguration: sdc

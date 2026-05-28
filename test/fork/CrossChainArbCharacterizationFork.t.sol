@@ -172,7 +172,8 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
         // curve (mint via terminal).
         _mockOracle(1, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
 
-        // ── Build R's divergent backing ────────────────────────────────────────
+        // ── Build R's divergent backing
+        // ────────────────────────────────────────
         // Seed a small existing supply on R so totalSupply > 0 (a `cashOutFrom` with totalSupply == 0 is C-5;
         // we avoid that edge case here so the test reflects realistic state).
         address seeder = makeAddr("seeder");
@@ -193,7 +194,8 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
             metadata: ""
         });
 
-        // ── Arbitrageur setup ──────────────────────────────────────────────────
+        // ── Arbitrageur setup
+        // ──────────────────────────────────────────────────
         arbitrageur = makeAddr("arbitrageur");
         vm.deal(arbitrageur, 1000 ether);
         arbitrageurStartBalance = arbitrageur.balance;
@@ -235,9 +237,8 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory sdc = REVSuckerDeploymentConfig({
-            deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: descriptionSalt
-        });
+        REVSuckerDeploymentConfig memory sdc =
+            REVSuckerDeploymentConfig({deployerConfigurations: new JBSuckerDeployerConfig[](0), salt: descriptionSalt});
 
         (uint256 newId,) = REV_DEPLOYER.deployFor({
             revnetId: 0, configuration: cfg, accountingContextsToAccept: acc, suckerDeploymentConfiguration: sdc
@@ -418,26 +419,12 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
     ///   4. `REVLoans.borrowFrom` on R against the freshly minted tokens.
     /// Returns the ETH the arbitrageur collected from the borrow.
     /// @notice External wrapper so the repeated test can try/catch around it (also enables msg.sender check).
-    function runArbCycleExternal(
-        uint256 ethPaidOnL,
-        uint64 nonce,
-        uint256 leafIndex
-    )
-        external
-        returns (uint256)
-    {
+    function runArbCycleExternal(uint256 ethPaidOnL, uint64 nonce, uint256 leafIndex) external returns (uint256) {
         require(msg.sender == address(this), "test-only");
         return _runArbCycle(ethPaidOnL, nonce, leafIndex);
     }
 
-    function _runArbCycle(
-        uint256 ethPaidOnL,
-        uint64 nonce,
-        uint256 leafIndex
-    )
-        internal
-        returns (uint256 borrowedEth)
-    {
+    function _runArbCycle(uint256 ethPaidOnL, uint64 nonce, uint256 leafIndex) internal returns (uint256 borrowedEth) {
         // L's backing is by construction near zero relative to R's. The leaf carries:
         //   - projectTokenCount = WEIGHT * ethPaidOnL / 1e18 (tokens the arbitrageur minted on L)
         //   - terminalTokenAmount = ethPaidOnL (the L payment, ~entirely refunded through prepare's cashout
@@ -462,12 +449,12 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
                 JBClaim({
                 token: JBConstants.NATIVE_TOKEN,
                 leaf: JBLeaf({
-                    index: leafIndex,
-                    beneficiary: beneficiary,
-                    projectTokenCount: tokensOnL,
-                    terminalTokenAmount: terminalTokenAmount,
-                    metadata: bytes32(0)
-                }),
+                index: leafIndex,
+                beneficiary: beneficiary,
+                projectTokenCount: tokensOnL,
+                terminalTokenAmount: terminalTokenAmount,
+                metadata: bytes32(0)
+            }),
                 proof: proof
             })
             );
@@ -479,8 +466,8 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
         // Grant burn permission so REVLoans can burn collateral on the arbitrageur's behalf.
         _grantBurnPermission(arbitrageur, revnetId);
 
-        uint256 borrowable = LOANS_CONTRACT
-            .borrowableAmountFrom(revnetId, arbTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
+        uint256 borrowable =
+            LOANS_CONTRACT.borrowableAmountFrom(revnetId, arbTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
 
         uint256 ethBefore = arbitrageur.balance;
 
@@ -527,7 +514,8 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
 
         uint256 surplusR_after = _terminalBalance(revnetId, JBConstants.NATIVE_TOKEN);
 
-        // ── Invariant 1: Conservation ────────────────────────────────────────
+        // ── Invariant 1: Conservation
+        // ────────────────────────────────────────
         // The arbitrageur contributed `ethPaidOnL` (bridged into R via the leaf) and extracted `borrowed`
         // ETH via the loan. Conservation:
         //   surplusR_before + ethPaidOnL == surplusR_after + borrowed + fees_taken
@@ -550,7 +538,11 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
         // and its supply expanded via the claim's mint). The variance over (L, R) shrunk.
         uint256 perChainBackingR_after = _backingPerToken(revnetId);
         uint256 varianceBefore = _variance(perChainBackingL_before, perChainBackingR_before);
-        uint256 varianceAfter = _variance(0 /* L still ~0 */, perChainBackingR_after);
+        uint256 varianceAfter = _variance(
+            0,
+            /* L still ~0 */
+            perChainBackingR_after
+        );
         emit log_named_uint("variance_before (per-token, 1e36 units)", varianceBefore);
         emit log_named_uint("variance_after (per-token, 1e36 units)", varianceAfter);
         assertLt(varianceAfter, varianceBefore, "bridge flattens per-chain backing dispersion");
@@ -607,7 +599,8 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
 
         assertGt(actualCycles, 0, "at least one cycle should have completed");
 
-        // ── Invariant 3a: arbitrage eventually saturates ──────────────────────
+        // ── Invariant 3a: arbitrage eventually saturates
+        // ──────────────────────
         // Either we ran out of `maxCycles` (loop ended naturally) or the cycle reverted (R drained).
         // In either case, the sequence is finite — divergence cannot be exploited indefinitely.
         emit log_named_string("saturated by revert", saturatedByRevert ? "yes" : "no (maxCycles hit)");
@@ -643,11 +636,7 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
                 // Sequence saturated — convergence proven by revert.
                 emit log_named_string("convergence proof", "saturated by revert");
             } else {
-                assertLe(
-                    lastProfit,
-                    maxProfit,
-                    "last successful cycle's profit must be at most the peak (convergence)"
-                );
+                assertLe(lastProfit, maxProfit, "last successful cycle's profit must be at most the peak (convergence)");
             }
         }
 
@@ -706,12 +695,12 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
                 JBClaim({
                 token: JBConstants.NATIVE_TOKEN,
                 leaf: JBLeaf({
-                    index: 0,
-                    beneficiary: beneficiary,
-                    projectTokenCount: tokensOnL,
-                    terminalTokenAmount: ethPaidOnL,
-                    metadata: bytes32(0)
-                }),
+                index: 0,
+                beneficiary: beneficiary,
+                projectTokenCount: tokensOnL,
+                terminalTokenAmount: ethPaidOnL,
+                metadata: bytes32(0)
+            }),
                 proof: proof
             })
             );
