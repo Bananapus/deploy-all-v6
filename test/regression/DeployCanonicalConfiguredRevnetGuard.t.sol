@@ -114,7 +114,8 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             endNeedle: "function _terminalConfigIsCanonical("
         });
         assertTrue(
-            _contains(expectedTokenHelper, "_DEFIFA_REV_PROJECT_ID") && _contains(expectedTokenHelper, "_ART_PROJECT_ID"),
+            _contains(expectedTokenHelper, "_DEFIFA_REV_PROJECT_ID")
+                && _contains(expectedTokenHelper, "_ART_PROJECT_ID"),
             "expected terminal token must special-case DEFIFA and ART"
         );
         assertTrue(_contains(expectedTokenHelper, "_usdcToken"), "DEFIFA/ART expected terminal token must be USDC");

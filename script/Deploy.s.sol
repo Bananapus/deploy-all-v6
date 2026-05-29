@@ -4708,8 +4708,7 @@ contract Deploy is Script, Sphinx {
     /// @notice Asserts a project's terminal wiring matches the canonical shape for the token it is meant to accept.
     /// @dev Token-aware: native ETH for most revnets, canonical USDC for the USD-denominated DEFIFA(5)/ART(6).
     function _terminalConfigIsCanonical(uint256 projectId) internal view returns (bool) {
-        (address expectedToken, uint8 expectedDecimals, uint32 expectedCurrency) =
-            _expectedTerminalTokenFor(projectId);
+        (address expectedToken, uint8 expectedDecimals, uint32 expectedCurrency) = _expectedTerminalTokenFor(projectId);
 
         if (_directory.primaryTerminalOf(projectId, expectedToken) != _terminal) return false;
 
