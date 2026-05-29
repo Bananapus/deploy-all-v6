@@ -747,39 +747,50 @@ contract Verify is Script {
                 critical: true
             });
 
-            // Read the primary terminal for this project for the native token.
-            IJBTerminal primaryTerm =
-                directory.primaryTerminalOf({projectId: projectIds[i], token: JBConstants.NATIVE_TOKEN});
+            // The expected accounting token differs per revnet: DEFIFA(5)/ART(6) accept USDC (6 decimals);
+            // everyone else accepts the native token (18 decimals). `tokenName`/`sentinelLabel` keep the
+            // native-project assertion strings byte-identical to the pre-USDC verifier.
+            (
+                address expToken,
+                uint8 expDecimals,
+                uint32 expCurrency,
+                string memory tokenName,
+                string memory sentinelLabel
+            ) = _expectedTerminalTokenFor(projectIds[i]);
+
+            // Read the primary terminal for this project for its accepted token.
+            IJBTerminal primaryTerm = directory.primaryTerminalOf({projectId: projectIds[i], token: expToken});
             // Verify a primary terminal is set.
             _check({
                 condition: address(primaryTerm) != address(0),
-                label: string.concat(labels[i], " has primary terminal for native token"),
+                label: string.concat(labels[i], " has primary terminal for ", tokenName, " token"),
                 critical: true
             });
 
-            // assert the live accounting context for the native token matches the
-            // expected shape (token sentinel + 18 decimals + native currency id). A wrong
-            // accounting context — e.g. decimals=6 because the deployer mis-configured a USD
-            // currency — silently mis-scales every cash-out and pay on that project.
-            try terminal.accountingContextForTokenOf({
-                projectId: projectIds[i], token: JBConstants.NATIVE_TOKEN
-            }) returns (
+            // assert the live accounting context for the accepted token matches the expected shape
+            // (token + decimals + currency id). A wrong accounting context — e.g. decimals=6 where 18 is
+            // expected, or a native context where USDC is expected — silently mis-scales every cash-out and pay.
+            try terminal.accountingContextForTokenOf({projectId: projectIds[i], token: expToken}) returns (
                 JBAccountingContext memory ctx
             ) {
                 _check({
-                    condition: ctx.token == JBConstants.NATIVE_TOKEN,
-                    label: string.concat(labels[i], " native accounting context token == NATIVE_TOKEN"),
+                    condition: ctx.token == expToken,
+                    label: string.concat(labels[i], " ", tokenName, " accounting context token == ", sentinelLabel),
                     critical: true
                 });
                 _check({
-                    condition: ctx.decimals == 18,
-                    label: string.concat(labels[i], " native accounting context decimals == 18"),
+                    condition: ctx.decimals == expDecimals,
+                    label: string.concat(
+                        labels[i], " ", tokenName, " accounting context decimals == ", vm.toString(expDecimals)
+                    ),
                     critical: true
                 });
-                // The native currency id is `uint32(uint160(NATIVE_TOKEN))` per JBAccountingContext.
+                // The currency id is `uint32(uint160(token))` per JBAccountingContext.
                 _check({
-                    condition: ctx.currency == uint32(uint160(JBConstants.NATIVE_TOKEN)),
-                    label: string.concat(labels[i], " native accounting context currency == NATIVE_TOKEN id"),
+                    condition: ctx.currency == expCurrency,
+                    label: string.concat(
+                        labels[i], " ", tokenName, " accounting context currency == ", sentinelLabel, " id"
+                    ),
                     critical: true
                 });
             } catch {
@@ -1938,13 +1949,14 @@ contract Verify is Script {
                 }
             }
 
-            // Verify all canonical projects' primary terminal for native token is the JBMultiTerminal.
+            // Verify all canonical projects' primary terminal for their accepted token is the JBMultiTerminal.
+            // DEFIFA(5)/ART(6) accept USDC, not native, so resolve the expected token per project.
             for (uint256 i; i < projectIds.length; i++) {
+                (address expToken,,, string memory tokenName,) = _expectedTerminalTokenFor(projectIds[i]);
                 _check({
-                    condition: address(
-                            directory.primaryTerminalOf({projectId: projectIds[i], token: JBConstants.NATIVE_TOKEN})
-                        ) == address(terminal),
-                    label: string.concat(labels[i], " primary native terminal is JBMultiTerminal"),
+                    condition: address(directory.primaryTerminalOf({projectId: projectIds[i], token: expToken}))
+                        == address(terminal),
+                    label: string.concat(labels[i], " primary ", tokenName, " terminal is JBMultiTerminal"),
                     critical: true
                 });
             }
@@ -4106,6 +4118,37 @@ contract Verify is Script {
             labels[j] = "MARKEE(7)";
             j++;
         }
+    }
+
+    /// Returns the canonical Circle USDC address for a chain. Mirrors Deploy.s.sol's `_usdcToken` assignments and
+    /// `_usdcTokenFor`. DEFIFA(5) and ART(6) are USD-denominated and accept USDC directly, so their terminal
+    /// accounting context is keyed to this token rather than the native sentinel.
+    function _usdcTokenFor(uint256 chainId) internal pure returns (address) {
+        if (chainId == 1) return 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        if (chainId == 11_155_111) return 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
+        if (chainId == 10) return 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
+        if (chainId == 11_155_420) return 0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
+        if (chainId == 8453) return 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+        if (chainId == 84_532) return 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+        if (chainId == 42_161) return 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+        if (chainId == 421_614) return 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
+        return address(0);
+    }
+
+    /// @notice The expected terminal accounting-context shape for a canonical revnet.
+    /// @dev DEFIFA(5) and ART(6) are USD-denominated and accept USDC (6 decimals); every other canonical revnet
+    /// accepts the native token (18 decimals). `tokenName`/`sentinelLabel` keep the native-project assertion labels
+    /// byte-identical to the pre-USDC verifier so existing regression strings still match.
+    function _expectedTerminalTokenFor(uint256 projectId)
+        internal
+        view
+        returns (address token, uint8 decimals, uint32 currency, string memory tokenName, string memory sentinelLabel)
+    {
+        if (projectId == _DEFIFA_REV_PROJECT_ID || projectId == _ART_PROJECT_ID) {
+            token = _usdcTokenFor(block.chainid);
+            return (token, 6, uint32(uint160(token)), "USDC", "USDC");
+        }
+        return (JBConstants.NATIVE_TOKEN, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)), "native", "NATIVE_TOKEN");
     }
 
     /// Returns the per-chain canonical Capsules typeface address used by DefifaTokenUriResolver.
