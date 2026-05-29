@@ -174,8 +174,8 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
 
         // ── Build R's divergent backing
         // ────────────────────────────────────────
-        // Seed a small existing supply on R so totalSupply > 0 (a `cashOutFrom` with totalSupply == 0 is C-5;
-        // we avoid that edge case here so the test reflects realistic state).
+        // Seed a small existing supply on R so totalSupply > 0 (a `cashOutFrom` with totalSupply == 0 hits a
+        // known degenerate edge case; we avoid it here so the test reflects realistic state).
         address seeder = makeAddr("seeder");
         vm.deal(seeder, 5 ether);
         _payRevnet(revnetId, seeder, 1 ether);

@@ -76,6 +76,12 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
     function setUp() public override {
         super.setUp();
 
+        // JBOptimismSucker.peerChainId() derives the peer purely from block.chainid (mainnet -> OP). Foundry's
+        // default chain id (31337) resolves to 0, which the registry now rejects with JBSuckerRegistry_ZeroPeerChainId
+        // at deploy time. Pin to mainnet so the OP sucker resolves a non-zero peer (the OP messenger/bridge are
+        // mocked).
+        vm.chainId(1);
+
         // Deploy mock bridge infrastructure.
         mockMessenger = new MockOPMessenger();
         mockBridge = new MockOPBridge();

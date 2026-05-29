@@ -453,8 +453,9 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         // Revnets don't set this flag, so we mock it for testing the migration composition.
         _mockStoreRecordMigration(revnetId, address(usdc));
 
-        // Grant the test contract MIGRATE_TERMINAL permission from the project owner (REVDeployer).
-        _grantMigratePermission(address(REV_DEPLOYER), address(this), revnetId);
+        // Grant the test contract MIGRATE_TERMINAL permission from the project owner (REVOwner, which holds
+        // the project NFT after deployFor — migrateBalanceOf checks permissions against that owner).
+        _grantMigratePermission(address(REV_OWNER), address(this), revnetId);
 
         // Execute the migration: move USDC balance from old terminal to new terminal.
         uint256 migratedAmount = jbMultiTerminal().migrateBalanceOf(revnetId, address(usdc), jbMultiTerminal2());

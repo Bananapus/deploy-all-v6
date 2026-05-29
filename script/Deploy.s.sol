@@ -5,6 +5,7 @@ import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol"
 import {Script, stdJson, VmSafe} from "forge-std/Script.sol";
 import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 import {CREATE3} from "solady/src/utils/CREATE3.sol";
+import {LibClone} from "solady/src/utils/LibClone.sol";
 
 // ── Core ──
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
@@ -175,6 +176,8 @@ contract Deploy is Script, Sphinx {
     error Deploy_ProjectNotCanonical(uint256 projectId);
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
     error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
+    error Deploy_BannyLpSplitHookNotCanonical(address hook);
+    error Deploy_BannyLpSplitHookUnavailable();
     error Deploy_Create3DeploymentFailed(address expected);
     error Deploy_Create3CodehashMismatch(address addr, bytes32 expected, bytes32 actual);
     error Deploy_Create3SandboxDeployFailed(bytes32 salt);
@@ -227,6 +230,7 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant CCIP_HELPER_SALT = keccak256("_CCIPHelperV6_");
     bytes32 private constant SWAP_POOL_LIB_SALT = keccak256("_JBSwapPoolLibV6_");
     bytes32 private constant DEFIFA_HOOK_LIB_SALT = keccak256("_DefifaHookLibV6_");
+    bytes32 private constant UNIV4_LP_SPLIT_HOOK_MATH_LIB_SALT = keccak256("_JBUniswapV4LPSplitHookMathV6_");
 
     // ── Address Registry salt ──
     bytes32 private constant ADDRESS_REGISTRY_SALT = "_JBAddressRegistryV6_";
@@ -292,6 +296,7 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant BAN_SUCKER_SALT = "_BAN_SUCKERV6_";
     bytes32 private constant BAN_HOOK_SALT = "_BAN_HOOKV6_";
     bytes32 private constant BAN_RESOLVER_SALT = "_BAN_RESOLVERV6_";
+    bytes32 private constant BAN_LP_SPLIT_HOOK_SALT = "_BAN_LP_SPLIT_HOOK_V6_";
 
     // ── Defifa salt ──
     bytes32 private constant DEFIFA_SALT = "_DEFIFA_SALTV6_";
@@ -448,6 +453,7 @@ contract Deploy is Script, Sphinx {
 
     // Banny
     Banny721TokenUriResolver private _bannyResolver;
+    JBUniswapV4LPSplitHook private _banLpSplitHook;
 
     // Defifa
     DefifaHook private _defifaHook;
@@ -760,6 +766,10 @@ contract Deploy is Script, Sphinx {
         _deployPrecompiledIfNeeded({artifactName: "JBSwapPoolLib", salt: SWAP_POOL_LIB_SALT, ctorArgs: ""});
         // DefifaHookLib — DELEGATECALL'd by DefifaHook + DefifaGovernor.
         _deployPrecompiledIfNeeded({artifactName: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT, ctorArgs: ""});
+        // JBUniswapV4LPSplitHookMath — pricing math linked into JBUniswapV4LPSplitHook (EIP-170 extraction).
+        _deployPrecompiledIfNeeded({
+            artifactName: "JBUniswapV4LPSplitHookMath", salt: UNIV4_LP_SPLIT_HOOK_MATH_LIB_SALT, ctorArgs: ""
+        });
     }
 
     function _deployCore() internal {
@@ -2391,14 +2401,27 @@ contract Deploy is Script, Sphinx {
         accountingContexts[0] =
             JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
 
+        bool useBanLpSplitHook = _bannyUsesLpSplitHook();
+        JBUniswapV4LPSplitHook expectedBanLpSplitHook;
+        address payable splitBeneficiary = payable(operator);
+        IJBSplitHook splitHook = IJBSplitHook(address(0));
+
+        if (useBanLpSplitHook) {
+            expectedBanLpSplitHook = _predictBannyLpSplitHook();
+            if (address(expectedBanLpSplitHook) == address(0)) revert Deploy_BannyLpSplitHookUnavailable();
+            _banLpSplitHook = expectedBanLpSplitHook;
+            splitBeneficiary = payable(address(0));
+            splitHook = IJBSplitHook(address(expectedBanLpSplitHook));
+        }
+
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
             percent: JBConstants.SPLITS_TOTAL_PERCENT,
             projectId: 0,
-            beneficiary: payable(operator),
+            beneficiary: splitBeneficiary,
             preferAddToBalance: false,
             lockedUntil: 0,
-            hook: IJBSplitHook(address(0))
+            hook: splitHook
         });
 
         REVStageConfig[] memory stages = new REVStageConfig[](3);
@@ -2583,6 +2606,10 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
+        if (useBanLpSplitHook) {
+            _deployBannyLpSplitHookIfNeeded(expectedBanLpSplitHook);
+        }
+
         REVDeploy721TiersHookConfig memory hookConfig = REVDeploy721TiersHookConfig({
             baseline721HookConfiguration: REVBaseline721HookConfig({
                 name: "Banny Retail",
@@ -2618,6 +2645,57 @@ contract Deploy is Script, Sphinx {
             allowedPosts: new REVCroptopAllowedPost[](0)
         });
         if (banProjectId != _BAN_PROJECT_ID) revert Deploy_BannyProjectIdMismatch(banProjectId, _BAN_PROJECT_ID);
+    }
+
+    function _bannyUsesLpSplitHook() internal view returns (bool) {
+        return _positionManager != address(0);
+    }
+
+    function _predictBannyLpSplitHook() internal view returns (JBUniswapV4LPSplitHook hook) {
+        if (address(_lpSplitHookDeployer) == address(0) || address(_lpSplitHook) == address(0)) return hook;
+
+        hook = JBUniswapV4LPSplitHook(
+            payable(LibClone.predictDeterministicAddress({
+                    implementation: address(_lpSplitHook),
+                    salt: keccak256(abi.encode(_EXPECTED_SAFE, BAN_LP_SPLIT_HOOK_SALT)),
+                    deployer: address(_lpSplitHookDeployer)
+                }))
+        );
+    }
+
+    function _deployBannyLpSplitHookIfNeeded(JBUniswapV4LPSplitHook expectedHook) internal {
+        if (address(expectedHook).code.length == 0) {
+            JBUniswapV4LPSplitHook deployedHook = JBUniswapV4LPSplitHook(
+                payable(address(
+                        _lpSplitHookDeployer.deployHookFor({
+                            feeProjectId: 0,
+                            feePercent: 0,
+                            buybackHook: IJBBuybackHookRegistry(address(_buybackRegistry)),
+                            salt: BAN_LP_SPLIT_HOOK_SALT
+                        })
+                    ))
+            );
+            if (address(deployedHook) != address(expectedHook)) {
+                revert Deploy_ExistingAddressMismatch(address(expectedHook), address(deployedHook));
+            }
+        }
+
+        if (!_bannyLpSplitHookIsCanonical(expectedHook)) {
+            revert Deploy_BannyLpSplitHookNotCanonical(address(expectedHook));
+        }
+
+        _banLpSplitHook = expectedHook;
+    }
+
+    function _bannyLpSplitHookIsCanonical(JBUniswapV4LPSplitHook hook) internal view returns (bool) {
+        if (address(hook) == address(0) || address(hook).code.length == 0) return false;
+        if (_addressRegistry.deployerOf(address(hook)) != address(_lpSplitHookDeployer)) return false;
+        if (address(hook.poolManager()) != _poolManager) return false;
+        if (address(hook.positionManager()) != _positionManager) return false;
+        if (address(hook.oracleHook()) != address(_uniswapV4Hook)) return false;
+        if (hook.feeProjectId() != 0) return false;
+        if (hook.feePercent() != 0) return false;
+        return true;
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -3676,51 +3754,51 @@ contract Deploy is Script, Sphinx {
         );
 
         // ── DefifaDeployer (factory that creates new Defifa games) ──
-        // Chain-same CREATE2: constructor inputs are byte-identical across chains. Chain-specific dependencies are
-        // wired afterwards via the DEPLOYER-gated one-shot `setChainSpecificConstants` setter.
-        bytes memory deployerArgs = abi.encode(safeAddress(), safeAddress());
+        // defifa 0.0.50 takes all dependencies as constructor args (the prior chain-same ctor + one-shot
+        // `setChainSpecificConstants` setter was removed). Because `tokenUriResolver` depends on the chain-specific
+        // typeface, the deployer's CREATE2 address is chain-different (acceptable: the game factory is chain-local).
+        bytes memory deployerArgs = abi.encode(
+            safeAddress(),
+            address(_defifaHook),
+            _defifaTokenUriResolver,
+            _defifaGovernor,
+            _controller,
+            _addressRegistry,
+            _DEFIFA_REV_PROJECT_ID,
+            _FEE_PROJECT_ID,
+            _defifaHookStore
+        );
         _defifaDeployer = DefifaDeployer(
             _deployPrecompiledIfNeeded({artifactName: "DefifaDeployer", salt: DEFIFA_SALT, ctorArgs: deployerArgs})
         );
 
-        if (address(_defifaDeployer.controller()) == address(0)) {
-            _defifaDeployer.setChainSpecificConstants({
-                newHookCodeOrigin: address(_defifaHook),
-                newTokenUriResolver: _defifaTokenUriResolver,
-                newGovernor: _defifaGovernor,
-                newController: _controller,
-                newRegistry: _addressRegistry,
-                newDefifaProjectId: _DEFIFA_REV_PROJECT_ID,
-                newBaseProtocolProjectId: _FEE_PROJECT_ID,
-                newHookStore: _defifaHookStore
-            });
-        } else {
-            if (_defifaDeployer.hookCodeOrigin() != address(_defifaHook)) {
-                revert Deploy_ExistingAddressMismatch(address(_defifaHook), _defifaDeployer.hookCodeOrigin());
-            }
-            if (address(_defifaDeployer.tokenUriResolver()) != address(_defifaTokenUriResolver)) {
-                revert Deploy_ExistingAddressMismatch(
-                    address(_defifaTokenUriResolver), address(_defifaDeployer.tokenUriResolver())
-                );
-            }
-            if (address(_defifaDeployer.governor()) != address(_defifaGovernor)) {
-                revert Deploy_ExistingAddressMismatch(address(_defifaGovernor), address(_defifaDeployer.governor()));
-            }
-            if (address(_defifaDeployer.controller()) != address(_controller)) {
-                revert Deploy_ExistingAddressMismatch(address(_controller), address(_defifaDeployer.controller()));
-            }
-            if (address(_defifaDeployer.registry()) != address(_addressRegistry)) {
-                revert Deploy_ExistingAddressMismatch(address(_addressRegistry), address(_defifaDeployer.registry()));
-            }
-            if (_defifaDeployer.defifaProjectId() != _DEFIFA_REV_PROJECT_ID) {
-                revert Deploy_ProjectIdMismatch(_DEFIFA_REV_PROJECT_ID, _defifaDeployer.defifaProjectId());
-            }
-            if (_defifaDeployer.baseProtocolProjectId() != _FEE_PROJECT_ID) {
-                revert Deploy_ProjectIdMismatch(_FEE_PROJECT_ID, _defifaDeployer.baseProtocolProjectId());
-            }
-            if (address(_defifaDeployer.hookStore()) != address(_defifaHookStore)) {
-                revert Deploy_ExistingAddressMismatch(address(_defifaHookStore), address(_defifaDeployer.hookStore()));
-            }
+        // Verify the deployed factory carries the expected immutables (tautological on a fresh deploy; catches a
+        // stale/mismatched factory on an idempotent re-deploy where the CREATE2 address already had code).
+        if (_defifaDeployer.HOOK_CODE_ORIGIN() != address(_defifaHook)) {
+            revert Deploy_ExistingAddressMismatch(address(_defifaHook), _defifaDeployer.HOOK_CODE_ORIGIN());
+        }
+        if (address(_defifaDeployer.TOKEN_URI_RESOLVER()) != address(_defifaTokenUriResolver)) {
+            revert Deploy_ExistingAddressMismatch(
+                address(_defifaTokenUriResolver), address(_defifaDeployer.TOKEN_URI_RESOLVER())
+            );
+        }
+        if (address(_defifaDeployer.GOVERNOR()) != address(_defifaGovernor)) {
+            revert Deploy_ExistingAddressMismatch(address(_defifaGovernor), address(_defifaDeployer.GOVERNOR()));
+        }
+        if (address(_defifaDeployer.CONTROLLER()) != address(_controller)) {
+            revert Deploy_ExistingAddressMismatch(address(_controller), address(_defifaDeployer.CONTROLLER()));
+        }
+        if (address(_defifaDeployer.REGISTRY()) != address(_addressRegistry)) {
+            revert Deploy_ExistingAddressMismatch(address(_addressRegistry), address(_defifaDeployer.REGISTRY()));
+        }
+        if (_defifaDeployer.DEFIFA_PROJECT_ID() != _DEFIFA_REV_PROJECT_ID) {
+            revert Deploy_ProjectIdMismatch(_DEFIFA_REV_PROJECT_ID, _defifaDeployer.DEFIFA_PROJECT_ID());
+        }
+        if (_defifaDeployer.BASE_PROTOCOL_PROJECT_ID() != _FEE_PROJECT_ID) {
+            revert Deploy_ProjectIdMismatch(_FEE_PROJECT_ID, _defifaDeployer.BASE_PROTOCOL_PROJECT_ID());
+        }
+        if (address(_defifaDeployer.HOOK_STORE()) != address(_defifaHookStore)) {
+            revert Deploy_ExistingAddressMismatch(address(_defifaHookStore), address(_defifaDeployer.HOOK_STORE()));
         }
 
         if (_defifaGovernor.owner() == safeAddress()) {
@@ -4293,12 +4371,23 @@ contract Deploy is Script, Sphinx {
         view
         returns (bool)
     {
+        address payable expectedReservedSplitBeneficiary = payable(_BAN_OPS_OPERATOR);
+        IJBSplitHook expectedReservedSplitHook = IJBSplitHook(address(0));
+
+        if (_bannyUsesLpSplitHook()) {
+            JBUniswapV4LPSplitHook expectedBanLpSplitHook = _predictBannyLpSplitHook();
+            if (!_bannyLpSplitHookIsCanonical(expectedBanLpSplitHook)) return false;
+            expectedReservedSplitBeneficiary = payable(address(0));
+            expectedReservedSplitHook = IJBSplitHook(address(expectedBanLpSplitHook));
+        }
+
         if (!_isCanonicalRevnetProjectShape({
                 projectId: _BAN_PROJECT_ID,
                 expectedSymbol: "BAN",
                 expectedConfigurationHash: expectedConfigurationHash,
                 expectedUri: "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp",
-                expectedReservedSplitBeneficiary: payable(_BAN_OPS_OPERATOR)
+                expectedReservedSplitBeneficiary: expectedReservedSplitBeneficiary,
+                expectedReservedSplitHook: expectedReservedSplitHook
             })) return false;
 
         // During a partial resume the Sphinx Safe may still hold the operator role so it can finish drop
@@ -4357,6 +4446,28 @@ contract Deploy is Script, Sphinx {
         view
         returns (bool)
     {
+        return _isCanonicalRevnetProjectShape({
+            projectId: projectId,
+            expectedSymbol: expectedSymbol,
+            expectedConfigurationHash: expectedConfigurationHash,
+            expectedUri: expectedUri,
+            expectedReservedSplitBeneficiary: expectedReservedSplitBeneficiary,
+            expectedReservedSplitHook: IJBSplitHook(address(0))
+        });
+    }
+
+    function _isCanonicalRevnetProjectShape(
+        uint256 projectId,
+        string memory expectedSymbol,
+        bytes32 expectedConfigurationHash,
+        string memory expectedUri,
+        address payable expectedReservedSplitBeneficiary,
+        IJBSplitHook expectedReservedSplitHook
+    )
+        internal
+        view
+        returns (bool)
+    {
         // Project NFT lives on `_revOwner` for every canonical revnet (handed over at the end of `deployFor`).
         // Reject anything still parked on the deployer or any other address — that's an in-flight or attacker shape.
         if (_projects.ownerOf(projectId) != address(_revOwner)) return false;
@@ -4364,7 +4475,11 @@ contract Deploy is Script, Sphinx {
         if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
         if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: expectedSymbol})) return false;
         if (keccak256(bytes(_controller.uriOf(projectId))) != keccak256(bytes(expectedUri))) return false;
-        if (!_reservedSplitIsCanonical({projectId: projectId, expectedBeneficiary: expectedReservedSplitBeneficiary})) {
+        if (!_reservedSplitIsCanonical({
+                projectId: projectId,
+                expectedBeneficiary: expectedReservedSplitBeneficiary,
+                expectedHook: expectedReservedSplitHook
+            })) {
             return false;
         }
         if (!_nativeTerminalConfigIsCanonical({projectId: projectId})) {
@@ -4462,6 +4577,20 @@ contract Deploy is Script, Sphinx {
         view
         returns (bool)
     {
+        return _reservedSplitIsCanonical({
+            projectId: projectId, expectedBeneficiary: expectedBeneficiary, expectedHook: IJBSplitHook(address(0))
+        });
+    }
+
+    function _reservedSplitIsCanonical(
+        uint256 projectId,
+        address payable expectedBeneficiary,
+        IJBSplitHook expectedHook
+    )
+        internal
+        view
+        returns (bool)
+    {
         (JBRuleset memory ruleset,) = _controller.currentRulesetOf(projectId);
         if (ruleset.id == 0) {
             (ruleset,) = _rulesets.latestQueuedOf(projectId);
@@ -4477,7 +4606,7 @@ contract Deploy is Script, Sphinx {
         if (split.beneficiary != expectedBeneficiary) return false;
         if (split.preferAddToBalance) return false;
         if (split.lockedUntil != 0) return false;
-        if (address(split.hook) != address(0)) return false;
+        if (address(split.hook) != address(expectedHook)) return false;
 
         return true;
     }
@@ -4841,6 +4970,7 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "REVOwner", addr: address(_revOwner)});
         _serializeIfSet({key: j, name: "REVDeployer", addr: address(_revDeployer)});
         _serializeIfSet({key: j, name: "Banny721TokenUriResolver", addr: address(_bannyResolver)});
+        _serializeIfSet({key: j, name: "BannyLPSplitHook", addr: address(_banLpSplitHook)});
         _serializeIfSet({key: j, name: "DefifaHook", addr: address(_defifaHook)});
         _serializeIfSet({key: j, name: "DefifaTokenUriResolver", addr: address(_defifaTokenUriResolver)});
         _serializeIfSet({key: j, name: "DefifaGovernor", addr: address(_defifaGovernor)});

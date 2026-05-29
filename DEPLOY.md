@@ -15,7 +15,7 @@ Operator guide for deploying, resuming, and verifying the Juicebox V6 ecosystem.
 | Arbitrum One | 42161 | Yes | Ethereum, CCIP, Swap CCIP |
 | Arbitrum Sepolia | 421614 | Yes | Ethereum Sepolia, CCIP, Swap CCIP |
 
-Chains without a PositionManager skip the Uniswap-dependent stack (buyback hook, router terminal, LP split hook, revnet). Core protocol + 721 hook + suckers + croptop still deploy.
+Chains without a PositionManager skip active Uniswap routing surfaces (buyback hook, router terminal, and LP split hook). Revnets still deploy; BAN keeps its reserved split routed to the operator on those chains.
 
 The canonical deployment allowlists standard OP, Base, Arbitrum, CCIP, and `JBSwapCCIPSucker` deployers. Initial project configs still use the standard native bridge deployers unless a manifest explicitly selects a swap CCIP deployer, but the swap deployers and singletons are deployed and configured from day one.
 
@@ -388,12 +388,12 @@ export VERIFY_CONFIG_HASH_7=0x...           # MARKEE(7)
 # Legacy CSV form still accepted (overridden by per-project values above when set).
 # export VERIFY_CONFIG_HASHES=0x...,0x...,0x...,0x...
 
-# Per-project split-operator manifest — required on production for projects 2..4
-# so the verifier can authenticate the `splitOperator` (the address allowed to call
+# Per-project operator manifest — required on production for projects 2..4
+# so the verifier can authenticate the operator (the address allowed to call
 # OPERATOR-gated revnet functions) against the operator's commit.
-export VERIFY_OPERATOR_2=0x...              # CPN(2) splitOperator
-export VERIFY_OPERATOR_3=0x...              # REV(3) splitOperator
-export VERIFY_OPERATOR_4=0x...              # BAN(4) splitOperator
+export VERIFY_OPERATOR_2=0x...              # CPN(2) operator
+export VERIFY_OPERATOR_3=0x...              # REV(3) operator
+export VERIFY_OPERATOR_4=0x...              # BAN(4) operator
 ```
 
 The artifact preflight also fails until `@bananapus/suckers-v6` contains the
@@ -451,7 +451,7 @@ production every field below must be supplied so the verifier can authenticate t
 AND every individual tier.
 
 ```bash
-export VERIFY_BAN_OPS_OPERATOR=0x...                  # Final resolver owner + BAN splitOperator
+export VERIFY_BAN_OPS_OPERATOR=0x...                  # Final resolver owner + BAN operator
 export VERIFY_BANNY_SVG_DESCRIPTION="A piece of Banny Retail."
 export VERIFY_BANNY_SVG_EXTERNAL_URL="https://retail.banny.eth.shop"
 export VERIFY_BANNY_SVG_BASE_URI="https://bannyverse.infura-ipfs.io/ipfs/"
@@ -473,7 +473,7 @@ export VERIFY_ART_OPS_OPERATOR=0x...
 
 When supplied, the verifier exactly pins every Croptop posting-criteria field for categories
 0-4 against the operator's manifest. Use `VERIFY_OPERATOR_2` (above) to pin the CPN
-splitOperator.
+operator.
 
 ```bash
 # Per category 0..4, supply the four scalar fields plus optional allowed-poster CSV.
@@ -687,4 +687,4 @@ A third party created a project between the original deploy interruption and res
 The controller may not have been set as allowed via `setIsAllowedToSetFirstController`. Resume handles this, but if the original deploy was interrupted between controller deployment and the permission call, resume should fix it.
 
 **Uniswap-dependent phases skip on a chain that should support them:**
-Check that `_positionManager` is set to a non-zero address for that chain in `_setupChainAddresses()`. Chains with `_positionManager = address(0)` skip the entire Uniswap stack.
+Check that `_positionManager` is set to a non-zero address for that chain in `_setupChainAddresses()`. Chains with `_positionManager = address(0)` skip active Uniswap routing surfaces, including the LP split hook.

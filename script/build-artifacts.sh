@@ -151,6 +151,9 @@ CONTRACTS=(
   "nana-router-terminal-v6:JBRouterTerminalRegistry:src/JBRouterTerminalRegistry.sol"
 
   # ── univ4-lp-split-hook-v6 ──
+  # JBUniswapV4LPSplitHookMath is a linked (public-function) library extracted from the hook to fit
+  # EIP-170; it must be collected, deployed (_deployLibraries), and linked (Phase 2 below).
+  "univ4-lp-split-hook-v6:JBUniswapV4LPSplitHookMath:src/libraries/JBUniswapV4LPSplitHookMath.sol"
   "univ4-lp-split-hook-v6:JBUniswapV4LPSplitHook:src/JBUniswapV4LPSplitHook.sol"
   "univ4-lp-split-hook-v6:JBUniswapV4LPSplitHookDeployer:src/JBUniswapV4LPSplitHookDeployer.sol"
 
@@ -483,6 +486,7 @@ LIB_SALTS=(
   "CCIPHelper:_CCIPHelperV6_"
   "JBSwapPoolLib:_JBSwapPoolLibV6_"
   "DefifaHookLib:_DefifaHookLibV6_"
+  "JBUniswapV4LPSplitHookMath:_JBUniswapV4LPSplitHookMathV6_"
 )
 
 declare -A LIB_ADDR_HEX        # libName → 40-char lowercase hex (no 0x prefix)
