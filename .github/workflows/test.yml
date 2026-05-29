@@ -47,10 +47,15 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Generate deploy artifacts
+        # The post-deploy verifier tests read the generated artifacts/ tree (gitignored), so build it first.
+        # build-artifacts.sh is deterministic (forge build + cast keccak/create2 + jq) and needs no RPC.
+        run: npm run artifacts
+
       - name: Run tests
         # Run the full suite so fork + integration test failures gate CI (this repo's CI previously only
         # built and never ran forge test). The four mainnet RPC secrets back the multi-chain fork tests.
-        run: forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"
+        run: forge test --deny notes --summary --detailed --skip "*/script/**"
         env:
           RPC_ETHEREUM_MAINNET: ${{ secrets.RPC_ETHEREUM_MAINNET }}
           RPC_OPTIMISM_MAINNET: ${{ secrets.RPC_OPTIMISM_MAINNET }}
