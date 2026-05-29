@@ -421,7 +421,8 @@ contract DeployFullStackTest is Test {
             _permissions,
             address(_tokens),
             IAllowanceTransfer(address(_PERMIT2)),
-            IJBSuckerRegistry(address(_suckerRegistry))
+            IJBSuckerRegistry(address(_suckerRegistry)),
+            address(_buybackRegistry)
         );
         _lpSplitHookDeployer =
             new JBUniswapV4LPSplitHookDeployer(IJBAddressRegistry(address(_addressRegistry)), _lpSplitHook, _deployer);

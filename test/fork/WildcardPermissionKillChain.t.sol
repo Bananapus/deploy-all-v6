@@ -584,17 +584,18 @@ contract WildcardPermissionKillChain is RevnetForkBase {
             suckerDeploymentConfiguration: suckerConfig
         });
 
-        // Verify REVDeployer owns the newly created project.
+        // Verify REVOwner owns the newly created project (deployFor transfers the project NFT to REVOwner,
+        // the revnet's authoritative owner; the wildcard permission grants below are keyed to its account).
         address projectOwner = jbProjects().ownerOf(revnetId);
-        // Assert the project is owned by the REVDeployer.
-        assertEq(projectOwner, address(REV_DEPLOYER), "REVDeployer should own the revnet");
+        // Assert the project is owned by REVOwner.
+        assertEq(projectOwner, address(REV_OWNER), "REVOwner should own the revnet");
 
         // ── Verify the LOANS_CONTRACT has USE_ALLOWANCE wildcard on REVDeployer's account ──
         // This is a legitimate wildcard permission that should work.
         bool loansHasAllowance = jbPermissions()
             .hasPermission({
             operator: address(LOANS_CONTRACT),
-            account: address(REV_DEPLOYER),
+            account: address(REV_OWNER),
             projectId: revnetId,
             permissionId: JBPermissionIds.USE_ALLOWANCE,
             includeRoot: false,
@@ -607,7 +608,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         bool registryHasSetPool = jbPermissions()
             .hasPermission({
             operator: address(BUYBACK_REGISTRY),
-            account: address(REV_DEPLOYER),
+            account: address(REV_OWNER),
             projectId: revnetId,
             permissionId: JBPermissionIds.SET_BUYBACK_POOL,
             includeRoot: false,
@@ -619,7 +620,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         bool suckerRegistryHasMapToken = jbPermissions()
             .hasPermission({
             operator: address(SUCKER_REGISTRY),
-            account: address(REV_DEPLOYER),
+            account: address(REV_OWNER),
             projectId: revnetId,
             permissionId: JBPermissionIds.MAP_SUCKER_TOKEN,
             includeRoot: false,

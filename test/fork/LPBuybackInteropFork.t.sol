@@ -231,8 +231,13 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         _grantDeployPoolPermission(address(this), revnetId);
         LP_SPLIT_HOOK.deployPool({projectId: revnetId, minCashOutReturn: 0});
 
-        // Accumulated tokens should be cleared after pool deployment.
-        assertEq(LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId), 0, "accumulated tokens should be cleared");
+        // deployPool consumes the accumulation into the LP position; only unpaired dust carries forward
+        // (JBUniswapV4LPSplitHook 0.0.53 never burns — post-deploy inflows route to addLiquidity).
+        assertLt(
+            LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId),
+            accumulated,
+            "deployPool should consume accumulation into the LP (only unpaired dust carries forward)"
+        );
 
         // LP position should exist.
         uint256 tokenId = LP_SPLIT_HOOK.tokenIdOf(revnetId, JBConstants.NATIVE_TOKEN);
@@ -284,8 +289,10 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         assertGt(accAfterSecond, accAfterFirst, "accumulation should increase with more distributions");
     }
 
-    /// @notice Post-deployment: reserved tokens going to LP split hook are burned (not accumulated).
-    function test_interop_revnet_postDeployment_burnReserved() public {
+    /// @notice Post-deployment: reserved tokens going to the LP split hook accumulate for the next
+    /// `addLiquidity` (JBUniswapV4LPSplitHook 0.0.53 never burns — burning is a protocol-layer
+    /// 0xdead-split decision, not the hook's job).
+    function test_interop_revnet_postDeployment_accumulatesForAddLiquidity() public {
         _deployFeeProject(5000);
 
         (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
@@ -311,15 +318,19 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
 
         uint256 hookBalanceBefore = jbTokens().totalBalanceOf(address(LP_SPLIT_HOOK), revnetId);
 
-        // Distribute again -- LP split hook should burn these tokens (pool already deployed).
+        // Distribute again -- post-deploy inflows accumulate for the next addLiquidity (pool already deployed).
         jbController().sendReservedTokensToSplitsOf(revnetId);
 
-        // Accumulated should remain 0 (burned, not accumulated).
-        assertEq(LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId), 0, "should not accumulate after deployment");
+        // Accumulation grows (held for addLiquidity), not burned.
+        assertGt(
+            LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId),
+            0,
+            "post-deploy reserved tokens accumulate for the next addLiquidity (the hook never burns)"
+        );
 
-        // Hook balance should not increase (tokens were burned, not held).
+        // Hook balance should increase (tokens held for addLiquidity, not burned).
         uint256 hookBalanceAfter = jbTokens().totalBalanceOf(address(LP_SPLIT_HOOK), revnetId);
-        assertEq(hookBalanceAfter, hookBalanceBefore, "hook should burn tokens, not hold them");
+        assertGt(hookBalanceAfter, hookBalanceBefore, "hook holds the accumulated tokens for addLiquidity");
     }
 
     /// @notice Pool parameters match: both hooks use the same fee and tick spacing.
@@ -594,7 +605,11 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         // No permission grant needed -- address(this) IS the project owner.
         LP_SPLIT_HOOK.deployPool({projectId: projectId, minCashOutReturn: 0});
 
-        assertEq(LP_SPLIT_HOOK.accumulatedProjectTokens(projectId), 0, "accumulated should be cleared");
+        assertLt(
+            LP_SPLIT_HOOK.accumulatedProjectTokens(projectId),
+            accumulated,
+            "deployPool should consume accumulation into the LP (only unpaired dust carries forward)"
+        );
         assertGt(LP_SPLIT_HOOK.tokenIdOf(projectId, JBConstants.NATIVE_TOKEN), 0, "LP position should exist");
 
         // 6. Configure buyback hook to use the pool the LP split hook created.

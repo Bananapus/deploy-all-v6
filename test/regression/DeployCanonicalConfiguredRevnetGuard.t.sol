@@ -229,7 +229,7 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         );
         assertTrue(_contains(defifaSource, "external\n        payable\n        override"), "Defifa launch is payable");
         assertTrue(
-            _contains(defifaSource, "controller.PROJECTS().createFor{value: msg.value}(address(this))"),
+            _contains(defifaSource, "CONTROLLER.PROJECTS().createFor{value: msg.value}(address(this))"),
             "Defifa launch forwards creation fee"
         );
     }

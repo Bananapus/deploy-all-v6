@@ -518,7 +518,8 @@ contract InstrumentedDeployer is IERC721Receiver {
                 permissions,
                 address(tokens),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IJBSuckerRegistry(address(suckerRegistry))
+                IJBSuckerRegistry(address(suckerRegistry)),
+                address(buybackRegistry)
             )
         );
         lpSplitHook = hD
@@ -528,7 +529,8 @@ contract InstrumentedDeployer is IERC721Receiver {
                 permissions,
                 address(tokens),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IJBSuckerRegistry(address(suckerRegistry))
+                IJBSuckerRegistry(address(suckerRegistry)),
+                address(buybackRegistry)
             );
 
         // Deploy or resolve LP split hook deployer (chain-same ctor inputs; HOOK + V4 addresses wired below).

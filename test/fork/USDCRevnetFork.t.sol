@@ -66,7 +66,12 @@ contract USDCRevnetForkTest is RevnetForkBase {
         // Deploy LP-split hook (clone pattern). Implementation ctor is chain-same; the per-clone chain-specific
         // V4 addresses are passed into `initialize` directly.
         JBUniswapV4LPSplitHook lpSplitImpl = new JBUniswapV4LPSplitHook(
-            address(jbDirectory()), jbPermissions(), address(jbTokens()), permit2(), IJBSuckerRegistry(address(0))
+            address(jbDirectory()),
+            jbPermissions(),
+            address(jbTokens()),
+            permit2(),
+            IJBSuckerRegistry(address(0)),
+            address(0)
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize({

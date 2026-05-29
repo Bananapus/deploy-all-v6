@@ -1273,42 +1273,42 @@ contract Verify is Script {
                 condition: address(defifaDeployer).code.length > 0, label: "DefifaDeployer has code", critical: true
             });
             _check({
-                condition: defifaDeployer.defifaProjectId() == _DEFIFA_REV_PROJECT_ID,
+                condition: defifaDeployer.DEFIFA_PROJECT_ID() == _DEFIFA_REV_PROJECT_ID,
                 label: "Defifa uses DEFIFA_REV(5) as fee project",
                 critical: true
             });
             _check({
-                condition: defifaDeployer.baseProtocolProjectId() == _FEE_PROJECT_ID,
+                condition: defifaDeployer.BASE_PROTOCOL_PROJECT_ID() == _FEE_PROJECT_ID,
                 label: "Defifa uses NANA(1) as base protocol project",
                 critical: true
             });
             _check({
-                condition: address(defifaDeployer.controller()) == address(controller),
+                condition: address(defifaDeployer.CONTROLLER()) == address(controller),
                 label: "Defifa controller wiring",
                 critical: true
             });
             _check({
-                condition: address(defifaDeployer.registry()) == addressRegistry,
+                condition: address(defifaDeployer.REGISTRY()) == addressRegistry,
                 label: "Defifa address registry wiring",
                 critical: true
             });
             // Defifa uses a DEDICATED hook store, not the shared one.
             if (address(defifaHookStore) != address(0)) {
                 _check({
-                    condition: address(defifaDeployer.hookStore()) == address(defifaHookStore),
+                    condition: address(defifaDeployer.HOOK_STORE()) == address(defifaHookStore),
                     label: "Defifa hook store == dedicated VERIFY_DEFIFA_HOOK_STORE",
                     critical: true
                 });
             } else {
                 // Fallback: at minimum verify HOOK_STORE has code and is not address(0).
                 _check({
-                    condition: address(defifaDeployer.hookStore()).code.length > 0,
+                    condition: address(defifaDeployer.HOOK_STORE()).code.length > 0,
                     label: "Defifa HOOK_STORE has code (VERIFY_DEFIFA_HOOK_STORE not set)",
                     critical: true
                 });
             }
 
-            address hookCodeOrigin = defifaDeployer.hookCodeOrigin();
+            address hookCodeOrigin = defifaDeployer.HOOK_CODE_ORIGIN();
             _check({
                 condition: hookCodeOrigin.code.length > 0, label: "Defifa hook code origin has code", critical: true
             });
@@ -1332,8 +1332,8 @@ contract Verify is Script {
                 });
             }
 
-            address tokenUriResolver = address(defifaDeployer.tokenUriResolver());
-            address governor = address(defifaDeployer.governor());
+            address tokenUriResolver = address(defifaDeployer.TOKEN_URI_RESOLVER());
+            address governor = address(defifaDeployer.GOVERNOR());
             _check({
                 condition: tokenUriResolver.code.length > 0, label: "Defifa token URI resolver has code", critical: true
             });

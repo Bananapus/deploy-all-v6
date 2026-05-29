@@ -471,7 +471,8 @@ contract ResumeDeployHarness is IERC721Receiver {
                 permissions,
                 address(tokens),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IJBSuckerRegistry(address(suckerRegistry))
+                IJBSuckerRegistry(address(suckerRegistry)),
+                address(buybackRegistry)
             )
         );
         lpSplitHook = hookDeployed
@@ -481,7 +482,8 @@ contract ResumeDeployHarness is IERC721Receiver {
                 permissions,
                 address(tokens),
                 IAllowanceTransfer(address(_PERMIT2)),
-                IJBSuckerRegistry(address(suckerRegistry))
+                IJBSuckerRegistry(address(suckerRegistry)),
+                address(buybackRegistry)
             );
 
         (address deployerAddress, bool deployerDeployed) = _isDeployed(
