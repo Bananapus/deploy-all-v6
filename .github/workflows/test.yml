@@ -50,7 +50,9 @@ jobs:
       - name: Generate deploy artifacts
         # The post-deploy verifier tests read the generated artifacts/ tree (gitignored), so build it first.
         # build-artifacts.sh is deterministic (forge build + cast keccak/create2 + jq) and needs no RPC.
-        run: npm run artifacts
+        # --rehearsal: CI is not a production publish, and `npm install` leaves the tree marginally dirty
+        # (lockfile), which the script otherwise rejects. The artifacts are still address-correct for tests.
+        run: npm run artifacts -- --rehearsal
 
       - name: Run tests
         # Run the full suite so fork + integration test failures gate CI (this repo's CI previously only
