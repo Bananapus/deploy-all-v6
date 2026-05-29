@@ -750,8 +750,13 @@ contract Verify is Script {
             // The expected accounting token differs per revnet: DEFIFA(5)/ART(6) accept USDC (6 decimals);
             // everyone else accepts the native token (18 decimals). `tokenName`/`sentinelLabel` keep the
             // native-project assertion strings byte-identical to the pre-USDC verifier.
-            (address expToken, uint8 expDecimals, uint32 expCurrency, string memory tokenName, string memory sentinelLabel)
-            = _expectedTerminalTokenFor(projectIds[i]);
+            (
+                address expToken,
+                uint8 expDecimals,
+                uint32 expCurrency,
+                string memory tokenName,
+                string memory sentinelLabel
+            ) = _expectedTerminalTokenFor(projectIds[i]);
 
             // Read the primary terminal for this project for its accepted token.
             IJBTerminal primaryTerm = directory.primaryTerminalOf({projectId: projectIds[i], token: expToken});
@@ -1949,9 +1954,8 @@ contract Verify is Script {
             for (uint256 i; i < projectIds.length; i++) {
                 (address expToken,,, string memory tokenName,) = _expectedTerminalTokenFor(projectIds[i]);
                 _check({
-                    condition: address(
-                            directory.primaryTerminalOf({projectId: projectIds[i], token: expToken})
-                        ) == address(terminal),
+                    condition: address(directory.primaryTerminalOf({projectId: projectIds[i], token: expToken}))
+                        == address(terminal),
                     label: string.concat(labels[i], " primary ", tokenName, " terminal is JBMultiTerminal"),
                     critical: true
                 });
@@ -4144,9 +4148,7 @@ contract Verify is Script {
             token = _usdcTokenFor(block.chainid);
             return (token, 6, uint32(uint160(token)), "USDC", "USDC");
         }
-        return (
-            JBConstants.NATIVE_TOKEN, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)), "native", "NATIVE_TOKEN"
-        );
+        return (JBConstants.NATIVE_TOKEN, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)), "native", "NATIVE_TOKEN");
     }
 
     /// Returns the per-chain canonical Capsules typeface address used by DefifaTokenUriResolver.

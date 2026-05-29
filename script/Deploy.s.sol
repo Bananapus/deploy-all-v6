@@ -3871,7 +3871,7 @@ contract Deploy is Script, Sphinx {
             issuanceCutFrequency: 90 days,
             issuanceCutPercent: 380_000_000,
             cashOutTaxRate: 1000,
-            extraMetadata: 0
+            extraMetadata: 4
         });
 
         stages[1] = REVStageConfig({
@@ -3883,7 +3883,7 @@ contract Deploy is Script, Sphinx {
             issuanceCutFrequency: 30 days,
             issuanceCutPercent: 70_000_000,
             cashOutTaxRate: 1000,
-            extraMetadata: 0
+            extraMetadata: 4
         });
 
         stages[2] = REVStageConfig({
@@ -3895,7 +3895,7 @@ contract Deploy is Script, Sphinx {
             issuanceCutFrequency: 0,
             issuanceCutPercent: 0,
             cashOutTaxRate: 1000,
-            extraMetadata: 0
+            extraMetadata: 4
         });
 
         REVConfig memory defifaConfig = REVConfig({
@@ -4016,7 +4016,7 @@ contract Deploy is Script, Sphinx {
                 issuanceCutFrequency: 35 days,
                 issuanceCutPercent: 500_000_000,
                 cashOutTaxRate: 1000,
-                extraMetadata: 0
+                extraMetadata: 4
             });
         }
 
@@ -4030,7 +4030,7 @@ contract Deploy is Script, Sphinx {
             issuanceCutFrequency: 120 days,
             issuanceCutPercent: 500_000_000,
             cashOutTaxRate: 1000,
-            extraMetadata: 0
+            extraMetadata: 4
         });
 
         stages[2] = REVStageConfig({
@@ -4043,7 +4043,7 @@ contract Deploy is Script, Sphinx {
             issuanceCutFrequency: 365 days,
             issuanceCutPercent: 500_000_000,
             cashOutTaxRate: 1000,
-            extraMetadata: 0
+            extraMetadata: 4
         });
 
         REVConfig memory artConfig = REVConfig({
@@ -4131,7 +4131,7 @@ contract Deploy is Script, Sphinx {
                 issuanceCutFrequency: MARKEE_RULESET_DURATION,
                 issuanceCutPercent: 500_000_000,
                 cashOutTaxRate: 1000,
-                extraMetadata: 0
+                extraMetadata: 4
             });
         }
 
@@ -4145,7 +4145,7 @@ contract Deploy is Script, Sphinx {
             issuanceCutFrequency: MARKEE_RULESET_DURATION,
             issuanceCutPercent: 200_000_000,
             cashOutTaxRate: 1000,
-            extraMetadata: 0
+            extraMetadata: 4
         });
 
         stages[2] = REVStageConfig({
@@ -4158,7 +4158,7 @@ contract Deploy is Script, Sphinx {
             issuanceCutFrequency: MARKEE_RULESET_DURATION,
             issuanceCutPercent: 100_000_000,
             cashOutTaxRate: 1000,
-            extraMetadata: 0
+            extraMetadata: 4
         });
 
         REVConfig memory markeeConfig = REVConfig({
