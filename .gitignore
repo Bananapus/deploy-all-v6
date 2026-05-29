@@ -34,3 +34,6 @@ NEMESIS_SCOPE.md
 run-nemesis-all.sh
 
 rehearsal-output/
+
+# Local audit findings triage (not part of the deployable repo)
+MAY.md
