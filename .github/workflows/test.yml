@@ -48,7 +48,10 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run tests
-        run: forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"
+        # Exclude the post-deploy artifact-verifier regression tests: they read generated files from the
+        # gitignored artifacts/ dir (produced from a real deployment dump via `npm run artifacts`), so they
+        # cannot run in a clean CI checkout. All fork + other integration/regression tests still gate CI.
+        run: forge test --deny notes --summary --detailed --skip "*/script/**" --no-match-path "test/regression/(AddressDumpArtifactMismatch|PostDeployDistributeArtifactGap|PostDeployDynamicConstructorArgsGap|PostDeployLibraryVerificationGap|PostDeployStaleSourceArtifactGap|TokenImplementationVerifierGap).t.sol"
         env:
           RPC_ETHEREUM_MAINNET: ${{ secrets.RPC_ETHEREUM_MAINNET }}
           RPC_OPTIMISM_MAINNET: ${{ secrets.RPC_OPTIMISM_MAINNET }}
