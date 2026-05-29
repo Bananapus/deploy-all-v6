@@ -443,7 +443,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
     }
 
     /// @notice Test 5: 721 tiers in USD + 30% tier split, pay with USDC -> split beneficiary gets USDC.
-    /// @dev FINDING: Tier splits with cross-currency pricing revert because the split amount is
+    /// @dev Tier splits with cross-currency pricing revert because the split amount is
     /// calculated in the tier's abstract pricing denomination (e.g., 30e18 USD units) but compared
     /// against the actual payment token amount (e.g., 100e6 USDC). The hook requests forwarding
     /// more tokens than the payment contains. This test documents the revert behavior.
