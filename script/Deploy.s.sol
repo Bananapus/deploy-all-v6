@@ -194,7 +194,11 @@ contract Deploy is Script, Sphinx {
     /// @dev Deterministic deployment proxy (https://github.com/Arachnid/deterministic-deployment-proxy).
     address private constant _CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
     string private constant TRUSTED_FORWARDER_NAME = "Juicebox";
-    uint256 private constant CORE_DEPLOYMENT_NONCE = 6;
+    /// @dev Single salt-version lever for the ENTIRE deployment. Every CREATE2/CREATE3 salt is folded with this
+    /// nonce via `_saltOf` (and the core salt derives from it directly), so bumping this one value yields a fully
+    /// fresh, non-colliding address namespace for every contract — the clean way to redeploy from scratch on a
+    /// chain that already holds a prior deployment. The Uniswap V4 hook is mined over the folded salt too.
+    uint256 private constant DEPLOYMENT_NONCE = 7;
 
     /// @dev Sphinx Safe used only to execute the deployment proposal. Derived from the V6 Jango
     /// Safe's owners + threshold + saltNonce 10 (see sphinx.lock). Long-term protocol ownership is
@@ -773,7 +777,7 @@ contract Deploy is Script, Sphinx {
     }
 
     function _deployCore() internal {
-        bytes32 coreSalt = keccak256(abi.encode(CORE_DEPLOYMENT_NONCE));
+        bytes32 coreSalt = keccak256(abi.encode(DEPLOYMENT_NONCE));
 
         _trustedForwarder = _deployPrecompiledIfNeeded({
             artifactName: "ERC2771Forwarder", salt: coreSalt, ctorArgs: abi.encode(TRUSTED_FORWARDER_NAME)
@@ -998,7 +1002,16 @@ contract Deploy is Script, Sphinx {
         }
 
         // Pin the buyback hook for project 1 (NANA) so it persists even if the default changes.
-        _buybackRegistry.setHookFor({projectId: _FEE_PROJECT_ID, hook: _buybackHook});
+        // Idempotent + ownership-aware: the pin is only settable by the deployment Safe while it still owns
+        // project 1 (i.e. before NANA is configured as a revnet and ownership passes to REVOwner). On a
+        // re-propose the pin already exists and project 1 is REVOwner-owned, so skip rather than revert with
+        // JBPermissioned_Unauthorized (the Safe holds no SET_BUYBACK_HOOK permission on REVOwner's account).
+        if (
+            address(_buybackRegistry.hookOf(_FEE_PROJECT_ID)) != address(_buybackHook)
+                && _projects.ownerOf(_FEE_PROJECT_ID) == safeAddress()
+        ) {
+            _buybackRegistry.setHookFor({projectId: _FEE_PROJECT_ID, hook: _buybackHook});
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1651,7 +1664,7 @@ contract Deploy is Script, Sphinx {
         // Deploy the Controller — uses the counterfactual CREATE3 omnichain deployer address. CREATE3 keeps the
         // address independent of the deployer's constructor args, which breaks the controller/deployer constructor
         // cycle while preserving a deterministic cross-chain address.
-        bytes32 coreSalt = keccak256(abi.encode(CORE_DEPLOYMENT_NONCE));
+        bytes32 coreSalt = keccak256(abi.encode(DEPLOYMENT_NONCE));
         _controller = JBController(
             _deployPrecompiledIfNeeded({
                 artifactName: "JBController",
@@ -2707,7 +2720,7 @@ contract Deploy is Script, Sphinx {
     /// `REVOwner`, so `JBProjects.ownerOf(4)` is the narrowest reliable way to discover the rev owner after the
     /// mission-critical deployment has landed.
     function _hydrateBannyDropContext() internal {
-        bytes32 coreSalt = keccak256(abi.encode(CORE_DEPLOYMENT_NONCE));
+        bytes32 coreSalt = keccak256(abi.encode(DEPLOYMENT_NONCE));
 
         _trustedForwarder = _requireDeployedPrecompiled({
             artifactName: "ERC2771Forwarder", salt: coreSalt, ctorArgs: abi.encode(TRUSTED_FORWARDER_NAME)
@@ -4661,6 +4674,13 @@ contract Deploy is Script, Sphinx {
 
     /// @dev Compute the CREATE2 address for a (salt, code, args) tuple deployed via the canonical
     ///      CREATE2 factory (0x4e59…). Returns the address and whether code already exists there.
+    /// @dev Fold the single DEPLOYMENT_NONCE into every salt so one bump re-namespaces the entire deployment.
+    /// Applied centrally in the CREATE2/CREATE3 address primitives below, so prediction and deployment of any
+    /// contract stay consistent automatically (no per-call-site changes), and the V4 hook is mined over it.
+    function _saltOf(bytes32 base) internal pure returns (bytes32) {
+        return keccak256(abi.encode(DEPLOYMENT_NONCE, base));
+    }
+
     function _isDeployed(
         bytes32 salt,
         bytes memory creationCode,
@@ -4670,6 +4690,7 @@ contract Deploy is Script, Sphinx {
         view
         returns (address deployedTo, bool isDeployed)
     {
+        salt = _saltOf(salt);
         deployedTo = vm.computeCreate2Address({
             salt: salt, initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)), deployer: _CREATE2_FACTORY
         });
@@ -4688,6 +4709,7 @@ contract Deploy is Script, Sphinx {
         view
         returns (address deployedTo, bool isDeployed)
     {
+        salt = _saltOf(salt);
         deployedTo = vm.computeCreate2Address({
             salt: salt, initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)), deployer: deployer
         });
@@ -4733,6 +4755,7 @@ contract Deploy is Script, Sphinx {
         internal
         returns (address addr)
     {
+        salt = _saltOf(salt);
         bytes memory initCode = abi.encodePacked(creationCode, constructorArgs);
         (bool success,) = factory.call(abi.encodePacked(salt, initCode));
         require(success, "Factory CREATE2 failed");
@@ -4802,7 +4825,7 @@ contract Deploy is Script, Sphinx {
     /// @dev Counterfactual target address for a CREATE3 deployment whose proxy is deployed by the canonical CREATE2
     /// factory. The target address depends on the proxy deployer and salt, not the target init code.
     function _create3Address(bytes32 salt) internal pure returns (address) {
-        return CREATE3.predictDeterministicAddress({salt: salt, deployer: _CREATE2_FACTORY});
+        return CREATE3.predictDeterministicAddress({salt: _saltOf(salt), deployer: _CREATE2_FACTORY});
     }
 
     /// @dev Deploys an artifact through CREATE3 using the canonical CREATE2 factory. This is used only where two
@@ -4899,8 +4922,11 @@ contract Deploy is Script, Sphinx {
         bytes memory creationCodeWithArgs = abi.encodePacked(creationCode, constructorArgs);
 
         for (uint256 i; i < HookMiner.MAX_LOOP; i++) {
-            address hookAddress =
-                HookMiner.computeAddress({deployer: deployer, salt: i, creationCodeWithArgs: creationCodeWithArgs});
+            // Mine over the FOLDED salt: the V4 hook deploys through the primitives above, which fold the
+            // returned salt with DEPLOYMENT_NONCE, so the flag-bit search must target `_saltOf(i)`, not `i`.
+            address hookAddress = HookMiner.computeAddress({
+                deployer: deployer, salt: uint256(_saltOf(bytes32(i))), creationCodeWithArgs: creationCodeWithArgs
+            });
             if (uint160(hookAddress) & HookMiner.FLAG_MASK == flags) {
                 return bytes32(i);
             }
@@ -4920,7 +4946,7 @@ contract Deploy is Script, Sphinx {
     /// non-Uniswap chains) produce a partial map naturally.
     function _dumpAddresses() internal {
         string memory j = "_jbV6Addresses";
-        bytes32 coreSalt = keccak256(abi.encode(CORE_DEPLOYMENT_NONCE));
+        bytes32 coreSalt = keccak256(abi.encode(DEPLOYMENT_NONCE));
 
         // ── State-var-tracked contracts ──
         _serializeIfSet({key: j, name: "ERC2771Forwarder", addr: _trustedForwarder});
