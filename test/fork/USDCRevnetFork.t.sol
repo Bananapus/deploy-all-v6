@@ -10,6 +10,7 @@ import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 
 // LP Split Hook
 import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
+import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
 
 // Revnet
 import {REVConfig} from "@rev-net/core-v6/src/structs/REVConfig.sol";
@@ -70,8 +71,7 @@ contract USDCRevnetForkTest is RevnetForkBase {
             jbPermissions(),
             address(jbTokens()),
             permit2(),
-            IJBSuckerRegistry(address(0)),
-            address(0)
+            IJBSuckerRegistry(address(0))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize({
@@ -79,7 +79,8 @@ contract USDCRevnetForkTest is RevnetForkBase {
             initialFeePercent: 0,
             newPoolManager: poolManager,
             newPositionManager: positionManager,
-            newOracleHook: IHooks(address(0))
+            newOracleHook: IHooks(address(0)),
+            newBuybackHook: IJBBuybackHookRegistry(address(0))
         });
 
         // Mock geomean oracle at address(0) so payments work before buyback pool is set up.

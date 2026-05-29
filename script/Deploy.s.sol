@@ -230,6 +230,7 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant CCIP_HELPER_SALT = keccak256("_CCIPHelperV6_");
     bytes32 private constant SWAP_POOL_LIB_SALT = keccak256("_JBSwapPoolLibV6_");
     bytes32 private constant DEFIFA_HOOK_LIB_SALT = keccak256("_DefifaHookLibV6_");
+    bytes32 private constant UNIV4_LP_SPLIT_HOOK_MATH_LIB_SALT = keccak256("_JBUniswapV4LPSplitHookMathV6_");
 
     // ── Address Registry salt ──
     bytes32 private constant ADDRESS_REGISTRY_SALT = "_JBAddressRegistryV6_";
@@ -765,6 +766,10 @@ contract Deploy is Script, Sphinx {
         _deployPrecompiledIfNeeded({artifactName: "JBSwapPoolLib", salt: SWAP_POOL_LIB_SALT, ctorArgs: ""});
         // DefifaHookLib — DELEGATECALL'd by DefifaHook + DefifaGovernor.
         _deployPrecompiledIfNeeded({artifactName: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT, ctorArgs: ""});
+        // JBUniswapV4LPSplitHookMath — pricing math linked into JBUniswapV4LPSplitHook (EIP-170 extraction).
+        _deployPrecompiledIfNeeded({
+            artifactName: "JBUniswapV4LPSplitHookMath", salt: UNIV4_LP_SPLIT_HOOK_MATH_LIB_SALT, ctorArgs: ""
+        });
     }
 
     function _deployCore() internal {
@@ -1059,8 +1064,7 @@ contract Deploy is Script, Sphinx {
                         _permissions,
                         address(_tokens),
                         IAllowanceTransfer(address(_PERMIT2)),
-                        IJBSuckerRegistry(address(_suckerRegistry)),
-                        address(_buybackRegistry)
+                        IJBSuckerRegistry(address(_suckerRegistry))
                     )
                 }))
         );
@@ -2664,7 +2668,10 @@ contract Deploy is Script, Sphinx {
             JBUniswapV4LPSplitHook deployedHook = JBUniswapV4LPSplitHook(
                 payable(address(
                         _lpSplitHookDeployer.deployHookFor({
-                            feeProjectId: 0, feePercent: 0, salt: BAN_LP_SPLIT_HOOK_SALT
+                            feeProjectId: 0,
+                            feePercent: 0,
+                            buybackHook: IJBBuybackHookRegistry(address(_buybackRegistry)),
+                            salt: BAN_LP_SPLIT_HOOK_SALT
                         })
                     ))
             );

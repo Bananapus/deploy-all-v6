@@ -957,7 +957,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_SuckerPeerMismatch.selector, BASE_CHAIN_ID, OPTIMISM_CHAIN_ID
+                JBReferralSplitHook.JBReferralSplitHook_SuckerPeerMismatch.selector, BASE_CHAIN_ID, OPTIMISM_CHAIN_ID
             )
         );
         hook.bridgeRemote({
@@ -1004,7 +1004,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     function test_crossChain_bridgeRemote_localChainIdReverts() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_WrongBridgeTarget.selector, block.chainid, block.chainid
+                JBReferralSplitHook.JBReferralSplitHook_WrongBridgeTarget.selector, block.chainid, block.chainid
             )
         );
         hook.bridgeRemote({
@@ -1186,7 +1186,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_LeafMetadataMismatch.selector, lyingMetadata, honestMetadata
+                JBReferralSplitHook.JBReferralSplitHook_LeafMetadataMismatch.selector, lyingMetadata, honestMetadata
             )
         );
         hook.claimAndPush({
@@ -1724,7 +1724,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     /// @notice bridgeRemote must reject `referralChainId == 0` with a clear, dedicated error rather than
     /// falling through to downstream sucker checks.
     function test_bridgeRemote_revertsOnZeroChainId() public {
-        vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
+        vm.expectRevert(JBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
         hook.bridgeRemote({
             referralChainId: 0,
             referralProjectId: 42,
@@ -1750,7 +1750,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             proof: proof
         });
 
-        vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
+        vm.expectRevert(JBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
         hook.claimAndPush({
             originChainId: 0, referralProjectId: referrerProjectIdLocalTwin, sucker: opSucker, claimData: claimData
         });
@@ -1781,7 +1781,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // trigger — burn is the explicit `burnUnbridgeableCreditFor` entrypoint).
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_SuckerPeerMismatch.selector, arbChainId, OPTIMISM_CHAIN_ID
+                JBReferralSplitHook.JBReferralSplitHook_SuckerPeerMismatch.selector, arbChainId, OPTIMISM_CHAIN_ID
             )
         );
         hook.bridgeRemote({
@@ -1849,7 +1849,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_SuckerExistsForChain.selector,
+                JBReferralSplitHook.JBReferralSplitHook_SuckerExistsForChain.selector,
                 address(opSucker),
                 OPTIMISM_CHAIN_ID
             )
@@ -1861,19 +1861,19 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     /// @notice `burnUnbridgeableCreditFor` malformed-args guards: chainId=0, chainId=block.chainid,
     /// projectId=0, projectId=FEE_PROJECT_ID all revert.
     function test_burnUnbridgeable_revertsOnMalformedArgs() public {
-        vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_InvalidReferralProjectId.selector);
+        vm.expectRevert(JBReferralSplitHook.JBReferralSplitHook_InvalidReferralProjectId.selector);
         IJBReferralSplitHook(address(hook)).burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: 0});
 
-        vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_InvalidReferralProjectId.selector);
+        vm.expectRevert(JBReferralSplitHook.JBReferralSplitHook_InvalidReferralProjectId.selector);
         IJBReferralSplitHook(address(hook))
             .burnUnbridgeableCreditFor({referralChainId: 42_161, referralProjectId: feeProjectId});
 
-        vm.expectRevert(IJBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
+        vm.expectRevert(JBReferralSplitHook.JBReferralSplitHook_ZeroChainId.selector);
         IJBReferralSplitHook(address(hook)).burnUnbridgeableCreditFor({referralChainId: 0, referralProjectId: 42});
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_WrongBridgeTarget.selector, block.chainid, block.chainid
+                JBReferralSplitHook.JBReferralSplitHook_WrongBridgeTarget.selector, block.chainid, block.chainid
             )
         );
         IJBReferralSplitHook(address(hook))
@@ -2081,7 +2081,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // Idempotency: re-attempting the same settlement reverts.
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_LeafAlreadySettled.selector,
+                JBReferralSplitHook.JBReferralSplitHook_LeafAlreadySettled.selector,
                 address(opSucker),
                 JBConstants.NATIVE_TOKEN,
                 uint256(0)
@@ -2151,7 +2151,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_FrontRunLeafMismatch.selector, fakeLeafHash, realLeafHash
+                JBReferralSplitHook.JBReferralSplitHook_FrontRunLeafMismatch.selector, fakeLeafHash, realLeafHash
             )
         );
         hook.claimAndPush({
@@ -2215,7 +2215,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         // deprecated entries) and would have happily burned the credit here.
         vm.expectRevert(
             abi.encodeWithSelector(
-                IJBReferralSplitHook.JBReferralSplitHook_SuckerExistsForChain.selector,
+                JBReferralSplitHook.JBReferralSplitHook_SuckerExistsForChain.selector,
                 address(baseSucker),
                 BASE_CHAIN_ID
             )

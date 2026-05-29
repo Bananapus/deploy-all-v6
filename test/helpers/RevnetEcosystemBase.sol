@@ -6,6 +6,7 @@ import {RevnetForkBase} from "./RevnetForkBase.sol";
 
 // LP Split Hook
 import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
+import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
 import {IJBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/interfaces/IJBUniswapV4LPSplitHook.sol";
 
 // Uniswap V4
@@ -60,8 +61,7 @@ abstract contract RevnetEcosystemBase is RevnetForkBase {
             jbPermissions(),
             address(jbTokens()),
             permit2(),
-            IJBSuckerRegistry(address(SUCKER_REGISTRY)),
-            address(0)
+            IJBSuckerRegistry(address(SUCKER_REGISTRY))
         );
         LP_SPLIT_HOOK = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(lpSplitImpl))));
         LP_SPLIT_HOOK.initialize({
@@ -69,7 +69,8 @@ abstract contract RevnetEcosystemBase is RevnetForkBase {
             initialFeePercent: 0,
             newPoolManager: poolManager,
             newPositionManager: positionManager,
-            newOracleHook: IHooks(address(0))
+            newOracleHook: IHooks(address(0)),
+            newBuybackHook: IJBBuybackHookRegistry(address(0))
         });
 
         // Mock oracle so payments work before buyback pool is set up.
