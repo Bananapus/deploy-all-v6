@@ -44,7 +44,7 @@ contract DeployCanonicalNanaGuardTest is Test {
         );
         assertTrue(_contains(guardSource, "uriOf(projectId)"), "guard checks project URI");
         assertTrue(_contains(guardSource, "_reservedSplitIsCanonical"), "guard checks reserved split routing");
-        assertTrue(_contains(guardSource, "_nativeTerminalConfigIsCanonical"), "guard checks terminal setup");
+        assertTrue(_contains(guardSource, "_terminalConfigIsCanonical"), "guard checks terminal setup");
     }
 
     function _section(
