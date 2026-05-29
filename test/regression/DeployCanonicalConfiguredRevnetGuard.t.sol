@@ -95,15 +95,43 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         );
         assertTrue(_contains(genericGuard, "uriOf(projectId)"), "generic guard checks project URI");
         assertTrue(_contains(genericGuard, "_reservedSplitIsCanonical"), "generic guard checks reserved split");
-        assertTrue(_contains(genericGuard, "_nativeTerminalConfigIsCanonical"), "generic guard checks terminal setup");
+        assertTrue(_contains(genericGuard, "_terminalConfigIsCanonical"), "generic guard checks terminal setup");
 
         string memory hashHelper = _section({
             haystack: deploySource,
             startNeedle: "function _encodedConfigurationHashOf(",
-            endNeedle: "function _nativeTerminalConfigIsCanonical("
+            endNeedle: "function _reservedSplitIsCanonical("
         });
         assertFalse(_contains(hashHelper, "_routerTerminalRegistry"), "config hash must not encode router terminal");
         assertFalse(_contains(hashHelper, "_terminal"), "config hash must not encode multi terminal");
+
+        // The terminal guard must be token-aware: DEFIFA(5)/ART(6) are USD-denominated and accept USDC directly,
+        // so the canonical replay/resume check must compare against USDC (not native ETH) for those projects.
+        // Otherwise an already-deployed DEFIFA/ART fails the canonical check and the idempotent re-propose reverts.
+        string memory expectedTokenHelper = _section({
+            haystack: deploySource,
+            startNeedle: "function _expectedTerminalTokenFor(",
+            endNeedle: "function _terminalConfigIsCanonical("
+        });
+        assertTrue(
+            _contains(expectedTokenHelper, "_DEFIFA_REV_PROJECT_ID")
+                && _contains(expectedTokenHelper, "_ART_PROJECT_ID"),
+            "expected terminal token must special-case DEFIFA and ART"
+        );
+        assertTrue(_contains(expectedTokenHelper, "_usdcToken"), "DEFIFA/ART expected terminal token must be USDC");
+        string memory terminalConfigGuard = _section({
+            haystack: deploySource,
+            startNeedle: "function _terminalConfigIsCanonical(",
+            endNeedle: "function _projectTokenSymbolIs("
+        });
+        assertTrue(
+            _contains(terminalConfigGuard, "_expectedTerminalTokenFor(projectId)"),
+            "terminal guard resolves the per-project expected token"
+        );
+        assertFalse(
+            _contains(terminalConfigGuard, "JBConstants.NATIVE_TOKEN"),
+            "terminal guard must not hard-code the native token"
+        );
 
         string memory bannyGuard = _section({
             haystack: deploySource,
@@ -148,7 +176,7 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         string memory deploySource = vm.readFile("script/Deploy.s.sol");
         string memory terminalGuard = _section({
             haystack: deploySource,
-            startNeedle: "function _nativeTerminalConfigIsCanonical(",
+            startNeedle: "function _terminalConfigIsCanonical(",
             endNeedle: "function _projectTokenSymbolIs("
         });
 

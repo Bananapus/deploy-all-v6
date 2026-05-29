@@ -4560,7 +4560,7 @@ contract Deploy is Script, Sphinx {
             })) {
             return false;
         }
-        if (!_nativeTerminalConfigIsCanonical({projectId: projectId})) {
+        if (!_terminalConfigIsCanonical({projectId: projectId})) {
             return false;
         }
         return true;
@@ -4590,7 +4590,7 @@ contract Deploy is Script, Sphinx {
         if (!_reservedSplitIsCanonical({projectId: projectId, expectedBeneficiary: payable(expectedOperator)})) {
             return false;
         }
-        if (!_nativeTerminalConfigIsCanonical({projectId: projectId})) {
+        if (!_terminalConfigIsCanonical({projectId: projectId})) {
             return false;
         }
         return true;
@@ -4689,8 +4689,28 @@ contract Deploy is Script, Sphinx {
         return true;
     }
 
-    function _nativeTerminalConfigIsCanonical(uint256 projectId) internal view returns (bool) {
-        if (_directory.primaryTerminalOf(projectId, JBConstants.NATIVE_TOKEN) != _terminal) return false;
+    /// @notice The terminal token a canonical revnet is expected to accept on this chain.
+    /// @dev Mirrors `Verify.s.sol`'s `_expectedTerminalTokenFor`. DEFIFA(5) and ART(6) are USD-denominated and
+    /// accept USDC directly (valued into USD via the registered USDC/USD feed); every other canonical revnet
+    /// accepts native ETH. Keeping this in lockstep with the accounting contexts passed to `deployFor` (and with
+    /// the verifier) is what lets the idempotent resume/re-propose path recognize an already-deployed revnet.
+    function _expectedTerminalTokenFor(uint256 projectId)
+        internal
+        view
+        returns (address token, uint8 decimals, uint32 currency)
+    {
+        if (projectId == _DEFIFA_REV_PROJECT_ID || projectId == _ART_PROJECT_ID) {
+            return (_usdcToken, 6, _currencyIdOf(_usdcToken));
+        }
+        return (JBConstants.NATIVE_TOKEN, DECIMALS, NATIVE_CURRENCY);
+    }
+
+    /// @notice Asserts a project's terminal wiring matches the canonical shape for the token it is meant to accept.
+    /// @dev Token-aware: native ETH for most revnets, canonical USDC for the USD-denominated DEFIFA(5)/ART(6).
+    function _terminalConfigIsCanonical(uint256 projectId) internal view returns (bool) {
+        (address expectedToken, uint8 expectedDecimals, uint32 expectedCurrency) = _expectedTerminalTokenFor(projectId);
+
+        if (_directory.primaryTerminalOf(projectId, expectedToken) != _terminal) return false;
 
         if (address(_routerTerminalRegistry) != address(0)) {
             if (!_directory.isTerminalOf(projectId, IJBTerminal(address(_routerTerminalRegistry)))) return false;
@@ -4701,11 +4721,11 @@ contract Deploy is Script, Sphinx {
         }
 
         JBAccountingContext memory accountingContext =
-            _terminal.accountingContextForTokenOf({projectId: projectId, token: JBConstants.NATIVE_TOKEN});
+            _terminal.accountingContextForTokenOf({projectId: projectId, token: expectedToken});
 
-        if (accountingContext.token != JBConstants.NATIVE_TOKEN) return false;
-        if (accountingContext.decimals != DECIMALS) return false;
-        if (accountingContext.currency != NATIVE_CURRENCY) return false;
+        if (accountingContext.token != expectedToken) return false;
+        if (accountingContext.decimals != expectedDecimals) return false;
+        if (accountingContext.currency != expectedCurrency) return false;
 
         return true;
     }
