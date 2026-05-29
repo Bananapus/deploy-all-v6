@@ -103,12 +103,12 @@ contract ExternalAddressVerifierGapTest is Test {
             directory_: directory,
             controller_: controller,
             tokens_: address(new MockTokens({revToken_: revToken, nanaToken_: nanaToken})),
-            addressRegistry_: deployer.REGISTRY(),
-            defifaHookStore_: deployer.HOOK_STORE(),
+            addressRegistry_: deployer.registry(),
+            defifaHookStore_: deployer.hookStore(),
             defifaDeployer_: address(deployer)
         });
 
-        assertEq(MockDefifaTokenUriResolver(address(deployer.TOKEN_URI_RESOLVER())).TYPEFACE(), wrongTypeface);
+        assertEq(MockDefifaTokenUriResolver(address(deployer.tokenUriResolver())).TYPEFACE(), wrongTypeface);
 
         // Current Verify.s.sol only checks that TOKEN_URI_RESOLVER has code. It does not
         // authenticate DefifaTokenUriResolver.TYPEFACE(), so the wrong immutable passes.
@@ -577,35 +577,35 @@ contract MockDefifaDeployer {
         _governor = governor_;
     }
 
-    function DEFIFA_PROJECT_ID() external pure returns (uint256) {
+    function defifaProjectId() external pure returns (uint256) {
         return 5;
     }
 
-    function BASE_PROTOCOL_PROJECT_ID() external pure returns (uint256) {
+    function baseProtocolProjectId() external pure returns (uint256) {
         return 1;
     }
 
-    function CONTROLLER() external view returns (address) {
+    function controller() external view returns (address) {
         return _controller;
     }
 
-    function REGISTRY() external view returns (address) {
+    function registry() external view returns (address) {
         return _addressRegistry;
     }
 
-    function HOOK_STORE() external view returns (address) {
+    function hookStore() external view returns (address) {
         return _hookStore;
     }
 
-    function HOOK_CODE_ORIGIN() external view returns (address) {
+    function hookCodeOrigin() external view returns (address) {
         return _hookCodeOrigin;
     }
 
-    function TOKEN_URI_RESOLVER() external view returns (address) {
+    function tokenUriResolver() external view returns (address) {
         return _tokenUriResolver;
     }
 
-    function GOVERNOR() external view returns (address) {
+    function governor() external view returns (address) {
         return _governor;
     }
 }
