@@ -3344,24 +3344,28 @@ contract Verify is Script {
                     });
                 }
 
-                // native-token bridge mapping must be enabled. A pair where the
-                // native-token mapping is intentionally disabled (or emergency-hatch-stuck) is
-                // structurally indistinguishable from a properly-deployed pair on the count +
-                // remote checks, but the native cross-chain transfer path is dead for end users.
-                // Reject the disabled mapping so a launch cannot ship a registered-but-unusable
-                // sucker pair.
+                // The project's accounting-token bridge mapping must be enabled. DEFIFA(5)/ART(6)
+                // bridge USDC (their accounting token); every other canonical revnet bridges the
+                // native token. A pair whose accounting-token mapping is disabled (or
+                // emergency-hatch-stuck) is structurally indistinguishable from a properly-deployed
+                // pair on the count + remote checks, but the cross-chain transfer path is dead for
+                // end users. Reject the disabled mapping so a launch cannot ship a
+                // registered-but-unusable sucker pair. Mirrors the deploy-side per-project token
+                // selection (`_expectedTerminalTokenFor`) so this check stays in sync with the
+                // USDC-accounting projects rather than spuriously failing them on a native lookup.
+                (address expectedLocalToken,,,,) = _expectedTerminalTokenFor(pids[i]);
                 (bool okMap, bytes memory mapData) =
-                    local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", JBConstants.NATIVE_TOKEN));
+                    local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", expectedLocalToken));
                 if (okMap && mapData.length >= 32) {
                     // JBRemoteToken layout: { enabled, emergencyHatch, minGas, addr } — the first
                     // 32-byte slot holds `enabled` as the right-aligned bool.
-                    bool nativeEnabled;
+                    bool mappingEnabled;
                     assembly {
-                        nativeEnabled := iszero(iszero(mload(add(mapData, 0x20))))
+                        mappingEnabled := iszero(iszero(mload(add(mapData, 0x20))))
                     }
                     _check({
-                        condition: nativeEnabled,
-                        label: string.concat(pairLabel, " native-token remote mapping is enabled"),
+                        condition: mappingEnabled,
+                        label: string.concat(pairLabel, " accounting-token remote mapping is enabled"),
                         critical: true
                     });
                 } else {
@@ -3374,11 +3378,12 @@ contract Verify is Script {
 
                 // per-pair exact-manifest equality. Env var
                 // `VERIFY_SUCKER_PAIR_<projectId>_<j>` carries
-                // `<peer>:<remoteChainId>:<remoteNativeToken>:<emergencyHatch>` so each pair's
-                // remote peer (bytes32), remote chain id (decimal uint), native-token addr
-                // (bytes32), and emergency-hatch flag (0/1) can be checked exactly. Without this
+                // `<peer>:<remoteChainId>:<remoteToken>:<emergencyHatch>` so each pair's
+                // remote peer (bytes32), remote chain id (decimal uint), remote bridged-token addr
+                // (bytes32 — remote USDC for DEFIFA(5)/ART(6), remote native otherwise), and
+                // emergency-hatch flag (0/1) can be checked exactly. Without this
                 // a deployment can ship the right pair count + nonzero/enabled liveness
-                // predicates while the actual peers / chain ids / native-token mappings drift
+                // predicates while the actual peers / chain ids / token mappings drift
                 // from the canonical manifest — which makes `fromRemote` reject legitimate
                 // messages or strand bridged value.
                 _checkSuckerPairAgainstManifest({
@@ -3458,7 +3463,9 @@ contract Verify is Script {
         }
         bytes32 expectedPeer = vm.parseBytes32(parts[0]);
         uint256 expectedRemoteChainId = vm.parseUint(parts[1]);
-        bytes32 expectedRemoteNativeToken = vm.parseBytes32(parts[2]);
+        // The manifest's third field carries the remote bridged token: remote USDC for DEFIFA(5)/ART(6)
+        // (which bridge their USDC accounting token), remote native token for every other revnet.
+        bytes32 expectedRemoteToken = vm.parseBytes32(parts[2]);
         bool expectedEmergencyHatch = vm.parseUint(parts[3]) != 0;
 
         // 1. Pair's `remoteChainId` (from the registry) matches expected.
@@ -3485,11 +3492,14 @@ contract Verify is Script {
             critical: true
         });
 
-        // 4. Native-token mapping: addr + emergencyHatch. The first 32 bytes hold `enabled`
+        // 4. Accounting-token mapping: addr + emergencyHatch. The first 32 bytes hold `enabled`
         //    (already asserted above), the next hold `emergencyHatch`, then `minGas`, then
-        //    `addr` — total 4 word slots in the ABI-encoded JBRemoteToken layout.
+        //    `addr` — total 4 word slots in the ABI-encoded JBRemoteToken layout. Resolve the
+        //    project's bridged token (USDC for DEFIFA(5)/ART(6), native otherwise) so the manifest
+        //    check stays in sync with the USDC-accounting projects (mirrors `_expectedTerminalTokenFor`).
+        (address expectedLocalToken,,,,) = _expectedTerminalTokenFor(projectId);
         (bool okMap, bytes memory mapData) =
-            local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", JBConstants.NATIVE_TOKEN));
+            local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", expectedLocalToken));
         if (okMap && mapData.length >= 128) {
             bool actualEmergencyHatch;
             bytes32 actualAddr;
@@ -3498,13 +3508,13 @@ contract Verify is Script {
                 actualAddr := mload(add(mapData, 0x80))
             }
             _check({
-                condition: actualAddr == expectedRemoteNativeToken,
-                label: string.concat(pairLabel, " remoteTokenFor(NATIVE_TOKEN).addr == expected"),
+                condition: actualAddr == expectedRemoteToken,
+                label: string.concat(pairLabel, " remoteTokenFor(accounting token).addr == expected"),
                 critical: true
             });
             _check({
                 condition: actualEmergencyHatch == expectedEmergencyHatch,
-                label: string.concat(pairLabel, " remoteTokenFor(NATIVE_TOKEN).emergencyHatch == expected"),
+                label: string.concat(pairLabel, " remoteTokenFor(accounting token).emergencyHatch == expected"),
                 critical: true
             });
         }
