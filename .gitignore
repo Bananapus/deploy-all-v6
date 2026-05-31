@@ -37,3 +37,7 @@ rehearsal-output/
 
 # Local audit findings triage (not part of the deployable repo)
 MAY.md
+MAY2.md
+
+# Local task/workflow notes (not part of the deployable repo)
+tasks/
