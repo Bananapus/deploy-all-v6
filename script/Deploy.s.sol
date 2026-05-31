@@ -1389,16 +1389,13 @@ contract Deploy is Script, Sphinx {
         // L1: Deploy CCIP suckers for OP, Base, Arb
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             _deployCCIPRoute({
-                standardSalt: OP_SALT,
-                remoteChainId: block.chainid == 1 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID
+                standardSalt: OP_SALT, remoteChainId: block.chainid == 1 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID
             });
             _deployCCIPRoute({
-                standardSalt: BASE_SALT,
-                remoteChainId: block.chainid == 1 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
+                standardSalt: BASE_SALT, remoteChainId: block.chainid == 1 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
             });
             _deployCCIPRoute({
-                standardSalt: ARB_SALT,
-                remoteChainId: block.chainid == 1 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
+                standardSalt: ARB_SALT, remoteChainId: block.chainid == 1 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
             });
             // Tempo CCIP routes are intentionally excluded until the chain is ready.
         }
@@ -1421,8 +1418,7 @@ contract Deploy is Script, Sphinx {
         // Optimism / Optimism Sepolia
         else if (block.chainid == 10 || block.chainid == 11_155_420) {
             _deployCCIPRoute({
-                standardSalt: OP_SALT,
-                remoteChainId: block.chainid == 10 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID
+                standardSalt: OP_SALT, remoteChainId: block.chainid == 10 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID
             });
             _deployCCIPRoute({
                 standardSalt: ARB_OP_SALT,
