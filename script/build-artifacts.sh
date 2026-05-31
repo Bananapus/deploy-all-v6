@@ -161,18 +161,15 @@ CONTRACTS=(
   "nana-suckers-v6:JBSuckerLib:src/libraries/JBSuckerLib.sol"
   "nana-suckers-v6:JBCCIPLib:src/libraries/JBCCIPLib.sol"
   "nana-suckers-v6:CCIPHelper:src/libraries/CCIPHelper.sol"
-  "nana-suckers-v6:JBSwapPoolLib:src/libraries/JBSwapPoolLib.sol"
   "nana-suckers-v6:JBSuckerRegistry:src/JBSuckerRegistry.sol"
   "nana-suckers-v6:JBOptimismSucker:src/JBOptimismSucker.sol"
   "nana-suckers-v6:JBBaseSucker:src/JBBaseSucker.sol"
   "nana-suckers-v6:JBArbitrumSucker:src/JBArbitrumSucker.sol"
   "nana-suckers-v6:JBCCIPSucker:src/JBCCIPSucker.sol"
-  "nana-suckers-v6:JBSwapCCIPSucker:src/JBSwapCCIPSucker.sol"
   "nana-suckers-v6:JBOptimismSuckerDeployer:src/deployers/JBOptimismSuckerDeployer.sol"
   "nana-suckers-v6:JBBaseSuckerDeployer:src/deployers/JBBaseSuckerDeployer.sol"
   "nana-suckers-v6:JBArbitrumSuckerDeployer:src/deployers/JBArbitrumSuckerDeployer.sol"
   "nana-suckers-v6:JBCCIPSuckerDeployer:src/deployers/JBCCIPSuckerDeployer.sol"
-  "nana-suckers-v6:JBSwapCCIPSuckerDeployer:src/deployers/JBSwapCCIPSuckerDeployer.sol"
 
   # ── nana-omnichain-deployers-v6 ──
   "nana-omnichain-deployers-v6:JBOmnichainDeployer:src/JBOmnichainDeployer.sol"
@@ -484,7 +481,6 @@ LIB_SALTS=(
   "JBSuckerLib:_JBSuckerLibV6_"
   "JBCCIPLib:_JBCCIPLibV6_"
   "CCIPHelper:_CCIPHelperV6_"
-  "JBSwapPoolLib:_JBSwapPoolLibV6_"
   "DefifaHookLib:_DefifaHookLibV6_"
   "JBUniswapV4LPSplitHookMath:_JBUniswapV4LPSplitHookMathV6_"
 )

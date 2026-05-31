@@ -47,7 +47,7 @@
     "@bananapus/project-payer-v6": "^0.0.20",
     "@bananapus/referral-split-hook-v6": "^0.0.8",
     "@bananapus/router-terminal-v6": "^0.0.58",
-    "@bananapus/suckers-v6": "^0.0.63",
+    "@bananapus/suckers-v6": "^0.0.65",
     "@bananapus/univ4-lp-split-hook-v6": "^0.0.54",
     "@bananapus/univ4-router-v6": "^0.0.48",
     "@bannynet/core-v6": "^0.0.41",

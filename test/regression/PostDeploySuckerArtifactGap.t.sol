@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 /// @notice Regression: _dumpAddresses must emit the singleton implementation address for
 /// every standard sucker deployer (JBOptimismSucker / JBBaseSucker / JBArbitrumSucker) AND the
-/// per-route CCIP and SwapCCIP deployers + their singletons (with `__<remoteChainSuffix>` naming).
+/// per-route CCIP deployers + their singletons (with `__<remoteChainSuffix>` naming).
 contract PostDeploySuckerArtifactGapTest is Test {
     function test_suckerSingletonsAndCcipRouteDeployersAreEmitted() public view {
         string memory deploySource = vm.readFile("script/Deploy.s.sol");
@@ -18,17 +18,12 @@ contract PostDeploySuckerArtifactGapTest is Test {
         assertTrue(_contains(deploySource, 'artifactName: "JBBaseSucker"'), "deploys Base sucker singleton");
         assertTrue(_contains(deploySource, 'artifactName: "JBArbitrumSucker"'), "deploys Arbitrum sucker singleton");
         assertTrue(_contains(deploySource, 'artifactName: "JBCCIPSucker"'), "deploys CCIP sucker singleton");
-        assertTrue(_contains(deploySource, 'artifactName: "JBSwapCCIPSucker"'), "deploys swap CCIP sucker singleton");
         assertTrue(
             _contains(deploySource, "configureSingleton(singleton)"),
             "deployed sucker singletons are bound to clone deployers"
         );
         assertTrue(
             _contains(deploySource, 'artifactName: "JBCCIPSuckerDeployer"'), "deploys route-specific CCIP deployers"
-        );
-        assertTrue(
-            _contains(deploySource, 'artifactName: "JBSwapCCIPSuckerDeployer"'),
-            "deploys route-specific swap CCIP deployers"
         );
 
         // _dumpAddresses emits the standard deployers AND their singletons.
@@ -39,7 +34,7 @@ contract PostDeploySuckerArtifactGapTest is Test {
         assertTrue(_contains(dumpSource, 'name: "JBBaseSucker"'), "Base singleton is now emitted");
         assertTrue(_contains(dumpSource, 'name: "JBArbitrumSucker"'), "Arbitrum singleton is now emitted");
 
-        // _dumpAddresses emits per-route CCIP and SwapCCIP via _serializeCCIPRouteDeployers.
+        // _dumpAddresses emits per-route CCIP via _serializeCCIPRouteDeployers.
         assertTrue(
             _contains(dumpSource, "_serializeCCIPRouteDeployers"),
             "per-route deployer enumeration is invoked from the dump"
@@ -54,14 +49,6 @@ contract PostDeploySuckerArtifactGapTest is Test {
         );
 
         // The per-route helper emits both deployer and singleton names with `__<suffix>` shape.
-        assertTrue(
-            _contains(deploySource, '"JBSwapCCIPSuckerDeployer" : "JBCCIPSuckerDeployer"'),
-            "per-route helper branches on Swap vs standard CCIP deployer"
-        );
-        assertTrue(
-            _contains(deploySource, '"JBSwapCCIPSucker" : "JBCCIPSucker"'),
-            "per-route helper branches on Swap vs standard CCIP singleton"
-        );
         assertTrue(
             _contains(deploySource, "_chainIdToRouteSuffix(remoteId)"),
             "per-route helper derives suffix from ccipRemoteChainId"
@@ -90,9 +77,7 @@ contract PostDeploySuckerArtifactGapTest is Test {
             _contains(docs, "not yet emitted to `addresses-<chainId>.json`"),
             "docs no longer note missing sucker route emissions"
         );
-        assertTrue(
-            _contains(docs, "Per-route CCIP / SwapCCIP suckers"), "docs describe the new per-route emission scheme"
-        );
+        assertTrue(_contains(docs, "Per-route CCIP"), "docs describe the new per-route emission scheme");
         assertTrue(_contains(docs, "JBCCIPSucker__<RouteSuffix>"), "docs document the per-route naming suffix");
     }
 

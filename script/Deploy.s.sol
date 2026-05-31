@@ -99,13 +99,11 @@ import {JBArbitrumSucker} from "@bananapus/suckers-v6/src/JBArbitrumSucker.sol";
 import {JBBaseSucker} from "@bananapus/suckers-v6/src/JBBaseSucker.sol";
 import {JBCCIPSucker} from "@bananapus/suckers-v6/src/JBCCIPSucker.sol";
 import {JBOptimismSucker} from "@bananapus/suckers-v6/src/JBOptimismSucker.sol";
-import {JBSwapCCIPSucker} from "@bananapus/suckers-v6/src/JBSwapCCIPSucker.sol";
 import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
 import {JBArbitrumSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBArbitrumSuckerDeployer.sol";
 import {JBBaseSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBBaseSuckerDeployer.sol";
 import {JBCCIPSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBCCIPSuckerDeployer.sol";
 import {JBOptimismSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBOptimismSuckerDeployer.sol";
-import {JBSwapCCIPSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBSwapCCIPSuckerDeployer.sol";
 import {JBLayer} from "@bananapus/suckers-v6/src/enums/JBLayer.sol";
 import {IArbGatewayRouter} from "@bananapus/suckers-v6/src/interfaces/IArbGatewayRouter.sol";
 import {ICCIPRouter} from "@bananapus/suckers-v6/src/interfaces/ICCIPRouter.sol";
@@ -232,7 +230,6 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant SUCKER_LIB_SALT = keccak256("_JBSuckerLibV6_");
     bytes32 private constant CCIP_LIB_SALT = keccak256("_JBCCIPLibV6_");
     bytes32 private constant CCIP_HELPER_SALT = keccak256("_CCIPHelperV6_");
-    bytes32 private constant SWAP_POOL_LIB_SALT = keccak256("_JBSwapPoolLibV6_");
     bytes32 private constant DEFIFA_HOOK_LIB_SALT = keccak256("_DefifaHookLibV6_");
     bytes32 private constant UNIV4_LP_SPLIT_HOOK_MATH_LIB_SALT = keccak256("_JBUniswapV4LPSplitHookMathV6_");
 
@@ -264,12 +261,6 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant OP_BASE_SALT = "_SUCKER_OP_BASE_V6_";
     bytes32 private constant TEMPO_SALT = "_SUCKER_ETH_TEMPO_V6_";
     bytes32 private constant SUCKER_REGISTRY_SALT = "REGISTRYV6";
-    bytes32 private constant SWAP_OP_SALT = "_SWAP_SUCKER_ETH_OP_V6_";
-    bytes32 private constant SWAP_BASE_SALT = "_SWAP_SUCKER_ETH_BASE_V6";
-    bytes32 private constant SWAP_ARB_SALT = "_SWAP_SUCKER_ETH_ARB_V6_";
-    bytes32 private constant SWAP_ARB_BASE_SALT = "_SWAP_SUCKER_ARB_BASEV6";
-    bytes32 private constant SWAP_ARB_OP_SALT = "_SWAP_SUCKER_ARB_OP_V6_";
-    bytes32 private constant SWAP_OP_BASE_SALT = "_SWAP_SUCKER_OP_BASE_V6_";
 
     // ── Omnichain Deployer salt ──
     bytes32 private constant OMNICHAIN_DEPLOYER_SALT = "JBOmnichainDeployerV6_";
@@ -764,14 +755,12 @@ contract Deploy is Script, Sphinx {
         // JB721TiersHookLib — DELEGATECALL'd by JB721TiersHook.
         _deployPrecompiledIfNeeded({artifactName: "JB721TiersHookLib", salt: TIERS_HOOK_LIB_SALT, ctorArgs: ""});
         // JBSuckerLib — DELEGATECALL'd by JBOptimismSucker / JBBaseSucker / JBArbitrumSucker /
-        // JBCCIPSucker / JBSwapCCIPSucker.
+        // JBCCIPSucker.
         _deployPrecompiledIfNeeded({artifactName: "JBSuckerLib", salt: SUCKER_LIB_SALT, ctorArgs: ""});
-        // JBCCIPLib — DELEGATECALL'd by JBCCIPSucker / JBSwapCCIPSucker.
+        // JBCCIPLib — DELEGATECALL'd by JBCCIPSucker.
         _deployPrecompiledIfNeeded({artifactName: "JBCCIPLib", salt: CCIP_LIB_SALT, ctorArgs: ""});
         // CCIPHelper — DELEGATECALL'd by JBCCIPSucker (chain selector / router lookups).
         _deployPrecompiledIfNeeded({artifactName: "CCIPHelper", salt: CCIP_HELPER_SALT, ctorArgs: ""});
-        // JBSwapPoolLib — DELEGATECALL'd by JBSwapCCIPSucker.
-        _deployPrecompiledIfNeeded({artifactName: "JBSwapPoolLib", salt: SWAP_POOL_LIB_SALT, ctorArgs: ""});
         // DefifaHookLib — DELEGATECALL'd by DefifaHook + DefifaGovernor.
         _deployPrecompiledIfNeeded({artifactName: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT, ctorArgs: ""});
         // JBUniswapV4LPSplitHookMath — pricing math linked into JBUniswapV4LPSplitHook (EIP-170 extraction).
@@ -1401,17 +1390,14 @@ contract Deploy is Script, Sphinx {
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             _deployCCIPRoute({
                 standardSalt: OP_SALT,
-                swapSalt: SWAP_OP_SALT,
                 remoteChainId: block.chainid == 1 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID
             });
             _deployCCIPRoute({
                 standardSalt: BASE_SALT,
-                swapSalt: SWAP_BASE_SALT,
                 remoteChainId: block.chainid == 1 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
             });
             _deployCCIPRoute({
                 standardSalt: ARB_SALT,
-                swapSalt: SWAP_ARB_SALT,
                 remoteChainId: block.chainid == 1 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
             });
             // Tempo CCIP routes are intentionally excluded until the chain is ready.
@@ -1421,17 +1407,14 @@ contract Deploy is Script, Sphinx {
         if (block.chainid == 42_161 || block.chainid == 421_614) {
             _deployCCIPRoute({
                 standardSalt: ARB_SALT,
-                swapSalt: SWAP_ARB_SALT,
                 remoteChainId: block.chainid == 42_161 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID
             });
             _deployCCIPRoute({
                 standardSalt: ARB_OP_SALT,
-                swapSalt: SWAP_ARB_OP_SALT,
                 remoteChainId: block.chainid == 42_161 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID
             });
             _deployCCIPRoute({
                 standardSalt: ARB_BASE_SALT,
-                swapSalt: SWAP_ARB_BASE_SALT,
                 remoteChainId: block.chainid == 42_161 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
             });
         }
@@ -1439,17 +1422,14 @@ contract Deploy is Script, Sphinx {
         else if (block.chainid == 10 || block.chainid == 11_155_420) {
             _deployCCIPRoute({
                 standardSalt: OP_SALT,
-                swapSalt: SWAP_OP_SALT,
                 remoteChainId: block.chainid == 10 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID
             });
             _deployCCIPRoute({
                 standardSalt: ARB_OP_SALT,
-                swapSalt: SWAP_ARB_OP_SALT,
                 remoteChainId: block.chainid == 10 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
             });
             _deployCCIPRoute({
                 standardSalt: OP_BASE_SALT,
-                swapSalt: SWAP_OP_BASE_SALT,
                 remoteChainId: block.chainid == 10 ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID
             });
         }
@@ -1457,17 +1437,14 @@ contract Deploy is Script, Sphinx {
         else if (block.chainid == 8453 || block.chainid == 84_532) {
             _deployCCIPRoute({
                 standardSalt: BASE_SALT,
-                swapSalt: SWAP_BASE_SALT,
                 remoteChainId: block.chainid == 8453 ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID
             });
             _deployCCIPRoute({
                 standardSalt: OP_BASE_SALT,
-                swapSalt: SWAP_OP_BASE_SALT,
                 remoteChainId: block.chainid == 8453 ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID
             });
             _deployCCIPRoute({
                 standardSalt: ARB_BASE_SALT,
-                swapSalt: SWAP_ARB_BASE_SALT,
                 remoteChainId: block.chainid == 8453 ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID
             });
         }
@@ -1475,15 +1452,12 @@ contract Deploy is Script, Sphinx {
         // Tempo / Tempo Moderato CCIP routes are intentionally excluded until the chain is ready.
     }
 
-    function _deployCCIPRoute(bytes32 standardSalt, bytes32 swapSalt, uint256 remoteChainId) internal {
+    function _deployCCIPRoute(bytes32 standardSalt, uint256 remoteChainId) internal {
         IJBSuckerDeployer ccipDeployer =
             IJBSuckerDeployer(address(_deployCCIPSuckerFor({salt: standardSalt, remoteChainId: remoteChainId})));
         _preApprovedSuckerDeployers.push(address(ccipDeployer));
         // Retain a reference so USDC revnets can wire the standard CCIP deployer for this edge by remote chain id.
         _ccipSuckerDeployerForRemoteChain[remoteChainId] = ccipDeployer;
-        _preApprovedSuckerDeployers.push(
-            address(_deploySwapCCIPSuckerFor({salt: swapSalt, remoteChainId: remoteChainId}))
-        );
     }
 
     function _deployCCIPSuckerFor(bytes32 salt, uint256 remoteChainId)
@@ -1509,51 +1483,6 @@ contract Deploy is Script, Sphinx {
         JBCCIPSucker singleton = JBCCIPSucker(
             payable(_deployPrecompiledIfNeeded({
                     artifactName: "JBCCIPSucker",
-                    salt: salt,
-                    ctorArgs: abi.encode(
-                        deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
-                    )
-                }))
-        );
-        if (address(deployer.singleton()) == address(0)) deployer.configureSingleton(singleton);
-    }
-
-    function _deploySwapCCIPSuckerFor(
-        bytes32 salt,
-        uint256 remoteChainId
-    )
-        internal
-        returns (JBSwapCCIPSuckerDeployer deployer)
-    {
-        deployer = JBSwapCCIPSuckerDeployer(
-            _deployPrecompiledIfNeeded({
-                artifactName: "JBSwapCCIPSuckerDeployer",
-                salt: salt,
-                ctorArgs: abi.encode(_directory, _permissions, _tokens, safeAddress(), _trustedForwarder)
-            })
-        );
-
-        if (address(deployer.ccipRouter()) == address(0)) {
-            deployer.setChainSpecificConstants({
-                remoteChainId: remoteChainId,
-                remoteChainSelector: CCIPHelper.selectorOfChain(remoteChainId),
-                router: ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
-            });
-        }
-
-        if (address(deployer.bridgeToken()) == address(0)) {
-            deployer.setSwapConstants({
-                newBridgeToken: IERC20(_usdcToken),
-                newPoolManager: IPoolManager(_poolManager),
-                newV3Factory: IUniswapV3Factory(_v3Factory),
-                newUniv4Hook: address(_uniswapV4Hook),
-                newWrappedNativeToken: _wrappedNativeToken
-            });
-        }
-
-        JBSwapCCIPSucker singleton = JBSwapCCIPSucker(
-            payable(_deployPrecompiledIfNeeded({
-                    artifactName: "JBSwapCCIPSucker",
                     salt: salt,
                     ctorArgs: abi.encode(
                         deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
@@ -5070,7 +4999,7 @@ contract Deploy is Script, Sphinx {
         _serializeSingletonFromDeployer({key: j, name: "JBBaseSucker", deployer: address(_baseSuckerDeployer)});
         _serializeIfSet({key: j, name: "JBArbitrumSuckerDeployer", addr: address(_arbitrumSuckerDeployer)});
         _serializeSingletonFromDeployer({key: j, name: "JBArbitrumSucker", deployer: address(_arbitrumSuckerDeployer)});
-        // Per-route CCIP and SwapCCIP deployers + their singletons. The standard 3 above are also
+        // Per-route CCIP deployers + their singletons. The standard 3 above are also
         // pushed into _preApprovedSuckerDeployers; skip them since they're already emitted.
         _serializeCCIPRouteDeployers({key: j});
         _serializeIfSet({key: j, name: "JBOmnichainDeployer", addr: address(_omnichainDeployer)});
@@ -5106,7 +5035,6 @@ contract Deploy is Script, Sphinx {
         _serializeLibrary({key: j, name: "JBSuckerLib", salt: SUCKER_LIB_SALT});
         _serializeLibrary({key: j, name: "JBCCIPLib", salt: CCIP_LIB_SALT});
         _serializeLibrary({key: j, name: "CCIPHelper", salt: CCIP_HELPER_SALT});
-        _serializeLibrary({key: j, name: "JBSwapPoolLib", salt: SWAP_POOL_LIB_SALT});
         _serializeLibrary({key: j, name: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT});
 
         // JBERC20 — constructor (permissions, projects), shared with tokens.
@@ -5215,7 +5143,7 @@ contract Deploy is Script, Sphinx {
     /// Reads `deployer.singleton()` via low-level staticcall (works across the
     /// concrete deployer types without importing each interface separately) and
     /// serializes it if non-zero. Used for emitting JBOptimismSucker / JBBaseSucker /
-    /// JBArbitrumSucker / JBCCIPSucker / JBSwapCCIPSucker implementation addresses
+    /// JBArbitrumSucker / JBCCIPSucker implementation addresses
     /// alongside their deployers so the post-deploy verifier and artifact emitter
     /// can prove the implementation bytecode matches the published artifact.
     function _serializeSingletonFromDeployer(string memory key, string memory name, address deployer) internal {
@@ -5250,9 +5178,9 @@ contract Deploy is Script, Sphinx {
 
     /// Iterates `_preApprovedSuckerDeployers`, skipping the three standard
     /// per-source-chain deployers (already emitted via state vars), and emits
-    /// each CCIP / SwapCCIP route deployer plus its singleton with a remote-
-    /// chain suffix. Without this, post-deploy verification cannot prove the
-    /// per-route deployer or singleton bytecode matches the published artifact.
+    /// each CCIP route deployer plus its singleton with a remote-chain suffix.
+    /// Without this, post-deploy verification cannot prove the per-route
+    /// deployer or singleton bytecode matches the published artifact.
     function _serializeCCIPRouteDeployers(string memory key) internal {
         for (uint256 i; i < _preApprovedSuckerDeployers.length; i++) {
             address d = _preApprovedSuckerDeployers[i];
@@ -5265,12 +5193,8 @@ contract Deploy is Script, Sphinx {
             uint256 remoteId = abi.decode(idData, (uint256));
             string memory suffix = _chainIdToRouteSuffix(remoteId);
 
-            (bool okBridge, bytes memory bridgeData) = d.staticcall(abi.encodeWithSignature("bridgeToken()"));
-            bool isSwap = okBridge && bridgeData.length >= 32 && abi.decode(bridgeData, (address)) != address(0);
-
-            string memory deployerName =
-                string.concat(isSwap ? "JBSwapCCIPSuckerDeployer" : "JBCCIPSuckerDeployer", "__", suffix);
-            string memory singletonName = string.concat(isSwap ? "JBSwapCCIPSucker" : "JBCCIPSucker", "__", suffix);
+            string memory deployerName = string.concat("JBCCIPSuckerDeployer", "__", suffix);
+            string memory singletonName = string.concat("JBCCIPSucker", "__", suffix);
             vm.serializeAddress({objectKey: key, valueKey: deployerName, value: d});
             _serializeSingletonFromDeployer({key: key, name: singletonName, deployer: d});
         }
