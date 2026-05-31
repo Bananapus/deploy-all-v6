@@ -631,38 +631,10 @@ contract Verify is Script {
                     critical: true
                 });
 
-                // CPN posting criteria for categories 0-4 must match the canonical values that
-                // `Deploy.s.sol::_deployCroptop` registers. The verifier hardcodes the same
-                // constants the deploy script uses so an off-chain operator manifest isn't
-                // required — same source of truth, no env-var dependency. The default deploy
-                // sets an empty `allowedAddresses` list per category; if that ever changes, the
-                // deploy script and the canonical-values table here must move together.
-                if (address(ctPublisher) != address(0)) {
-                    for (uint256 cat; cat <= 4; cat++) {
-                        (
-                            uint256 minPrice,
-                            uint256 minSupply,
-                            uint256 maxSupply,
-                            uint256 maxSplitPct,
-                            address[] memory allowed
-                        ) = ctPublisher.allowanceFor({hook: address(cpnHook), category: cat});
-                        _check({
-                            condition: minPrice > 0,
-                            label: string.concat(
-                                "CPN posting criteria category ", vm.toString(cat), " configured (minPrice > 0)"
-                            ),
-                            critical: true
-                        });
-                        _verifyCpnCriterionExact({
-                            cat: cat,
-                            minPrice: minPrice,
-                            minSupply: minSupply,
-                            maxSupply: maxSupply,
-                            maxSplitPct: maxSplitPct,
-                            allowed: allowed
-                        });
-                    }
-                }
+                // CPN deploys with NO Croptop posting criteria. The operator configures them
+                // post-deploy via CTPublisher.configurePostingCriteriaFor (it holds ADJUST_721_TIERS
+                // through REVOwner). There is nothing canonical to assert here — the hook's existence
+                // and identity (checked above) is the only deploy-time guarantee.
             }
         } else {
             _skip("Banny / CPN 721 hook identity checks (REVOwner not configured)");
@@ -3957,73 +3929,6 @@ contract Verify is Script {
         return address(checkpointsDeployer);
     }
 
-    /// @notice Assert the live CTPublisher CPN posting criteria for category `cat` match the
-    /// canonical values from `Deploy.s.sol::_deployCroptop`. Same source of truth (the deploy
-    /// script's hardcoded REVCroptopAllowedPost values), no operator env input needed.
-    /// @dev If the canonical CPN config changes in the deploy script, the table here must change
-    /// alongside it. The deploy script uses `DECIMALS = 18`; matching power-of-ten literals are
-    /// inlined below to keep the canonical table grep-able next to its checks.
-    function _verifyCpnCriterionExact(
-        uint256 cat,
-        uint256 minPrice,
-        uint256 minSupply,
-        uint256 maxSupply,
-        uint256 maxSplitPct,
-        address[] memory allowed
-    )
-        internal
-    {
-        // Canonical values mirror Deploy.s.sol `_deployCroptop`. `DECIMALS = 18`.
-        uint256 expectedMinPrice;
-        uint256 expectedMinSupply;
-        uint256 expectedMaxSupply = 999_999_999; // shared across categories
-        uint256 expectedMaxSplitPct = 0; // shared
-        if (cat == 0) {
-            expectedMinPrice = 10 ** 13; // 10 ** (DECIMALS - 5)
-            expectedMinSupply = 10_000;
-        } else if (cat == 1) {
-            expectedMinPrice = 10 ** 15; // 10 ** (DECIMALS - 3)
-            expectedMinSupply = 10_000;
-        } else if (cat == 2) {
-            expectedMinPrice = 10 ** 17; // 10 ** (DECIMALS - 1)
-            expectedMinSupply = 100;
-        } else if (cat == 3) {
-            expectedMinPrice = 10 ** 18; // 10 ** DECIMALS
-            expectedMinSupply = 10;
-        } else if (cat == 4) {
-            expectedMinPrice = 10 ** 20; // 10 ** (DECIMALS + 2)
-            expectedMinSupply = 10;
-        } else {
-            // Caller loops 0..4; any other category isn't part of the canonical CPN config.
-            return;
-        }
-
-        _check({
-            condition: minPrice == expectedMinPrice,
-            label: string.concat("CPN category ", vm.toString(cat), " minPrice == canonical"),
-            critical: true
-        });
-        _check({
-            condition: minSupply == expectedMinSupply,
-            label: string.concat("CPN category ", vm.toString(cat), " minSupply == canonical"),
-            critical: true
-        });
-        _check({
-            condition: maxSupply == expectedMaxSupply,
-            label: string.concat("CPN category ", vm.toString(cat), " maxSupply == canonical"),
-            critical: true
-        });
-        _check({
-            condition: maxSplitPct == expectedMaxSplitPct,
-            label: string.concat("CPN category ", vm.toString(cat), " maxSplitPercent == canonical"),
-            critical: true
-        });
-        _check({
-            condition: allowed.length == 0,
-            label: string.concat("CPN category ", vm.toString(cat), " allowed-addresses is empty (canonical)"),
-            critical: true
-        });
-    }
 
     /// loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
     /// Falls back to the legacy VERIFY_CONFIG_HASHES CSV when individual vars are unset, for
