@@ -1795,9 +1795,8 @@ contract Deploy is Script, Sphinx {
         // conversion reverts and is swallowed), inflating the cash-out/loan denominator without the matching
         // numerator. The pivot (USD) is implicit in the two legs supplied, not hardcoded in JBPrices. The USD/ETH
         // feed was registered earlier in `_deployPeriphery`.
-        IJBPriceFeed ethUsdFeed = _prices.priceFeedFor({
-            projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: JBCurrencyIds.ETH
-        });
+        IJBPriceFeed ethUsdFeed =
+            _prices.priceFeedFor({projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: JBCurrencyIds.ETH});
         // NUMERATOR = USD per USDC, DENOMINATOR = USD per ETH => currentUnitPrice = ETH per USDC. JBPrices
         // auto-inverts for the USDC-per-ETH direction needed by the source snapshot build.
         IJBPriceFeed ethUsdcTriangularFeed = IJBPriceFeed(
