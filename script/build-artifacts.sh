@@ -246,7 +246,7 @@ build_repo() {
     (
       cd "$repo_dir" &&
         FOUNDRY_VIA_IR="$p_via_ir" forge build "${REPO_BUILD_TARGET[$repo]}" \
-          --skip test script \
+          --skip test script '**/archive/**' \
           --out "$repo_out_dir" \
           --optimize "$p_optimizer" \
           --optimizer-runs "$p_runs" \
@@ -261,13 +261,13 @@ build_repo() {
   else
     if [[ "$repo" == "deploy-all-v6" ]]; then
       # Build everything in deploy-all-v6 (includes ERC2771Forwarder via node_modules).
-      (cd "$repo_dir" && forge build --skip test --out "$repo_out_dir" --force 2>&1) || {
+      (cd "$repo_dir" && forge build --skip test '**/archive/**' --out "$repo_out_dir" --force 2>&1) || {
         echo "ERROR: forge build failed for $repo"
         BUILT_REPOS[$repo]=1
         return 1
       }
     else
-      (cd "$repo_dir" && forge build --skip test script --out "$repo_out_dir" --force 2>&1) || {
+      (cd "$repo_dir" && forge build --skip test script '**/archive/**' --out "$repo_out_dir" --force 2>&1) || {
         echo "ERROR: forge build failed for $repo"
         BUILT_REPOS[$repo]=1
         return 1
