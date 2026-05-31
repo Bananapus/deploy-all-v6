@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.52 — Bump latest safety dependency cohort
+
+Updates the deployment stack to use the latest published packages for the recently landed safety releases:
+
+- `@bananapus/ownable-v6`: add explicit `^0.0.34` dependency so root package-name resolution uses the latest owner policy.
+- `@bananapus/router-terminal-v6`: `^0.0.58 → ^0.0.59`.
+- `@bananapus/suckers-v6`: `^0.0.65 → ^0.0.66`.
+- `@bananapus/univ4-router-v6`: `^0.0.48 → ^0.0.49`.
+
 ## 0.0.33 — Bump v6 deps to nana-core-v6 0.0.53 cohort
 
 `nana-core-v6@0.0.50+` extracted two new `external`-function libraries from `JBMultiTerminal` to keep the terminal under EIP-170 after the cross-project cashout entrypoints landed:
