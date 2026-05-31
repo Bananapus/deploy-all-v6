@@ -81,12 +81,10 @@ import {JBOptimismSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBOp
 import {JBBaseSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBBaseSuckerDeployer.sol";
 import {JBArbitrumSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBArbitrumSuckerDeployer.sol";
 import {JBCCIPSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBCCIPSuckerDeployer.sol";
-import {JBSwapCCIPSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBSwapCCIPSuckerDeployer.sol";
 import {JBOptimismSucker} from "@bananapus/suckers-v6/src/JBOptimismSucker.sol";
 import {JBBaseSucker} from "@bananapus/suckers-v6/src/JBBaseSucker.sol";
 import {JBArbitrumSucker} from "@bananapus/suckers-v6/src/JBArbitrumSucker.sol";
 import {JBCCIPSucker} from "@bananapus/suckers-v6/src/JBCCIPSucker.sol";
-import {JBSwapCCIPSucker} from "@bananapus/suckers-v6/src/JBSwapCCIPSucker.sol";
 import {JBLayer} from "@bananapus/suckers-v6/src/enums/JBLayer.sol";
 import {IJBSuckerDeployer} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerDeployer.sol";
 import {IInbox} from "@arbitrum/nitro-contracts/src/bridge/IInbox.sol";
@@ -731,25 +729,25 @@ contract DeployFullStackTest is Test {
     /// @dev Deploy CCIP suckers for a given chain. Returns array of deployer addresses.
     function deployCCIPSuckers(ChainConfig memory cfg) external returns (address[] memory deployers) {
         if (cfg.chainId == 1) {
-            deployers = new address[](6);
-            (deployers[0], deployers[1]) = _deployCCIPRoute(cfg, CCIPHelper.OP_ID);
-            (deployers[2], deployers[3]) = _deployCCIPRoute(cfg, CCIPHelper.BASE_ID);
-            (deployers[4], deployers[5]) = _deployCCIPRoute(cfg, CCIPHelper.ARB_ID);
+            deployers = new address[](3);
+            deployers[0] = _deployCCIPRoute(cfg, CCIPHelper.OP_ID);
+            deployers[1] = _deployCCIPRoute(cfg, CCIPHelper.BASE_ID);
+            deployers[2] = _deployCCIPRoute(cfg, CCIPHelper.ARB_ID);
         } else if (cfg.chainId == 10) {
-            deployers = new address[](6);
-            (deployers[0], deployers[1]) = _deployCCIPRoute(cfg, CCIPHelper.ETH_ID);
-            (deployers[2], deployers[3]) = _deployCCIPRoute(cfg, CCIPHelper.ARB_ID);
-            (deployers[4], deployers[5]) = _deployCCIPRoute(cfg, CCIPHelper.BASE_ID);
+            deployers = new address[](3);
+            deployers[0] = _deployCCIPRoute(cfg, CCIPHelper.ETH_ID);
+            deployers[1] = _deployCCIPRoute(cfg, CCIPHelper.ARB_ID);
+            deployers[2] = _deployCCIPRoute(cfg, CCIPHelper.BASE_ID);
         } else if (cfg.chainId == 8453) {
-            deployers = new address[](6);
-            (deployers[0], deployers[1]) = _deployCCIPRoute(cfg, CCIPHelper.ETH_ID);
-            (deployers[2], deployers[3]) = _deployCCIPRoute(cfg, CCIPHelper.OP_ID);
-            (deployers[4], deployers[5]) = _deployCCIPRoute(cfg, CCIPHelper.ARB_ID);
+            deployers = new address[](3);
+            deployers[0] = _deployCCIPRoute(cfg, CCIPHelper.ETH_ID);
+            deployers[1] = _deployCCIPRoute(cfg, CCIPHelper.OP_ID);
+            deployers[2] = _deployCCIPRoute(cfg, CCIPHelper.ARB_ID);
         } else if (cfg.chainId == 42_161) {
-            deployers = new address[](6);
-            (deployers[0], deployers[1]) = _deployCCIPRoute(cfg, CCIPHelper.ETH_ID);
-            (deployers[2], deployers[3]) = _deployCCIPRoute(cfg, CCIPHelper.OP_ID);
-            (deployers[4], deployers[5]) = _deployCCIPRoute(cfg, CCIPHelper.BASE_ID);
+            deployers = new address[](3);
+            deployers[0] = _deployCCIPRoute(cfg, CCIPHelper.ETH_ID);
+            deployers[1] = _deployCCIPRoute(cfg, CCIPHelper.OP_ID);
+            deployers[2] = _deployCCIPRoute(cfg, CCIPHelper.BASE_ID);
         } else {
             deployers = new address[](0);
         }
@@ -760,10 +758,10 @@ contract DeployFullStackTest is Test {
         uint256 remoteChainId
     )
         internal
-        returns (address standardDeployer, address swapDeployer)
+        returns (address standardDeployer)
     {
+        cfg; // silence unused-parameter warning (kept for signature parity with the runner).
         standardDeployer = address(_deployCCIPSucker(remoteChainId));
-        swapDeployer = address(_deploySwapCCIPSucker(cfg, remoteChainId));
     }
 
     function _deployCCIPSucker(uint256 remoteChainId) internal returns (JBCCIPSuckerDeployer deployer) {
@@ -777,38 +775,6 @@ contract DeployFullStackTest is Test {
             deployer, _directory, _permissions, _prices, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
         );
         deployer.configureSingleton(singleton);
-    }
-
-    function _deploySwapCCIPSucker(
-        ChainConfig memory cfg,
-        uint256 remoteChainId
-    )
-        internal
-        returns (JBSwapCCIPSuckerDeployer deployer)
-    {
-        deployer = new JBSwapCCIPSuckerDeployer(_directory, _permissions, _tokens, _deployer, _trustedForwarder);
-        deployer.setChainSpecificConstants(
-            remoteChainId,
-            CCIPHelper.selectorOfChain(remoteChainId),
-            ICCIPRouter(CCIPHelper.routerOfChain(block.chainid))
-        );
-        deployer.setSwapConstants(
-            IERC20(cfg.usdc),
-            IPoolManager(cfg.poolManager),
-            IUniswapV3Factory(cfg.v3Factory),
-            address(_uniswapV4Hook),
-            cfg.wrappedNativeToken
-        );
-        JBSwapCCIPSucker singleton = new JBSwapCCIPSucker(
-            deployer, _directory, _permissions, _prices, _tokens, FEE_PROJECT_ID, _suckerRegistry, _trustedForwarder
-        );
-        deployer.configureSingleton(singleton);
-
-        assertEq(address(deployer.bridgeToken()), cfg.usdc, "swap bridge token mismatch");
-        assertEq(address(deployer.poolManager()), cfg.poolManager, "swap pool manager mismatch");
-        assertEq(address(deployer.v3Factory()), cfg.v3Factory, "swap v3 factory mismatch");
-        assertEq(deployer.univ4Hook(), address(_uniswapV4Hook), "swap v4 hook mismatch");
-        assertEq(deployer.wrappedNativeToken(), cfg.wrappedNativeToken, "swap wrapped native mismatch");
     }
 
     // ════════════════════════════════════════════════════════════════════

@@ -161,18 +161,15 @@ CONTRACTS=(
   "nana-suckers-v6:JBSuckerLib:src/libraries/JBSuckerLib.sol"
   "nana-suckers-v6:JBCCIPLib:src/libraries/JBCCIPLib.sol"
   "nana-suckers-v6:CCIPHelper:src/libraries/CCIPHelper.sol"
-  "nana-suckers-v6:JBSwapPoolLib:src/libraries/JBSwapPoolLib.sol"
   "nana-suckers-v6:JBSuckerRegistry:src/JBSuckerRegistry.sol"
   "nana-suckers-v6:JBOptimismSucker:src/JBOptimismSucker.sol"
   "nana-suckers-v6:JBBaseSucker:src/JBBaseSucker.sol"
   "nana-suckers-v6:JBArbitrumSucker:src/JBArbitrumSucker.sol"
   "nana-suckers-v6:JBCCIPSucker:src/JBCCIPSucker.sol"
-  "nana-suckers-v6:JBSwapCCIPSucker:src/JBSwapCCIPSucker.sol"
   "nana-suckers-v6:JBOptimismSuckerDeployer:src/deployers/JBOptimismSuckerDeployer.sol"
   "nana-suckers-v6:JBBaseSuckerDeployer:src/deployers/JBBaseSuckerDeployer.sol"
   "nana-suckers-v6:JBArbitrumSuckerDeployer:src/deployers/JBArbitrumSuckerDeployer.sol"
   "nana-suckers-v6:JBCCIPSuckerDeployer:src/deployers/JBCCIPSuckerDeployer.sol"
-  "nana-suckers-v6:JBSwapCCIPSuckerDeployer:src/deployers/JBSwapCCIPSuckerDeployer.sol"
 
   # ── nana-omnichain-deployers-v6 ──
   "nana-omnichain-deployers-v6:JBOmnichainDeployer:src/JBOmnichainDeployer.sol"
@@ -249,7 +246,7 @@ build_repo() {
     (
       cd "$repo_dir" &&
         FOUNDRY_VIA_IR="$p_via_ir" forge build "${REPO_BUILD_TARGET[$repo]}" \
-          --skip test script \
+          --skip test script '**/archive/**' \
           --out "$repo_out_dir" \
           --optimize "$p_optimizer" \
           --optimizer-runs "$p_runs" \
@@ -264,13 +261,13 @@ build_repo() {
   else
     if [[ "$repo" == "deploy-all-v6" ]]; then
       # Build everything in deploy-all-v6 (includes ERC2771Forwarder via node_modules).
-      (cd "$repo_dir" && forge build --skip test --out "$repo_out_dir" --force 2>&1) || {
+      (cd "$repo_dir" && forge build --skip test '**/archive/**' --out "$repo_out_dir" --force 2>&1) || {
         echo "ERROR: forge build failed for $repo"
         BUILT_REPOS[$repo]=1
         return 1
       }
     else
-      (cd "$repo_dir" && forge build --skip test script --out "$repo_out_dir" --force 2>&1) || {
+      (cd "$repo_dir" && forge build --skip test script '**/archive/**' --out "$repo_out_dir" --force 2>&1) || {
         echo "ERROR: forge build failed for $repo"
         BUILT_REPOS[$repo]=1
         return 1
@@ -484,7 +481,6 @@ LIB_SALTS=(
   "JBSuckerLib:_JBSuckerLibV6_"
   "JBCCIPLib:_JBCCIPLibV6_"
   "CCIPHelper:_CCIPHelperV6_"
-  "JBSwapPoolLib:_JBSwapPoolLibV6_"
   "DefifaHookLib:_DefifaHookLibV6_"
   "JBUniswapV4LPSplitHookMath:_JBUniswapV4LPSplitHookMathV6_"
 )

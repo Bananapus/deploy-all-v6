@@ -4576,14 +4576,6 @@ contract Verify is Script {
             }
         }
 
-        // Each listed swap-enabled CCIP sucker deployer (and its singleton) must match the
-        // canonical artifact bytecode. Without this check the deploy can ship a swap-enabled
-        // sucker whose source diverges from the in-tree implementation (out-of-order batch
-        // metadata stranding earlier batches; raw-ETH V4 settlement reverting before unwrap),
-        // but reads as "allowed in registry" and "canonically wired". Identity covers both the
-        // deployer factory and the per-route singleton that every clone proxies to.
-        _verifySwapCcipSuckerRolloutIdentity();
-
         // Every implementation that backs a clone or per-route singleton carries its own
         // constructor-injected PERMISSIONS / trustedForwarder immutables. The artifact-identity
         // sweep masks those bytes before bytecode parity, so a noncanonical auth-input on the
@@ -4694,122 +4686,6 @@ contract Verify is Script {
                     critical: true
                 });
             }
-        }
-    }
-
-    /// @dev Prove each listed swap-enabled CCIP sucker deployer and its singleton carry the
-    /// canonical artifact bytecode. Comma-separated env list keeps the env surface aligned with
-    /// `VERIFY_SUCKER_DEPLOYERS` — operators populate this with the swap-enabled subset only.
-    function _verifySwapCcipSuckerRolloutIdentity() internal {
-        string memory swapDeployersCsv = vm.envOr("VERIFY_SWAP_CCIP_SUCKER_DEPLOYERS", string(""));
-        if (bytes(swapDeployersCsv).length == 0) {
-            _skip("Swap-CCIP sucker rollout identity (VERIFY_SWAP_CCIP_SUCKER_DEPLOYERS not set)");
-            return;
-        }
-
-        string[] memory parts = vm.split(swapDeployersCsv, ",");
-        for (uint256 i; i < parts.length; i++) {
-            address deployer = vm.parseAddress(parts[i]);
-            if (deployer == address(0)) continue;
-
-            // Deployer factory must match the canonical JBSwapCCIPSuckerDeployer runtime.
-            _requireArtifactIdentity({
-                artifactName: "JBSwapCCIPSuckerDeployer",
-                deployed: deployer,
-                label: string.concat("JBSwapCCIPSuckerDeployer ", vm.toString(deployer))
-            });
-
-            // Per-route singleton is the actual sucker implementation that every clone
-            // delegates to; the swap/native-settlement fixes live there. Read via `singleton()` to avoid
-            // hard-coding a per-chain immutable getter.
-            (bool ok, bytes memory data) = deployer.staticcall(abi.encodeWithSignature("singleton()"));
-            if (ok && data.length >= 32) {
-                address singleton = abi.decode(data, (address));
-                _requireArtifactIdentity({
-                    artifactName: "JBSwapCCIPSucker",
-                    deployed: singleton,
-                    label: string.concat("JBSwapCCIPSucker singleton ", vm.toString(singleton))
-                });
-            } else {
-                _check({
-                    condition: false,
-                    label: string.concat(
-                        "Swap-CCIP deployer ", vm.toString(deployer), " exposes singleton() for identity check"
-                    ),
-                    critical: true
-                });
-            }
-
-            // Swap-CCIP deployers also store `bridgeToken`, `poolManager`, `v3Factory`,
-            // `univ4Hook`, and `wrappedNativeToken` set via `setSwapConstants` after deploy.
-            // Artifact bytecode parity masks immutables and `setSwapConstants` writes to storage rather than
-            // immutables — but either way, per-surface getter equality is the only way to prove
-            // the swap-specific endpoints match canonical. Without these, a swap-enabled sucker
-            // could route bridge tokens through a forked V3/V4 surface or settle against a
-            // wrong wrapped-native sentinel while the rest of the deployment looks canonical.
-            _checkSwapCcipSwapConstants(deployer);
-        }
-    }
-
-    /// @notice Helper: assert each swap-CCIP deployer's swap-side endpoint pointers match the
-    /// canonical per-chain manifest. `bridgeToken` is USDC across the supported chains;
-    /// `poolManager`, `v3Factory`, and `wrappedNativeToken` reuse the existing external-address
-    /// manifests; `univ4Hook` is the per-chain `JBUniswapV4Hook` loaded from
-    /// `VERIFY_UNISWAP_V4_HOOK`.
-    function _checkSwapCcipSwapConstants(address deployer) internal {
-        // bridgeToken == per-chain canonical USDC.
-        address expectedBridgeToken = _expectedBridgeToken();
-        if (expectedBridgeToken != address(0)) {
-            (bool okBt, bytes memory btData) = deployer.staticcall(abi.encodeWithSignature("bridgeToken()"));
-            _check({
-                condition: okBt && btData.length >= 32 && abi.decode(btData, (address)) == expectedBridgeToken,
-                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " bridgeToken == canonical USDC"),
-                critical: true
-            });
-        }
-
-        // poolManager == canonical V4 PoolManager (reuse external-address manifest).
-        address expectedPoolManager = _expectedV4PoolManager();
-        if (expectedPoolManager != address(0)) {
-            (bool okPm, bytes memory pmData) = deployer.staticcall(abi.encodeWithSignature("poolManager()"));
-            _check({
-                condition: okPm && pmData.length >= 32 && abi.decode(pmData, (address)) == expectedPoolManager,
-                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " poolManager == canonical V4"),
-                critical: true
-            });
-        }
-
-        // v3Factory == canonical V3 factory (reuse external-address manifest).
-        address expectedV3 = _expectedV3Factory();
-        if (expectedV3 != address(0)) {
-            (bool okV3, bytes memory v3Data) = deployer.staticcall(abi.encodeWithSignature("v3Factory()"));
-            _check({
-                condition: okV3 && v3Data.length >= 32 && abi.decode(v3Data, (address)) == expectedV3,
-                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " v3Factory == canonical V3"),
-                critical: true
-            });
-        }
-
-        // wrappedNativeToken == canonical WETH (reuse external-address manifest).
-        address expectedWeth = _expectedWrappedNative();
-        if (expectedWeth != address(0)) {
-            (bool okW, bytes memory wData) = deployer.staticcall(abi.encodeWithSignature("wrappedNativeToken()"));
-            _check({
-                condition: okW && wData.length >= 32 && abi.decode(wData, (address)) == expectedWeth,
-                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " wrappedNativeToken == canonical"),
-                critical: true
-            });
-        }
-
-        // univ4Hook == the deployed JBUniswapV4Hook. Skip if VERIFY_UNISWAP_V4_HOOK isn't loaded.
-        address expectedV4Hook = _uniswapV4Hook();
-        if (expectedV4Hook != address(0)) {
-            (bool okH, bytes memory hData) = deployer.staticcall(abi.encodeWithSignature("univ4Hook()"));
-            _check({
-                condition: okH && hData.length >= 32 && abi.decode(hData, (address)) == expectedV4Hook,
-                label: string.concat("Swap-CCIP deployer ", vm.toString(deployer), " univ4Hook == canonical"),
-                critical: true
-            });
         }
     }
 

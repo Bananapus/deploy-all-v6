@@ -6,18 +6,18 @@ Operator guide for deploying, resuming, and verifying the Juicebox V6 ecosystem.
 
 | Chain | ID | Uniswap V4 | Suckers |
 |---|---|---|---|
-| Ethereum Mainnet | 1 | Yes | OP, Base, Arb, CCIP, Swap CCIP |
-| Ethereum Sepolia | 11155111 | Yes | OP Sepolia, Base Sepolia, Arb Sepolia, CCIP, Swap CCIP |
-| Optimism | 10 | Yes | Ethereum, CCIP, Swap CCIP |
-| Optimism Sepolia | 11155420 | Partial (no PositionManager) | Ethereum Sepolia, CCIP, Swap CCIP |
-| Base | 8453 | Yes | Ethereum, CCIP, Swap CCIP |
-| Base Sepolia | 84532 | Yes | Ethereum Sepolia, CCIP, Swap CCIP |
-| Arbitrum One | 42161 | Yes | Ethereum, CCIP, Swap CCIP |
-| Arbitrum Sepolia | 421614 | Yes | Ethereum Sepolia, CCIP, Swap CCIP |
+| Ethereum Mainnet | 1 | Yes | OP, Base, Arb, CCIP |
+| Ethereum Sepolia | 11155111 | Yes | OP Sepolia, Base Sepolia, Arb Sepolia, CCIP |
+| Optimism | 10 | Yes | Ethereum, CCIP |
+| Optimism Sepolia | 11155420 | Partial (no PositionManager) | Ethereum Sepolia, CCIP |
+| Base | 8453 | Yes | Ethereum, CCIP |
+| Base Sepolia | 84532 | Yes | Ethereum Sepolia, CCIP |
+| Arbitrum One | 42161 | Yes | Ethereum, CCIP |
+| Arbitrum Sepolia | 421614 | Yes | Ethereum Sepolia, CCIP |
 
 Chains without a PositionManager skip active Uniswap routing surfaces (buyback hook, router terminal, and LP split hook). Revnets still deploy; BAN keeps its reserved split routed to the operator on those chains.
 
-The canonical deployment allowlists standard OP, Base, Arbitrum, CCIP, and `JBSwapCCIPSucker` deployers. Initial project configs still use the standard native bridge deployers unless a manifest explicitly selects a swap CCIP deployer, but the swap deployers and singletons are deployed and configured from day one.
+The canonical deployment allowlists standard OP, Base, Arbitrum, and CCIP deployers. Initial project configs use the standard native bridge deployers unless a manifest explicitly selects the CCIP deployer.
 
 ## Deployment Phases
 
@@ -31,7 +31,7 @@ The deploy script (`script/Deploy.s.sol`) executes 11 phases in strict order:
 | 03b | Uniswap V4 Router Hook | JBUniswapV4Hook (requires PoolManager) |
 | 03c | Buyback Hook | JBBuybackHookRegistry (requires V3Factory) |
 | 03d | Router Terminal | JBRouterTerminal, JBRouterTerminalRegistry |
-| 03e | Cross-Chain Suckers | JBSuckerRegistry + per-bridge deployers (OP, Base, Arb, CCIP, Swap CCIP) |
+| 03e | Cross-Chain Suckers | JBSuckerRegistry + per-bridge deployers (OP, Base, Arb, CCIP) |
 | 03f | LP Split Hook | JBUniswapV4LPSplitHook (requires PositionManager and SuckerRegistry) |
 | 04 | Omnichain Deployer | JBOmnichainDeployer |
 | 05 | Periphery | Controller, Price Feeds (ETH/USD, USDC/USD, sequencer-aware on L2), Deadline hooks |
@@ -225,7 +225,7 @@ Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so th
 
 - **Constructor-created clone implementations** (`JBProjectPayer` behind `JBProjectPayerDeployer.IMPLEMENTATION()`, `JB721Checkpoints` behind `JB721CheckpointsDeployer.IMPLEMENTATION()`) are emitted alongside their deployers so the verifier can prove the clone target bytecode matches the published artifact. Both are compiled and copied by `build-artifacts.sh` from their source repos.
 - **Canonical project ERC-20 token clones** (`JBERC20__ProjectNANA`, `JBERC20__ProjectCPN`, `JBERC20__ProjectREV`, `JBERC20__ProjectBAN`) and **canonical project 721 hook clones** (`JB721TiersHook__ProjectCPN`, `JB721TiersHook__ProjectBAN`) are queried from `_tokens.tokenOf(projectId)` and `_revOwner.tiered721HookOf(projectId)` at dump time. Each clone shares the implementation bytecode but has its own deployed address; emitting both lets the post-deploy verifier prove every canonical project token/hook on chain matches its published artifact.
-- **Per-route CCIP / SwapCCIP suckers** are emitted to `addresses-<chainId>.json` with a remote-chain suffix: `JBCCIPSucker__<RouteSuffix>`, `JBCCIPSuckerDeployer__<RouteSuffix>`, `JBSwapCCIPSucker__<RouteSuffix>`, `JBSwapCCIPSuckerDeployer__<RouteSuffix>` (where `<RouteSuffix>` is `ETH`, `OP`, `BASE`, `ARB`, or their `_SEP` variants). The standard per-source-chain singletons (`JBOptimismSucker`, `JBBaseSucker`, `JBArbitrumSucker`) and deployers are emitted without a suffix. The pipeline emits the full singleton implementation address for every pre-approved sucker deployer so the verifier can prove the implementation bytecode matches the published artifact. Together with the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USDC/USD price feeds emitted by the base dump, this covers the full deployment surface.
+- **Per-route CCIP suckers** are emitted to `addresses-<chainId>.json` with a remote-chain suffix: `JBCCIPSucker__<RouteSuffix>`, `JBCCIPSuckerDeployer__<RouteSuffix>` (where `<RouteSuffix>` is `ETH`, `OP`, `BASE`, `ARB`, or their `_SEP` variants). The standard per-source-chain singletons (`JBOptimismSucker`, `JBBaseSucker`, `JBArbitrumSucker`) and deployers are emitted without a suffix. The pipeline emits the full singleton implementation address for every pre-approved sucker deployer so the verifier can prove the implementation bytecode matches the published artifact. Together with the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USDC/USD price feeds emitted by the base dump, this covers the full deployment surface.
 - **No Blockscout fallback yet.** All supported chains are on Etherscan v2. Blockscout-only chains will need a `chains.json` entry with `"verifier": "blockscout"` + a Sourcify fallback.
 
 ### Project Identity Verification
@@ -410,18 +410,16 @@ authoritative source for "no unexpected allowed deployers" — see Section 6a be
 
 ```bash
 # Ethereum mainnet / Sepolia (L1 hosts all four canonical-project deployers PLUS the
-# CCIP and Swap-CCIP route deployers for each L2):
+# CCIP route deployers for each L2):
 # - 3 standard canonical project deployers: OP, Base, Arb
 # - 3 CCIP deployers allowlisted for OP, Base, Arb routes
-# - 3 Swap CCIP deployers allowlisted for OP, Base, Arb routes
-export VERIFY_SUCKER_DEPLOYER_COUNT=9
-export VERIFY_SUCKER_DEPLOYERS=0x...,0x...,0x...,0x...,0x...,0x...,0x...,0x...,0x...
+export VERIFY_SUCKER_DEPLOYER_COUNT=6
+export VERIFY_SUCKER_DEPLOYERS=0x...,0x...,0x...,0x...,0x...,0x...
 
 # Optimism / Base / Arbitrum mainnets and testnets:
 # - 1 standard canonical project deployer back to Ethereum
 # - 3 CCIP deployers allowlisted for Ethereum and the two sibling L2s
-# - 3 Swap CCIP deployers allowlisted for Ethereum and the two sibling L2s
-# export VERIFY_SUCKER_DEPLOYER_COUNT=7
+# export VERIFY_SUCKER_DEPLOYER_COUNT=4
 # export VERIFY_SUCKER_DEPLOYERS=0x...,...
 
 # Per-bridge deployer pointers (required on production where the bridge applies).
@@ -433,11 +431,6 @@ export VERIFY_ARB_SUCKER_DEPLOYER=0x...               # L1 + Arbitrum deployer
 # verifier asserts each one's ccipRouter/ccipRemoteChainId/ccipRemoteChainSelector
 # matches the canonical per-chain manifest.
 export VERIFY_CCIP_SUCKER_DEPLOYERS_BY_REMOTE=10:0x...,8453:0x...,42161:0x...
-
-# Per-route swap-CCIP deployers — same shape, plus swap-specific endpoint checks
-# (bridgeToken == canonical USDC, poolManager == canonical V4, v3Factory == canonical V3,
-# wrappedNativeToken == canonical WETH, univ4Hook == canonical JBUniswapV4Hook).
-export VERIFY_SWAP_CCIP_SUCKER_DEPLOYERS=10:0x...,8453:0x...,42161:0x...
 
 # Optional extra feeless addresses — CSV of addresses that should be present in the
 # feeless registry alongside the router terminal (which is checked separately).
