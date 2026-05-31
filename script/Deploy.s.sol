@@ -2132,48 +2132,6 @@ contract Deploy is Script, Sphinx {
             preventOperatorIncreasingDiscountPercent: false
         });
 
-        REVCroptopAllowedPost[] memory allowedPosts = new REVCroptopAllowedPost[](5);
-        allowedPosts[0] = REVCroptopAllowedPost({
-            category: 0,
-            minimumPrice: uint104(10 ** (DECIMALS - 5)),
-            minimumTotalSupply: 10_000,
-            maximumTotalSupply: 999_999_999,
-            maximumSplitPercent: 0,
-            allowedAddresses: new address[](0)
-        });
-        allowedPosts[1] = REVCroptopAllowedPost({
-            category: 1,
-            minimumPrice: uint104(10 ** (DECIMALS - 3)),
-            minimumTotalSupply: 10_000,
-            maximumTotalSupply: 999_999_999,
-            maximumSplitPercent: 0,
-            allowedAddresses: new address[](0)
-        });
-        allowedPosts[2] = REVCroptopAllowedPost({
-            category: 2,
-            minimumPrice: uint104(10 ** (DECIMALS - 1)),
-            minimumTotalSupply: 100,
-            maximumTotalSupply: 999_999_999,
-            maximumSplitPercent: 0,
-            allowedAddresses: new address[](0)
-        });
-        allowedPosts[3] = REVCroptopAllowedPost({
-            category: 3,
-            minimumPrice: uint104(10 ** DECIMALS),
-            minimumTotalSupply: 10,
-            maximumTotalSupply: 999_999_999,
-            maximumSplitPercent: 0,
-            allowedAddresses: new address[](0)
-        });
-        allowedPosts[4] = REVCroptopAllowedPost({
-            category: 4,
-            minimumPrice: uint104(10 ** (DECIMALS + 2)),
-            minimumTotalSupply: 10,
-            maximumTotalSupply: 999_999_999,
-            maximumSplitPercent: 0,
-            allowedAddresses: new address[](0)
-        });
-
         if (address(_directory.controllerOf(_cpnProjectId)) != address(0)) {
             if (!_isCanonicalRevnetProject({
                     projectId: _cpnProjectId,
@@ -2198,7 +2156,7 @@ contract Deploy is Script, Sphinx {
             accountingContextsToAccept: accountingContexts,
             suckerDeploymentConfiguration: suckerConfig,
             tiered721HookConfiguration: hookConfig,
-            allowedPosts: allowedPosts
+            allowedPosts: new REVCroptopAllowedPost[](0)
         });
     }
 
