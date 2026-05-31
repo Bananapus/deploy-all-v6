@@ -1449,6 +1449,34 @@ contract Verify is Script {
                     _check({condition: false, label: "USDC/USD feed.currentUnitPrice() did not revert", critical: true});
                 }
             }
+
+            // Check the ETH<->USDC triangular feed, registered for (ETH, usdc_currency) and composed from the USD/ETH
+            // and USD/USDC feeds. USDC revnets (DEFIFA/ART) running scopeCashOutsToLocalBalances=false depend on it:
+            // without it the ETH-denominated cross-chain surplus snapshot cannot convert into the USDC-keyed currency,
+            // so remote surplus silently resolves to 0 and cross-chain cash-outs/loans are under-priced.
+            // forge-lint: disable-next-line(unsafe-typecast)
+            IJBPriceFeed ethUsdcFeed = prices.priceFeedFor({
+                projectId: 0, pricingCurrency: JBCurrencyIds.ETH, unitCurrency: _currencyIdOf(usdc)
+            });
+            _check({
+                condition: address(ethUsdcFeed) != address(0),
+                label: "ETH/USDC triangular price feed is configured",
+                critical: true
+            });
+            if (address(ethUsdcFeed) != address(0)) {
+                try ethUsdcFeed.currentUnitPrice(18) returns (uint256 ethPerUsdc) {
+                    // 1 USDC priced in ETH — a small positive fraction (matches ETH between $100 and $1,000,000).
+                    console.log("  ETH/USDC price (18 dec)", ethPerUsdc);
+                    _check({condition: ethPerUsdc > 1e12, label: "ETH per USDC > 1e-6 ETH", critical: true});
+                    _check({condition: ethPerUsdc < 1e16, label: "ETH per USDC < 1e-2 ETH", critical: true});
+                } catch {
+                    _check({
+                        condition: false,
+                        label: "ETH/USDC triangular feed.currentUnitPrice() did not revert",
+                        critical: true
+                    });
+                }
+            }
         }
 
         // Oracle exactness: assert not just the aggregator address but also THRESHOLD(),
@@ -3928,7 +3956,6 @@ contract Verify is Script {
     function _checkpointsDeployer() internal view returns (address) {
         return address(checkpointsDeployer);
     }
-
 
     /// loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
     /// Falls back to the legacy VERIFY_CONFIG_HASHES CSV when individual vars are unset, for
