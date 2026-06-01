@@ -184,7 +184,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
         HOOK_DEPLOYER = new JB721TiersHookDeployer(exampleHook, hookStore, ADDRESS_REGISTRY, multisig());
 
         // Deploy croptop publisher (required by REVDeployer).
-        PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, multisig());
+        PUBLISHER = new CTPublisher(jbDirectory(), jbPermissions(), FEE_PROJECT_ID, permit2(), multisig());
 
         // Deploy the univ4 router (JBUniswapV4Hook) as the oracle hook for geomean slippage protection.
         // Hook addresses must encode permission flags in lower bits — use HookMiner to find a valid salt.

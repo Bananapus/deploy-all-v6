@@ -1800,7 +1800,7 @@ contract Deploy is Script, Sphinx {
             _deployPrecompiledIfNeeded({
                 artifactName: "CTPublisher",
                 salt: CT_PUBLISHER_SALT,
-                ctorArgs: abi.encode(_directory, _permissions, _cpnProjectId, _trustedForwarder)
+                ctorArgs: abi.encode(_directory, _permissions, _cpnProjectId, _PERMIT2, _trustedForwarder)
             })
         );
 

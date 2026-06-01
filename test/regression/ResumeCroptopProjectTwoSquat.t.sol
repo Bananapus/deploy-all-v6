@@ -7,6 +7,7 @@ import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
 import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
 import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
+import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 
 contract ResumeCroptopProjectTwoSquatTest is Test {
     uint256 internal constant CPN_PROJECT_ID = 2;
@@ -71,7 +72,8 @@ contract ResumeCroptopHarness {
 
     function resumeCroptop() external returns (CTPublisher publisher) {
         uint256 cpnProjectId = _ensureProjectExists(CPN_PROJECT_ID());
-        publisher = new CTPublisher(DIRECTORY, IJBPermissions(address(0)), cpnProjectId, address(0));
+        publisher =
+            new CTPublisher(DIRECTORY, IJBPermissions(address(0)), cpnProjectId, IPermit2(address(0)), address(0));
     }
 
     function CPN_PROJECT_ID() public pure returns (uint256) {
