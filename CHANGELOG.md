@@ -32,6 +32,11 @@ Documentation:
 
 - Document the NatSpec, comment, and lint conventions in `STYLE_GUIDE.md`: every member carries complete NatSpec, every non-trivial statement carries a plain-English comment explaining why it exists, comments and NatSpec describe the current behavior as the only behavior, and the build, lint, and tests stay clean with zero notes.
 
+Continuous integration:
+
+- Gate the full fork and integration suite in CI: a `forge-test` job builds the deploy artifacts and runs `forge test`, backed by the Ethereum, Optimism, Base, and Arbitrum mainnet RPCs so the cross-chain fork tests run rather than skip.
+- Align the price-verifier and referral fork tests with the current behavior so the suite is green: the price verifier reaches its specific oracle-exactness checks once a valid ETH/USDC triangular feed is present, and the referral hook arms a dwell window before burning credit aimed at a chain with no local token twin.
+
 ## 0.0.53 - Correct the documented recovery path
 
 Documentation fix:
