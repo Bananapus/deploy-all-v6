@@ -148,7 +148,7 @@ Key points:
 3. Safe signers approve the proposal in the Sphinx dashboard or Safe UI
 4. Sphinx executes the approved transactions on-chain
 
-**Resume.s.sol** is executed directly via `forge script --broadcast`. The operator (one of the Safe signers) runs the resume from the Safe using `vm.startBroadcast(safeAddress())`. This requires the operator to have signing authority on the Safe.
+If a deploy is interrupted, recovery is to bump the deployment nonce in **Deploy.s.sol** and re-propose it through Sphinx, which redeploys the full stack from fresh salts at a clean, non-colliding address namespace. See [Interrupted Deploy: Redeploying From Fresh Salts](#interrupted-deploy-redeploying-from-fresh-salts).
 
 **Verify.s.sol** is read-only and requires no broadcast. It reads deployed state and validates wiring.
 
@@ -230,67 +230,52 @@ Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so th
 
 ### Project Identity Verification
 
-The deploy and resume scripts use canonical identity gates to verify that pre-existing projects match the expected deployment shape. These go beyond simple `projects.count()` / `controllerOf` checks:
+The deploy script uses canonical identity gates to verify that pre-existing projects match the expected deployment shape. These go beyond simple `projects.count()` / `controllerOf` checks:
 
 - **Projects 1-3 (NANA, CPN, REV):** Verified via `_isCanonicalRevnetProject()` — checks REVDeployer ownership, non-zero config hash, controller wiring, and token symbol.
 - **Project 4 (BAN):** Verified via `_isCanonicalBannyProject()` — additionally checks REVOwner's 721 hook registration, hook PROJECT_ID, STORE, and BANNY symbol.
 
-## Interrupted Deploy: Using Resume.s.sol
+## Interrupted Deploy: Redeploying From Fresh Salts
 
-If a deploy is interrupted (gas spike, RPC timeout, operator error), use `Resume.s.sol` to continue from where it stopped.
+If a deploy is interrupted (gas spike, RPC timeout, operator error), do not re-propose the same script unchanged: CREATE2 with identical `(deployer, salt, initCodeHash)` reverts on every contract that already exists. Instead, redeploy the full stack from fresh salts.
 
-### How Resume Works
+### How Fresh-Salt Recovery Works
 
-Resume detects completed phases by checking `code.length != 0` at each contract's deterministic CREATE2 address. If a contract already has code, it's skipped. If not, it's deployed.
+`Deploy.s.sol` carries a single salt-version lever, `DEPLOYMENT_NONCE`, that applies to the entire deployment. Every CREATE2/CREATE3 salt is folded with this nonce via `_saltOf` (and the core salt derives from it directly), so incrementing the nonce by one yields a fully fresh, non-colliding address namespace for every contract. The mined Uniswap V4 hook salt re-derives over the folded namespace as well.
 
-For CREATE3 deploys (currently only `JBOmnichainDeployer`), `_deployCreate3PrecompiledIfNeeded` adds a `addr.codehash` check on top of the length test: the existing bytecode must match a sandbox-CREATE reference codehash before resume will accept it. This closes the predeployment attack where an attacker places bytecode at the predicted CREATE3 address via the permissionless canonical factory; a mismatch reverts with `Deploy_Create3CodehashMismatch` rather than silently treating attacker bytecode as a completed phase.
+Because the new addresses are empty, the redeploy runs from a clean slate: there are no half-deployed contracts to reconcile and no idempotency edge cases to worry about. The interrupted run's partial contracts are simply abandoned at their old addresses.
 
-State-mutating calls (e.g., `setDefaultHook`, `setIsAllowedToSetFirstController`, `allowSuckerDeployer`) are guarded by idempotent checks that read current on-chain state before writing.
+For CREATE3 deploys (currently only `JBOmnichainDeployer`), `_deployCreate3PrecompiledIfNeeded` checks `addr.codehash` against a sandbox-CREATE reference codehash: the deployed bytecode must match a reference computed by running the artifact's constructor in this script. This guards against a third party placing bytecode at the predicted CREATE3 address via the permissionless canonical factory; a mismatch reverts with `Deploy_Create3CodehashMismatch` rather than silently accepting foreign bytecode.
 
-### Running Resume
+### Running A Fresh-Salt Redeploy
 
-Dry-run (simulation only):
-```bash
-forge script script/Resume.s.sol --rpc-url <RPC_URL> -vvvv
-```
+1. Increment `DEPLOYMENT_NONCE` in `script/Deploy.s.sol`.
+2. Re-propose through Sphinx, the same way as the initial deploy:
 
-Production resume (via Sphinx):
 ```bash
 npx sphinx propose --testnets   # for testnets
 npx sphinx propose --mainnets   # for production
 ```
 
-The resume script is proposed the same way as the initial deploy. Sphinx batches all remaining deployments into a single multi-sig proposal.
+Sphinx batches the full deployment into a single multi-sig proposal at the new address namespace.
 
-### Resume Output
+### Cross-Chain Note
 
-The script logs each phase as either `SKIPPED` (already deployed) or `EXECUTED` (deployed missing contracts). At completion:
+The deployment nonce changes every contract address. When cross-chain address parity matters (sucker pairs, consistent project IDs), use the same `DEPLOYMENT_NONCE` across every chain in the set so addresses and project IDs stay aligned. Recovering only some chains to a different nonce would desynchronize them from the rest.
 
-```
-[Resume] COMPLETE
-[Resume] Phases skipped: N
-[Resume] Phases executed: M
-```
+### Recovery Rehearsal
 
-### Resume Limitations
-
-1. **Project ID ordering.** Projects 1-4 (NANA, CPN, REV, BAN) are created in sequence. If a third party creates a project between interruption and resume, IDs will shift. Resume detects this by checking `projects.count()` and existing controller assignments, but operator verification is required.
-2. **Revnet configuration (Phases 08a/08b).** These phases configure existing projects as revnets. Resume stubs log a `WARNING` if the configuration needs manual review — the revnet setup involves complex ruleset + split + limit configuration that may not be safely idempotent across all edge cases.
-3. **Banny (Phase 09).** Same as above — project creation + NFT tier configuration needs manual review if interrupted mid-phase.
-
-### Resume Rehearsal
-
-The test suite includes rehearsal tests that simulate interruptions at different phases:
+The test suite includes fork tests that prove a clean re-run lands the full stack at the expected addresses with consistent project IDs:
 
 ```bash
 forge test --match-contract DeployResumeRehearsalFork -vvv --fork-url <RPC_URL>
 ```
 
-These tests interrupt after Phase 01, Phase 03a, Phase 05, and Phase 07, then resume and verify all contracts end up correctly deployed.
+These tests exercise the full deploy and re-run it, asserting that core addresses and project IDs are stable across the repeat.
 
 ## Post-Deploy Verification: Using Verify.s.sol
 
-After a successful deploy (or resume), run `Verify.s.sol` to validate all contracts are correctly wired together.
+After a successful deploy (or redeploy), run `Verify.s.sol` to validate all contracts are correctly wired together.
 
 ### Setting Up Verification
 
@@ -582,12 +567,12 @@ This is the complete sequence for deploying to a new chain:
 - [ ] Record all deployed contract addresses from the Sphinx execution log
 - [ ] If interrupted: proceed to step 4
 
-### 4. Resume (if needed)
+### 4. Recover From Interruption (if needed)
 
-- [ ] `npx sphinx propose --testnets` (or `--mainnets`) with Resume.s.sol
-- [ ] Confirm output shows `Phases skipped` + `Phases executed` totaling 11
-- [ ] Check for any `WARNING` messages requiring manual review
-- [ ] If Phases 08/09 show warnings: manually verify revnet configuration and Banny project via Etherscan or direct contract queries
+- [ ] Increment `DEPLOYMENT_NONCE` in `script/Deploy.s.sol` so every salt re-namespaces into a fresh address space
+- [ ] `npx sphinx propose --testnets` (or `--mainnets`) to redeploy the full stack from the fresh salts
+- [ ] Confirm all 11 phases execute against the new (empty) addresses
+- [ ] Use the same nonce across every chain in the set so cross-chain addresses and project IDs stay aligned
 
 ### 5. Verify
 
@@ -673,11 +658,11 @@ When deploying to multiple chains:
 **Deploy reverts at Phase 05 (Periphery) with "price feed" error:**
 Chainlink feed address may have changed or not be deployed on this chain. Verify feed addresses at https://data.chain.link.
 
-**Resume shows all phases SKIPPED but project count is wrong:**
-A third party created a project between the original deploy interruption and resume. Project IDs 1-4 may not correspond to NANA/CPN/REV/BAN. Check `directory.controllerOf()` for each project to determine which is which.
+**After a redeploy, project count or project IDs look wrong:**
+A third party may have created a project on the chain, shifting IDs. Project IDs 1-4 may not correspond to NANA/CPN/REV/BAN. Check `directory.controllerOf()` for each project to determine which is which, and confirm the same `DEPLOYMENT_NONCE` was used across every chain in the set.
 
 **Verify shows FAIL on "Directory Wiring":**
-The controller may not have been set as allowed via `setIsAllowedToSetFirstController`. Resume handles this, but if the original deploy was interrupted between controller deployment and the permission call, resume should fix it.
+The controller may not have been set as allowed via `setIsAllowedToSetFirstController`. A clean fresh-salt redeploy runs the full phase sequence including this permission call, so a redeploy from an incremented nonce resolves a deployment that was interrupted between controller deployment and the permission call.
 
 **Uniswap-dependent phases skip on a chain that should support them:**
 Check that `_positionManager` is set to a non-zero address for that chain in `_setupChainAddresses()`. Chains with `_positionManager = address(0)` skip active Uniswap routing surfaces, including the LP split hook.

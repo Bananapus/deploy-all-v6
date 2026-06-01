@@ -6,13 +6,13 @@
 
 ## System Overview
 
-The V6 stack is intentionally multi-repo and cross-chain. `Deploy.s.sol` performs the main phased rollout. `Resume.s.sol` is the deterministic recovery path for partial deployments. `Verify.s.sol` checks that the deployed stack matches the expected shape.
+The V6 stack is intentionally multi-repo and cross-chain. `Deploy.s.sol` performs the main phased rollout. If a rollout is interrupted, the recovery path is to bump the deployment nonce in `Deploy.s.sol` and redeploy from fresh salts into a clean, non-colliding address namespace. `Verify.s.sol` checks that the deployed stack matches the expected shape.
 
 ## Core Invariants
 
 - Deployment order is a dependency graph, not a presentation choice.
 - Canonical addresses must stay aligned with the expectations baked into sibling repos and fork tests.
-- Recovery logic must stay in sync with main deployment logic.
+- Recovery is a property of the main deployment script: bumping the deployment nonce must yield a fully fresh, non-colliding address namespace for every contract.
 - Verification is part of the deployment contract, not an optional afterthought.
 - Testnet support is intentionally narrower than mainnet support for some phases; that asymmetry should stay explicit.
 
@@ -20,9 +20,8 @@ The V6 stack is intentionally multi-repo and cross-chain. `Deploy.s.sol` perform
 
 | Module | Responsibility | Notes |
 | --- | --- | --- |
-| `script/Deploy.s.sol` | Main phased rollout via Sphinx | Happy-path deployment |
-| `script/Resume.s.sol` | Partial-execution recovery | Deterministic continuation path |
-| `script/Verify.s.sol` | Deployment verification follow-up | Sanity and consistency checks |
+| `script/Deploy.s.sol` | Main phased rollout via Sphinx | Happy-path deployment; carries the deployment nonce that recovery bumps for a fresh-salt redeploy |
+| `script/Verify.s.sol` | Deployment verification follow-up | Sanity and consistency checks; the verification step after any deploy or redeploy |
 
 ## Trust Boundaries
 
@@ -42,14 +41,14 @@ operator
   -> records canonical addresses for later phases
 ```
 
-### Resume
+### Recovery from partial deployment
 
 ```text
 operator
-  -> runs Resume.s.sol after partial success
-  -> script checks which deterministic addresses already contain code
-  -> deploys only the missing remainder
-  -> preserves the original rollout assumptions
+  -> bumps the deployment nonce in Deploy.s.sol after partial success
+  -> every CREATE2/CREATE3 salt re-namespaces into a fresh, non-colliding address space
+  -> re-runs Deploy.s.sol, which deploys the full stack from scratch at the new addresses
+  -> runs Verify.s.sol to confirm the deployed shape and ownership
 ```
 
 ## Accounting Model
@@ -58,21 +57,20 @@ This repo does not own protocol accounting. Its economic risk is indirect: bad d
 
 ## Security Model
 
-- CREATE2 makes naive replay unsafe after partial success.
-- A stale recovery script is a broken production path.
+- CREATE2 makes naive replay unsafe after partial success: re-running the same script with the same salts collides with already-deployed contracts. Recovery bumps the deployment nonce so every salt re-namespaces into a fresh address space.
 - Cross-repo drift is the main hazard: constructors, salts, and deployment assumptions can move in sibling repos before this repo is updated.
 - Verification drift is also dangerous. A script that deploys correctly but verifies the wrong invariants gives false confidence.
 
 ## Safe Change Guide
 
-- If a sibling repo changes a constructor, salt, or required dependency, update `Deploy.s.sol` and `Resume.s.sol` together.
+- If a sibling repo changes a constructor, salt, or required dependency, update `Deploy.s.sol` accordingly.
 - If a deployment assumption changes, update `Verify.s.sol` in the same change set or document why the old check still holds.
 - Validate deployment changes against the chain matrix they affect.
 - Prefer explicit wiring over inferred discovery when determinism matters.
 
 ## Canonical Checks
 
-- deploy/resume continuity:
+- fresh-salt redeploy continuity (same addresses on a clean re-run):
   `test/fork/DeployResumeRehearsalFork.t.sol`
 - post-deploy verification assumptions:
   `test/fork/DeployScriptVerification.t.sol`
@@ -82,7 +80,6 @@ This repo does not own protocol accounting. Its economic risk is indirect: bad d
 ## Source Map
 
 - `script/Deploy.s.sol`
-- `script/Resume.s.sol`
 - `script/Verify.s.sol`
 - `test/fork/DeployResumeRehearsalFork.t.sol`
 - `test/fork/DeployScriptVerification.t.sol`

@@ -16,7 +16,7 @@ This repo does not define protocol behavior of its own. Its job is to stitch tog
 It is responsible for:
 
 - workspace-level deployment orchestration
-- resume and recovery flows
+- recovery flows (redeploying from fresh salts after an interruption)
 - post-deploy verification
 - fork rehearsals of cross-feature compositions
 
@@ -26,8 +26,7 @@ Use this repo when the question is "does the combined deployment still work?" Do
 
 | Script | Role |
 | --- | --- |
-| `script/Deploy.s.sol` | Main end-to-end deployment entrypoint |
-| `script/Resume.s.sol` | Resume and recovery tooling for interrupted deployments |
+| `script/Deploy.s.sol` | Main end-to-end deployment entrypoint; bump its deployment nonce to recover from an interruption by redeploying from fresh salts |
 | `script/Verify.s.sol` | Post-deploy verification checks |
 | `script/LivePostDeploySmoke.s.sol` | Budgeted Sphinx proposal for live post-deploy buyback, loan, and ops smoke checks |
 
@@ -38,11 +37,10 @@ This repo owns sequencing, not business logic. It is where the intended cross-re
 ## Read These Files First
 
 1. `script/Deploy.s.sol`
-2. `script/Resume.s.sol`
-3. `script/Verify.s.sol`
-4. `script/LivePostDeploySmoke.s.sol`
-5. `test/fork/DeployFullStack.t.sol`
-6. `test/fork/DeployResumeRehearsalFork.t.sol`
+2. `script/Verify.s.sol`
+3. `script/LivePostDeploySmoke.s.sol`
+4. `test/fork/DeployFullStack.t.sol`
+5. `test/fork/DeployResumeRehearsalFork.t.sol`
 
 ## High-Signal Tests
 
@@ -56,7 +54,7 @@ This repo owns sequencing, not business logic. It is where the intended cross-re
 
 - this repo has almost no runtime protocol logic of its own, so many assumptions live in sibling packages
 - a successful deployment sequence can still encode bad cross-repo configuration
-- resume and recovery paths are part of the intended operational surface
+- recovery paths (redeploying from fresh salts) are part of the intended operational surface
 - artifact drift and chain-specific environment mismatches are the main failure classes here
 
 ## Where State Lives
@@ -88,7 +86,6 @@ This repo assumes the sibling V6 packages are present and their deployment artif
 ```text
 script/
   Deploy.s.sol
-  Resume.s.sol
   Verify.s.sol
   LivePostDeploySmoke.s.sol
 test/fork/
