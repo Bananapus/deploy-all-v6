@@ -223,7 +223,7 @@ contract TestTerminalMigration is RevnetForkBase {
 
         // REVLoans sources loans from its constructor-pinned multi terminal. Migrating a plain project's balance to
         // another terminal does not move the loan source, so the canonical terminal has no borrowable surplus.
-        uint256 borrowable = LOANS_CONTRACT.borrowableAmountFrom({
+        (uint256 borrowable,) = LOANS_CONTRACT.borrowableAmountFrom({
             revnetId: projectId,
             collateralCount: borrowerTokens,
             decimals: 18,

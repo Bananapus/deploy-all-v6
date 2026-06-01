@@ -203,12 +203,12 @@ contract EcosystemForkTest is RevnetEcosystemBase {
         _payRevnet(revnetId, BORROWER, 5 ether);
 
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
-        uint256 borrowableStage1 =
+        (uint256 borrowableStage1,) =
             LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
 
         vm.warp(block.timestamp + STAGE_DURATION + 1);
 
-        uint256 borrowableStage2 =
+        (uint256 borrowableStage2,) =
             LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
         assertGt(borrowableStage2, borrowableStage1, "borrowable should increase in stage 2");
 

@@ -466,7 +466,7 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
         // Grant burn permission so REVLoans can burn collateral on the arbitrageur's behalf.
         _grantBurnPermission(arbitrageur, revnetId);
 
-        uint256 borrowable =
+        (uint256 borrowable,) =
             LOANS_CONTRACT.borrowableAmountFrom(revnetId, arbTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
 
         uint256 ethBefore = arbitrageur.balance;

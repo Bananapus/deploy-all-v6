@@ -119,9 +119,8 @@ contract FullStackForkTest is RevnetForkBase {
 
         uint256 borrowerTokens = jbTokens().totalBalanceOf(BORROWER, revnetId);
 
-        uint256 borrowable = LOANS_CONTRACT.borrowableAmountFrom(
-            revnetId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN))
-        );
+        (uint256 borrowable,) =
+            LOANS_CONTRACT.borrowableAmountFrom(revnetId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
         assertGt(borrowable, 0, "should have borrowable amount");
 
         _grantBurnPermission(BORROWER, revnetId);
@@ -258,12 +257,12 @@ contract FullStackForkTest is RevnetForkBase {
 
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
 
-        uint256 borrowableStage1 =
+        (uint256 borrowableStage1,) =
             LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
 
         vm.warp(block.timestamp + 31 days);
 
-        uint256 borrowableStage2 =
+        (uint256 borrowableStage2,) =
             LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
         assertGt(borrowableStage2, borrowableStage1, "borrowable should increase with lower tax in stage 2");
 

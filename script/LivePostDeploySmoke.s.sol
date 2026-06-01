@@ -290,7 +290,7 @@ contract LivePostDeploySmoke is Script, Sphinx {
         uint256 collateral = minted / 2;
         if (collateral == 0) collateral = minted;
 
-        uint256 borrowable = _revLoans.borrowableAmountFrom({
+        (uint256 borrowable,) = _revLoans.borrowableAmountFrom({
             revnetId: _loanProjectId,
             collateralCount: collateral,
             decimals: 18,

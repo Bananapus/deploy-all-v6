@@ -19,7 +19,7 @@ jobs:
           node-version: 25.9.0
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -29,3 +29,36 @@ jobs:
 
       - name: Check contract sizes
         run: forge build --deny notes --sizes --skip "*/test/**" --skip "*/script/**" --skip SphinxUtils
+
+  forge-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25.9.0
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build deploy artifacts
+        # The deploy script and its fork tests load precompiled creation bytecode from `artifacts/`,
+        # which is not committed, so regenerate it before the suite runs. The artifact build requires a
+        # clean working tree, which `npm ci` preserves (it installs from the lockfile without rewriting it).
+        run: npm run artifacts
+
+      - name: Run tests
+        # Run the full suite so fork and integration failures gate CI. The fork tests cover cross-chain
+        # operations, so all four mainnet RPCs back the Ethereum, Optimism, Base, and Arbitrum forks.
+        run: forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"
+        env:
+          RPC_ETHEREUM_MAINNET: ${{ secrets.RPC_ETHEREUM_MAINNET }}
+          RPC_OPTIMISM_MAINNET: ${{ secrets.RPC_OPTIMISM_MAINNET }}
+          RPC_BASE_MAINNET: ${{ secrets.RPC_BASE_MAINNET }}
+          RPC_ARBITRUM_MAINNET: ${{ secrets.RPC_ARBITRUM_MAINNET }}
