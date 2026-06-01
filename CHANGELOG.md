@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.53 - Correct the documented recovery path
+
+Documentation fix:
+
+- The docs described an interrupted-deployment recovery script that does not exist in this repo. Every reference to it has been removed.
+- The documented recovery path is now the one this repo actually supports: bump the deployment nonce in `script/Deploy.s.sol` so every CREATE2/CREATE3 salt re-namespaces into a fresh, non-colliding address space, redeploy the full stack from those fresh salts, then run `script/Verify.s.sol` to validate the deployed shape and ownership.
+- Updated `ARCHITECTURE.md`, `RISKS.md`, `USER_JOURNEYS.md`, `AUDIT_INSTRUCTIONS.md`, `DEPLOY.md`, `ADMINISTRATION.md`, `README.md`, `SKILLS.md`, `references/runtime.md`, `references/operations.md`, and this changelog so the recovery story is coherent throughout.
+
 ## 0.0.52 - Register USDC revnet price feed
 
 Deployment updates:
@@ -67,7 +75,6 @@ Dependency bumps (cohort to nana-core-v6 0.0.53 + companions):
 ## Current v6 surface
 
 - `script/Deploy.s.sol`
-- `script/Resume.s.sol`
 - `script/Verify.s.sol`
 - fork-heavy integration coverage under `test/fork/`
 
@@ -75,7 +82,7 @@ Dependency bumps (cohort to nana-core-v6 0.0.53 + companions):
 
 - This repo exists to deploy and rehearse the v6 stack as a coordinated system rather than as isolated repos.
 - The current repo contents clearly assume the router-terminal era, the v6 buyback hook, v6 suckers, and the v6 revnet/omnichain stack.
-- The test suite is oriented around cross-repo integration and recovery scenarios: resume flows, multi-chain deployment, price-feed failures, routing, sucker paths, and other system-level compositions.
+- The test suite is oriented around cross-repo integration and recovery scenarios: fresh-salt redeploys, multi-chain deployment, price-feed failures, routing, sucker paths, and other system-level compositions.
 
 ## Migration notes
 

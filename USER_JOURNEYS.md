@@ -13,8 +13,7 @@ This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, 
 
 ## Key Surfaces
 
-- `script/Deploy.s.sol`: full deployment entrypoint
-- `script/Resume.s.sol`: recovery path for interrupted deployments
+- `script/Deploy.s.sol`: full deployment entrypoint; its deployment nonce is the recovery lever for redeploying from fresh salts after an interruption
 - `script/Verify.s.sol`: verification and drift-check path
 - fork-heavy tests in `test/`: composition and deployment-shape regression coverage
 
@@ -59,7 +58,7 @@ This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, 
 
 1. Feed `script/Deploy.s.sol` the chain config and sibling-package artifacts it expects.
 2. Deploy core dependencies before downstream packages that reference them.
-3. Record outputs carefully because later resume and verify paths depend on them.
+3. Record outputs carefully because later recovery and verify paths depend on them.
 
 **Failure Modes**
 
@@ -68,13 +67,13 @@ This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, 
 
 **Postconditions**
 
-- deployment outputs exist in dependency order and can be consumed by resume and verify paths
+- deployment outputs exist in dependency order and can be consumed by recovery and verify paths
 
 ## Journey 3: Recover From An Interrupted Deployment
 
 **Actor:** deployment responder.
 
-**Intent:** continue from the last known-good state without double-deploying or corrupting outputs.
+**Intent:** land a clean, fully wired deployment without colliding with the half-deployed contracts the interrupted run left behind.
 
 **Preconditions**
 
@@ -83,18 +82,18 @@ This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, 
 
 **Main Flow**
 
-1. Inspect the partial outputs from the interrupted run.
-2. Use `script/Resume.s.sol` to continue from that state.
-3. Re-check downstream expectations against the resumed addresses before moving forward.
+1. Inspect the partial outputs from the interrupted run to confirm the failure boundary.
+2. Bump the deployment nonce in `script/Deploy.s.sol` so every salt re-namespaces into a fresh address space, then redeploy the full stack.
+3. Run `script/Verify.s.sol` and re-check downstream expectations against the freshly deployed addresses before moving forward.
 
 **Failure Modes**
 
 - stale artifacts or manually patched outputs no longer match chain state
-- responders treat resume as ad hoc glue instead of a production path
+- responders replay the same salts against dirty on-chain state instead of redeploying from a fresh nonce
 
 **Postconditions**
 
-- the deployment either resumes from a coherent checkpoint or stops before more drift is introduced
+- the deployment either lands cleanly at a fresh address namespace or stops before more drift is introduced
 
 ## Journey 4: Verify The Deployment Before Calling It Live
 
@@ -125,7 +124,7 @@ This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, 
 ## Trust Boundaries
 
 - this repo trusts sibling packages and their artifacts to represent the intended code
-- operators trust resume and verification state to reflect the real deployment accurately
+- operators trust recovery and verification state to reflect the real deployment accurately
 - live-chain correctness still depends on chain-specific conditions this repo cannot abstract away
 
 ## Hand-Offs

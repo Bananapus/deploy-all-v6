@@ -75,6 +75,5 @@ The important admin actions here are deployment-time assignments, not runtime se
 ## Source Map
 
 - `script/Deploy.s.sol`
-- `script/Resume.s.sol`
 - `script/Verify.s.sol`
 - `test/`

@@ -11,7 +11,7 @@ Suggestions of where to look:
 - deploy the wrong contract, implementation, hook, registry, or price feed
 - wire correct contracts together with incorrect parameters
 - mis-sequence deployments so ownership, permissions, or dependencies are wrong
-- make recovery or resume flows diverge from clean deployment behavior
+- make recovery flows diverge from clean deployment behavior
 - leave partial deployment states exploitable or unverifiable
 
 ## Scope
@@ -19,7 +19,6 @@ Suggestions of where to look:
 In scope:
 
 - `script/Deploy.s.sol`
-- `script/Resume.s.sol`
 - `script/Verify.s.sol`
 - helper logic under `script/`
 
@@ -30,8 +29,7 @@ Out of scope:
 ## Start Here
 
 1. `script/Deploy.s.sol`
-2. `script/Resume.s.sol`
-3. `script/Verify.s.sol`
+2. `script/Verify.s.sol`
 
 ## Security Model
 
@@ -41,7 +39,7 @@ This repo does not introduce a new treasury or hook. It assembles the ecosystem:
 - wires constructor and initializer arguments
 - configures owners, registries, permissions, and addresses
 - creates canonical projects and compositions in a specific order
-- provides recovery and verification tooling for interrupted or resumed runs
+- provides recovery and verification tooling for interrupted or redeployed runs
 
 The key audit mindset is that many runtime trust assumptions are born during deployment:
 
@@ -55,7 +53,7 @@ The key audit mindset is that many runtime trust assumptions are born during dep
 | Role | Powers | How constrained |
 |------|--------|-----------------|
 | Deployment script caller | Execute the full rollout | Must not retain post-deploy authority |
-| Resume flow | Continue partially completed deployment | Must converge to the same final state as a clean run |
+| Fresh-salt redeploy | Recover from a partial deployment by bumping the deployment nonce | Must converge to the same topology as a clean run |
 | Verify flow | Certify deployment correctness | Must fail on real drift, not only missing contracts |
 
 ## Integration Assumptions
@@ -73,11 +71,11 @@ The key audit mindset is that many runtime trust assumptions are born during dep
 2. Canonical singleton wiring is correct.
    Registries, router hooks, deployers, fee project references, price feeds, and bridge peers must point at the intended contracts.
 
-3. Resume converges to the same final state.
-   Recovery from partial deployment must not create a different topology than a clean deployment.
+3. Fresh-salt redeploy converges to the same final state.
+   Recovery from partial deployment (bumping the deployment nonce and redeploying) must not create a different topology than a clean deployment.
 
 4. Verification matches real intent.
-   `Verify.s.sol` must fail on actual drift and stay synchronized with deploy and resume logic.
+   `Verify.s.sol` must fail on actual drift and stay synchronized with deploy logic.
 
 5. Deployment does not leave hidden authority behind.
    Ownership, wildcard permissions, and allowlists must converge to the intended steady-state trust model.
@@ -87,7 +85,7 @@ The key audit mindset is that many runtime trust assumptions are born during dep
 - hardcoded chain-specific addresses
 - constructor and initializer parameters
 - phased deployment ordering
-- resume checkpoints and identity checks
+- the deployment nonce that drives fresh-salt redeploys
 - verification scripts that can go stale while deployments still succeed
 
 ## Accepted Risks Or Behaviors
@@ -98,6 +96,6 @@ The key audit mindset is that many runtime trust assumptions are born during dep
 ## Verification
 
 - run `forge build --deny notes --skip "*/test/**"` to compile the deployment scripts without lint notes
-- run the fork-based deployment and resume tests with `forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"`
+- run the fork-based deployment and recovery tests with `forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"`
 - compare deployed addresses and owner targets against the expected chain config
 - run `script/Verify.s.sol` after concrete deployment changes

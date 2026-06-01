@@ -3,7 +3,7 @@
 ## Use This File For
 
 - Use this file when the task is about multi-chain deployment, partial-rollout recovery, artifact verification, or dependency ordering across the ecosystem.
-- Start here for deployment sequencing, then decide whether the failure is bad ordering, stale artifact input, resume drift, or downstream package drift.
+- Start here for deployment sequencing, then decide whether the failure is bad ordering, stale artifact input, recovery drift, or downstream package drift.
 
 ## Read This Next
 
@@ -11,7 +11,7 @@
 |---|---|
 | Repo overview and operator expectations | [`README.md`](./README.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md) |
 | Primary deployment sequence | [`script/Deploy.s.sol`](./script/Deploy.s.sol) |
-| Recovery or resume behavior | [`script/Resume.s.sol`](./script/Resume.s.sol) |
+| Recovery behavior (bump the deployment nonce, redeploy from fresh salts) | [`script/Deploy.s.sol`](./script/Deploy.s.sol) |
 | Verification flow | [`script/Verify.s.sol`](./script/Verify.s.sol) |
 | Deployment-phase and operator invariants | [`references/runtime.md`](./references/runtime.md), [`references/operations.md`](./references/operations.md) |
 | Full-stack or recovery rehearsals | [`test/fork/DeployFullStack.t.sol`](./test/fork/DeployFullStack.t.sol), [`test/fork/DeployResumeRehearsalFork.t.sol`](./test/fork/DeployResumeRehearsalFork.t.sol), [`test/fork/DeployScriptVerification.t.sol`](./test/fork/DeployScriptVerification.t.sol) |
@@ -27,11 +27,11 @@
 
 ## Purpose
 
-Deployment orchestration repo for the full Juicebox V6 ecosystem. It does not define new runtime behavior. It coordinates deployment order, resume flows, and verification across many sibling packages.
+Deployment orchestration repo for the full Juicebox V6 ecosystem. It does not define new runtime behavior. It coordinates deployment order, recovery flows, and verification across many sibling packages.
 
 ## Reference Files
 
-- Open [`references/runtime.md`](./references/runtime.md) for deployment phases, dependency ordering, and the main invariants around resume-safe orchestration.
+- Open [`references/runtime.md`](./references/runtime.md) for deployment phases, dependency ordering, and the main invariants around fresh-salt recovery.
 - Open [`references/operations.md`](./references/operations.md) for operator guidance, recovery breadcrumbs, and common stale-data traps caused by cross-repo artifact drift.
 
 ## Working Rules

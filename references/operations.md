@@ -5,7 +5,7 @@ Use this file when the question is operational: what to rerun, what to trust, an
 ## Operator Checklist
 
 - Confirm sibling package broadcasts, addresses, and constructor inputs before blaming this repo.
-- Use [`script/Resume.s.sol`](../script/Resume.s.sol) for partially completed rollouts instead of replaying `Deploy.s.sol` against dirty on-chain state.
+- For partially completed rollouts, bump the deployment nonce in [`script/Deploy.s.sol`](../script/Deploy.s.sol) and redeploy from fresh salts instead of replaying the same salts against dirty on-chain state.
 - Use [`script/Verify.s.sol`](../script/Verify.s.sol) after deployment to confirm the chain state still matches the expected published artifacts.
 - If the symptom is isolated to one subsystem after a clean deploy, move into that subsystem repo instead of continuing to debug here.
 
@@ -19,5 +19,5 @@ Use this file when the question is operational: what to rerun, what to trust, an
 ## Tests To Trust First
 
 - [`test/fork/DeployScriptVerification.t.sol`](../test/fork/DeployScriptVerification.t.sol) when the question is whether the scripts assembled the intended config.
-- [`test/fork/ResumeDeployFork.t.sol`](../test/fork/ResumeDeployFork.t.sol) and [`test/fork/DeployResumeRehearsalFork.t.sol`](../test/fork/DeployResumeRehearsalFork.t.sol) for resume behavior.
+- [`test/fork/ResumeDeployFork.t.sol`](../test/fork/ResumeDeployFork.t.sol) and [`test/fork/DeployResumeRehearsalFork.t.sol`](../test/fork/DeployResumeRehearsalFork.t.sol) for fresh-salt redeploy/recovery behavior.
 - [`test/fork/SuckerEndToEndFork.t.sol`](../test/fork/SuckerEndToEndFork.t.sol), [`test/fork/BuybackRouterFork.t.sol`](../test/fork/BuybackRouterFork.t.sol), and [`test/fork/LPBuybackInteropFork.t.sol`](../test/fork/LPBuybackInteropFork.t.sol) for cross-package integration failures.
