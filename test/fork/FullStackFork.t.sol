@@ -119,9 +119,8 @@ contract FullStackForkTest is RevnetForkBase {
 
         uint256 borrowerTokens = jbTokens().totalBalanceOf(BORROWER, revnetId);
 
-        (uint256 borrowable,) = LOANS_CONTRACT.borrowableAmountFrom(
-            revnetId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN))
-        );
+        (uint256 borrowable,) =
+            LOANS_CONTRACT.borrowableAmountFrom(revnetId, borrowerTokens, 18, uint32(uint160(JBConstants.NATIVE_TOKEN)));
         assertGt(borrowable, 0, "should have borrowable amount");
 
         _grantBurnPermission(BORROWER, revnetId);
