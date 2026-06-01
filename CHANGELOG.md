@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.52 - Register USDC revnet price feed
+
+Deployment updates:
+
+- Registers the ETH/USDC triangular price feed for USDC revnets.
+- `@bananapus/ownable-v6`: add explicit `^0.0.34` dependency so root package-name resolution uses the latest owner policy.
+
 ## 0.0.51 - Bump v6 deployment cohort
 
 Dependency bumps:

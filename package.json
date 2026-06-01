@@ -1,6 +1,6 @@
 {
   "name": "@bananapus/deploy-all-v6",
-  "version": "0.0.51",
+  "version": "0.0.52",
   "license": "MIT",
   "description": "One-shot deployment orchestrator for the Juicebox V6 ecosystem.",
   "private": true,
@@ -42,6 +42,7 @@
     "@bananapus/core-v6": "^0.0.77",
     "@bananapus/distributor-v6": "^0.0.35",
     "@bananapus/omnichain-deployers-v6": "^0.0.55",
+    "@bananapus/ownable-v6": "^0.0.34",
     "@bananapus/permission-ids-v6": "^0.0.28",
     "@bananapus/project-handles-v6": "^0.0.23",
     "@bananapus/project-payer-v6": "^0.0.20",
