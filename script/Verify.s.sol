@@ -2682,10 +2682,6 @@ contract Verify is Script {
             critical: true
         });
 
-        // Note: CTPublisher fee calculation assumes ETH/18-decimal tier prices.
-        // Non-ETH-priced hooks may produce incorrect fee amounts.
-        // This is a known limitation — not verifiable on-chain.
-
         console.log("");
     }
 
@@ -3525,6 +3521,13 @@ contract Verify is Script {
                     critical: true
                 });
             }
+            if (address(ctPublisher) != address(0)) {
+                _check({
+                    condition: address(ctPublisher.PERMIT2()) == expectedPermit2,
+                    label: "CTPublisher.PERMIT2 == canonical Permit2",
+                    critical: true
+                });
+            }
         } else {
             // Fall back to non-zero on chains without a canonical Permit2 manifest. The skip is
             // logged so operators see which chains are still gaps.
@@ -3533,6 +3536,27 @@ contract Verify is Script {
                 label: "Terminal.PERMIT2 is non-zero (no canonical manifest for this chain)",
                 critical: true
             });
+            if (address(routerTerminal) != address(0)) {
+                _check({
+                    condition: address(routerTerminal.PERMIT2()) != address(0),
+                    label: "RouterTerminal.PERMIT2 is non-zero (no canonical manifest for this chain)",
+                    critical: true
+                });
+            }
+            if (address(revLoans) != address(0)) {
+                _check({
+                    condition: address(revLoans.PERMIT2()) != address(0),
+                    label: "REVLoans.PERMIT2 is non-zero (no canonical manifest for this chain)",
+                    critical: true
+                });
+            }
+            if (address(ctPublisher) != address(0)) {
+                _check({
+                    condition: address(ctPublisher.PERMIT2()) != address(0),
+                    label: "CTPublisher.PERMIT2 is non-zero (no canonical manifest for this chain)",
+                    critical: true
+                });
+            }
             _skip("Permit2 exact-address check skipped (no manifest for this chain)");
         }
 
@@ -3928,7 +3952,6 @@ contract Verify is Script {
     function _checkpointsDeployer() internal view returns (address) {
         return address(checkpointsDeployer);
     }
-
 
     /// loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
     /// Falls back to the legacy VERIFY_CONFIG_HASHES CSV when individual vars are unset, for
