@@ -19,7 +19,7 @@ jobs:
           node-version: 25.9.0
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -42,14 +42,15 @@ jobs:
           node-version: 25.9.0
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Build deploy artifacts
         # The deploy script and its fork tests load precompiled creation bytecode from `artifacts/`,
-        # which is not committed, so regenerate it before the suite runs.
+        # which is not committed, so regenerate it before the suite runs. The artifact build requires a
+        # clean working tree, which `npm ci` preserves (it installs from the lockfile without rewriting it).
         run: npm run artifacts
 
       - name: Run tests
