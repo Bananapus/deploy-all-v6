@@ -1,13 +1,30 @@
 # Changelog
 
-## 0.0.52 — Bump latest safety dependency cohort
+## 0.0.52 - Register USDC revnet price feed
 
-Updates the deployment stack to use the latest published packages for the recently landed safety releases:
+Deployment updates:
 
+- Registers the ETH/USDC triangular price feed for USDC revnets.
 - `@bananapus/ownable-v6`: add explicit `^0.0.34` dependency so root package-name resolution uses the latest owner policy.
-- `@bananapus/router-terminal-v6`: `^0.0.58 → ^0.0.59`.
-- `@bananapus/suckers-v6`: `^0.0.65 → ^0.0.66`.
-- `@bananapus/univ4-router-v6`: `^0.0.48 → ^0.0.49`.
+
+## 0.0.51 - Bump v6 deployment cohort
+
+Dependency bumps:
+
+- `@ballkidz/defifa`: `^0.0.50 -> ^0.0.51`.
+- `@bananapus/721-hook-v6`: `^0.0.63 -> ^0.0.65`.
+- `@bananapus/core-v6`: `^0.0.76 -> ^0.0.77`.
+- `@bananapus/referral-split-hook-v6`: `^0.0.8 -> ^0.0.9`.
+- `@bananapus/router-terminal-v6`: `^0.0.58 -> ^0.0.59`.
+- `@bananapus/suckers-v6`: `^0.0.65 -> ^0.0.66`.
+- `@bananapus/univ4-lp-split-hook-v6`: `^0.0.54 -> ^0.0.56`.
+- `@bananapus/univ4-router-v6`: `^0.0.48 -> ^0.0.49`.
+- `@croptop/core-v6`: `^0.0.61 -> ^0.0.64`.
+
+Deployment updates:
+
+- Wired `CTPublisher` deployments to the canonical Permit2 singleton.
+- Extended deployment verification to pin `CTPublisher.PERMIT2` alongside the other Permit2-enabled contracts.
 
 ## 0.0.33 — Bump v6 deps to nana-core-v6 0.0.53 cohort
 
