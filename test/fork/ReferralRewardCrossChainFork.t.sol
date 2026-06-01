@@ -1760,14 +1760,17 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
     //  GROUP 9 — Deferral semantics: chains without sucker infrastructure
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// @notice A cross-chain referral on a chain that has NO sucker pair is STRANDING, not deferral —
-    /// existing fee-token holders shouldn't be diluted forever by an allocation that no one can settle.
-    /// `burnUnbridgeableCreditFor` permissionlessly burns the entitled share for an unbridgeable
-    /// (chainId, projectId) pair: the equivalent fee-project tokens are burned from the hook, the bridged
-    /// terminal-token value (already in the fee project's balance from the original protocol-fee flow)
-    /// accrues to all existing fee-token holders pro-rata, and `bridgedOutOf` is advanced so a future
-    /// sucker deployment can only act on INCREMENTAL credit accumulated AFTER the burn.
-    function test_unbridgeableChain_burnsUnbridgeableCredit() public {
+    /// @notice A cross-chain referral on a chain that has NO sucker pair is unsettleable — existing
+    /// fee-token holders shouldn't be diluted forever by an allocation that no one can deliver.
+    /// `burnUnbridgeableCreditFor` resolves this in two phases so an imminent sucker deployment can still
+    /// rescue the credit: the FIRST qualifying call only ARMS a dwell window (records the moment "no
+    /// settlement path" was observed, emits `ArmedUnbridgeableDwell`, burns nothing) and a later call —
+    /// once the dwell window of `BURN_DWELL_PERIOD` has elapsed with the chain still suckerless — performs
+    /// the burn: the equivalent fee-project tokens are burned from the hook, the bridged terminal-token
+    /// value (already in the fee project's balance from the original protocol-fee flow) accrues to all
+    /// existing fee-token holders pro-rata, and `bridgedOutOf` is advanced so a future sucker deployment
+    /// can only act on INCREMENTAL credit accumulated AFTER the burn.
+    function test_unbridgeableChain_armsDwellThenBurnsUnbridgeableCredit() public {
         uint256 arbChainId = 42_161; // Arbitrum One — we do NOT deploy an Arb sucker in setUp.
         uint256 arbReferrerProjectId = 777;
 
@@ -1792,18 +1795,42 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             minTokensReclaimed: 0
         });
 
-        // 2) `burnUnbridgeableCreditFor` is the right entrypoint. It iterates the project's suckers,
-        // confirms none peer to Arbitrum, computes the entitled share, and burns it.
-        uint256 expectedBurn = (totalDeposited * 1) / 1; // single referrer => entire totalDeposited
-        // Adjust expectedBurn to the exact pro-rata math (single referrer pool):
+        // The entitled share is the single referrer's pro-rata slice of the pool. With one referrer this is
+        // the whole pool, but we compute it from the published volume ledger so the assertions stay exact.
         uint256 vol =
             jbTerminalStore().feeVolumeByReferralOf(address(jbMultiTerminal()), arbChainId, arbReferrerProjectId);
         uint256 totalVol = jbTerminalStore().totalFeeVolumeOf(address(jbMultiTerminal()));
-        expectedBurn = (totalDeposited * vol) / totalVol;
+        uint256 expectedBurn = (totalDeposited * vol) / totalVol;
 
         address feeToken = address(jbTokens().tokenOf(feeProjectId));
         uint256 supplyBefore = IERC20(feeToken).totalSupply();
         uint256 hookBalanceBefore = IERC20(feeToken).balanceOf(address(hook));
+
+        // 2) ARM phase. The first qualifying call records the dwell start and returns zero — nothing is
+        // burned yet, so an Arbitrum sucker that lands during the window can still claim this credit.
+        vm.expectEmit(true, false, false, true, address(hook));
+        emit IJBReferralSplitHook.ArmedUnbridgeableDwell({
+            referralChainId: arbChainId, dwellStart: block.timestamp, caller: address(this)
+        });
+        uint256 armed = IJBReferralSplitHook(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
+        assertEq(armed, 0, "arming the dwell burns nothing");
+
+        // The dwell start is recorded and no tokens moved — the credit is still fully intact and rescuable.
+        assertEq(hook.noSettlementPathSince(arbChainId), block.timestamp, "dwell window armed at this timestamp");
+        assertEq(IERC20(feeToken).totalSupply(), supplyBefore, "supply unchanged while only armed");
+        assertEq(
+            IERC20(feeToken).balanceOf(address(hook)), hookBalanceBefore, "hook balance unchanged while only armed"
+        );
+        assertEq(
+            hook.bridgedOutOf({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId}),
+            0,
+            "no credit consumed during the arm phase"
+        );
+
+        // 3) BURN phase. Once the chain has stayed suckerless for the full dwell window, the burn lands.
+        // Warp just past the window so the dwell condition has provably elapsed.
+        vm.warp(block.timestamp + hook.BURN_DWELL_PERIOD() + 1);
 
         vm.expectEmit(true, true, false, true, address(hook));
         emit IJBReferralSplitHook.BurnedUnbridgeable({
@@ -1826,6 +1853,9 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             "hook balance decreased by burned amount"
         );
 
+        // The dwell window is cleared after the burn so a fresh no-path situation re-arms from scratch.
+        assertEq(hook.noSettlementPathSince(arbChainId), 0, "dwell window cleared after burn");
+
         // bridgedOutOf advanced — burn is idempotent and shares the HWM with bridgeRemote.
         assertEq(
             hook.bridgedOutOf({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId}),
@@ -1833,7 +1863,8 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             "bridgedOutOf records the burn"
         );
 
-        // Calling again with no new volume is a noop.
+        // Calling again with no new volume is a noop (the delta is already caught up, so it short-circuits
+        // before ever re-arming the dwell).
         uint256 second = IJBReferralSplitHook(address(hook))
             .burnUnbridgeableCreditFor({referralChainId: arbChainId, referralProjectId: arbReferrerProjectId});
         assertEq(second, 0, "second burn with no new volume must be a noop");
@@ -1888,12 +1919,17 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         uint256 chainId = 42_161;
         uint256 projectId = 555;
 
-        // Round 1: accumulate credit, burn it.
+        // Round 1: accumulate credit, then burn it. The first burn call only arms the dwell window, so we
+        // arm it, wait out `BURN_DWELL_PERIOD` (the chain stays suckerless), then the second call burns.
         _payAndCashOutWithReferral(PAYER, 5 ether, chainId, projectId);
         _distributeFeeReservedTokens();
+        uint256 armed = IJBReferralSplitHook(address(hook))
+            .burnUnbridgeableCreditFor({referralChainId: chainId, referralProjectId: projectId});
+        assertEq(armed, 0, "first call only arms the dwell window");
+        vm.warp(block.timestamp + hook.BURN_DWELL_PERIOD() + 1);
         uint256 burned = IJBReferralSplitHook(address(hook))
             .burnUnbridgeableCreditFor({referralChainId: chainId, referralProjectId: projectId});
-        assertGt(burned, 0, "round 1 burn moves tokens");
+        assertGt(burned, 0, "round 1 burn moves tokens once the dwell window has elapsed");
 
         // Round 2: more credit accrues to the same referrer.
         _payAndCashOutWithReferral(PAYER, 5 ether, chainId, projectId);
