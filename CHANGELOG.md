@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.55 - Build the triangular price-feed artifact
+
+Fix:
+
+- Add `JBTriangularPriceFeed` to the artifact build. The deploy registers a triangulated ETH<->USDC price feed (the derived feed that lets USDC-accepting projects price ETH against USDC through the shared USD pivot) and loads its precompiled creation code from `artifacts/JBTriangularPriceFeed.json`. That artifact was not produced, so the deploy reverted at the price-feed phase on every chain. The contract is now in the build spec.
+
+Tests:
+
+- Guard that every precompiled artifact the deploy loads is produced by the artifact build, derived directly from the deploy source so the list cannot drift from the code. The fork tests rebuild the protocol with direct constructor calls and never exercise the artifact-loading path, so a missing artifact would otherwise surface only at deploy time.
+- Add a cross-chain surplus fork test for USDC/USD revnets. It funds a revnet with a local USDC surplus plus a remote, ETH-denominated surplus snapshot, then values both through the real `JBTriangularPriceFeed`: with the feed registered the remote leg converts to its USDC value and the borrowable/cash-out amount reflects both legs; without it the remote surplus silently resolves to zero while the remote supply still sits in the denominator, so the valuation under-prices (rather than reverting). The test proves the triangular feed is load-bearing for cross-chain USDC accounting.
+
 ## 0.0.54 - Bump sibling packages to the latest fixes and document conventions
 
 Dependency bumps:
