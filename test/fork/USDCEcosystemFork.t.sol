@@ -370,12 +370,12 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
         _payRevnetUSDC(revnetId, BORROWER, 5000e6);
 
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
-        uint256 borrowableStage1 =
+        (uint256 borrowableStage1,) =
             LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 6, uint32(uint160(address(usdc))));
 
         vm.warp(block.timestamp + STAGE_DURATION + 1);
 
-        uint256 borrowableStage2 =
+        (uint256 borrowableStage2,) =
             LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 6, uint32(uint160(address(usdc))));
         assertGt(borrowableStage2, borrowableStage1, "borrowable should increase in stage 2");
 

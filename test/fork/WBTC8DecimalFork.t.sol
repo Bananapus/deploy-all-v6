@@ -690,13 +690,13 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
 
         // Record borrowable amount in stage 1 (70% tax).
-        uint256 borrowableStage1 = LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 8, wbtcCurrency);
+        (uint256 borrowableStage1,) = LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 8, wbtcCurrency);
 
         // Warp to stage 2 (20% tax).
         vm.warp(block.timestamp + STAGE_DURATION + 1);
 
         // Borrowable amount should increase with lower tax.
-        uint256 borrowableStage2 = LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 8, wbtcCurrency);
+        (uint256 borrowableStage2,) = LOANS_CONTRACT.borrowableAmountFrom(revnetId, payerTokens, 8, wbtcCurrency);
         assertGt(borrowableStage2, borrowableStage1, "borrowable should increase in stage 2 with lower tax");
     }
 

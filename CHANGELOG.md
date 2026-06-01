@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.0.54 - Bump sibling packages to the latest fixes
+
+Dependency bumps:
+
+- `@rev-net/core-v6`: `^0.0.83 -> ^0.0.84`.
+- `@bananapus/core-v6`: `^0.0.77 -> ^0.0.78`.
+- `@bananapus/router-terminal-v6`: `^0.0.59 -> ^0.0.60`.
+- `@bananapus/buyback-hook-v6`: `^0.0.65 -> ^0.0.66`.
+- `@bananapus/suckers-v6`: `^0.0.66 -> ^0.0.67`.
+- `@bananapus/distributor-v6`: `^0.0.35 -> ^0.0.36`.
+- `@bananapus/referral-split-hook-v6`: `^0.0.9 -> ^0.0.10`.
+- `@bananapus/project-handles-v6`: `^0.0.23 -> ^0.0.24`.
+- `@bananapus/address-registry-v6`: `^0.0.31 -> ^0.0.32`.
+- `@bannynet/core-v6`: `^0.0.41 -> ^0.0.42`.
+
+Adaptations and tests:
+
+- Adapt to the two-value borrowable-amount return: `REVLoans.borrowableAmountFrom(...)` now returns both the immediately executable amount and the total capacity. Every call site now takes the first (executable) value, which equals the previous single return.
+- Add a fee-routing fork test (`test/fork/USDCFeeRoutingFork.t.sol`). It proves a USDC cash-out fee from a USDC revnet now reaches the fee project (NANA, project 1): the directory resolves the router-terminal registry as the fee project's USDC terminal (instead of resolving nothing), and the fee is credited to the fee project's balance rather than being forgiven back to the paying revnet. Runs against the Ethereum mainnet fork in CI.
+
 ## 0.0.53 - Correct the documented recovery path
 
 Documentation fix:

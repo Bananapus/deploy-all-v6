@@ -341,7 +341,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         address source = _usdcLoanSource();
 
         // Check borrowable amount with 6-decimal USDC precision.
-        uint256 borrowable = LOANS_CONTRACT.borrowableAmountFrom(
+        (uint256 borrowable,) = LOANS_CONTRACT.borrowableAmountFrom(
             revnetId,
             borrowerTokens,
             6, // 6 decimals for USDC output.
@@ -399,7 +399,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         assertLt(ruleset2.weight, ruleset1.weight, "stage 2 weight should be lower than stage 1");
 
         // After stage transition, borrowable amount should change due to lower tax.
-        uint256 borrowableStage2 = LOANS_CONTRACT.borrowableAmountFrom(
+        (uint256 borrowableStage2,) = LOANS_CONTRACT.borrowableAmountFrom(
             revnetId,
             borrowerTokens, // Same collateral amount for comparison.
             6,
