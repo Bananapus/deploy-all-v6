@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.54 - Document NatSpec, comment, and lint conventions
+
+- Document the NatSpec, comment, and lint conventions in `STYLE_GUIDE.md`: every member carries complete NatSpec, every non-trivial statement carries a plain-English comment explaining why it exists, comments and NatSpec describe the current behavior as the only behavior, and the build/lint/test stay clean with zero notes.
+- Attempted to raise the dependency floors to the latest published versions, but reverted that change: the latest revnet core changes the `borrowableAmountFrom` view to return two values instead of one, which fails the build (and the deploy and fork-test code that reads a single value). The floors are unchanged until the consuming code is updated to the new return shape.
+
 ## 0.0.53 - Correct the documented recovery path
 
 Documentation fix:
