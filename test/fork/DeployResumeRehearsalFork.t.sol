@@ -556,11 +556,13 @@ contract InstrumentedDeployer is IERC721Receiver {
         (address r, bool rD) = _isDeployed(
             SUCKER_REGISTRY_SALT,
             type(JBSuckerRegistry).creationCode,
-            abi.encode(directory, permissions, address(this), trustedForwarder)
+            abi.encode(directory, permissions, prices, address(this), trustedForwarder)
         );
         suckerRegistry = rD
             ? JBSuckerRegistry(r)
-            : new JBSuckerRegistry{salt: SUCKER_REGISTRY_SALT}(directory, permissions, address(this), trustedForwarder);
+            : new JBSuckerRegistry{salt: SUCKER_REGISTRY_SALT}(
+                directory, permissions, prices, address(this), trustedForwarder
+            );
     }
 
     function _deployOmnichainDeployer() internal {

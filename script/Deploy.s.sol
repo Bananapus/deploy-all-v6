@@ -219,7 +219,6 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant USD_NATIVE_FEED_SALT = keccak256("USD_FEEDV6");
     bytes32 private constant USDC_FEED_SALT = keccak256("USDC_FEEDV6");
     bytes32 private constant MATCHING_FEED_SALT = keccak256("_JBMatchingPriceFeedV6_");
-    bytes32 private constant ETH_USDC_TRIANGULAR_FEED_SALT = keccak256("_JBTriangularEthUsdcFeedV6_");
     /// @dev Salts for external libraries pre-linked at compile time. The deterministic CREATE2
     ///      address derived from each (factory, salt, creationCode) MUST match the
     ///      `libraries = [...]` entry in the corresponding source repo's foundry.toml — otherwise
@@ -1109,7 +1108,7 @@ contract Deploy is Script, Sphinx {
             _deployPrecompiledIfNeeded({
                 artifactName: "JBSuckerRegistry",
                 salt: SUCKER_REGISTRY_SALT,
-                ctorArgs: abi.encode(_directory, _permissions, safeAddress(), _trustedForwarder)
+                ctorArgs: abi.encode(_directory, _permissions, _prices, safeAddress(), _trustedForwarder)
             })
         );
 
@@ -1159,14 +1158,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBOptimismSucker",
                         salt: OP_SALT,
                         ctorArgs: abi.encode(
-                            opDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            opDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1197,14 +1189,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBOptimismSucker",
                         salt: OP_SALT,
                         ctorArgs: abi.encode(
-                            opDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            opDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1244,14 +1229,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBBaseSucker",
                         salt: BASE_SALT,
                         ctorArgs: abi.encode(
-                            baseDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            baseDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1282,14 +1260,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBBaseSucker",
                         salt: BASE_SALT,
                         ctorArgs: abi.encode(
-                            baseDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            baseDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1325,14 +1296,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBArbitrumSucker",
                         salt: ARB_SALT,
                         ctorArgs: abi.encode(
-                            arbDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            arbDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1369,14 +1333,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBArbitrumSucker",
                         salt: ARB_SALT,
                         ctorArgs: abi.encode(
-                            arbDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            arbDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1482,7 +1439,7 @@ contract Deploy is Script, Sphinx {
                     artifactName: "JBCCIPSucker",
                     salt: salt,
                     ctorArgs: abi.encode(
-                        deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                        deployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                     )
                 }))
         );
@@ -1519,7 +1476,7 @@ contract Deploy is Script, Sphinx {
                     artifactName: "JBCCIPSucker",
                     salt: salt,
                     ctorArgs: abi.encode(
-                        deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                        deployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                     )
                 }))
         );
@@ -1787,30 +1744,6 @@ contract Deploy is Script, Sphinx {
 
         _ensureDefaultPriceFeed({
             projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: _currencyIdOf(usdc), expectedFeed: usdcFeed
-        });
-
-        // Register an ETH<->usdc_currency feed by triangulating the existing USD/USDC and USD/ETH feeds through USD.
-        // Without this, USDC revnets (DEFIFA/ART) running scopeCashOutsToLocalBalances=false silently price remote
-        // surplus at 0 (the ETH-denominated cross-chain snapshot cannot convert into the USDC-keyed currency, so the
-        // conversion reverts and is swallowed), inflating the cash-out/loan denominator without the matching
-        // numerator. The pivot (USD) is implicit in the two legs supplied, not hardcoded in JBPrices. The USD/ETH
-        // feed was registered earlier in `_deployPeriphery`.
-        IJBPriceFeed ethUsdFeed =
-            _prices.priceFeedFor({projectId: 0, pricingCurrency: JBCurrencyIds.USD, unitCurrency: JBCurrencyIds.ETH});
-        // NUMERATOR = USD per USDC, DENOMINATOR = USD per ETH => currentUnitPrice = ETH per USDC. JBPrices
-        // auto-inverts for the USDC-per-ETH direction needed by the source snapshot build.
-        IJBPriceFeed ethUsdcTriangularFeed = IJBPriceFeed(
-            _deployPrecompiledIfNeeded({
-                artifactName: "JBTriangularPriceFeed",
-                salt: ETH_USDC_TRIANGULAR_FEED_SALT,
-                ctorArgs: abi.encode(usdcFeed, ethUsdFeed)
-            })
-        );
-        _ensureDefaultPriceFeed({
-            projectId: 0,
-            pricingCurrency: JBCurrencyIds.ETH,
-            unitCurrency: _currencyIdOf(usdc),
-            expectedFeed: ethUsdcTriangularFeed
         });
     }
 

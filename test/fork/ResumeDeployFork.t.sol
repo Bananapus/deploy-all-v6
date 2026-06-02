@@ -507,11 +507,13 @@ contract ResumeDeployHarness is IERC721Receiver {
         (address registryAddress, bool registryDeployed) = _isDeployed(
             SUCKER_REGISTRY_SALT,
             type(JBSuckerRegistry).creationCode,
-            abi.encode(directory, permissions, address(this), trustedForwarder)
+            abi.encode(directory, permissions, prices, address(this), trustedForwarder)
         );
         suckerRegistry = registryDeployed
             ? JBSuckerRegistry(registryAddress)
-            : new JBSuckerRegistry{salt: SUCKER_REGISTRY_SALT}(directory, permissions, address(this), trustedForwarder);
+            : new JBSuckerRegistry{salt: SUCKER_REGISTRY_SALT}(
+                directory, permissions, prices, address(this), trustedForwarder
+            );
 
         address[2] memory preApproved = [address(0x1001), address(0x1002)];
         for (uint256 i; i < preApproved.length; i++) {

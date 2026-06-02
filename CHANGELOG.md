@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.56 - Adopt the per-context cross-chain surplus ecosystem
+
+Change:
+
+- Stop deploying and registering the ETH<->USDC `JBTriangularPriceFeed`, and drop it from the artifact build spec. The per-context cross-chain surplus design in `@bananapus/suckers-v6` values matched-currency peer contexts at par (no oracle) and routes genuinely cross-asset surplus through swap-suckers, so the triangulated default feed is no longer consulted for USDC revnets. The contract itself is removed in `@bananapus/core-v6`.
+- Bump the ecosystem to the per-context release: `@bananapus/core-v6` `^0.0.79 -> ^0.0.80`, `@bananapus/suckers-v6` `^0.0.68 -> ^0.0.69`, `@bananapus/omnichain-deployers-v6` `^0.0.56 -> ^0.0.57`, `@rev-net/core-v6` `^0.0.86 -> ^0.0.87`, `@bananapus/univ4-lp-split-hook-v6` `^0.0.57 -> ^0.0.59`, and `@ballkidz/defifa` `^0.0.51 -> ^0.0.53`.
+- Update the suckers/registry construction in the deploy script for the new constructor signatures: `JBSuckerRegistry` now takes `IJBPrices prices` (added as the third argument), and the sucker singletons (`JBOptimismSucker`, `JBBaseSucker`, `JBArbitrumSucker`, `JBCCIPSucker`) no longer take `prices` (removed).
+
+Tests:
+
+- Remove the USDC/USD cross-chain surplus fork test. It was premised on the superseded model that stamped a single ETH-denominated currency onto the remote snapshot and triangulated it into USDC; the per-context redesign carries each accounting context in its own currency instead, so that scenario no longer exists. The new behavior is covered by the suckers package's own tests.
+- Update the fork and invariant tests to the new suckers/registry constructor signatures (registry gains `prices`, sucker singletons drop it).
+
 ## 0.0.55 - Build the triangular price-feed artifact
 
 Fix:

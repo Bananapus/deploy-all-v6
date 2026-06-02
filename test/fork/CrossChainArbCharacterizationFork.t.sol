@@ -11,6 +11,7 @@ import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.s
 import {JBClaim} from "@bananapus/suckers-v6/src/structs/JBClaim.sol";
 import {JBLeaf} from "@bananapus/suckers-v6/src/structs/JBLeaf.sol";
 import {JBMessageRoot} from "@bananapus/suckers-v6/src/structs/JBMessageRoot.sol";
+import {JBSourceContext} from "@bananapus/suckers-v6/src/structs/JBSourceContext.sol";
 import {JBInboxTreeRoot} from "@bananapus/suckers-v6/src/structs/JBInboxTreeRoot.sol";
 import {JBOptimismSucker} from "@bananapus/suckers-v6/src/JBOptimismSucker.sol";
 import {JBOptimismSuckerDeployer} from "@bananapus/suckers-v6/src/deployers/JBOptimismSuckerDeployer.sol";
@@ -145,7 +146,6 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
             deployer: opSuckerDeployer,
             directory: jbDirectory(),
             permissions: jbPermissions(),
-            prices: jbPrices(),
             tokens: jbTokens(),
             feeProjectId: FEE_PROJECT_ID,
             registry: SUCKER_REGISTRY,
@@ -339,10 +339,7 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
                 amount: terminalTokenAmount,
                 remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
                 sourceTotalSupply: 0,
-                sourceCurrency: NATIVE_CURRENCY,
-                sourceDecimals: 18,
-                sourceSurplus: 0,
-                sourceBalance: 0,
+                sourceContexts: new JBSourceContext[](0),
                 sourceTimestamp: uint64(block.timestamp)
             })
             );
@@ -681,10 +678,7 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
                 amount: ethPaidOnL,
                 remoteRoot: JBInboxTreeRoot({nonce: 1, root: root}),
                 sourceTotalSupply: 0,
-                sourceCurrency: NATIVE_CURRENCY,
-                sourceDecimals: 18,
-                sourceSurplus: 0,
-                sourceBalance: 0,
+                sourceContexts: new JBSourceContext[](0),
                 sourceTimestamp: uint64(block.timestamp)
             })
             );

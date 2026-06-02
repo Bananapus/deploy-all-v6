@@ -87,7 +87,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         mockBridge = new MockOPBridge();
 
         // Deploy the sucker registry.
-        suckerRegistry = new JBSuckerRegistry(jbDirectory(), jbPermissions(), address(this), address(0));
+        suckerRegistry = new JBSuckerRegistry(jbDirectory(), jbPermissions(), jbPrices(), address(this), address(0));
 
         // Deploy the OP sucker deployer with mock messenger/bridge.
         opDeployer = new JBOptimismSuckerDeployer({
@@ -106,7 +106,6 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             deployer: opDeployer,
             directory: jbDirectory(),
             permissions: jbPermissions(),
-            prices: jbPrices(),
             tokens: jbTokens(),
             feeProjectId: 1,
             registry: suckerRegistry,

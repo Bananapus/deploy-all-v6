@@ -74,7 +74,6 @@ contract SuckerPrepareBuybackBypassForkTest is RevnetForkBase {
             deployer: opSuckerDeployer,
             directory: jbDirectory(),
             permissions: jbPermissions(),
-            prices: jbPrices(),
             tokens: jbTokens(),
             feeProjectId: FEE_PROJECT_ID,
             registry: SUCKER_REGISTRY,

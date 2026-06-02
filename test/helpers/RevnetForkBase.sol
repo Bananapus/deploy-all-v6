@@ -131,7 +131,7 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
 
         FEE_PROJECT_ID = jbProjects().createFor{value: jbProjects().creationFee()}(multisig());
 
-        SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
+        SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), jbPrices(), multisig(), address(0));
         HOOK_STORE = new JB721TiersHookStore();
         JB721CheckpointsDeployer checkpointsDeployer = new JB721CheckpointsDeployer(HOOK_STORE);
         EXAMPLE_HOOK = new JB721TiersHook(
