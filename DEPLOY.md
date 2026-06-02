@@ -327,11 +327,6 @@ export VERIFY_CHECKPOINTS_DEPLOYER=0x...    # JB721Checkpoints deployer (clone-t
 export VERIFY_BUYBACK_HOOK=0x...            # Canonical JBBuybackHook implementation address.
 ```
 
-Optional explicit pins:
-```bash
-export VERIFY_DEFIFA_HOOK_STORE=0x...        # Verifier otherwise reads DefifaDeployer.HOOK_STORE().
-```
-
 #### Per-project canonical manifest (mandatory on production)
 
 Each canonical revnet's expected configuration must be supplied so the verifier can prove
@@ -520,7 +515,7 @@ Verify checks 20 categories in order:
 | 4 | Terminal Wiring | Terminal references correct store, directory, permissions, feeless registry |
 | 5 | Hook Registries | 721 hook store/deployer wiring, buyback registry default hook, project 1 buyback pinned, router terminal default |
 | 6 | Omnichain | Omnichain deployer references correct controller/directory, sucker deployers are allowed |
-| 7 | Address Registry & Defifa | Address registry code, Defifa deployer identity, dedicated hook store, token/governor/controller wiring |
+| 7 | Address Registry & Defifa | Address registry code, Defifa deployer identity, shared 721 hook store, token/governor/controller wiring |
 | 8 | Price Feeds | Per-chain oracle provenance (ETH/USD, USDC/USD aggregator addresses), staleness thresholds, L2 sequencer feeds |
 | 9 | Allowlists | Sucker deployer allowlist + count verification, feeless-address allowlist checks |
 | 10 | Routes | All canonical projects include the router terminal registry in their terminal lists |

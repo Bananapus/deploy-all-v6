@@ -206,8 +206,6 @@ contract Verify is Script {
     // The Defifa deployer contract (optional, not deployed on all chains).
     DefifaDeployer public defifaDeployer;
 
-    // Dedicated Defifa hook store (separate from shared 721 hook store).
-    JB721TiersHookStore public defifaHookStore;
     // Expected trusted forwarder address.
     address public expectedTrustedForwarder;
 
@@ -380,8 +378,6 @@ contract Verify is Script {
         // Read the Defifa deployer address from env (address(0) if not deployed on this chain).
         defifaDeployer = DefifaDeployer(vm.envOr({name: "VERIFY_DEFIFA_DEPLOYER", defaultValue: address(0)}));
 
-        // Read the dedicated Defifa hook store address (separate from shared 721 hook store).
-        defifaHookStore = JB721TiersHookStore(vm.envOr({name: "VERIFY_DEFIFA_HOOK_STORE", defaultValue: address(0)}));
         // Read the expected trusted forwarder address.
         expectedTrustedForwarder = vm.envOr({name: "VERIFY_TRUSTED_FORWARDER", defaultValue: address(0)});
 
@@ -1280,21 +1276,11 @@ contract Verify is Script {
                 label: "Defifa address registry wiring",
                 critical: true
             });
-            // Defifa uses a DEDICATED hook store, not the shared one.
-            if (address(defifaHookStore) != address(0)) {
-                _check({
-                    condition: address(defifaDeployer.HOOK_STORE()) == address(defifaHookStore),
-                    label: "Defifa hook store == dedicated VERIFY_DEFIFA_HOOK_STORE",
-                    critical: true
-                });
-            } else {
-                // Fallback: at minimum verify HOOK_STORE has code and is not address(0).
-                _check({
-                    condition: address(defifaDeployer.HOOK_STORE()).code.length > 0,
-                    label: "Defifa HOOK_STORE has code (VERIFY_DEFIFA_HOOK_STORE not set)",
-                    critical: true
-                });
-            }
+            _check({
+                condition: address(defifaDeployer.HOOK_STORE()) == address(hookStore),
+                label: "Defifa HOOK_STORE == shared JB721TiersHookStore",
+                critical: true
+            });
 
             address hookCodeOrigin = defifaDeployer.HOOK_CODE_ORIGIN();
             _check({
