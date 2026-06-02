@@ -29,12 +29,12 @@ The deploy script (`script/Deploy.s.sol`) executes 11 phases in strict order:
 | 02 | Address Registry | JBAddressRegistry |
 | 03a | 721 Tier Hook | HookStore, CheckpointsDeployer, TiersHook, HookDeployer, HookProjectDeployer |
 | 03b | Uniswap V4 Router Hook | JBUniswapV4Hook (requires PoolManager) |
-| 03c | Buyback Hook | JBBuybackHookRegistry (requires V3Factory) |
-| 03d | Router Terminal | JBRouterTerminal, JBRouterTerminalRegistry |
+| 03c | Buyback Hook | JBBuybackHookRegistry; JBBuybackHook on chains with the Uniswap stack |
+| 03d | Router Terminal | JBRouterTerminalRegistry; JBRouterTerminal on chains with the Uniswap stack |
 | 03e | Cross-Chain Suckers | JBSuckerRegistry + per-bridge deployers (OP, Base, Arb, CCIP) |
 | 03f | LP Split Hook | JBUniswapV4LPSplitHook (requires PositionManager and SuckerRegistry) |
 | 04 | Omnichain Deployer | JBOmnichainDeployer |
-| 05 | Periphery | Controller, Price Feeds (ETH/USD, USDC/USD + an ETH↔USDC triangular feed composed from those two through USD, sequencer-aware on L2), Deadline hooks |
+| 05 | Periphery | Controller, Price Feeds (ETH/USD, USD/ETH, ETH/native, USDC/USD, sequencer-aware on L2), Deadline hooks |
 | 06 | Croptop | CTDeployer, CTPublisher, CTProjectOwner; creates CPN project (ID 2) |
 | 07 | Revnet | REVLoans, REVDeployer; creates REV project (ID 3) |
 | 08 | Revnet Config | Configures CPN (project 2) and NANA (project 1) as revnets |
@@ -225,15 +225,16 @@ Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so th
 
 - **Constructor-created clone implementations** (`JBProjectPayer` behind `JBProjectPayerDeployer.IMPLEMENTATION()`, `JB721Checkpoints` behind `JB721CheckpointsDeployer.IMPLEMENTATION()`) are emitted alongside their deployers so the verifier can prove the clone target bytecode matches the published artifact. Both are compiled and copied by `build-artifacts.sh` from their source repos.
 - **Canonical project ERC-20 token clones** (`JBERC20__ProjectNANA`, `JBERC20__ProjectCPN`, `JBERC20__ProjectREV`, `JBERC20__ProjectBAN`) and **canonical project 721 hook clones** (`JB721TiersHook__ProjectCPN`, `JB721TiersHook__ProjectBAN`) are queried from `_tokens.tokenOf(projectId)` and `_revOwner.tiered721HookOf(projectId)` at dump time. Each clone shares the implementation bytecode but has its own deployed address; emitting both lets the post-deploy verifier prove every canonical project token/hook on chain matches its published artifact.
-- **Per-route CCIP suckers** are emitted to `addresses-<chainId>.json` with a remote-chain suffix: `JBCCIPSucker__<RouteSuffix>`, `JBCCIPSuckerDeployer__<RouteSuffix>` (where `<RouteSuffix>` is `ETH`, `OP`, `BASE`, `ARB`, or their `_SEP` variants). The standard per-source-chain singletons (`JBOptimismSucker`, `JBBaseSucker`, `JBArbitrumSucker`) and deployers are emitted without a suffix. The pipeline emits the full singleton implementation address for every pre-approved sucker deployer so the verifier can prove the implementation bytecode matches the published artifact. Together with the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USDC/USD + ETH↔USDC triangular price feeds emitted by the base dump, this covers the full deployment surface.
+- **Per-route CCIP suckers** are emitted to `addresses-<chainId>.json` with a remote-chain suffix: `JBCCIPSucker__<RouteSuffix>`, `JBCCIPSuckerDeployer__<RouteSuffix>` (where `<RouteSuffix>` is `ETH`, `OP`, `BASE`, `ARB`, or their `_SEP` variants). The standard per-source-chain singletons (`JBOptimismSucker`, `JBBaseSucker`, `JBArbitrumSucker`) and deployers are emitted without a suffix. The pipeline emits the full singleton implementation address for every pre-approved sucker deployer so the verifier can prove the implementation bytecode matches the published artifact. Together with the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USD/ETH + ETH/native + USDC/USD price feeds emitted by the base dump, this covers the full deployment surface.
 - **No Blockscout fallback yet.** All supported chains are on Etherscan v2. Blockscout-only chains will need a `chains.json` entry with `"verifier": "blockscout"` + a Sourcify fallback.
 
 ### Project Identity Verification
 
 The deploy script uses canonical identity gates to verify that pre-existing projects match the expected deployment shape. These go beyond simple `projects.count()` / `controllerOf` checks:
 
-- **Projects 1-3 (NANA, CPN, REV):** Verified via `_isCanonicalRevnetProject()` — checks REVDeployer ownership, non-zero config hash, controller wiring, and token symbol.
-- **Project 4 (BAN):** Verified via `_isCanonicalBannyProject()` — additionally checks REVOwner's 721 hook registration, hook PROJECT_ID, STORE, and BANNY symbol.
+- **Canonical revnets (NANA, CPN, REV, BAN, DEFIFA, MARKEE, plus ART on Base):** Verified via `_verifyCanonicalRevnetProject()` — checks REVOwner ownership, non-zero REVDeployer config hash, controller wiring, and token symbol.
+- **Project 4 (BAN):** Additionally checks REVOwner's 721 hook registration, hook PROJECT_ID, STORE, BANNY symbol, and Banny resolver manifest.
+- **Project 6 (ART off-Base):** Verified as a placeholder project shell owned by `VERIFY_ART_OPS_OPERATOR`, preserving MARKEE's project ID without requiring revnet wiring.
 
 ## Interrupted Deploy: Redeploying From Fresh Salts
 
@@ -314,7 +315,6 @@ export VERIFY_REV_DEPLOYER=0x...
 export VERIFY_REV_OWNER=0x...
 export VERIFY_REV_LOANS=0x...
 export VERIFY_DEFIFA_DEPLOYER=0x...
-export VERIFY_DEFIFA_HOOK_STORE=0x...
 export VERIFY_TRUSTED_FORWARDER=0x...
 export VERIFY_SAFE=0x...
 export VERIFY_PROJECT_HANDLES=0x...
@@ -325,6 +325,11 @@ export VERIFY_LP_SPLIT_HOOK_DEPLOYER=0x...  # Canonical Uniswap V4 LP-split hook
 export VERIFY_UNISWAP_V4_HOOK=0x...         # Actual JBUniswapV4Hook oracle/router hook address.
 export VERIFY_CHECKPOINTS_DEPLOYER=0x...    # JB721Checkpoints deployer (clone-target source).
 export VERIFY_BUYBACK_HOOK=0x...            # Canonical JBBuybackHook implementation address.
+```
+
+Optional explicit pins:
+```bash
+export VERIFY_DEFIFA_HOOK_STORE=0x...        # Verifier otherwise reads DefifaDeployer.HOOK_STORE().
 ```
 
 #### Per-project canonical manifest (mandatory on production)
@@ -373,12 +378,16 @@ export VERIFY_CONFIG_HASH_7=0x...           # MARKEE(7)
 # Legacy CSV form still accepted (overridden by per-project values above when set).
 # export VERIFY_CONFIG_HASHES=0x...,0x...,0x...,0x...
 
-# Per-project operator manifest — required on production for projects 2..4
-# so the verifier can authenticate the operator (the address allowed to call
-# OPERATOR-gated revnet functions) against the operator's commit.
+# Per-project operator manifest — required on production for every canonical
+# revnet on that chain. ART(6) is a full revnet only on Base; off-Base project 6
+# is a bare placeholder checked with VERIFY_ART_OPS_OPERATOR instead.
+export VERIFY_OPERATOR_1=0x...              # NANA(1) operator
 export VERIFY_OPERATOR_2=0x...              # CPN(2) operator
 export VERIFY_OPERATOR_3=0x...              # REV(3) operator
 export VERIFY_OPERATOR_4=0x...              # BAN(4) operator
+export VERIFY_OPERATOR_5=0x...              # DEFIFA(5) operator
+export VERIFY_OPERATOR_6=0x...              # ART(6) operator — Base only
+export VERIFY_OPERATOR_7=0x...              # MARKEE(7) operator
 ```
 
 The artifact preflight also fails until `@bananapus/suckers-v6` contains the
@@ -497,7 +506,7 @@ export SMOKE_POKE_DISTRIBUTORS=true
 
 The script reuses the core `VERIFY_*` addresses from `Verify.s.sol`. Set `VERIFY_BUYBACK_HOOK` to pin the expected hook implementation. If a buyback or loan budget is set to `0`, that section is skipped.
 
-Optimism Sepolia skips the Uniswap-dependent smoke sections because that deployment intentionally has no PositionManager-backed buyback hook, router terminal, or REV loan surface.
+Optimism Sepolia skips the buyback, cash-out, and router-terminal smoke sections because that deployment intentionally has no PositionManager-backed Uniswap surfaces. Loan smoke is still budget-gated by REVLoans; set `SMOKE_LOAN_BUDGET=0` on Optimism Sepolia unless the no-buyback topology is explicitly being tested.
 
 ### Verification Categories
 
@@ -618,9 +627,11 @@ ADJUST_721_TIERS, plus the per-revnet split-operator grant sets), but cannot pro
 - [ ] Pull all `OperatorPermissionsSet(operator, account, projectId, permissionIds, packed,
       caller)` events from `JBPermissions` for the deployment block range.
 - [ ] Confirm the set matches the canonical manifest:
-  - The four wildcard grants above (`projectId == 0`).
-  - The 9-permission split-operator grant for each of canonical projects 2 / 3 / 4 (CPN /
-    REV / BAN) → operator addresses supplied via `VERIFY_OPERATOR_{2,3,4}`.
+  - The runtime REVOwner wildcard grants for REVLoans, BuybackRegistry, and REVDeployer
+    plus the setup-only deployer wildcard grants described in Category 14b (`projectId == 0`).
+  - The 9-permission split-operator grant for each canonical revnet on that chain
+    (NANA / CPN / REV / BAN / DEFIFA / MARKEE, plus ART on Base) → operator
+    addresses supplied via `VERIFY_OPERATOR_<projectId>`.
   - Any per-project grants the deployment script makes when launching each canonical project.
 - [ ] Flag any grant outside that manifest — every extra wildcard or canonical-project grant
       gives an unintended operator owner-equivalent powers and must be revoked or accepted

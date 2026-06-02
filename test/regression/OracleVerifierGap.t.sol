@@ -32,15 +32,12 @@ contract OracleVerifierGapTest is Test {
         MockPriceFeed usdEthFeed = new MockPriceFeed(3000e18);
         JBChainlinkV3PriceFeed usdcUsdFeed =
             new JBChainlinkV3PriceFeed({feed: AggregatorV3Interface(MAINNET_USDC_USD), threshold: 86_400});
-        // 1 USDC priced in ETH at ETH=$3000 is ~3.33e14, inside Verify's expected (1e12, 1e16) triangular band.
-        MockPriceFeed ethUsdcFeed = new MockPriceFeed(3.33e14);
 
         MockPriceStore priceStore = new MockPriceStore({
             ethUsdFeed_: address(ethUsdFeed),
             ethNativeFeed_: address(ethNativeFeed),
             usdEthFeed_: address(usdEthFeed),
-            usdcUsdFeed_: address(usdcUsdFeed),
-            ethUsdcFeed_: address(ethUsdcFeed)
+            usdcUsdFeed_: address(usdcUsdFeed)
         });
 
         VerifyOracleHarness harness = new VerifyOracleHarness();
@@ -73,15 +70,12 @@ contract OracleVerifierGapTest is Test {
         MockPriceFeed usdEthFeed = new MockPriceFeed(3000e18);
         JBChainlinkV3PriceFeed usdcUsdFeed =
             new JBChainlinkV3PriceFeed({feed: AggregatorV3Interface(wrongUsdcUsd), threshold: 86_400});
-        // 1 USDC priced in ETH at ETH=$3000 is ~3.33e14, inside Verify's expected (1e12, 1e16) triangular band.
-        MockPriceFeed ethUsdcFeed = new MockPriceFeed(3.33e14);
 
         MockPriceStore priceStore = new MockPriceStore({
             ethUsdFeed_: address(ethUsdFeed),
             ethNativeFeed_: address(ethNativeFeed),
             usdEthFeed_: address(usdEthFeed),
-            usdcUsdFeed_: address(usdcUsdFeed),
-            ethUsdcFeed_: address(ethUsdcFeed)
+            usdcUsdFeed_: address(usdcUsdFeed)
         });
 
         VerifyOracleHarness harness = new VerifyOracleHarness();
@@ -125,20 +119,12 @@ contract MockPriceStore {
     IJBPriceFeed internal immutable _ethNativeFeed;
     IJBPriceFeed internal immutable _usdEthFeed;
     IJBPriceFeed internal immutable _usdcUsdFeed;
-    IJBPriceFeed internal immutable _ethUsdcFeed;
 
-    constructor(
-        address ethUsdFeed_,
-        address ethNativeFeed_,
-        address usdEthFeed_,
-        address usdcUsdFeed_,
-        address ethUsdcFeed_
-    ) {
+    constructor(address ethUsdFeed_, address ethNativeFeed_, address usdEthFeed_, address usdcUsdFeed_) {
         _ethUsdFeed = IJBPriceFeed(ethUsdFeed_);
         _ethNativeFeed = IJBPriceFeed(ethNativeFeed_);
         _usdEthFeed = IJBPriceFeed(usdEthFeed_);
         _usdcUsdFeed = IJBPriceFeed(usdcUsdFeed_);
-        _ethUsdcFeed = IJBPriceFeed(ethUsdcFeed_);
     }
 
     function priceFeedFor(
@@ -159,9 +145,6 @@ contract MockPriceStore {
         }
         if (pricingCurrency == JBCurrencyIds.USD && unitCurrency == JBCurrencyIds.ETH) return _usdEthFeed;
         if (pricingCurrency == JBCurrencyIds.USD && unitCurrency == uint32(uint160(MAINNET_USDC))) return _usdcUsdFeed;
-        // The (ETH, USDC) triangular feed lets Verify clear its "triangular price feed is configured" check and
-        // proceed to the oracle-exactness checks that the threshold/aggregator regression tests actually target.
-        if (pricingCurrency == JBCurrencyIds.ETH && unitCurrency == uint32(uint160(MAINNET_USDC))) return _ethUsdcFeed;
         return IJBPriceFeed(address(0));
     }
 }

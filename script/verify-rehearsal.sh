@@ -96,7 +96,12 @@ export VERIFY_REV_DEPLOYER=$(addr_of REVDeployer)
 export VERIFY_REV_OWNER=$(addr_of REVOwner)
 export VERIFY_REV_LOANS=$(addr_of REVLoans)
 export VERIFY_DEFIFA_DEPLOYER=$(addr_of DefifaDeployer)
-export VERIFY_DEFIFA_HOOK_STORE=$(addr_of JB721TiersHookStore)
+DEFIFA_HOOK_STORE=$(addr_of DefifaHookStore)
+if [[ -n "$DEFIFA_HOOK_STORE" ]]; then
+    export VERIFY_DEFIFA_HOOK_STORE=$DEFIFA_HOOK_STORE
+else
+    unset VERIFY_DEFIFA_HOOK_STORE
+fi
 export VERIFY_TRUSTED_FORWARDER=$(addr_of ERC2771Forwarder)
 export VERIFY_PROJECT_HANDLES=$(addr_of JBProjectHandles)
 export VERIFY_721_DISTRIBUTOR=$(addr_of JB721Distributor)
