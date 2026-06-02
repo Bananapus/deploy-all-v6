@@ -1108,7 +1108,7 @@ contract Deploy is Script, Sphinx {
             _deployPrecompiledIfNeeded({
                 artifactName: "JBSuckerRegistry",
                 salt: SUCKER_REGISTRY_SALT,
-                ctorArgs: abi.encode(_directory, _permissions, safeAddress(), _trustedForwarder)
+                ctorArgs: abi.encode(_directory, _permissions, _prices, safeAddress(), _trustedForwarder)
             })
         );
 
@@ -1158,14 +1158,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBOptimismSucker",
                         salt: OP_SALT,
                         ctorArgs: abi.encode(
-                            opDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            opDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1196,14 +1189,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBOptimismSucker",
                         salt: OP_SALT,
                         ctorArgs: abi.encode(
-                            opDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            opDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1243,14 +1229,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBBaseSucker",
                         salt: BASE_SALT,
                         ctorArgs: abi.encode(
-                            baseDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            baseDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1281,14 +1260,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBBaseSucker",
                         salt: BASE_SALT,
                         ctorArgs: abi.encode(
-                            baseDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            baseDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1324,14 +1296,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBArbitrumSucker",
                         salt: ARB_SALT,
                         ctorArgs: abi.encode(
-                            arbDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            arbDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1368,14 +1333,7 @@ contract Deploy is Script, Sphinx {
                         artifactName: "JBArbitrumSucker",
                         salt: ARB_SALT,
                         ctorArgs: abi.encode(
-                            arbDeployer,
-                            _directory,
-                            _permissions,
-                            _prices,
-                            _tokens,
-                            1,
-                            _suckerRegistry,
-                            _trustedForwarder
+                            arbDeployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                         )
                     }))
             );
@@ -1481,7 +1439,7 @@ contract Deploy is Script, Sphinx {
                     artifactName: "JBCCIPSucker",
                     salt: salt,
                     ctorArgs: abi.encode(
-                        deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                        deployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                     )
                 }))
         );
@@ -1518,7 +1476,7 @@ contract Deploy is Script, Sphinx {
                     artifactName: "JBCCIPSucker",
                     salt: salt,
                     ctorArgs: abi.encode(
-                        deployer, _directory, _permissions, _prices, _tokens, 1, _suckerRegistry, _trustedForwarder
+                        deployer, _directory, _permissions, _tokens, 1, _suckerRegistry, _trustedForwarder
                     )
                 }))
         );

@@ -30,6 +30,7 @@ import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.s
 import {JBClaim} from "@bananapus/suckers-v6/src/structs/JBClaim.sol";
 import {JBLeaf} from "@bananapus/suckers-v6/src/structs/JBLeaf.sol";
 import {JBMessageRoot} from "@bananapus/suckers-v6/src/structs/JBMessageRoot.sol";
+import {JBSourceContext} from "@bananapus/suckers-v6/src/structs/JBSourceContext.sol";
 import {JBOutboxTree} from "@bananapus/suckers-v6/src/structs/JBOutboxTree.sol";
 import {JBInboxTreeRoot} from "@bananapus/suckers-v6/src/structs/JBInboxTreeRoot.sol";
 import {JBSucker} from "@bananapus/suckers-v6/src/JBSucker.sol";
@@ -187,7 +188,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
         vm.roll(block.number + 1);
 
         // Deploy the sucker registry first — the hook reads this to authenticate sucker callers.
-        suckerRegistry = new JBSuckerRegistry(jbDirectory(), jbPermissions(), address(this), address(0));
+        suckerRegistry = new JBSuckerRegistry(jbDirectory(), jbPermissions(), jbPrices(), address(this), address(0));
 
         // Deploy the two OP-stack bridges (mocked) and their corresponding deployer singletons. We use
         // BOTH JBOptimismSucker (peerChainId=10 from mainnet) and JBBaseSucker (peerChainId=8453 from mainnet)
@@ -232,7 +233,6 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             deployer: opSuckerDeployer,
             directory: jbDirectory(),
             permissions: jbPermissions(),
-            prices: jbPrices(),
             tokens: jbTokens(),
             feeProjectId: feeProjectId,
             registry: suckerRegistry,
@@ -244,7 +244,6 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
             deployer: baseSuckerDeployer,
             directory: jbDirectory(),
             permissions: jbPermissions(),
-            prices: jbPrices(),
             tokens: jbTokens(),
             feeProjectId: feeProjectId,
             registry: suckerRegistry,
@@ -692,10 +691,7 @@ contract ReferralRewardCrossChainForkTest is TestBaseWorkflow {
                 amount: terminalTokenAmount,
                 remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
                 sourceTotalSupply: 0,
-                sourceCurrency: NATIVE_CURRENCY,
-                sourceDecimals: 18,
-                sourceSurplus: 0,
-                sourceBalance: 0,
+                sourceContexts: new JBSourceContext[](0),
                 sourceTimestamp: uint64(block.timestamp)
             })
             );

@@ -165,7 +165,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
         FEE_PROJECT_ID = jbProjects().createFor{value: jbProjects().creationFee()}(multisig());
 
         // Deploy sucker registry (required dependency; no actual suckers configured).
-        SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), multisig(), address(0));
+        SUCKER_REGISTRY = new JBSuckerRegistry(jbDirectory(), jbPermissions(), jbPrices(), multisig(), address(0));
 
         // Deploy 721 hook infrastructure (store + example hook + deployer).
         JB721TiersHookStore hookStore = new JB721TiersHookStore();
