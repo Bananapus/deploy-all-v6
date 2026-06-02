@@ -5,6 +5,7 @@
 Change:
 
 - Stop deploying and registering the ETH<->USDC `JBTriangularPriceFeed`, and drop it from the artifact build spec. The per-context cross-chain surplus design in `@bananapus/suckers-v6` values matched-currency peer contexts at par (no oracle) and routes genuinely cross-asset surplus through swap-suckers, so the triangulated default feed is no longer consulted for USDC revnets. The contract itself is removed in `@bananapus/core-v6`.
+- Bump `@bananapus/core-v6` `^0.0.79 -> ^0.0.80` to pull the feed-removed core.
 
 Tests:
 
