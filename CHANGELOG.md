@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.56 - Retire the triangular price feed
+
+Change:
+
+- Stop deploying and registering the ETH<->USDC `JBTriangularPriceFeed`, and drop it from the artifact build spec. The per-context cross-chain surplus design in `@bananapus/suckers-v6` values matched-currency peer contexts at par (no oracle) and routes genuinely cross-asset surplus through swap-suckers, so the triangulated default feed is no longer consulted for USDC revnets. The contract itself is removed in `@bananapus/core-v6`.
+
+Tests:
+
+- Remove the USDC/USD cross-chain surplus fork test. It was premised on the superseded model that stamped a single ETH-denominated currency onto the remote snapshot and triangulated it into USDC; the per-context redesign carries each accounting context in its own currency instead, so that scenario no longer exists. The new behavior is covered by the suckers package's own tests.
+
 ## 0.0.55 - Build the triangular price-feed artifact
 
 Fix:
