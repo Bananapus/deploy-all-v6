@@ -38,13 +38,18 @@ contract PostDeploySequencerFeedArtifactGapTest is Test {
         string memory verifySource = vm.readFile("script/post-deploy/lib/verify.mjs");
         string memory artifactsSource = vm.readFile("script/post-deploy/lib/artifacts.mjs");
 
+        assertTrue(_contains(verifySource, "function artifactNameFor(name)"), "verifier defines artifact-name helper");
         assertTrue(
-            _contains(verifySource, "const baseName = target.name.split('__')[0];"),
-            "verifier derives artifact name by stripping route suffix"
+            _contains(artifactsSource, "function artifactNameFor({name})"),
+            "artifact emitter defines artifact-name helper"
         );
         assertTrue(
-            _contains(artifactsSource, "const baseName = target.name.split('__')[0];"),
-            "artifact emitter derives artifact name by stripping route suffix"
+            _contains(verifySource, "return ARTIFACT_ALIASES.get(baseName) || baseName;"),
+            "verifier helper strips suffix and applies aliases"
+        );
+        assertTrue(
+            _contains(artifactsSource, "return ARTIFACT_ALIASES.get(baseName) || baseName;"),
+            "artifact emitter helper strips suffix and applies aliases"
         );
         assertTrue(_contains(verifySource, "`${baseName}.json`"), "verifier loads artifact by stripped base name");
         assertTrue(

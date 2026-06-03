@@ -4,8 +4,8 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 
 /// @notice Regression: verify.mjs must treat missing manifest entries (and identity-
-/// mismatched cache hits) as fail-closed, and the process exit must reflect both critical
-/// failure categories.
+/// mismatched cache hits) as fail-closed, and the process exit must reflect every critical
+/// failure category.
 contract PostDeployVerifyStatusGapTest is Test {
     function test_verifyScriptFailsClosedOnMissingManifestEntries() public view {
         string memory verifySource = vm.readFile("script/post-deploy/lib/verify.mjs");
@@ -31,8 +31,8 @@ contract PostDeployVerifyStatusGapTest is Test {
             "missing manifest entries increment a critical failure counter"
         );
         assertTrue(
-            _contains(verifySource, "process.exit(permanentFailures + skipFailures > 0 ? 1 : 0);"),
-            "process exit reflects both permanent failures and skip failures"
+            _contains(verifySource, "process.exit(permanentFailures + skipFailures + transientFailures > 0 ? 1 : 0);"),
+            "process exit reflects permanent, skip, and transient failures"
         );
 
         assertTrue(

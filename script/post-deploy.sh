@@ -23,6 +23,7 @@
 #   ./script/post-deploy.sh --chains=all-mainnets
 #   ./script/post-deploy.sh --skip-verify                        # artifact emit + distribute only
 #   ./script/post-deploy.sh --skip-artifacts                     # verify only
+#   ./script/post-deploy.sh --skip-dump                          # reuse existing .cache/addresses-<chainId>.json
 #   ./script/post-deploy.sh --dry-run                            # show what would happen
 #   ./script/post-deploy.sh --rehearsal                          # allow gitDirty manifest on prod chains
 #
@@ -57,6 +58,7 @@ CHAINS_ARG=""
 SKIP_VERIFY=0
 SKIP_ARTIFACTS=0
 SKIP_DISTRIBUTE=0
+SKIP_DUMP=0
 DRY_RUN=0
 REHEARSAL=0
 
@@ -66,6 +68,7 @@ for arg in "$@"; do
     --skip-verify) SKIP_VERIFY=1 ;;
     --skip-artifacts) SKIP_ARTIFACTS=1 ;;
     --skip-distribute) SKIP_DISTRIBUTE=1 ;;
+    --skip-dump) SKIP_DUMP=1 ;;
     --dry-run) DRY_RUN=1 ;;
     --rehearsal) REHEARSAL=1 ;;
     -h|--help)
@@ -182,7 +185,16 @@ for alias in $CHAINS_LIST; do
     sender_flag="--sender $SAFE_ADDRESS"
   fi
   echo "  [1/4] Dumping addresses (forge script, dry-run)..."
-  if [[ "$DRY_RUN" -eq 0 ]]; then
+  if [[ "$SKIP_DUMP" -eq 1 ]]; then
+    if [[ ! -f "$CACHE_DIR/addresses-${chain_id}.json" ]]; then
+      echo "    No cached addresses-${chain_id}.json found. Skipping."
+      GLOBAL_FAIL=1
+      SUMMARY+="  $alias: no cached address dump\n"
+      continue
+    fi
+    addr_count=$(jq '[.[] | strings | select(startswith("0x"))] | length' "$CACHE_DIR/addresses-${chain_id}.json")
+    echo "    → reusing cached addresses-${chain_id}.json ($addr_count address(es))."
+  elif [[ "$DRY_RUN" -eq 0 ]]; then
     (cd "$DEPLOY_ROOT" && forge script script/Deploy.s.sol --rpc-url "$rpc" $sender_flag --silent) || {
       echo "    forge script failed for $alias — skipping chain"
       GLOBAL_FAIL=1

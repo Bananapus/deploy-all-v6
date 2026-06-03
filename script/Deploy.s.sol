@@ -196,7 +196,7 @@ contract Deploy is Script, Sphinx {
     /// nonce via `_saltOf` (and the core salt derives from it directly), so bumping this one value yields a fully
     /// fresh, non-colliding address namespace for every contract — the clean way to redeploy from scratch on a
     /// chain that already holds a prior deployment. The Uniswap V4 hook is mined over the folded salt too.
-    uint256 private constant DEPLOYMENT_NONCE = 7;
+    uint256 private constant DEPLOYMENT_NONCE = 8;
 
     /// @dev Sphinx Safe used only to execute the deployment proposal. Derived from the V6 Jango
     /// Safe's owners + threshold + saltNonce 10 (see sphinx.lock). Long-term protocol ownership is
@@ -4940,6 +4940,7 @@ contract Deploy is Script, Sphinx {
         _serializeLibrary({key: j, name: "JBCCIPLib", salt: CCIP_LIB_SALT});
         _serializeLibrary({key: j, name: "CCIPHelper", salt: CCIP_HELPER_SALT});
         _serializeLibrary({key: j, name: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT});
+        _serializeLibrary({key: j, name: "JBUniswapV4LPSplitHookMath", salt: UNIV4_LP_SPLIT_HOOK_MATH_LIB_SALT});
 
         // JBERC20 — constructor (permissions, projects), shared with tokens.
         // The address is derived from the COPIED artifact bytecode (the same one Deploy.s.sol uses

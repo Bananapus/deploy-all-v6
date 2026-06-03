@@ -32,6 +32,8 @@ const POST_DEPLOY_DIR = path.resolve(__dirname, '..');
 const DEPLOY_ROOT = path.resolve(POST_DEPLOY_DIR, '..', '..');
 const ARTIFACTS_DIR = path.join(DEPLOY_ROOT, 'artifacts');
 const CACHE_DIR = path.join(POST_DEPLOY_DIR, '.cache');
+const EXPLORER_MIN_INTERVAL_MS = Number(process.env.ETHERSCAN_MIN_INTERVAL_MS || 500);
+let lastExplorerFetchAt = 0;
 
 const args = parseArgs(process.argv.slice(2));
 if (!args.chain) die('Missing --chain <chainId>');
@@ -77,6 +79,10 @@ const targets = Object.entries(addresses)
 
 console.log(`Generating ${targets.length} artifact(s) for chain ${CHAIN_ID} (${chain.alias}) → ${path.relative(DEPLOY_ROOT, outDir)}/`);
 
+const ARTIFACT_ALIASES = new Map([
+  ['BannyLPSplitHook', 'JBUniswapV4LPSplitHook']
+]);
+
 let okCount = 0;
 let failCount = 0;
 for (const target of targets) {
@@ -102,7 +108,7 @@ process.exit(failCount > 0 ? 1 : 0);
 
 async function buildArtifact({target}) {
   // Strip multi-instance route suffix for manifest + artifact lookups.
-  const baseName = target.name.split('__')[0];
+  const baseName = artifactNameFor({name: target.name});
   const manifestEntry = manifest.contracts[baseName];
   if (!manifestEntry) throw new Error(`not in manifest`);
 
@@ -121,9 +127,10 @@ async function buildArtifact({target}) {
   // Sphinx/Safe deployment the OUTER tx input is the Safe.execTransaction wrapper, which contains
   // ABI bytes that would otherwise be appended to the sliced args. Recovering from the internal
   // call to the deterministic CREATE2 factory bypasses the wrapper entirely.
-  const factoryInput = await getFactoryCallInput({txHash: creation.txHash});
-  const txInput = factoryInput || await getTxInput({txHash: creation.txHash});
-  const ctorArgsHex = sliceConstructorArgs({txInput, creationCodeHex: forgeArtifact.bytecode.object});
+  const ctorArgsHex = constructorArgsOverride({baseName}) || await constructorArgsFromCreation({
+    creation,
+    forgeArtifact
+  });
   const argsDecoded = decodeConstructorArgs({abi: forgeArtifact.abi, ctorArgsHex});
 
   // solcInputHash — v5 uses md5 of the full metadata string. Mirror that.
@@ -148,6 +155,54 @@ async function buildArtifact({target}) {
   };
 }
 
+async function constructorArgsFromCreation({creation, forgeArtifact}) {
+  const fromCreationBytecode = sliceConstructorArgsFromCreationBytecode({
+    creationBytecodeHex: creation.creationBytecode,
+    artifactCreationCodeHex: forgeArtifact.bytecode.object
+  });
+  if (fromCreationBytecode !== null) return fromCreationBytecode;
+
+  const factoryInput = await getFactoryCallInput({txHash: creation.txHash});
+  const txInput = factoryInput || await getTxInput({txHash: creation.txHash});
+  return sliceConstructorArgs({txInput, creationCodeHex: forgeArtifact.bytecode.object});
+}
+
+function constructorArgsOverride({baseName}) {
+  if (baseName === 'JBUniswapV4LPSplitHook') {
+    return encodeAddressArgs({
+      values: [
+        addresses.JBDirectory,
+        addresses.JBPermissions,
+        addresses.JBTokens,
+        '0x000000000022D473030F116dDEE9F6B43aC78BA3',
+        addresses.JBSuckerRegistry
+      ]
+    });
+  }
+  return null;
+}
+
+function encodeAddressArgs({values}) {
+  return values.map((value) => {
+    const addr = String(value || '').toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(addr)) throw new Error(`Invalid constructor address: ${value}`);
+    return addr.slice(2).padStart(64, '0');
+  }).join('');
+}
+
+function sliceConstructorArgsFromCreationBytecode({creationBytecodeHex, artifactCreationCodeHex}) {
+  if (!creationBytecodeHex) return null;
+  const input = creationBytecodeHex.startsWith('0x') ? creationBytecodeHex.slice(2) : creationBytecodeHex;
+  const creation = artifactCreationCodeHex.startsWith('0x') ? artifactCreationCodeHex.slice(2) : artifactCreationCodeHex;
+  if (input.toLowerCase().startsWith(creation.toLowerCase())) return input.slice(creation.length);
+  return null;
+}
+
+function artifactNameFor({name}) {
+  const baseName = name.split('__')[0];
+  return ARTIFACT_ALIASES.get(baseName) || baseName;
+}
+
 // ════════════════════════════════════════════════════════════════════════
 //  Explorer / decode helpers
 // ════════════════════════════════════════════════════════════════════════
@@ -158,7 +213,11 @@ async function getContractCreation({address}) {
     const res = await fetchWithTimeout({url});
     const body = await parseJsonOrThrow({res});
     if (body.status === '1' && Array.isArray(body.result) && body.result[0]?.txHash) {
-      return { txHash: body.result[0].txHash, creator: body.result[0].contractCreator };
+      return {
+        txHash: body.result[0].txHash,
+        creator: body.result[0].contractCreator,
+        creationBytecode: body.result[0].creationBytecode
+      };
     }
     const msg = String(body.message || body.result || 'unknown');
     if (/rate limit|throttle|max calls/i.test(msg)) throw transientError({message: `rate limited: ${msg}`});
@@ -300,6 +359,10 @@ function nonTransientError({message}) {
 }
 
 async function fetchWithTimeout({url, timeoutMs = 30_000}) {
+  const elapsed = Date.now() - lastExplorerFetchAt;
+  if (elapsed < EXPLORER_MIN_INTERVAL_MS) await sleep(EXPLORER_MIN_INTERVAL_MS - elapsed);
+  lastExplorerFetchAt = Date.now();
+
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {

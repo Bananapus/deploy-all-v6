@@ -1,12 +1,13 @@
 {
   "format": "jb-v6-chains-1",
-  "comment": "Maps chainId → deployment metadata. `alias` matches the v5 deployments/<repo>/<alias>/ convention. `verifier` is 'etherscan' (uses v2 unified API) or 'blockscout'. Etherscan v2 endpoint: https://api.etherscan.io/v2/api with ?chainid=<id>. `production: true` chains refuse rehearsal/dirty artifact runs unless --rehearsal is explicitly passed.",
+  "comment": "Maps chainId → deployment metadata. `alias` matches the v5 deployments/<repo>/<alias>/ convention. `apiUrl` is the Etherscan v2 unified API used by the JS post-deploy tooling. `forgeApiUrl` is the chain-specific explorer API required by forge verify-contract. `production: true` chains refuse rehearsal/dirty artifact runs unless --rehearsal is explicitly passed.",
   "chains": {
     "1": {
       "alias": "ethereum",
       "production": true,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
+      "forgeApiUrl": "https://api.etherscan.io/v2/api?chainid=1",
       "browseUrl": "https://etherscan.io"
     },
     "10": {
@@ -14,6 +15,7 @@
       "production": true,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
+      "forgeApiUrl": "https://api.etherscan.io/v2/api?chainid=10",
       "browseUrl": "https://optimistic.etherscan.io"
     },
     "8453": {
@@ -21,6 +23,7 @@
       "production": true,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
+      "forgeApiUrl": "https://api.etherscan.io/v2/api?chainid=8453",
       "browseUrl": "https://basescan.org"
     },
     "42161": {
@@ -28,6 +31,7 @@
       "production": true,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
+      "forgeApiUrl": "https://api.etherscan.io/v2/api?chainid=42161",
       "browseUrl": "https://arbiscan.io"
     },
     "11155111": {
@@ -35,6 +39,7 @@
       "production": false,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
+      "forgeApiUrl": "https://api.etherscan.io/v2/api?chainid=11155111",
       "browseUrl": "https://sepolia.etherscan.io"
     },
     "11155420": {
@@ -42,6 +47,7 @@
       "production": false,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
+      "forgeApiUrl": "https://api.etherscan.io/v2/api?chainid=11155420",
       "browseUrl": "https://sepolia-optimism.etherscan.io"
     },
     "84532": {
@@ -49,6 +55,7 @@
       "production": false,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
+      "forgeApiUrl": "https://api.etherscan.io/v2/api?chainid=84532",
       "browseUrl": "https://sepolia.basescan.org"
     },
     "421614": {
@@ -56,6 +63,7 @@
       "production": false,
       "verifier": "etherscan",
       "apiUrl": "https://api.etherscan.io/v2/api",
+      "forgeApiUrl": "https://api.etherscan.io/v2/api?chainid=421614",
       "browseUrl": "https://sepolia.arbiscan.io"
     }
   },
