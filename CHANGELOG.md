@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.59 - Add regression fork tests; bump @ballkidz/defifa to ^0.0.56
+
+- Added fork tests covering: launching a Defifa game with splits, REVLoans partial repayment after the collateral appreciates, Chainlink price-feed staleness-threshold boundaries, and protocol-fee handling when a USDC revnet's fee project has no resolvable USDC route.
+- Bumped `@ballkidz/defifa` to `^0.0.56`.
+
 ## 0.0.57 - Remove fee attribution wiring from deploy-all
 
 Change:

@@ -152,9 +152,87 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
         assertLt(_revnetUSDCBalance(revnetId), revnetUSDCBefore, "paying revnet's USDC balance should only decrease");
     }
 
+    /// @notice Pins the fail-open fee-forgiveness behavior for a fee project with NO resolvable USDC route — the
+    /// condition on a NON-AMM chain (e.g. OP-Sepolia / any future chain without the Uniswap stack), where the
+    /// router-terminal registry has no default terminal to swap USDC->ETH. There, `primaryTerminalOf(1, USDC)`
+    /// resolves to zero, `_processFee` is fail-open, and the USDC fee is FORGIVEN (credited back to the paying revnet
+    /// via `FeeReverted`) rather than bricking the cash-out. This forgiveness is ACCEPTED: with no AMM there is no way
+    /// to convert USDC into NANA's native ETH.
+    ///
+    /// NOTE: this is NOT the mainnet/AMM-chain behavior. On AMM chains canonical NANA (a revnet) has the
+    /// router-terminal registry as a terminal whose default terminal covers projects 1-7, so `primaryTerminalOf(1,
+    /// USDC)` resolves and
+    /// the fee is swapped to ETH and collected — see `test_feeRoute_usdcCashOutFeeReachesFeeProject`. This test uses
+    /// a
+    /// plain native-only fee project (no router route) to model the no-route condition.
+    function test_feeRoute_noResolvableUsdcRoute_feeForgiven_acceptedOnNonAmmChains() public {
+        _launchNativeOnlyFeeProject();
+        // Deliberately DO NOT call _wireFeeProjectUSDCRouting() — this is the canonical, as-deployed state.
+
+        // Canonical precondition: the fee project resolves NO USDC terminal, so a USDC fee has nowhere to land.
+        assertEq(
+            address(jbDirectory().primaryTerminalOf({projectId: FEE_PROJECT_ID, token: address(usdc)})),
+            address(0),
+            "canonical: fee project (NANA) has no USDC terminal"
+        );
+
+        (REVConfig memory cfg, JBAccountingContext[] memory tc, REVSuckerDeploymentConfig memory sdc) =
+            _buildUSDCRevnetConfig({cashOutTaxRate: 7000});
+        (uint256 revnetId,) = REV_DEPLOYER.deployFor({
+            revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
+        });
+
+        _payRevnetUSDC({revnetId: revnetId, payer: PAYER, amount: 10_000e6});
+        _payRevnetUSDC({revnetId: revnetId, payer: BORROWER, amount: 5000e6});
+
+        uint256 feeProjectUSDCBefore = _feeProjectUSDCBalance();
+        uint256 feeProjectUSDCCoreBefore = jbTerminalStore()
+            .balanceOf({terminal: address(jbMultiTerminal()), projectId: FEE_PROJECT_ID, token: address(usdc)});
+
+        vm.recordLogs();
+        uint256 payerTokens = jbTokens().totalBalanceOf({holder: PAYER, projectId: revnetId});
+        vm.prank(PAYER);
+        uint256 reclaimed = jbMultiTerminal()
+            .cashOutTokensOf({
+            holder: PAYER,
+            projectId: revnetId,
+            cashOutCount: payerTokens,
+            tokenToReclaim: address(usdc),
+            minTokensReclaimed: 0,
+            beneficiary: payable(PAYER),
+            metadata: ""
+        });
+        assertGt(reclaimed, 0, "cash-out should reclaim USDC");
+
+        // The USDC fee was FORGIVEN - `FeeReverted` was emitted crediting it back to the paying revnet.
+        _assertFeeForgivenFor({logs: vm.getRecordedLogs(), projectId: revnetId, token: address(usdc)});
+
+        // NANA (project 1) collected ZERO USDC fee — on the registry-forward terminal AND on the core terminal.
+        assertEq(_feeProjectUSDCBalance(), feeProjectUSDCBefore, "fee project collects no USDC on forward terminal");
+        assertEq(
+            jbTerminalStore()
+                .balanceOf({terminal: address(jbMultiTerminal()), projectId: FEE_PROJECT_ID, token: address(usdc)}),
+            feeProjectUSDCCoreBefore,
+            "fee project collects no USDC on the core terminal either (fee forgiven)"
+        );
+    }
+
     //*********************************************************************//
     // ----------------------- internal helpers -------------------------- //
     //*********************************************************************//
+
+    /// @notice Assert the recorded logs DO contain a `FeeReverted` forgiving a fee back to the given project/token.
+    function _assertFeeForgivenFor(Vm.Log[] memory logs, uint256 projectId, address token) internal pure {
+        bytes32 feeRevertedTopic = IJBFeeTerminal.FeeReverted.selector;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].topics.length == 4 && logs[i].topics[0] == feeRevertedTopic) {
+                if (uint256(logs[i].topics[1]) == projectId && address(uint160(uint256(logs[i].topics[2]))) == token) {
+                    return;
+                }
+            }
+        }
+        revert("expected the USDC fee to be FORGIVEN (FeeReverted) on the canonical un-wired fee project");
+    }
 
     /// @notice Assert the recorded logs contain no `FeeReverted` event forgiving a fee back to the given project/token.
     /// @param logs The logs recorded during the cash-out.
