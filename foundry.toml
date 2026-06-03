@@ -13,6 +13,21 @@ memory_limit = 1073741824
 gas_limit = 9223372036854775807
 extra_output = ['storageLayout']
 
+[profile.verify_non_via_ir]
+solc = '0.8.28'
+bytecode_hash = "none"
+evm_version = 'cancun'
+via_ir = false
+optimizer = true
+optimizer_runs = 200
+libs = ["node_modules", "lib"]
+fs_permissions = [
+  { access = "read-write", path = "./"}
+]
+memory_limit = 1073741824
+gas_limit = 9223372036854775807
+extra_output = ['storageLayout']
+
 [fuzz]
 runs = 4096
 

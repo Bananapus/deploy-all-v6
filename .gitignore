@@ -11,11 +11,26 @@ node_modules/
 # Dotenv file
 .env
 
-# Deployments (post-deploy.sh writes here; keep deployments/juicebox-v6/ committed
+# Deployments (post-deploy.sh writes here; keep chain deployment artifacts committed
 # so addresses/ABIs are shippable; ignore any stray deployment directories).
 deployments/
-!deployments/juicebox-v6/
-!deployments/juicebox-v6/**
+!deployments/
+!deployments/ethereum/
+!deployments/ethereum/**
+!deployments/optimism/
+!deployments/optimism/**
+!deployments/base/
+!deployments/base/**
+!deployments/arbitrum/
+!deployments/arbitrum/**
+!deployments/sepolia/
+!deployments/sepolia/**
+!deployments/optimism_sepolia/
+!deployments/optimism_sepolia/**
+!deployments/base_sepolia/
+!deployments/base_sepolia/**
+!deployments/arbitrum_sepolia/
+!deployments/arbitrum_sepolia/**
 
 # Post-deploy pipeline state (regenerable per chain).
 script/post-deploy/.cache/

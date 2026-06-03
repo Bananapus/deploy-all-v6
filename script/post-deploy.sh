@@ -12,7 +12,7 @@
 #        a. Dump addresses (forge script Deploy.s.sol --rpc-url $RPC).
 #        b. Verify every deployed contract on Etherscan (with retry+backoff).
 #        c. Emit sphinx-format artifact JSON per contract.
-#        d. Distribute to deploy-all-v6/deployments/V6/<chain>/
+#        d. Distribute to deploy-all-v6/deployments/<chain>/
 #           AND each source repo's deployments/<sphinxProject>/<chain>/.
 #   3. Print a per-chain summary.
 #
