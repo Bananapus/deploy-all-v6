@@ -20,6 +20,7 @@ import {CTDeployer} from "@croptop/core-v6/src/CTDeployer.sol";
 import {CTPublisher} from "@croptop/core-v6/src/CTPublisher.sol";
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
+import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 
 /// @notice Regressions for the O/P verifier extensions: noncanonical PERMISSIONS pointers,
 /// noncanonical trusted forwarders, and missing canonical wildcard grants on the broader auth
@@ -122,6 +123,7 @@ contract PermissionAuthSurfaceVerifierGapTest is Test {
         address trustedForwarder = makeAddr("trusted forwarder");
         JBPermissions permissions = new JBPermissions(trustedForwarder);
 
+        address revOwner = makeAddr("rev owner");
         address revDeployer = makeAddr("rev deployer");
         address revLoans = makeAddr("rev loans");
         address buybackRegistry = makeAddr("buyback registry");
@@ -145,16 +147,29 @@ contract PermissionAuthSurfaceVerifierGapTest is Test {
         address mockDirectory = address(new MockPermissioned(address(permissions)));
         vm.mockCall(omnichainDeployer, abi.encodeWithSignature("DIRECTORY()"), abi.encode(mockDirectory));
 
-        // Grant the prior wildcards so the verifier reaches the new MAP_SUCKER_TOKEN check.
+        // Grant the prior wildcards so the verifier reaches the missing omnichain MAP_SUCKER_TOKEN check.
         uint8[] memory useAllowanceIds = new uint8[](1);
         useAllowanceIds[0] = JBPermissionIds.USE_ALLOWANCE;
-        vm.prank(revDeployer);
+        vm.prank(revOwner);
         permissions.setPermissionsFor({
-            account: revDeployer,
+            account: revOwner,
             permissionsData: JBPermissionsData({operator: revLoans, projectId: 0, permissionIds: useAllowanceIds})
         });
         uint8[] memory poolIds = new uint8[](1);
         poolIds[0] = JBPermissionIds.SET_BUYBACK_POOL;
+        vm.prank(revOwner);
+        permissions.setPermissionsFor({
+            account: revOwner,
+            permissionsData: JBPermissionsData({operator: buybackRegistry, projectId: 0, permissionIds: poolIds})
+        });
+        uint8[] memory deployerIds = new uint8[](2);
+        deployerIds[0] = JBPermissionIds.DEPLOY_SUCKERS;
+        deployerIds[1] = JBPermissionIds.MAP_SUCKER_TOKEN;
+        vm.prank(revOwner);
+        permissions.setPermissionsFor({
+            account: revOwner,
+            permissionsData: JBPermissionsData({operator: revDeployer, projectId: 0, permissionIds: deployerIds})
+        });
         vm.prank(revDeployer);
         permissions.setPermissionsFor({
             account: revDeployer,
@@ -184,6 +199,7 @@ contract PermissionAuthSurfaceVerifierGapTest is Test {
             expectedTrustedForwarder_: trustedForwarder
         });
         harness.setStackMocks({
+            revOwner_: revOwner,
             revDeployer_: revDeployer,
             revLoans_: revLoans,
             buybackRegistry_: buybackRegistry,
@@ -239,6 +255,7 @@ contract VerifyAuthSurfaceHarness is Verify {
     }
 
     function setStackMocks(
+        address revOwner_,
         address revDeployer_,
         address revLoans_,
         address buybackRegistry_,
@@ -247,6 +264,7 @@ contract VerifyAuthSurfaceHarness is Verify {
     )
         external
     {
+        revOwner = REVOwner(payable(revOwner_));
         revDeployer = REVDeployer(revDeployer_);
         revLoans = REVLoans(payable(revLoans_));
         buybackRegistry = JBBuybackHookRegistry(buybackRegistry_);
