@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.0.57 - Remove fee attribution wiring from deploy-all
+
+Change:
+
+- Remove deploy-all references to protocol fee-attribution arguments now that the ecosystem packages no longer expose them.
+- Delete the obsolete cross-chain fee-attribution fork scenario; the protocol no longer rewards volume attribution.
+- Keep Defifa on the shared `JB721TiersHookStore` and verify that wiring in post-deploy checks.
+- Update the post-deploy verifier/rehearsal docs so REV deployer and owner addresses are wired through the correct env vars.
+
+Dependency bumps:
+
+- `@ballkidz/defifa`: `^0.0.53 -> ^0.0.54`.
+- `@bananapus/721-hook-v6`: `^0.0.67 -> ^0.0.68`.
+- `@bananapus/buyback-hook-v6`: `^0.0.67 -> ^0.0.68`.
+- `@bananapus/router-terminal-v6`: `^0.0.61 -> ^0.0.63`.
+- `@bananapus/suckers-v6`: `^0.0.69 -> ^0.0.71`.
+- `@bananapus/univ4-lp-split-hook-v6`: `^0.0.59 -> ^0.0.60`.
+- `@bananapus/univ4-router-v6`: `^0.0.50 -> ^0.0.52`.
+- `@croptop/core-v6`: `^0.0.65 -> ^0.0.66`.
+- `@rev-net/core-v6`: `^0.0.87 -> ^0.0.88`.
+
 ## 0.0.56 - Adopt the per-context cross-chain surplus ecosystem
 
 Change:

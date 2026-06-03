@@ -51,11 +51,7 @@ contract MaliciousSplitHook is IJBSplitHook {
             // Attempt re-entry into sendPayoutsOf. This should return 0 because the payout limit
             // was already consumed by recordPayoutFor before splits execute.
             try terminal.sendPayoutsOf({
-                projectId: targetProjectId,
-                token: token,
-                amount: amount,
-                currency: currency,
-                minTokensPaidOut: 0
+                projectId: targetProjectId, token: token, amount: amount, currency: currency, minTokensPaidOut: 0
             }) returns (
                 uint256 paidOut
             ) {

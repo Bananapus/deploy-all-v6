@@ -201,11 +201,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
         uint256 recipientBefore = SPLIT_RECIPIENT.balance;
         jbMultiTerminal()
             .sendPayoutsOf({
-            projectId: projectId,
-            token: JBConstants.NATIVE_TOKEN,
-            amount: 5000e18,
-            currency: USD,
-            minTokensPaidOut: 0
+            projectId: projectId, token: JBConstants.NATIVE_TOKEN, amount: 5000e18, currency: USD, minTokensPaidOut: 0
         });
 
         uint256 recipientReceived = SPLIT_RECIPIENT.balance - recipientBefore;
@@ -329,11 +325,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
         uint256 recipientBefore = usdc.balanceOf(SPLIT_RECIPIENT);
         jbMultiTerminal()
             .sendPayoutsOf({
-            projectId: projectId,
-            token: address(usdc),
-            amount: 5000e6,
-            currency: usdcCurrency,
-            minTokensPaidOut: 0
+            projectId: projectId, token: address(usdc), amount: 5000e6, currency: usdcCurrency, minTokensPaidOut: 0
         });
 
         uint256 recipientReceived = usdc.balanceOf(SPLIT_RECIPIENT) - recipientBefore;

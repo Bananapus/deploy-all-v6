@@ -3607,7 +3607,7 @@ contract Deploy is Script, Sphinx {
         );
 
         // ── DefifaDeployer (factory that creates new Defifa games) ──
-        // defifa 0.0.50 takes all dependencies as constructor args (the prior chain-same ctor + one-shot
+        // DefifaDeployer takes all dependencies as constructor args (the prior chain-same ctor + one-shot
         // `setChainSpecificConstants` setter was removed). Because `tokenUriResolver` depends on the chain-specific
         // typeface, the deployer's CREATE2 address is chain-different (acceptable: the game factory is chain-local).
         bytes memory deployerArgs = abi.encode(
