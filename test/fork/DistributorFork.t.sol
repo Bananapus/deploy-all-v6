@@ -65,7 +65,14 @@ contract DistributorForkTest is RevnetForkBase {
     }
 
     /// @dev Pay the revnet (mints the project token to `staker`), then delegate so `getPastVotes` is non-zero.
-    function _stakeAndDelegate(uint256 revnetId, address staker, uint256 amountEth) internal returns (address stakeToken) {
+    function _stakeAndDelegate(
+        uint256 revnetId,
+        address staker,
+        uint256 amountEth
+    )
+        internal
+        returns (address stakeToken)
+    {
         _payRevnet(revnetId, staker, amountEth);
         stakeToken = address(jbTokens().tokenOf(revnetId));
         vm.prank(staker);

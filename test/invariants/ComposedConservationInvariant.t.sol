@@ -23,7 +23,8 @@ import {RevnetForkBase} from "../helpers/RevnetForkBase.sol";
 /// the invariants can assert conservation.
 ///
 /// Actions:
-///   - pay(holderSeed, amount)            — pay the revnet (mints tokens + accrues reserved, through the buyback hook).
+///   - pay(holderSeed, amount)            — pay the revnet (mints tokens + accrues reserved, through the buyback
+/// hook).
 ///   - cashOut(holderSeed, amountSeed)    — cash out a holder's tokens against the reserved-inflated bonding curve.
 ///   - borrow(holderSeed, amountSeed)     — open a loan against a holder's tokens (collateral burned from supply).
 ///   - repay(loanSeed)                    — repay a tracked loan in full.
@@ -231,7 +232,8 @@ contract ComposedConservationHandler is Test {
 /// @notice **Composed conservation invariant — reserved + loans + cash-out interleaved.**
 ///
 /// The existing `CrossChainArbInvariant` exercises pay/cashout/borrow/repay conservation, but always on a revnet with
-/// `splitPercent = 0` — so reserved tokens never accrue and the reserved↔minted↔loan accounting never overlaps. The
+/// `splitPercent = 0` — so reserved tokens never accrue and the reserved↔minted↔loan accounting never overlaps.
+/// The
 /// confirmed accounting-drift risk lives where MORE surfaces overlap at once. This suite stands up a revnet that
 /// simultaneously composes:
 ///   (1) the buyback data hook on every pay (the REVOwner → registry → buyback chain evaluates mint-vs-swap),
@@ -320,7 +322,8 @@ contract ComposedConservationInvariant is RevnetForkBase {
         assertLe(outflows, inflows + 1, "outflows cannot exceed inflows (no ETH created at the intersection)");
     }
 
-    /// @notice **Terminal surplus is bounded above by cumulative inflows** — no path inflates the treasury beyond what
+    /// @notice **Terminal surplus is bounded above by cumulative inflows** — no path inflates the treasury beyond
+    /// what
     /// was paid in.
     function invariant_terminalSurplusBounded() public view {
         uint256 surplus = _terminalBalance(revnetId, JBConstants.NATIVE_TOKEN);
