@@ -7,29 +7,6 @@ on:
     branches:
       - main
 jobs:
-  forge-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 25.9.0
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Build
-        run: forge build --deny notes --skip "*/test/**"
-
-      - name: Check contract sizes
-        run: forge build --deny notes --sizes --skip "*/test/**" --skip "*/script/**" --skip SphinxUtils
-
   forge-test:
     runs-on: ubuntu-latest
     steps:
@@ -62,3 +39,6 @@ jobs:
           RPC_OPTIMISM_MAINNET: ${{ secrets.RPC_OPTIMISM_MAINNET }}
           RPC_BASE_MAINNET: ${{ secrets.RPC_BASE_MAINNET }}
           RPC_ARBITRUM_MAINNET: ${{ secrets.RPC_ARBITRUM_MAINNET }}
+
+      - name: Check contract sizes
+        run: forge build --deny notes --sizes --skip "*/test/**" --skip "*/script/**" --skip SphinxUtils
