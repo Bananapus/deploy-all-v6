@@ -242,8 +242,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
             token: JBConstants.NATIVE_TOKEN,
             amount: 500e18, // 500 USD worth
             currency: USD,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
     }
 
@@ -266,8 +265,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
             token: JBConstants.NATIVE_TOKEN,
             amount: 1 ether,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
         assertGt(paid, 0, "Same-currency payout should work with broken feed");
     }
@@ -295,8 +293,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
     }
 
@@ -319,8 +316,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
             token: JBConstants.NATIVE_TOKEN,
             amount: 500e18,
             currency: USD,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
 
         // Recover feed.
@@ -334,8 +330,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
             token: JBConstants.NATIVE_TOKEN,
             amount: 500e18,
             currency: USD,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
         assertGt(paid, 0, "Payout should succeed after feed recovery");
     }

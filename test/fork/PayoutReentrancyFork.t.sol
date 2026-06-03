@@ -55,8 +55,7 @@ contract MaliciousSplitHook is IJBSplitHook {
                 token: token,
                 amount: amount,
                 currency: currency,
-                minTokensPaidOut: 0,
-                referralProjectId: 0
+                minTokensPaidOut: 0
             }) returns (
                 uint256 paidOut
             ) {
@@ -279,8 +278,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
 
         // Verify the hook attempted re-entry.
@@ -314,8 +312,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
         assertEq(secondPaid, 0, "second payout should be clamped to zero");
     }
@@ -359,8 +356,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
 
         // Verify the hook called addToBalanceOf.
@@ -392,8 +388,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
         assertEq(secondPaid, 0, "second payout should be clamped to zero");
     }

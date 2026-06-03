@@ -205,8 +205,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
             token: JBConstants.NATIVE_TOKEN,
             amount: 5000e18,
             currency: USD,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
 
         uint256 recipientReceived = SPLIT_RECIPIENT.balance - recipientBefore;
@@ -334,8 +333,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
             token: address(usdc),
             amount: 5000e6,
             currency: usdcCurrency,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
 
         uint256 recipientReceived = usdc.balanceOf(SPLIT_RECIPIENT) - recipientBefore;

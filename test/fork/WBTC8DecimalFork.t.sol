@@ -511,8 +511,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
             tokenToReclaim: address(wbtc),
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         // Verify the payer received WBTC from the cash-out (8-decimal amount).
@@ -801,8 +800,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
             tokenToReclaim: address(wbtc),
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         // Verify WBTC was received (8-decimal reclaim amount).

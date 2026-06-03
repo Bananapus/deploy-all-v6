@@ -133,8 +133,7 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
             tokenToReclaim: address(usdc),
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
         assertGt(reclaimed, 0, "cash-out should reclaim USDC");
 

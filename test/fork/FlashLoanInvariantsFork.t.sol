@@ -162,8 +162,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(holder),
-            metadata: new bytes(0),
-            referralProjectId: 0
+            metadata: new bytes(0)
         });
     }
 
@@ -303,8 +302,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
             currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
 
         // Attacker back-runs: cashes out.
@@ -317,8 +315,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(attacker),
-            metadata: new bytes(0),
-            referralProjectId: 0
+            metadata: new bytes(0)
         });
 
         assertLe(reclaimAmount, attackerInitialETH, "FORK: Sandwich attacker must not profit from payout timing");
@@ -420,8 +417,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(alice),
-            metadata: new bytes(0),
-            referralProjectId: 0
+            metadata: new bytes(0)
         });
 
         assertLe(reclaimAmount, 10 ether, "FORK: Reclaim after reserve inflation must not exceed original payment");

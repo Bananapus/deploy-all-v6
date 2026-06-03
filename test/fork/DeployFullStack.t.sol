@@ -441,7 +441,6 @@ contract DeployFullStackTest is Test {
             directory: _directory,
             permissions: _permissions,
             prices: _prices,
-            initialOwner: _deployer,
             trustedForwarder: _trustedForwarder
         });
 

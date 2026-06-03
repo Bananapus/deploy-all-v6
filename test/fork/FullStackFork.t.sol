@@ -99,8 +99,7 @@ contract FullStackForkTest is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         uint256 ethReceived = PAYER.balance - payerEthBefore;
@@ -201,8 +200,7 @@ contract FullStackForkTest is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(sucker),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         uint256 ethReceived = sucker.balance - suckerEthBefore;
@@ -276,8 +274,7 @@ contract FullStackForkTest is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(PAYER),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         uint256 ethReceived = PAYER.balance - payerEthBefore;
@@ -358,8 +355,7 @@ contract FullStackForkTest is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(BORROWER),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         assertGt(BORROWER.balance, borrowerEthBefore, "should receive ETH from cashout");

@@ -3611,7 +3611,6 @@ contract Deploy is Script, Sphinx {
         // `setChainSpecificConstants` setter was removed). Because `tokenUriResolver` depends on the chain-specific
         // typeface, the deployer's CREATE2 address is chain-different (acceptable: the game factory is chain-local).
         bytes memory deployerArgs = abi.encode(
-            safeAddress(),
             address(_defifaHook),
             _defifaTokenUriResolver,
             _defifaGovernor,

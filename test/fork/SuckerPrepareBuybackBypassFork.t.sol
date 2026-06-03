@@ -143,8 +143,7 @@ contract SuckerPrepareBuybackBypassForkTest is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(REGULAR_HOLDER),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         uint256 prepareCount = tokenHolderTokens / 2;

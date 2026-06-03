@@ -467,7 +467,6 @@ contract BaseChainForkTest is TestBaseWorkflow {
             minTokensReclaimed: 0, // Accept any reclaim amount.
             beneficiary: payable(PAYER), // ETH goes back to PAYER.
             metadata: "", // No metadata.
-            referralProjectId: 0
         });
 
         // PAYER should receive some ETH (less than deposited due to tax + fees).
