@@ -1514,8 +1514,8 @@ contract Deploy is Script, Sphinx {
         });
         if (address(matchingFeed) == address(0)) {
             // CREATE2 via the precompile pipeline (no constructor args) so the matching feed lands at the
-            // same address on every chain. Previously this used plain `new`, which depended on the safe's
-            // per-chain nonce and produced a different address each time.
+            // same address on every chain. Plain `new` would key the address to the safe's per-chain
+            // nonce, producing a different address per chain.
             matchingFeed = IJBPriceFeed(
                 _deployPrecompiledIfNeeded({
                     artifactName: "JBMatchingPriceFeed", salt: MATCHING_FEED_SALT, ctorArgs: ""

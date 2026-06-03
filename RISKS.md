@@ -18,7 +18,7 @@ For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
 | P0 | Unsafe replay after partial execution | Re-running a proposal after partial CREATE2 success can collide with already-deployed contracts and leave wiring inconsistent. | Bump the deployment nonce in `Deploy.s.sol` to redeploy from fresh salts into a clean address namespace, then run `Verify.s.sol`. Operator discipline not to replay the same salts blindly. |
 | P1 | Configuration drift across supported chains | Oracle, bridge, and dependency differences can silently invalidate omnichain assumptions or leave certain features unavailable. | Chain-specific config review, skipped-phase documentation, and post-deploy smoke tests on each chain. |
 
-## 1. Trust Assumptions
+## 1. Trust assumptions
 
 1. **Sphinx Platform and deployment operator** -- Deployment is orchestrated via Sphinx proposals. Sphinx controls execution order, gas management, and atomicity per chain, and `Deploy.s.sol` assigns ownership to the Sphinx Safe (`safeAddress()`). If a proposal is interrupted, recovery is to bump the deployment nonce in `Deploy.s.sol` and redeploy from fresh salts via the same Safe identity, then verify. The main trust assumption is therefore that operators propose and re-propose from the correct Safe and do not replay stale salts against dirty on-chain state.
 2. **Hardcoded Addresses** -- External contract addresses (Uniswap V4 PoolManager, Uniswap V3 Factory, WETH, Chainlink feeds, bridge contracts, CCIP routers, Permit2) are hardcoded per chain in the script. A wrong address means the deployed contract is permanently misconfigured.
@@ -28,7 +28,7 @@ For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
 
 ---
 
-## 2. Deployment Ordering Risks
+## 2. Deployment ordering risks
 
 The script executes 11 top-level phases in strict sequence. Phase `03` is split into subphases (`03a` through `03f`), and Phase `08` is split into `08a` and `08b`. Each phase depends on state produced by prior phases. All phases run inside a single Sphinx `deploy()` call per chain.
 
@@ -43,7 +43,7 @@ The script executes 11 top-level phases in strict sequence. Phase `03` is split 
 | Omnichain terminal registered before suckers configured | MEDIUM | During deployment, the omnichain terminal is registered as a project terminal before sucker contracts are fully configured. If the deployment is interrupted between terminal registration and sucker deployment, the project may have an omnichain terminal that references unconfigured or missing peer contracts. Bridging operations initiated against such a terminal would fail or behave unexpectedly until suckers are wired. | A fresh-salt redeploy sidesteps this by deploying the omnichain terminal and suckers cleanly at new addresses, so there is no half-registered prior state to reconcile. After any interrupted deployment, operators must verify that sucker configuration is complete and that all peer contracts referenced by the omnichain terminal are live and correctly wired on their respective chains. |
 | NANA revnet after REV revnet | LOW | Phase 08b configures the fee project (ID 1) as a revnet. If Phase 07 ($REV) fails, `_revDeployer` is undeployed and the `_projects.approve` call in Phase 08b reverts. This blocks NANA configuration but does not leave the fee project in a dangerous state -- it just has no revnet rules. | Redeploy from fresh salts so the full stack lands cleanly. The fee project without revnet rules still collects fees but has no issuance or cashout mechanics. |
 
-### Dependency Graph
+### Dependency graph
 
 ```
 Phase 01: Core protocol (no deps)
@@ -74,7 +74,7 @@ validate post-deployment state.
 
 ---
 
-## 3. Oracle / Price Feed Risks
+## 3. Oracle / price feed risks
 
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
@@ -88,7 +88,7 @@ validate post-deployment state.
 
 ---
 
-## 4. Cross-Chain Consistency Risks
+## 4. Cross-chain consistency risks
 
 The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency between chains is critical for sucker (bridge) operations.
 
@@ -105,9 +105,9 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 ---
 
-## 5. Configuration Risks
+## 5. Configuration risks
 
-### Hardcoded Address Risks
+### Hardcoded address risks
 
 | Risk | Severity | Description |
 |------|----------|-------------|
@@ -123,7 +123,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | OP Messenger/Bridge (L2) | LOW | Canonical predeploys `0x42...07` and `0x42...10`. |
 | Arbitrum Inbox/Gateway | HIGH | Uses `ARBAddresses` library constants. |
 
-### Constructor Parameter Risks
+### Constructor parameter risks
 
 | Risk | Severity | Description |
 |------|----------|-------------|
@@ -136,21 +136,21 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | NANA 62% split percentage | HIGH | Project 1 (NANA/fee project) has `splitPercent: 6200` -- 62% of all tokens minted during payments go to reserved token splits. If this percentage is misconfigured, fee revenue distribution is permanently affected. |
 | REV cashOutTaxRate of 10% | MEDIUM | All three revnets use `cashOutTaxRate: 1000` (10%). This is low enough that revnet loans become more attractive than cashouts above ~39% (per CryptoEconLab note). If the intended rate was different, it cannot be changed. |
 
-### CREATE2 Salt Risks
+### CREATE2 salt risks
 
 | Risk | Severity | Description | Mitigation |
 |------|----------|-------------|------------|
 | Salt front-running (Sphinx CREATE2 path) | LOW | All salts are deterministic string hashes (e.g., `keccak256("_JBDeadlinesV6_")`). An attacker who knows the salt and initcode could try to deploy a malicious contract at the predicted address before the legitimate deployment. | Sphinx deploys from its own deterministic deployer address. The `CREATE2` address depends on `(sphinxDeployer, salt, initCodeHash)`. An attacker would need to deploy from the same Sphinx deployer -- which requires Safe approval. LOW practical risk. |
 | Salt front-running (canonical-factory CREATE3 path) | MITIGATED | `_deployCreate3PrecompiledIfNeeded` deploys via the canonical `0x4e59...` CREATE2 factory (permissionless) followed by a permissionless `proxy.call(initCode)`. An attacker who knows the salt CAN pre-deploy the proxy and call it with attacker init code, placing arbitrary bytecode at the predicted CREATE3 address — which the previous `addr.code.length != 0` shortcut would have silently accepted. The capture is fatal: every consumer that hard-codes the predicted address as an immutable (notably `JBController.OMNICHAIN_RULESET_OPERATOR`, which gates the `launchRulesetsFor` permission bypass) gets the attacker contract permanently. | `_deployCreate3PrecompiledIfNeeded` compares `addr.codehash` against a sandbox-CREATE reference codehash on BOTH the early-return path and the post-deploy path. The sandbox runs the artifact's constructor in this script so immutables resolve identically; `sandbox.codehash` matches `addr.codehash` only for a genuine deploy. Mismatches revert with `Deploy_Create3CodehashMismatch`. See `_runtimeCodehashOf` in `script/Deploy.s.sol`. |
 
-### Sphinx Deployment Mechanics Risks
+### Sphinx deployment mechanics risks
 
 | Risk | Severity | Description |
 |------|----------|-------------|
 | Sphinx Safe compromise | HIGH | The V6 deployment Safe can execute the deployment proposal and one-shot chain-specific setup. Persistent critical owner roles are handed to the NANA operator Safe (`0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5`) before the proposal ends. |
 | Sphinx artifact name collision | LOW | `sphinxConfig.projectName = "V6"`. If a previous deployment used a different project name, Sphinx may create a new deployment context rather than upgrading. |
 
-### Fee Project Configuration Risks
+### Fee project configuration risks
 
 | Risk | Severity | Description |
 |------|----------|-------------|
@@ -158,7 +158,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | NANA revnet misconfiguration | HIGH | Project 1 is configured as the NANA revnet. If the revnet configuration is wrong (e.g., wrong `splitPercent`, wrong `cashOutTaxRate`), fee distributions are permanently affected. NANA has 62% split and 10% cashout tax. |
 | REVDeployer approval on fee project | MEDIUM | `_projects.approve(address(_revDeployer), feeProjectId)`. This gives `_revDeployer` ERC-721 transfer approval on project 1. After `deployFor` completes, REVDeployer becomes the project's controller and the approval is consumed. But if `deployFor` reverts, the approval remains dangling -- though `_revDeployer` is a trusted contract. |
 
-### Incomplete Deployment Sections
+### Incomplete deployment sections
 
 | Section | Status | Risk |
 |---------|--------|------|
@@ -167,7 +167,7 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 | JBOwnable | Not deployed by this script | Any ownership model depending on it is out of canonical-release scope |
 | Defifa | Deployed (Phase 10) | DefifaHook, DefifaTokenUriResolver, DefifaGovernor, DefifaDeployer |
 
-### Catastrophic Misconfiguration Scenarios
+### Catastrophic misconfiguration scenarios
 
 1. **Wrong WETH on L2**: If an L2 chain receives the wrong WETH address, the `JBRouterTerminal` cannot wrap/unwrap ETH. All router terminal payments on that chain revert. The router terminal is constructed with an immutable WETH reference -- no fix without redeployment.
 
@@ -179,9 +179,9 @@ The script deploys across 8 chains (4 mainnets + 4 testnets). Consistency betwee
 
 ---
 
-## 6. Post-Deployment Verification Checklist
+## 6. Post-deployment verification checklist
 
-### Contract Existence
+### Contract existence
 
 For each of the 8 target chains, verify every expected contract is deployed at the expected address:
 
@@ -191,7 +191,7 @@ For each of the 8 target chains, verify every expected contract is deployed at t
 - [ ] Chain-appropriate sucker deployers and singletons -- have code
 - [ ] JBOmnichainDeployer -- has code
 
-### Wiring Verification
+### Wiring verification
 
 - [ ] `JBDirectory.isAllowedToSetFirstController(controllerAddress)` returns `true`
 - [ ] `JBBuybackHookRegistry.defaultHook()` returns the buyback hook address
@@ -199,7 +199,7 @@ For each of the 8 target chains, verify every expected contract is deployed at t
 - [ ] `JBRouterTerminalRegistry.defaultTerminal()` returns the router terminal address
 - [ ] All sucker deployers registered in `JBSuckerRegistry` (call `suckerDeployerIsAllowed` for each)
 
-### Price Feeds
+### Price feeds
 
 - [ ] `JBPrices` has feeds for USD/NATIVE_TOKEN, USD/ETH, ETH/NATIVE_TOKEN, and USD/USDC
 - [ ] Each price feed returns a non-zero, non-stale price
@@ -207,7 +207,7 @@ For each of the 8 target chains, verify every expected contract is deployed at t
 - [ ] L2 mainnets use `JBChainlinkV3SequencerPriceFeed` (not the non-sequencer variant)
 - [ ] Staleness thresholds match Chainlink heartbeat intervals (3600s for ETH/USD, 86400s for USDC/USD)
 
-### Project Integrity
+### Project integrity
 
 - [ ] Project 1 (NANA) and 2 (CPN) exist with correct owners on every target chain
 - [ ] Project 3 (REV) and 4 (BAN) exist with correct owners on chains where the Uniswap stack was deployed
@@ -231,9 +231,9 @@ For each of the 8 target chains, verify every expected contract is deployed at t
 - [ ] `JBFeelessAddresses` has no unexpected entries
 - [ ] `JBDirectory` has exactly one allowed controller
 
-## 7. Recovery Procedures
+## 7. Recovery procedures
 
-### Partial Deployment Recovery
+### Partial deployment recovery
 
 If a Sphinx proposal fails mid-execution on a chain:
 
@@ -244,7 +244,7 @@ If a Sphinx proposal fails mid-execution on a chain:
 5. **Run `script/Verify.s.sol`** to validate post-deployment state and confirm ownership/admin convergence.
 6. **Verify project IDs match** across all chains before enabling sucker operations. A single mismatched project ID can route bridged tokens to the wrong treasury. If you redeployed from a fresh nonce, use the same nonce across every chain so cross-chain addresses and project IDs stay aligned.
 
-### Wrong Address Recovery
+### Wrong address recovery
 
 If a hardcoded address is wrong and already deployed:
 

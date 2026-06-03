@@ -2,12 +2,19 @@
 
 `deploy-all-v6` is the orchestration repo for the wider Juicebox V6 stack in this workspace. Use it when you want to deploy or rehearse the ecosystem together instead of deploying packages one by one.
 
-Architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)  
-User journeys: [USER_JOURNEYS.md](./USER_JOURNEYS.md)  
-Skills: [SKILLS.md](./SKILLS.md)  
-Risks: [RISKS.md](./RISKS.md)  
-Administration: [ADMINISTRATION.md](./ADMINISTRATION.md)  
-Audit instructions: [AUDIT_INSTRUCTIONS.md](./AUDIT_INSTRUCTIONS.md)
+## Documentation
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — module layout, deploy phases, and cross-package sequencing.
+- [USER_JOURNEYS.md](./USER_JOURNEYS.md) — end-to-end deploy, resume, and verify flows.
+- [SKILLS.md](./SKILLS.md) — orchestration gotchas and reading order.
+- [RISKS.md](./RISKS.md) — deployment threat model and accepted risks.
+- [ADMINISTRATION.md](./ADMINISTRATION.md) — operator roles, ownership handoff, and recovery posture.
+- [AUDIT_INSTRUCTIONS.md](./AUDIT_INSTRUCTIONS.md) — what to focus on and how to start.
+- [DEPLOY.md](./DEPLOY.md) — operator deployment runbook.
+- [STYLE_GUIDE.md](./STYLE_GUIDE.md) — code and documentation conventions.
+- [CHANGELOG.md](./CHANGELOG.md) — deployment-shape deltas.
+- [references/operations.md](./references/operations.md) — operational procedures reference.
+- [references/runtime.md](./references/runtime.md) — runtime behavior reference.
 
 ## Overview
 
@@ -22,7 +29,7 @@ It is responsible for:
 
 Use this repo when the question is "does the combined deployment still work?" Do not use it as the main place to understand subsystem runtime behavior.
 
-## Key Scripts
+## Key scripts
 
 | Script | Role |
 | --- | --- |
@@ -30,11 +37,11 @@ Use this repo when the question is "does the combined deployment still work?" Do
 | `script/Verify.s.sol` | Post-deploy verification checks |
 | `script/LivePostDeploySmoke.s.sol` | Budgeted Sphinx proposal for live post-deploy buyback, loan, and ops smoke checks |
 
-## Mental Model
+## Mental model
 
 This repo owns sequencing, not business logic. It is where the intended cross-repo deployment shape is exercised under chain-specific conditions.
 
-## Read These Files First
+## Read these files first
 
 1. `script/Deploy.s.sol`
 2. `script/Verify.s.sol`
@@ -42,7 +49,7 @@ This repo owns sequencing, not business logic. It is where the intended cross-re
 4. `test/fork/DeployFullStack.t.sol`
 5. `test/fork/DeployResumeRehearsalFork.t.sol`
 
-## High-Signal Tests
+## High-signal tests
 
 1. `test/fork/DeployFullStack.t.sol`
 2. `test/fork/DeployResumeRehearsalFork.t.sol`
@@ -50,20 +57,20 @@ This repo owns sequencing, not business logic. It is where the intended cross-re
 4. `test/fork/ResumeDeployFork.t.sol`
 5. `test/fork/SuckerEndToEndFork.t.sol`
 
-## Integration Traps
+## Integration traps
 
 - this repo has almost no runtime protocol logic of its own, so many assumptions live in sibling packages
 - a successful deployment sequence can still encode bad cross-repo configuration
 - recovery paths (redeploying from fresh salts) are part of the intended operational surface
 - artifact drift and chain-specific environment mismatches are the main failure classes here
 
-## Where State Lives
+## Where state lives
 
 - orchestration logic lives in the deployment scripts
 - high-signal behavior checks live in `test/fork/`
 - deployed runtime state ultimately lives in the sibling repos this package composes
 
-## Workspace Use
+## Workspace use
 
 This repo is a private workspace package, not a published reusable library. Use it from a cloned `v6/evm` checkout or as a sibling repo in the same multi-repo workspace.
 
@@ -77,11 +84,11 @@ forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"
 
 The test suite is fork-heavy and exercises realistic multi-repo compositions rather than isolated mocks.
 
-## Deployment Notes
+## Deployment notes
 
 This repo assumes the sibling V6 packages are present and their deployment artifacts are internally consistent. Some phases are intentionally chain-dependent, including skipping parts of the Uniswap stack on networks without the required external infrastructure. `Verify.s.sol` is a deployment check, not a full runtime review.
 
-## Repository Layout
+## Repository layout
 
 ```text
 script/
@@ -92,7 +99,7 @@ test/fork/
   full-stack, recovery, cross-feature, and long-horizon deployment rehearsals
 ```
 
-## Risks And Notes
+## Risks and notes
 
 - this repo amplifies configuration mistakes because it composes many packages at once
 - deployment recovery paths should be treated as production code
@@ -100,7 +107,7 @@ test/fork/
 - artifact drift across sibling packages is one of the main failure modes
 - stale verification logic can report green while checking the wrong assumptions
 
-## For AI Agents
+## For AI agents
 
 - Do not treat this repo as the source of truth for subsystem behavior.
 - Start with the deployment scripts, then use the fork tests to see which deployment and recovery assumptions are pinned.

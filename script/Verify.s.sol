@@ -1406,7 +1406,7 @@ contract Verify is Script {
             condition: address(usdNativeFeed) != address(0), label: "USD/ETH price feed is configured", critical: true
         });
 
-        // Check the USDC/USD price feed — registered during deployment but not previously verified.
+        // Check the USDC/USD price feed — registered during deployment and verified here.
         address usdc;
         if (block.chainid == 1) usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         else if (block.chainid == 11_155_111) usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
@@ -2883,8 +2883,8 @@ contract Verify is Script {
         }
 
         // Require exact expected config hashes on every canonical project on production chains.
-        // Per-project env vars VERIFY_CONFIG_HASH_{1..4} take precedence; the legacy
-        // VERIFY_CONFIG_HASHES CSV is still accepted for backwards compatibility. On production
+        // Per-project env vars VERIFY_CONFIG_HASH_{1..4} take precedence; the VERIFY_CONFIG_HASHES
+        // CSV is accepted as a fallback. On production
         // chains, missing or zero expected hashes are critical.
         uint256[4] memory pids = [_FEE_PROJECT_ID, _CPN_PROJECT_ID, _REV_PROJECT_ID, _BAN_PROJECT_ID];
         string[4] memory names = ["NANA(1)", "CPN(2)", "REV(3)", "BAN(4)"];
@@ -4009,8 +4009,7 @@ contract Verify is Script {
     }
 
     /// loads the expected per-project config hashes from VERIFY_CONFIG_HASH_{1..4}.
-    /// Falls back to the legacy VERIFY_CONFIG_HASHES CSV when individual vars are unset, for
-    /// backwards compatibility with existing operator scripts.
+    /// Falls back to the VERIFY_CONFIG_HASHES CSV when individual vars are unset.
     function _loadExpectedConfigHashes(string[4] memory envVars) internal view returns (bytes32[4] memory hashes) {
         // Per-project env vars take precedence.
         for (uint256 i; i < 4; i++) {
@@ -4019,7 +4018,7 @@ contract Verify is Script {
                 hashes[i] = vm.parseBytes32(v);
             }
         }
-        // Fall back to the legacy CSV for any slots not filled above.
+        // Fall back to the CSV for any slots not filled above.
         string memory csv = vm.envOr({name: "VERIFY_CONFIG_HASHES", defaultValue: string("")});
         if (bytes(csv).length > 0) {
             string[] memory parts = vm.split(csv, ",");

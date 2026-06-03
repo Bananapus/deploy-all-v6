@@ -2,21 +2,21 @@
 
 Use this file when the question is operational: what to rerun, what to trust, and whether a failure belongs to deployment orchestration or to a sibling runtime repo.
 
-## Operator Checklist
+## Operator checklist
 
 - Confirm sibling package broadcasts, addresses, and constructor inputs before blaming this repo.
 - For partially completed rollouts, bump the deployment nonce in [`script/Deploy.s.sol`](../script/Deploy.s.sol) and redeploy from fresh salts instead of replaying the same salts against dirty on-chain state.
 - Use [`script/Verify.s.sol`](../script/Verify.s.sol) after deployment to confirm the chain state still matches the expected published artifacts.
 - If the symptom is isolated to one subsystem after a clean deploy, move into that subsystem repo instead of continuing to debug here.
 
-## Common Failure Modes
+## Common failure modes
 
 - A subsystem deployment changed shape, but this repo still assumes the old artifact, salt, or address.
 - Operators debug runtime behavior here before proving the deployment graph is even correct.
 - Recovery steps are skipped and the rollout is restarted in a way that breaks deterministic assumptions.
 - A chain-specific token, decimal, or price-feed assumption is wrong, so the integrated deployment fails while unit repos still look healthy.
 
-## Tests To Trust First
+## Tests to trust first
 
 - [`test/fork/DeployScriptVerification.t.sol`](../test/fork/DeployScriptVerification.t.sol) when the question is whether the scripts assembled the intended config.
 - [`test/fork/ResumeDeployFork.t.sol`](../test/fork/ResumeDeployFork.t.sol) and [`test/fork/DeployResumeRehearsalFork.t.sol`](../test/fork/DeployResumeRehearsalFork.t.sol) for fresh-salt redeploy/recovery behavior.
