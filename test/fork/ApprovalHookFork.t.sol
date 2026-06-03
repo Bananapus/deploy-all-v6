@@ -283,8 +283,7 @@ contract ApprovalHookForkTest is TestBaseWorkflow {
             token: JBConstants.NATIVE_TOKEN,
             amount: 2 ether,
             currency: NATIVE_CURRENCY,
-            minTokensPaidOut: 0,
-            referralProjectId: 0
+            minTokensPaidOut: 0
         });
         assertEq(paid, 1 ether, "Should pay only the base limit after rejection");
     }

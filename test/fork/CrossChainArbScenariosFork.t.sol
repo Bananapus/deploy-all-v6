@@ -165,8 +165,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(holderL),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         // Step 5: direct borrow during delay must revert too.
@@ -235,8 +234,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(holderL),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
         assertGt(reclaimed, 0, "post-delay cashOut should succeed");
     }
@@ -285,8 +283,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(holderA),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         // After whale exit: R has high backing-per-token (because cashout burned more tokens than the
@@ -436,8 +433,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
             tokenToReclaim: JBConstants.NATIVE_TOKEN,
             minTokensReclaimed: 0,
             beneficiary: payable(holder),
-            metadata: "",
-            referralProjectId: 0
+            metadata: ""
         });
 
         // ── (b) direct borrow reverts

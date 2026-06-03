@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.0.57 - Remove fee attribution wiring from deploy-all
+
+Change:
+
+- Remove deploy-all references to protocol fee-attribution arguments now that the ecosystem packages no longer expose them.
+- Delete the obsolete cross-chain fee-attribution fork scenario; the protocol no longer rewards volume attribution.
+- Keep Defifa on the shared `JB721TiersHookStore` and verify that wiring in post-deploy checks.
+- Update the post-deploy verifier/rehearsal docs so REV deployer and owner addresses are wired through the correct env vars.
+
+Dependency bumps:
+
+- `@ballkidz/defifa`: `^0.0.53 -> ^0.0.54`.
+- `@bananapus/721-hook-v6`: `^0.0.67 -> ^0.0.68`.
+- `@bananapus/buyback-hook-v6`: `^0.0.67 -> ^0.0.68`.
+- `@bananapus/router-terminal-v6`: `^0.0.61 -> ^0.0.63`.
+- `@bananapus/suckers-v6`: `^0.0.69 -> ^0.0.71`.
+- `@bananapus/univ4-lp-split-hook-v6`: `^0.0.59 -> ^0.0.60`.
+- `@bananapus/univ4-router-v6`: `^0.0.50 -> ^0.0.52`.
+- `@croptop/core-v6`: `^0.0.65 -> ^0.0.66`.
+- `@rev-net/core-v6`: `^0.0.87 -> ^0.0.88`.
+
 ## 0.0.56 - Adopt the per-context cross-chain surplus ecosystem
 
 Change:
@@ -38,7 +59,6 @@ Dependency bumps:
 - `@bananapus/permission-ids-v6`: `^0.0.28 -> ^0.0.29`.
 - `@bananapus/project-handles-v6`: `^0.0.23 -> ^0.0.25`.
 - `@bananapus/project-payer-v6`: `^0.0.20 -> ^0.0.21`.
-- `@bananapus/referral-split-hook-v6`: `^0.0.9 -> ^0.0.11`.
 - `@bananapus/router-terminal-v6`: `^0.0.59 -> ^0.0.61`.
 - `@bananapus/suckers-v6`: `^0.0.66 -> ^0.0.68`.
 - `@bananapus/univ4-lp-split-hook-v6`: `^0.0.56 -> ^0.0.57`.
@@ -59,7 +79,7 @@ Documentation:
 Continuous integration:
 
 - Gate the full fork and integration suite in CI: a `forge-test` job builds the deploy artifacts and runs `forge test`, backed by the Ethereum, Optimism, Base, and Arbitrum mainnet RPCs so the cross-chain fork tests run rather than skip.
-- Align the price-verifier and referral fork tests with the current behavior so the suite is green: the price verifier reaches its specific oracle-exactness checks once a valid ETH/USDC triangular feed is present, and the referral hook arms a dwell window before burning credit aimed at a chain with no local token twin.
+- Align the price-verifier fork tests with the current behavior so the suite is green: the price verifier reaches its specific oracle-exactness checks once a valid ETH/USDC triangular feed is present.
 
 ## 0.0.53 - Correct the documented recovery path
 
@@ -83,7 +103,6 @@ Dependency bumps:
 - `@ballkidz/defifa`: `^0.0.50 -> ^0.0.51`.
 - `@bananapus/721-hook-v6`: `^0.0.63 -> ^0.0.65`.
 - `@bananapus/core-v6`: `^0.0.76 -> ^0.0.77`.
-- `@bananapus/referral-split-hook-v6`: `^0.0.8 -> ^0.0.9`.
 - `@bananapus/router-terminal-v6`: `^0.0.58 -> ^0.0.59`.
 - `@bananapus/suckers-v6`: `^0.0.65 -> ^0.0.66`.
 - `@bananapus/univ4-lp-split-hook-v6`: `^0.0.54 -> ^0.0.56`.

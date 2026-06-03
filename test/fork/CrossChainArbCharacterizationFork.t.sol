@@ -307,7 +307,7 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    //  Helpers — leaf staging (mirrors ReferralRewardCrossChainFork pattern)
+    //  Helpers — leaf staging
     // ═════════════════════════════════════════════════════════════════════════
 
     /// @notice Stage an inbox root on `sucker` as if "L" had bridged a leaf carrying (tokens, terminalAmount)

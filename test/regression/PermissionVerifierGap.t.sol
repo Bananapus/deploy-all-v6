@@ -15,6 +15,7 @@ import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 import {REVDeployer} from "@rev-net/core-v6/src/REVDeployer.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
+import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 
 contract PermissionVerifierGapTest is Test {
     function test_permissionsVerifierRejectsMissingRuntimeWildcardGrant() public {
@@ -22,21 +23,17 @@ contract PermissionVerifierGapTest is Test {
         JBPermissions permissions = new JBPermissions(trustedForwarder);
 
         address revDeployer = makeAddr("rev deployer");
+        address revOwner = makeAddr("rev owner");
         address revLoans = makeAddr("rev loans");
 
-        // O's prior checks call .PERMISSIONS() on revDeployer / revLoans. Stub those to satisfy O
-        // so the test reaches P's grant check rather than reverting on a missing getter.
-        vm.mockCall(revDeployer, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
-        vm.mockCall(revLoans, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
-        // O's expanded ERC-2771 sweep also calls trustedForwarder() on the same surfaces. Stub
-        // those so the verifier reaches P's grant check.
-        vm.mockCall(revDeployer, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
-        vm.mockCall(revLoans, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
+        _stubAuthSurface({target: revDeployer, permissions: permissions, trustedForwarder: trustedForwarder});
+        _stubAuthSurface({target: revOwner, permissions: permissions, trustedForwarder: trustedForwarder});
+        _stubAuthSurface({target: revLoans, permissions: permissions, trustedForwarder: trustedForwarder});
 
         assertFalse(
             permissions.hasPermission({
                 operator: revLoans,
-                account: revDeployer,
+                account: revOwner,
                 projectId: 0,
                 permissionId: JBPermissionIds.USE_ALLOWANCE,
                 includeRoot: true,
@@ -45,25 +42,23 @@ contract PermissionVerifierGapTest is Test {
             "setup must omit expected REVLoans wildcard grant"
         );
 
-        VerifyPermissionHarness harness = new VerifyPermissionHarness();
-        harness.setPermissionMocks({
-            permissions_: address(permissions),
-            controller_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
-            terminal_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
-            directory_: address(new MockPermissioned(address(permissions))),
-            projects_: address(new MockTrustedForwarder(trustedForwarder)),
-            expectedTrustedForwarder_: trustedForwarder
+        VerifyPermissionHarness harness = _permissionHarness({
+            permissions: permissions,
+            trustedForwarder: trustedForwarder,
+            projects_: address(new MockTrustedForwarder(trustedForwarder))
         });
 
         // P: enable the runtime-grants check by wiring the REV stack pointers.
-        harness.setPermissionGrantMocks({revDeployer_: revDeployer, revLoans_: revLoans, buybackRegistry_: address(0)});
+        harness.setPermissionGrantMocks({
+            revDeployer_: revDeployer, revOwner_: revOwner, revLoans_: revLoans, buybackRegistry_: address(0)
+        });
 
         // P fix: _verifyPermissionGrants now asserts REVLoans has the wildcard USE_ALLOWANCE grant
-        // from REVDeployer. The harness omits this grant, so the verifier rejects.
+        // from REVOwner. The harness omits this grant, so the verifier rejects.
         vm.expectRevert(
             abi.encodeWithSelector(
                 Verify.Verify_CriticalCheckFailed.selector,
-                "Permissions: REVLoans wildcard USE_ALLOWANCE granted by REVDeployer"
+                "Permissions: REVLoans wildcard USE_ALLOWANCE granted by REVOwner"
             )
         );
         harness.verifyPermissionsAndForwarder();
@@ -81,14 +76,10 @@ contract PermissionVerifierGapTest is Test {
         );
         assertNotEq(wrongPermissionsForwarder, canonicalForwarder, "forwarders must differ");
 
-        VerifyPermissionHarness harness = new VerifyPermissionHarness();
-        harness.setPermissionMocks({
-            permissions_: address(permissions),
-            controller_: address(new MockPermissioned2771(address(permissions), canonicalForwarder)),
-            terminal_: address(new MockPermissioned2771(address(permissions), canonicalForwarder)),
-            directory_: address(new MockPermissioned(address(permissions))),
-            projects_: address(new MockTrustedForwarder(canonicalForwarder)),
-            expectedTrustedForwarder_: canonicalForwarder
+        VerifyPermissionHarness harness = _permissionHarness({
+            permissions: permissions,
+            trustedForwarder: canonicalForwarder,
+            projects_: address(new MockTrustedForwarder(canonicalForwarder))
         });
 
         // O fix: Category 14 now asserts `permissions.trustedForwarder() == expectedTrustedForwarder`.
@@ -106,47 +97,42 @@ contract PermissionVerifierGapTest is Test {
         JBPermissions permissions = new JBPermissions(trustedForwarder);
 
         address revDeployer = makeAddr("rev deployer");
+        address revOwner = makeAddr("rev owner");
         address revLoans = makeAddr("rev loans");
         address canonicalBuybackRegistry = makeAddr("canonical buyback registry");
         address unexpectedOperator = makeAddr("unexpected buyback operator");
 
-        // O's PERMISSIONS() checks on EOAs need stubs to pass through to P.
-        vm.mockCall(revDeployer, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
-        vm.mockCall(revLoans, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
-        vm.mockCall(
-            canonicalBuybackRegistry, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions))
-        );
-        // O's expanded ERC-2771 sweep also calls trustedForwarder() on each surface.
-        vm.mockCall(revDeployer, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
-        vm.mockCall(revLoans, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
-        vm.mockCall(
-            canonicalBuybackRegistry, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder)
-        );
+        _stubAuthSurface({target: revDeployer, permissions: permissions, trustedForwarder: trustedForwarder});
+        _stubAuthSurface({target: revOwner, permissions: permissions, trustedForwarder: trustedForwarder});
+        _stubAuthSurface({target: revLoans, permissions: permissions, trustedForwarder: trustedForwarder});
+        _stubAuthSurface({
+            target: canonicalBuybackRegistry, permissions: permissions, trustedForwarder: trustedForwarder
+        });
 
         // First grant REVLoans wildcard USE_ALLOWANCE so we reach the buyback-registry check.
-        uint8[] memory useAllowanceIds = new uint8[](1);
-        useAllowanceIds[0] = JBPermissionIds.USE_ALLOWANCE;
-        vm.prank(revDeployer);
-        permissions.setPermissionsFor({
-            account: revDeployer,
-            permissionsData: JBPermissionsData({operator: revLoans, projectId: 0, permissionIds: useAllowanceIds})
+        _grantPermissions({
+            permissions: permissions,
+            account: revOwner,
+            operator: revLoans,
+            projectId: 0,
+            permissionIds: _singlePermission(JBPermissionIds.USE_ALLOWANCE)
         });
 
         // Grant the wildcard SET_BUYBACK_POOL to an unexpected operator. The CANONICAL buyback
         // registry is NOT granted — but P's positive check looks for the canonical operator and
         // fails when only an unexpected one has the grant.
-        uint8[] memory poolIds = new uint8[](1);
-        poolIds[0] = JBPermissionIds.SET_BUYBACK_POOL;
-        vm.prank(revDeployer);
-        permissions.setPermissionsFor({
-            account: revDeployer,
-            permissionsData: JBPermissionsData({operator: unexpectedOperator, projectId: 0, permissionIds: poolIds})
+        _grantPermissions({
+            permissions: permissions,
+            account: revOwner,
+            operator: unexpectedOperator,
+            projectId: 0,
+            permissionIds: _singlePermission(JBPermissionIds.SET_BUYBACK_POOL)
         });
 
         assertTrue(
             permissions.hasPermission({
                 operator: unexpectedOperator,
-                account: revDeployer,
+                account: revOwner,
                 projectId: 4,
                 permissionId: JBPermissionIds.SET_BUYBACK_POOL,
                 includeRoot: true,
@@ -157,7 +143,7 @@ contract PermissionVerifierGapTest is Test {
         assertFalse(
             permissions.hasPermission({
                 operator: canonicalBuybackRegistry,
-                account: revDeployer,
+                account: revOwner,
                 projectId: 4,
                 permissionId: JBPermissionIds.SET_BUYBACK_POOL,
                 includeRoot: true,
@@ -166,17 +152,16 @@ contract PermissionVerifierGapTest is Test {
             "setup must omit the canonical buyback registry wildcard grant"
         );
 
-        VerifyPermissionHarness harness = new VerifyPermissionHarness();
-        harness.setPermissionMocks({
-            permissions_: address(permissions),
-            controller_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
-            terminal_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
-            directory_: address(new MockPermissioned(address(permissions))),
-            projects_: address(new MockTrustedForwarder(trustedForwarder)),
-            expectedTrustedForwarder_: trustedForwarder
+        VerifyPermissionHarness harness = _permissionHarness({
+            permissions: permissions,
+            trustedForwarder: trustedForwarder,
+            projects_: address(new MockTrustedForwarder(trustedForwarder))
         });
         harness.setPermissionGrantMocks({
-            revDeployer_: revDeployer, revLoans_: revLoans, buybackRegistry_: canonicalBuybackRegistry
+            revDeployer_: revDeployer,
+            revOwner_: revOwner,
+            revLoans_: revLoans,
+            buybackRegistry_: canonicalBuybackRegistry
         });
 
         // P fix: the verifier asserts the CANONICAL buyback registry has the grant. Granting it
@@ -184,7 +169,7 @@ contract PermissionVerifierGapTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 Verify.Verify_CriticalCheckFailed.selector,
-                "Permissions: BuybackRegistry wildcard SET_BUYBACK_POOL granted by REVDeployer"
+                "Permissions: BuybackRegistry wildcard SET_BUYBACK_POOL granted by REVOwner"
             )
         );
         harness.verifyPermissionsAndForwarder();
@@ -195,43 +180,42 @@ contract PermissionVerifierGapTest is Test {
         JBPermissions permissions = new JBPermissions(trustedForwarder);
 
         address revDeployer = makeAddr("rev deployer");
+        address revOwner = makeAddr("rev owner");
         address revLoans = makeAddr("rev loans");
         address operator = makeAddr("operator");
 
-        // O's prior checks call .PERMISSIONS() and trustedForwarder() on revDeployer / revLoans.
-        vm.mockCall(revDeployer, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
-        vm.mockCall(revLoans, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
-        vm.mockCall(revDeployer, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
-        vm.mockCall(revLoans, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
+        _stubAuthSurface({target: revDeployer, permissions: permissions, trustedForwarder: trustedForwarder});
+        _stubAuthSurface({target: revOwner, permissions: permissions, trustedForwarder: trustedForwarder});
+        _stubAuthSurface({target: revLoans, permissions: permissions, trustedForwarder: trustedForwarder});
 
-        uint8[] memory useAllowanceIds = new uint8[](1);
-        useAllowanceIds[0] = JBPermissionIds.USE_ALLOWANCE;
-        vm.prank(revDeployer);
-        permissions.setPermissionsFor({
-            account: revDeployer,
-            permissionsData: JBPermissionsData({operator: revLoans, projectId: 0, permissionIds: useAllowanceIds})
+        _grantPermissions({
+            permissions: permissions,
+            account: revOwner,
+            operator: revLoans,
+            projectId: 0,
+            permissionIds: _singlePermission(JBPermissionIds.USE_ALLOWANCE)
         });
 
-        uint8[] memory operatorIds = new uint8[](9);
-        operatorIds[0] = JBPermissionIds.SET_SPLIT_GROUPS;
-        operatorIds[1] = JBPermissionIds.SET_BUYBACK_POOL;
-        operatorIds[2] = JBPermissionIds.SET_BUYBACK_TWAP;
-        operatorIds[3] = JBPermissionIds.SET_PROJECT_URI;
-        operatorIds[4] = JBPermissionIds.SUCKER_SAFETY;
-        operatorIds[5] = JBPermissionIds.SET_BUYBACK_HOOK;
-        operatorIds[6] = JBPermissionIds.SET_ROUTER_TERMINAL;
-        operatorIds[7] = JBPermissionIds.SET_TOKEN_METADATA;
-        operatorIds[8] = JBPermissionIds.SIGN_FOR_ERC20;
-        vm.prank(revDeployer);
-        permissions.setPermissionsFor({
-            account: revDeployer,
-            permissionsData: JBPermissionsData({operator: operator, projectId: 2, permissionIds: operatorIds})
+        _grantPermissions({
+            permissions: permissions,
+            account: revOwner,
+            operator: revDeployer,
+            projectId: 0,
+            permissionIds: _revDeployerRuntimePermissions()
+        });
+
+        _grantPermissions({
+            permissions: permissions,
+            account: revOwner,
+            operator: operator,
+            projectId: 2,
+            permissionIds: _canonicalOperatorPermissions()
         });
 
         assertFalse(
             permissions.hasPermission({
                 operator: operator,
-                account: revDeployer,
+                account: revOwner,
                 projectId: 2,
                 permissionId: JBPermissionIds.SET_SUCKER_PEER,
                 includeRoot: true,
@@ -240,22 +224,84 @@ contract PermissionVerifierGapTest is Test {
             "setup must omit the explicit sucker peer grant"
         );
 
-        VerifyPermissionHarness harness = new VerifyPermissionHarness();
-        harness.setPermissionMocks({
-            permissions_: address(permissions),
-            controller_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
-            terminal_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
-            directory_: address(new MockPermissioned(address(permissions))),
-            projects_: address(new MockTrustedForwarder(trustedForwarder)),
-            expectedTrustedForwarder_: trustedForwarder
+        VerifyPermissionHarness harness = _permissionHarness({
+            permissions: permissions,
+            trustedForwarder: trustedForwarder,
+            projects_: address(new MockProjectsForPermissions(trustedForwarder, revOwner))
         });
-        harness.setPermissionGrantMocks({revDeployer_: revDeployer, revLoans_: revLoans, buybackRegistry_: address(0)});
+        harness.setPermissionGrantMocks({
+            revDeployer_: revDeployer, revOwner_: revOwner, revLoans_: revLoans, buybackRegistry_: address(0)
+        });
 
         vm.setEnv("VERIFY_OPERATOR_2", vm.toString(operator));
 
         harness.verifyPermissionsAndForwarder();
 
         vm.setEnv("VERIFY_OPERATOR_2", "0x0000000000000000000000000000000000000000");
+    }
+
+    function _grantPermissions(
+        JBPermissions permissions,
+        address account,
+        address operator,
+        uint64 projectId,
+        uint8[] memory permissionIds
+    )
+        private
+    {
+        vm.prank(account);
+        permissions.setPermissionsFor({
+            account: account,
+            permissionsData: JBPermissionsData({operator: operator, projectId: projectId, permissionIds: permissionIds})
+        });
+    }
+
+    function _stubAuthSurface(address target, JBPermissions permissions, address trustedForwarder) private {
+        vm.mockCall(target, abi.encodeWithSignature("PERMISSIONS()"), abi.encode(address(permissions)));
+        vm.mockCall(target, abi.encodeWithSignature("trustedForwarder()"), abi.encode(trustedForwarder));
+    }
+
+    function _permissionHarness(
+        JBPermissions permissions,
+        address trustedForwarder,
+        address projects_
+    )
+        private
+        returns (VerifyPermissionHarness harness)
+    {
+        harness = new VerifyPermissionHarness();
+        harness.setPermissionMocks({
+            permissions_: address(permissions),
+            controller_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
+            terminal_: address(new MockPermissioned2771(address(permissions), trustedForwarder)),
+            directory_: address(new MockPermissioned(address(permissions))),
+            projects_: projects_,
+            expectedTrustedForwarder_: trustedForwarder
+        });
+    }
+
+    function _singlePermission(uint8 permissionId) private pure returns (uint8[] memory permissionIds) {
+        permissionIds = new uint8[](1);
+        permissionIds[0] = permissionId;
+    }
+
+    function _revDeployerRuntimePermissions() private pure returns (uint8[] memory permissionIds) {
+        permissionIds = new uint8[](2);
+        permissionIds[0] = JBPermissionIds.DEPLOY_SUCKERS;
+        permissionIds[1] = JBPermissionIds.MAP_SUCKER_TOKEN;
+    }
+
+    function _canonicalOperatorPermissions() private pure returns (uint8[] memory permissionIds) {
+        permissionIds = new uint8[](9);
+        permissionIds[0] = JBPermissionIds.SET_SPLIT_GROUPS;
+        permissionIds[1] = JBPermissionIds.SET_BUYBACK_POOL;
+        permissionIds[2] = JBPermissionIds.SET_BUYBACK_TWAP;
+        permissionIds[3] = JBPermissionIds.SET_PROJECT_URI;
+        permissionIds[4] = JBPermissionIds.SUCKER_SAFETY;
+        permissionIds[5] = JBPermissionIds.SET_BUYBACK_HOOK;
+        permissionIds[6] = JBPermissionIds.SET_ROUTER_TERMINAL;
+        permissionIds[7] = JBPermissionIds.SET_TOKEN_METADATA;
+        permissionIds[8] = JBPermissionIds.SIGN_FOR_ERC20;
     }
 }
 
@@ -281,8 +327,16 @@ contract VerifyPermissionHarness is Verify {
     /// P: set the REV stack pointers + (optional) buyback registry so _verifyPermissionGrants
     /// actually runs its checks. Without these, _verifyPermissionGrants short-circuits via the
     /// "[SKIP] REV stack not loaded" branch.
-    function setPermissionGrantMocks(address revDeployer_, address revLoans_, address buybackRegistry_) external {
+    function setPermissionGrantMocks(
+        address revDeployer_,
+        address revOwner_,
+        address revLoans_,
+        address buybackRegistry_
+    )
+        external
+    {
         revDeployer = REVDeployer(revDeployer_);
+        revOwner = REVOwner(revOwner_);
         revLoans = REVLoans(payable(revLoans_));
         buybackRegistry = JBBuybackHookRegistry(buybackRegistry_);
     }
@@ -325,5 +379,22 @@ contract MockTrustedForwarder {
 
     function trustedForwarder() external view returns (address) {
         return _trustedForwarder;
+    }
+}
+
+contract MockProjectsForPermissions is MockTrustedForwarder {
+    address internal immutable _owner;
+
+    constructor(address trustedForwarder_, address owner_) MockTrustedForwarder(trustedForwarder_) {
+        _owner = owner_;
+    }
+
+    function count() external pure returns (uint256) {
+        return 4;
+    }
+
+    function ownerOf(uint256 projectId) external view returns (address) {
+        require(projectId == 2, "unexpected project");
+        return _owner;
     }
 }

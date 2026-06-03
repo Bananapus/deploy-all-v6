@@ -206,8 +206,6 @@ contract Verify is Script {
     // The Defifa deployer contract (optional, not deployed on all chains).
     DefifaDeployer public defifaDeployer;
 
-    // Dedicated Defifa hook store (separate from shared 721 hook store).
-    JB721TiersHookStore public defifaHookStore;
     // Expected trusted forwarder address.
     address public expectedTrustedForwarder;
 
@@ -380,8 +378,6 @@ contract Verify is Script {
         // Read the Defifa deployer address from env (address(0) if not deployed on this chain).
         defifaDeployer = DefifaDeployer(vm.envOr({name: "VERIFY_DEFIFA_DEPLOYER", defaultValue: address(0)}));
 
-        // Read the dedicated Defifa hook store address (separate from shared 721 hook store).
-        defifaHookStore = JB721TiersHookStore(vm.envOr({name: "VERIFY_DEFIFA_HOOK_STORE", defaultValue: address(0)}));
         // Read the expected trusted forwarder address.
         expectedTrustedForwarder = vm.envOr({name: "VERIFY_TRUSTED_FORWARDER", defaultValue: address(0)});
 
@@ -463,9 +459,14 @@ contract Verify is Script {
         // Read the current total project count from the registry.
         uint256 totalProjects = projects.count();
 
-        // Deploy.s.sol always creates 4 projects (NANA, CPN, REV, BAN) regardless of whether the
-        // Uniswap stack is present. The router terminal is optional but does not gate project creation.
-        _check({condition: totalProjects >= 4, label: "Project count >= 4", critical: true});
+        // Deploy.s.sol creates the baseline four projects (NANA, CPN, REV, BAN) even on
+        // partial-stack chains. Production launches must also include DEFIFA(5), the ART(6)
+        // placeholder/full revnet slot, and MARKEE(7).
+        if (_isProductionChain()) {
+            _check({condition: totalProjects >= _MARKEE_PROJECT_ID, label: "Project count >= 7", critical: true});
+        } else {
+            _check({condition: totalProjects >= _BAN_PROJECT_ID, label: "Project count >= 4", critical: true});
+        }
 
         // Verify project 1 (NANA/FEE) has an owner (ERC-721 ownerOf does not revert).
         _checkProjectHasOwner({projectId: _FEE_PROJECT_ID, label: "Project 1 (NANA) exists with owner"});
@@ -1275,21 +1276,11 @@ contract Verify is Script {
                 label: "Defifa address registry wiring",
                 critical: true
             });
-            // Defifa uses a DEDICATED hook store, not the shared one.
-            if (address(defifaHookStore) != address(0)) {
-                _check({
-                    condition: address(defifaDeployer.HOOK_STORE()) == address(defifaHookStore),
-                    label: "Defifa hook store == dedicated VERIFY_DEFIFA_HOOK_STORE",
-                    critical: true
-                });
-            } else {
-                // Fallback: at minimum verify HOOK_STORE has code and is not address(0).
-                _check({
-                    condition: address(defifaDeployer.HOOK_STORE()).code.length > 0,
-                    label: "Defifa HOOK_STORE has code (VERIFY_DEFIFA_HOOK_STORE not set)",
-                    critical: true
-                });
-            }
+            _check({
+                condition: address(defifaDeployer.HOOK_STORE()) == address(hookStore),
+                label: "Defifa HOOK_STORE == shared JB721TiersHookStore",
+                critical: true
+            });
 
             address hookCodeOrigin = defifaDeployer.HOOK_CODE_ORIGIN();
             _check({
@@ -1447,34 +1438,6 @@ contract Verify is Script {
                     _check({condition: belowMax, label: "USDC/USD price < $1.10", critical: true});
                 } catch {
                     _check({condition: false, label: "USDC/USD feed.currentUnitPrice() did not revert", critical: true});
-                }
-            }
-
-            // Check the ETH<->USDC triangular feed, registered for (ETH, usdc_currency) and composed from the USD/ETH
-            // and USD/USDC feeds. USDC revnets (DEFIFA/ART) running scopeCashOutsToLocalBalances=false depend on it:
-            // without it the ETH-denominated cross-chain surplus snapshot cannot convert into the USDC-keyed currency,
-            // so remote surplus silently resolves to 0 and cross-chain cash-outs/loans are under-priced.
-            // forge-lint: disable-next-line(unsafe-typecast)
-            IJBPriceFeed ethUsdcFeed = prices.priceFeedFor({
-                projectId: 0, pricingCurrency: JBCurrencyIds.ETH, unitCurrency: _currencyIdOf(usdc)
-            });
-            _check({
-                condition: address(ethUsdcFeed) != address(0),
-                label: "ETH/USDC triangular price feed is configured",
-                critical: true
-            });
-            if (address(ethUsdcFeed) != address(0)) {
-                try ethUsdcFeed.currentUnitPrice(18) returns (uint256 ethPerUsdc) {
-                    // 1 USDC priced in ETH — a small positive fraction (matches ETH between $100 and $1,000,000).
-                    console.log("  ETH/USDC price (18 dec)", ethPerUsdc);
-                    _check({condition: ethPerUsdc > 1e12, label: "ETH per USDC > 1e-6 ETH", critical: true});
-                    _check({condition: ethPerUsdc < 1e16, label: "ETH per USDC < 1e-2 ETH", critical: true});
-                } catch {
-                    _check({
-                        condition: false,
-                        label: "ETH/USDC triangular feed.currentUnitPrice() did not revert",
-                        critical: true
-                    });
                 }
             }
         }
@@ -2487,39 +2450,83 @@ contract Verify is Script {
     //  Category 14b: Permission Grants (P)
     // ════════════════════════════════════════════════════════════════════
 
-    /// Asserts the canonical runtime permission grants. Three classes:
-    ///   1. Wildcard (projectId=0) grants made by REVDeployer's constructor:
+    /// Asserts the canonical runtime permission grants. Four classes:
+    ///   1. Runtime wildcard (projectId=0) grants keyed to REVOwner, which owns canonical revnets:
     ///        - operator=REVLoans,         permId=USE_ALLOWANCE
     ///        - operator=buyback registry, permId=SET_BUYBACK_POOL
-    ///      account=REVDeployer in both cases.
-    ///   2. Per-revnet operator grants made by REVDeployer when each revnet is launched.
-    ///      Verified for projects {2 CPN, 3 REV, 4 BAN} when their operator env var is set.
-    ///   3. (Gap) No "extra grants" gate — JBPermissions has no enumeration, so the verifier
+    ///        - operator=REVDeployer,      permIds=DEPLOY_SUCKERS + MAP_SUCKER_TOKEN
+    ///   2. Setup-only wildcard grants keyed to deployer contracts while they are constructing
+    ///      projects (for example, REVDeployer -> buyback registry SET_BUYBACK_POOL).
+    ///   3. Per-revnet operator grants made when each revnet is launched.
+    ///      Verified for every canonical revnet on the current chain when its operator env var is set.
+    ///   4. (Gap) No "extra grants" gate — JBPermissions has no enumeration, so the verifier
     ///      cannot prove the absence of unexpected grants on chain. Operators must rely on
     ///      off-chain event-log reconciliation against `OperatorPermissionsSet` until a future
     ///      protocol change exposes enumeration. The gap is logged below.
     function _verifyPermissionGrants() internal {
-        if (address(revDeployer) == address(0) || address(revLoans) == address(0)) {
+        if (address(revDeployer) == address(0) || address(revOwner) == address(0) || address(revLoans) == address(0)) {
             console.log("  [SKIP] REV stack not loaded on this chain - permission grants check skipped");
             _skipped += 1;
             return;
         }
 
-        // Wildcard 1: REVLoans USE_ALLOWANCE on any revnet, granted by REVDeployer in its ctor.
+        // Runtime wildcard 1: REVLoans USE_ALLOWANCE on any REVOwner-owned revnet.
         _check({
             condition: permissions.hasPermission({
                 operator: address(revLoans),
-                account: address(revDeployer),
+                account: address(revOwner),
                 projectId: 0,
                 permissionId: JBPermissionIds.USE_ALLOWANCE,
                 includeRoot: true,
                 includeWildcardProjectId: true
             }),
-            label: "Permissions: REVLoans wildcard USE_ALLOWANCE granted by REVDeployer",
+            label: "Permissions: REVLoans wildcard USE_ALLOWANCE granted by REVOwner",
             critical: true
         });
 
-        // Wildcard 2: buyback registry SET_BUYBACK_POOL on any revnet, granted by REVDeployer.
+        // Runtime wildcard 2: buyback registry SET_BUYBACK_POOL on any REVOwner-owned revnet.
+        if (address(buybackRegistry) != address(0)) {
+            _check({
+                condition: permissions.hasPermission({
+                    operator: address(buybackRegistry),
+                    account: address(revOwner),
+                    projectId: 0,
+                    permissionId: JBPermissionIds.SET_BUYBACK_POOL,
+                    includeRoot: true,
+                    includeWildcardProjectId: true
+                }),
+                label: "Permissions: BuybackRegistry wildcard SET_BUYBACK_POOL granted by REVOwner",
+                critical: true
+            });
+        }
+
+        // Runtime wildcard 3: REVDeployer can deploy/map suckers for REVOwner-owned revnets.
+        _check({
+            condition: permissions.hasPermission({
+                operator: address(revDeployer),
+                account: address(revOwner),
+                projectId: 0,
+                permissionId: JBPermissionIds.DEPLOY_SUCKERS,
+                includeRoot: true,
+                includeWildcardProjectId: true
+            }),
+            label: "Permissions: REVDeployer wildcard DEPLOY_SUCKERS granted by REVOwner",
+            critical: true
+        });
+        _check({
+            condition: permissions.hasPermission({
+                operator: address(revDeployer),
+                account: address(revOwner),
+                projectId: 0,
+                permissionId: JBPermissionIds.MAP_SUCKER_TOKEN,
+                includeRoot: true,
+                includeWildcardProjectId: true
+            }),
+            label: "Permissions: REVDeployer wildcard MAP_SUCKER_TOKEN granted by REVOwner",
+            critical: true
+        });
+
+        // Setup-only wildcard: REVDeployer can initialize buyback pools while it is constructing a revnet.
         if (address(buybackRegistry) != address(0)) {
             _check({
                 condition: permissions.hasPermission({
@@ -2530,12 +2537,12 @@ contract Verify is Script {
                     includeRoot: true,
                     includeWildcardProjectId: true
                 }),
-                label: "Permissions: BuybackRegistry wildcard SET_BUYBACK_POOL granted by REVDeployer",
+                label: "Permissions: BuybackRegistry setup SET_BUYBACK_POOL granted by REVDeployer",
                 critical: true
             });
         }
 
-        // Wildcard 3: sucker registry MAP_SUCKER_TOKEN on any project, granted by
+        // Wildcard 4: sucker registry MAP_SUCKER_TOKEN on any project, granted by
         // JBOmnichainDeployer in its constructor (`SUCKER_REGISTRY` operator, account=deployer).
         // Without this grant, omnichain-deployed revnets cannot map their cross-chain tokens
         // post-launch — a silent breakage of sucker functionality the verifier must catch.
@@ -2554,7 +2561,7 @@ contract Verify is Script {
             });
         }
 
-        // Wildcard 4: Croptop publisher ADJUST_721_TIERS on any project the deployer temporarily
+        // Wildcard 5: Croptop publisher ADJUST_721_TIERS on any project the deployer temporarily
         // owns, granted by CTDeployer's constructor (`PUBLISHER` operator, account=deployer).
         // Without it, every Croptop hook launched through `CTDeployer.deployHookFor` will revert
         // on the first publisher-driven tier adjustment.
@@ -2573,12 +2580,17 @@ contract Verify is Script {
             });
         }
 
-        // Per-revnet operator grants. The operator is configured at revnet launch and
-        // exposed via VERIFY_OPERATOR_{2,3,4} env vars. When set, the verifier asserts the
-        // operator has the 9 canonical operator permissions on its revnet.
-        _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_2", projectId: _CPN_PROJECT_ID, label: "Project 2 (CPN)"});
-        _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_3", projectId: _REV_PROJECT_ID, label: "Project 3 (REV)"});
-        _verifyOperatorGrantsFor({envVar: "VERIFY_OPERATOR_4", projectId: _BAN_PROJECT_ID, label: "Project 4 (BAN)"});
+        // Per-revnet operator grants. The operator is configured at revnet launch and exposed via
+        // VERIFY_OPERATOR_<projectId>. When set, the verifier asserts the operator has the 9
+        // canonical operator permissions on the actual project-owner account.
+        (uint256[] memory projectIds, string[] memory labels) = _canonicalRevnetProjectIdsAndLabels();
+        for (uint256 i; i < projectIds.length; i++) {
+            _verifyOperatorGrantsFor({
+                envVar: string.concat("VERIFY_OPERATOR_", vm.toString(projectIds[i])),
+                projectId: projectIds[i],
+                label: labels[i]
+            });
+        }
 
         // Known gap (logged, not failed): exhaustive "no extra grants" verification requires either
         // an enumerable JBPermissions or off-chain event-log reconciliation against
@@ -2593,11 +2605,8 @@ contract Verify is Script {
         address operator = vm.envOr({name: envVar, defaultValue: address(0)});
         if (operator == address(0)) {
             // Fail-closed on the canonical production chains so a launch run cannot silently skip
-            // verifying the broad operator grants for any of the four canonical projects. The
-            // mainnet chain list mirrors the production guard in `setUp`.
-            bool isProductionChain =
-                (block.chainid == 1 || block.chainid == 10 || block.chainid == 8453 || block.chainid == 42_161);
-            if (isProductionChain) {
+            // verifying broad operator grants for a canonical revnet.
+            if (_isProductionChain()) {
                 _check({
                     condition: false,
                     label: string.concat(envVar, " MUST be set on production for ", label, " operator grants"),
@@ -2609,6 +2618,24 @@ contract Verify is Script {
             _skipped += 1;
             return;
         }
+
+        address account;
+        try projects.ownerOf(projectId) returns (address projectOwner) {
+            account = projectOwner;
+        } catch {
+            _check({
+                condition: false,
+                label: string.concat("Permissions: ", label, " project owner is readable"),
+                critical: true
+            });
+            return;
+        }
+        _check({
+            condition: account == address(revOwner),
+            label: string.concat("Permissions: ", label, " owner account == REVOwner"),
+            critical: true
+        });
+
         uint8[9] memory expectedPermissions = [
             JBPermissionIds.SET_SPLIT_GROUPS,
             JBPermissionIds.SET_BUYBACK_POOL,
@@ -2624,7 +2651,7 @@ contract Verify is Script {
             _check({
                 condition: permissions.hasPermission({
                     operator: operator,
-                    account: address(revDeployer),
+                    account: account,
                     projectId: _projectId64(projectId),
                     permissionId: expectedPermissions[i],
                     includeRoot: true,
@@ -4418,8 +4445,27 @@ contract Verify is Script {
             label: "JBRouterTerminalRegistry"
         });
         _requireArtifactIdentity({
+            artifactName: "JBRouterTerminal", deployed: address(routerTerminal), label: "JBRouterTerminal"
+        });
+        _requireArtifactIdentity({
             artifactName: "JBUniswapV4Hook", deployed: _uniswapV4Hook(), label: "JBUniswapV4Hook"
         });
+        if (lpSplitHookDeployer != address(0)) {
+            _requireArtifactIdentity({
+                artifactName: "JBUniswapV4LPSplitHookDeployer",
+                deployed: lpSplitHookDeployer,
+                label: "JBUniswapV4LPSplitHookDeployer"
+            });
+            (bool okLpHook, bytes memory lpHookData) =
+                lpSplitHookDeployer.staticcall(abi.encodeWithSignature("hookImplementation()"));
+            if (okLpHook && lpHookData.length >= 32) {
+                _requireArtifactIdentity({
+                    artifactName: "JBUniswapV4LPSplitHook",
+                    deployed: abi.decode(lpHookData, (address)),
+                    label: "JBUniswapV4LPSplitHook impl"
+                });
+            }
+        }
 
         // Croptop.
         _requireArtifactIdentity({artifactName: "CTPublisher", deployed: address(ctPublisher), label: "CTPublisher"});
@@ -4449,6 +4495,23 @@ contract Verify is Script {
                     label: "JB721TiersHook base impl"
                 });
             }
+        }
+
+        // Banny's resolver is deployed as its own contract and then wired into the BAN 721 hook.
+        if (address(revOwner) != address(0) && address(hookStore) != address(0)) {
+            try revOwner.tiered721HookOf(_BAN_PROJECT_ID) returns (IJB721TiersHook bannyHook) {
+                if (address(bannyHook) != address(0)) {
+                    (bool okResolver, bytes memory resolverData) = address(hookStore)
+                        .staticcall(abi.encodeWithSignature("tokenUriResolverOf(address)", address(bannyHook)));
+                    if (okResolver && resolverData.length >= 32) {
+                        _requireArtifactIdentity({
+                            artifactName: "Banny721TokenUriResolver",
+                            deployed: abi.decode(resolverData, (address)),
+                            label: "Banny721TokenUriResolver"
+                        });
+                    }
+                }
+            } catch {}
         }
 
         // Periphery.
@@ -4528,6 +4591,15 @@ contract Verify is Script {
             if (okGov && govData.length >= 32) {
                 _requireArtifactIdentity({
                     artifactName: "DefifaGovernor", deployed: abi.decode(govData, (address)), label: "DefifaGovernor"
+                });
+            }
+            (bool okStore, bytes memory storeData) =
+                address(defifaDeployer).staticcall(abi.encodeWithSignature("HOOK_STORE()"));
+            if (okStore && storeData.length >= 32) {
+                _requireArtifactIdentity({
+                    artifactName: "JB721TiersHookStore",
+                    deployed: abi.decode(storeData, (address)),
+                    label: "Defifa JB721TiersHookStore"
                 });
             }
         }

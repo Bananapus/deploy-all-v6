@@ -458,7 +458,6 @@ contract Deploy is Script, Sphinx {
     DefifaHook private _defifaHook;
     DefifaTokenUriResolver private _defifaTokenUriResolver;
     DefifaGovernor private _defifaGovernor;
-    JB721TiersHookStore private _defifaHookStore;
     DefifaDeployer private _defifaDeployer;
     uint48 private _defifaRevStartTime;
 
@@ -3607,18 +3606,11 @@ contract Deploy is Script, Sphinx {
             })
         );
 
-        // ── DefifaHookStore (dedicated store for Defifa game NFT tiers — same artifact as the
-        // protocol-level hook store but a different salt produces a separate instance) ──
-        _defifaHookStore = JB721TiersHookStore(
-            _deployPrecompiledIfNeeded({artifactName: "JB721TiersHookStore", salt: DEFIFA_SALT, ctorArgs: ""})
-        );
-
         // ── DefifaDeployer (factory that creates new Defifa games) ──
-        // defifa 0.0.50 takes all dependencies as constructor args (the prior chain-same ctor + one-shot
+        // DefifaDeployer takes all dependencies as constructor args (the prior chain-same ctor + one-shot
         // `setChainSpecificConstants` setter was removed). Because `tokenUriResolver` depends on the chain-specific
         // typeface, the deployer's CREATE2 address is chain-different (acceptable: the game factory is chain-local).
         bytes memory deployerArgs = abi.encode(
-            safeAddress(),
             address(_defifaHook),
             _defifaTokenUriResolver,
             _defifaGovernor,
@@ -3626,7 +3618,7 @@ contract Deploy is Script, Sphinx {
             _addressRegistry,
             _DEFIFA_REV_PROJECT_ID,
             _FEE_PROJECT_ID,
-            _defifaHookStore
+            _hookStore
         );
         _defifaDeployer = DefifaDeployer(
             _deployPrecompiledIfNeeded({artifactName: "DefifaDeployer", salt: DEFIFA_SALT, ctorArgs: deployerArgs})
@@ -3657,8 +3649,8 @@ contract Deploy is Script, Sphinx {
         if (_defifaDeployer.BASE_PROTOCOL_PROJECT_ID() != _FEE_PROJECT_ID) {
             revert Deploy_ProjectIdMismatch(_FEE_PROJECT_ID, _defifaDeployer.BASE_PROTOCOL_PROJECT_ID());
         }
-        if (address(_defifaDeployer.HOOK_STORE()) != address(_defifaHookStore)) {
-            revert Deploy_ExistingAddressMismatch(address(_defifaHookStore), address(_defifaDeployer.HOOK_STORE()));
+        if (address(_defifaDeployer.HOOK_STORE()) != address(_hookStore)) {
+            revert Deploy_ExistingAddressMismatch(address(_hookStore), address(_defifaDeployer.HOOK_STORE()));
         }
 
         if (_defifaGovernor.owner() == safeAddress()) {

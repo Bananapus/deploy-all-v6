@@ -240,8 +240,7 @@ contract LivePostDeploySmoke is Script, Sphinx {
                 tokenToReclaim: JBConstants.NATIVE_TOKEN,
                 minTokensReclaimed: 0,
                 beneficiary: payable(_account),
-                metadata: "",
-                referralProjectId: 0
+                metadata: ""
             });
             console.log("    reclaimed", reclaimed);
         } catch {

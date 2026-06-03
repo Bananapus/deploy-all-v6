@@ -82,6 +82,7 @@ contract ExternalAddressVerifierGapTest is Test {
         address controller = makeAddr("controller");
         address revToken = makeAddr("rev token");
         address nanaToken = makeAddr("nana token");
+        address hookStore = address(new MockCode());
 
         assertTrue(wrongTypeface != CANONICAL_MAINNET_TYPEFACE, "test must use non-canonical typeface");
 
@@ -89,7 +90,7 @@ contract ExternalAddressVerifierGapTest is Test {
         MockDefifaDeployer deployer = new MockDefifaDeployer({
             controller_: controller,
             addressRegistry_: address(new MockCode()),
-            hookStore_: address(new MockCode()),
+            hookStore_: hookStore,
             hookCodeOrigin_: address(
                 new MockDefifaHook({revToken_: revToken, nanaToken_: nanaToken, directory_: directory})
             ),
@@ -104,7 +105,7 @@ contract ExternalAddressVerifierGapTest is Test {
             controller_: controller,
             tokens_: address(new MockTokens({revToken_: revToken, nanaToken_: nanaToken})),
             addressRegistry_: deployer.REGISTRY(),
-            defifaHookStore_: deployer.HOOK_STORE(),
+            hookStore_: hookStore,
             defifaDeployer_: address(deployer)
         });
 
@@ -310,7 +311,7 @@ contract VerifyExternalAddressHarness is Verify {
         address controller_,
         address tokens_,
         address addressRegistry_,
-        address defifaHookStore_,
+        address hookStore_,
         address defifaDeployer_
     )
         external
@@ -319,7 +320,7 @@ contract VerifyExternalAddressHarness is Verify {
         controller = JBController(controller_);
         tokens = JBTokens(tokens_);
         addressRegistry = addressRegistry_;
-        defifaHookStore = JB721TiersHookStore(defifaHookStore_);
+        hookStore = JB721TiersHookStore(hookStore_);
         defifaDeployer = DefifaDeployer(defifaDeployer_);
     }
 
