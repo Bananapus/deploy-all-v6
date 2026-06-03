@@ -27,6 +27,7 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -234,6 +235,7 @@ async function verifyOne({ target, entry, baseName }) {
 
   const repoDir = resolveSourceRoot(entry);
   if (!fs.existsSync(repoDir)) throw nonTransient(`Source root not found: ${repoDir}`);
+  const foundryProfile = verificationFoundryProfile(entry, repoDir);
 
   // Build the forge verify-contract argv.
   const forgeArgs = [
@@ -247,6 +249,8 @@ async function verifyOne({ target, entry, baseName }) {
     '--etherscan-api-key', ETHERSCAN_KEY,
     '--num-of-optimizations', String(entry.optimizerRuns),
     '--compiler-version', solcVersionFull,
+    '--use', entry.solcVersion,
+    '--no-auto-detect',
     '--evm-version', entry.evmVersion,
     '--skip-is-verified-check',
     '--retries', String(process.env.POST_DEPLOY_FORGE_VERIFY_RETRIES || 24),
@@ -256,21 +260,25 @@ async function verifyOne({ target, entry, baseName }) {
   if (ctorArgsHex.length > 0) {
     forgeArgs.push('--constructor-args', `0x${ctorArgsHex}`);
   }
-  // Pass every published library `--libraries <path>:<LibName>:<address>`. forge tolerates extra
-  // library specs that the target source doesn't actually link against; this avoids needing to
-  // parse the artifact's linkReferences for every contract. Without these, Etherscan re-compiles
-  // the source with unresolved placeholders and rejects the verification.
-  if (manifest.libraries && typeof manifest.libraries === 'object') {
-    for (const [libName, libEntry] of Object.entries(manifest.libraries)) {
-      if (libEntry?.sourcePath && libEntry?.address) {
-        forgeArgs.push('--libraries', `${libEntry.sourcePath}:${libName}:${libEntry.address}`);
-      }
-    }
+  // Pass only the libraries this artifact actually links. Extra library specs can alter
+  // metadata.settings.libraries for otherwise-unlinked contracts, causing explorer bytecode
+  // mismatches even when the runtime bytecode is correct.
+  for (const libSpec of librarySpecsForArtifact(artifact)) {
+    forgeArgs.push('--libraries', libSpec);
   }
 
-  const result = await runProcess('forge', forgeArgs, repoDir, {
-    FOUNDRY_VIA_IR: entry.viaIr ? 'true' : 'false'
-  });
+  const forgeScratch = makeForgeScratchDir();
+  let result;
+  try {
+    result = await runProcess('forge', forgeArgs, repoDir, {
+      FOUNDRY_PROFILE: foundryProfile || process.env.FOUNDRY_PROFILE || 'default',
+      FOUNDRY_VIA_IR: entry.viaIr ? 'true' : 'false',
+      FOUNDRY_CACHE_PATH: path.join(forgeScratch, 'cache'),
+      FOUNDRY_OUT: path.join(forgeScratch, 'out')
+    });
+  } finally {
+    fs.rmSync(forgeScratch, { recursive: true, force: true });
+  }
   classifyForgeResult(result);
 }
 
@@ -333,9 +341,61 @@ function cloneImplementationFor(name) {
   return { name: implementationName, address: String(implementationAddress).toLowerCase() };
 }
 
+function librarySpecsForArtifact(artifact) {
+  if (!manifest.libraries || typeof manifest.libraries !== 'object') return [];
+
+  const specs = [];
+  const seen = new Set();
+  for (const libName of linkedLibraryNames(artifact)) {
+    const libEntry = manifest.libraries[libName];
+    if (!libEntry?.sourcePath || !libEntry?.address) {
+      throw nonTransient(`Missing manifest library entry for ${libName}`);
+    }
+
+    const spec = `${libEntry.sourcePath}:${libName}:${libEntry.address}`;
+    if (seen.has(spec)) continue;
+    seen.add(spec);
+    specs.push(spec);
+  }
+  return specs;
+}
+
+function linkedLibraryNames(artifact) {
+  const names = new Set();
+  collectLinkedLibraryNames(names, artifact?.bytecode?.linkReferences);
+  collectLinkedLibraryNames(names, artifact?.deployedBytecode?.linkReferences);
+  return [...names].sort();
+}
+
+function collectLinkedLibraryNames(names, linkReferences) {
+  if (!linkReferences || typeof linkReferences !== 'object') return;
+  for (const libsBySource of Object.values(linkReferences)) {
+    if (!libsBySource || typeof libsBySource !== 'object') continue;
+    for (const libName of Object.keys(libsBySource)) {
+      names.add(libName);
+    }
+  }
+}
+
 function resolveSourceRoot(entry) {
   if (entry.sourceRoot) return path.resolve(DEPLOY_ROOT, entry.sourceRoot);
   return entry.repo === 'deploy-all-v6' ? DEPLOY_ROOT : path.join(MONOREPO_ROOT, entry.repo);
+}
+
+function verificationFoundryProfile(entry, repoDir) {
+  // npm package artifacts are compiled from deploy-all-v6 so source paths stay
+  // as node_modules/... in metadata. forge verify-contract does not honor
+  // FOUNDRY_VIA_IR=false from env, so use an explicit profile for the packages
+  // whose deployment artifacts were built without viaIR.
+  if (path.resolve(repoDir) !== DEPLOY_ROOT) return null;
+  return entry.viaIr ? 'default' : 'verify_non_via_ir';
+}
+
+function makeForgeScratchDir() {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'deploy-all-v6-verify-'));
+  fs.mkdirSync(path.join(scratch, 'cache'), { recursive: true });
+  fs.mkdirSync(path.join(scratch, 'out'), { recursive: true });
+  return scratch;
 }
 
 function classifyForgeResult({ code, stdout, stderr }) {

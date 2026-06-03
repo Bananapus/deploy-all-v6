@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // distribute.mjs — Fan out generated artifacts to:
 //
-//   1. deploy-all-v6/deployments/V6/<chain_alias>/<Contract>.json
+//   1. deploy-all-v6/deployments/<chain_alias>/<Contract>.json
 //      (aggregator copy — every contract on this chain in one place)
 //
 //   2. <monorepo>/<repo>/deployments/<sphinxProject>/<chain_alias>/<Contract>.json
@@ -58,21 +58,19 @@ const targets = Object.entries(addresses)
 
 console.log(`Distributing ${targets.length} artifact(s) for chain ${CHAIN_ID} (${chain.alias})${DRY_RUN ? ' [DRY RUN]' : ''}`);
 
+const ARTIFACT_ALIASES = new Map([
+  ['BannyLPSplitHook', 'JBUniswapV4LPSplitHook']
+]);
+
 let writeCount = 0;
 let skipCount = 0;
 
 for (const target of targets) {
   const file = `${target.name}.json`;
-  const baseName = target.name.split('__')[0];
+  const baseName = artifactNameFor({name: target.name});
   const manifestEntry = manifest.contracts[baseName];
   if (!manifestEntry) {
     console.warn(`  SKIP    ${target.name}: not in manifest`);
-    skipCount += 1;
-    continue;
-  }
-  const sphinxProject = sphinxProjectByRepo[manifestEntry.repo];
-  if (!sphinxProject) {
-    console.warn(`  SKIP    ${target.name}: no sphinxProject mapping for repo ${manifestEntry.repo}`);
     skipCount += 1;
     continue;
   }
@@ -109,11 +107,19 @@ for (const target of targets) {
   }
 
   // Aggregator destination — always written.
-  const aggregatorPath = path.join(DEPLOY_ROOT, 'deployments', 'V6', chain.alias, file);
+  const aggregatorPath = path.join(DEPLOY_ROOT, 'deployments', chain.alias, file);
 
-  // Per-repo destination. Special case: deploy-all-v6 = V6 -> same as aggregator (skip duplicate).
-  const repoDir = manifestEntry.repo === 'deploy-all-v6' ? DEPLOY_ROOT : path.join(MONOREPO_ROOT, manifestEntry.repo);
-  const perRepoPath = path.join(repoDir, 'deployments', sphinxProject, chain.alias, file);
+  // Per-repo destination. deploy-all-owned artifacts are already covered by the aggregator path.
+  let perRepoPath = aggregatorPath;
+  if (manifestEntry.repo !== 'deploy-all-v6') {
+    const sphinxProject = sphinxProjectByRepo[manifestEntry.repo];
+    if (!sphinxProject) {
+      console.warn(`  SKIP    ${target.name}: no sphinxProject mapping for repo ${manifestEntry.repo}`);
+      skipCount += 1;
+      continue;
+    }
+    perRepoPath = path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', sphinxProject, chain.alias, file);
+  }
 
   let written = 0;
   for (const dest of new Set([aggregatorPath, perRepoPath])) {
@@ -133,6 +139,11 @@ console.log(`Done. ${writeCount} write(s), ${skipCount} skip(s).`);
 process.exit(skipCount > 0 ? 1 : 0);
 
 // ── helpers ──
+function artifactNameFor({name}) {
+  const baseName = name.split('__')[0];
+  return ARTIFACT_ALIASES.get(baseName) || baseName;
+}
+
 function readJson({path: p}) { return JSON.parse(fs.readFileSync(p, 'utf8')); }
 
 function parseArgs(argv) {

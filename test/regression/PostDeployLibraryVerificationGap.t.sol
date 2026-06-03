@@ -3,15 +3,18 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 
-/// @notice Regression: verify.mjs must pass `--libraries <path>:<LibName>:<addr>` for every
-/// pre-linked library so forge verify-contract can re-link the source against the on-chain
-/// bytecode. The library addresses live in the manifest (top-level `libraries` map) populated by
-/// build-artifacts.sh's Phase 3.
+/// @notice Regression: verify.mjs must pass `--libraries <path>:<LibName>:<addr>` only for each
+/// artifact's actual pre-linked libraries. Passing every manifest library to every verification
+/// mutates metadata.settings.libraries for otherwise-unlinked contracts and makes Etherscan reject
+/// bytecode that was otherwise correct. The library addresses live in the manifest (top-level
+/// `libraries` map) populated by build-artifacts.sh's Phase 3.
 contract PostDeployLibraryVerificationGapTest is Test {
     function test_verifierPassesDeferredLibraryLinks() public view {
         string memory buildSource = vm.readFile("script/build-artifacts.sh");
         string memory verifySource = vm.readFile("script/post-deploy/lib/verify.mjs");
         string memory artifactsSource = vm.readFile("script/post-deploy/lib/artifacts.mjs");
+        string memory distributeSource = vm.readFile("script/post-deploy/lib/distribute.mjs");
+        string memory foundrySource = vm.readFile("foundry.toml");
         string memory defifaHookArtifact = vm.readFile("artifacts/DefifaHook.json");
 
         // Build script still computes + substitutes deterministic library addresses.
@@ -34,10 +37,23 @@ contract PostDeployLibraryVerificationGapTest is Test {
         assertTrue(_contains(defifaHookArtifact, "\"DefifaHookLib\""), "DefifaHook links DefifaHookLib");
         assertFalse(_contains(defifaHookArtifact, "__$"), "copied deployment artifact has patched library placeholders");
 
-        // verify.mjs reads manifest.libraries and passes --libraries flags to forge.
+        // verify.mjs reads manifest.libraries, parses artifact linkReferences, and passes only
+        // artifact-specific --libraries flags to forge.
         assertTrue(
-            _contains(verifySource, "manifest.libraries && typeof manifest.libraries"),
+            _contains(verifySource, "if (!manifest.libraries || typeof manifest.libraries !== 'object') return [];"),
             "verifier reads the manifest's libraries map"
+        );
+        assertTrue(
+            _contains(verifySource, "function linkedLibraryNames(artifact)"),
+            "verifier derives library names from artifact linkReferences"
+        );
+        assertTrue(
+            _contains(verifySource, "artifact?.bytecode?.linkReferences"),
+            "verifier checks creation bytecode link references"
+        );
+        assertTrue(
+            _contains(verifySource, "artifact?.deployedBytecode?.linkReferences"),
+            "verifier checks runtime bytecode link references"
         );
         assertTrue(
             _contains(verifySource, "forgeArgs.push('--libraries'"),
@@ -46,6 +62,10 @@ contract PostDeployLibraryVerificationGapTest is Test {
         assertTrue(
             _contains(verifySource, "${libEntry.sourcePath}:${libName}:${libEntry.address}"),
             "library spec format matches forge's expected <path>:<name>:<address>"
+        );
+        assertFalse(
+            _contains(verifySource, "for (const [libName, libEntry] of Object.entries(manifest.libraries))"),
+            "verifier must not pass every manifest library to every contract"
         );
         assertTrue(
             _contains(verifySource, "const repoDir = resolveSourceRoot(entry);"),
@@ -56,14 +76,48 @@ contract PostDeployLibraryVerificationGapTest is Test {
             "manifest sourceRoot can point verification at npm package roots"
         );
         assertTrue(
-            _contains(verifySource, "FOUNDRY_VIA_IR: entry.viaIr ? 'true' : 'false'"),
-            "verification preserves per-package via-ir settings when running from deploy-all"
+            _contains(verifySource, "function verificationFoundryProfile(entry, repoDir)"),
+            "verifier chooses a compile profile for deploy-all package artifacts"
         );
+        assertTrue(
+            _contains(verifySource, "FOUNDRY_PROFILE: foundryProfile || process.env.FOUNDRY_PROFILE || 'default'"),
+            "verifier passes the selected Foundry profile through the forge environment"
+        );
+        assertTrue(
+            _contains(verifySource, "FOUNDRY_CACHE_PATH: path.join(forgeScratch, 'cache')"),
+            "verifier isolates forge cache so stale default-profile builds cannot leak in"
+        );
+        assertTrue(
+            _contains(verifySource, "FOUNDRY_OUT: path.join(forgeScratch, 'out')"),
+            "verifier isolates forge output for each verification compile"
+        );
+        assertTrue(
+            _contains(verifySource, "'--use', entry.solcVersion"),
+            "verifier pins the local solc selector from the manifest"
+        );
+        assertTrue(_contains(verifySource, "'--no-auto-detect'"), "verifier disables solc auto-detection");
+        assertTrue(
+            _contains(verifySource, "return entry.viaIr ? 'default' : 'verify_non_via_ir';"),
+            "non-viaIR package artifacts must not verify with deploy-all's default viaIR profile"
+        );
+        assertTrue(
+            _contains(foundrySource, "[profile.verify_non_via_ir]"),
+            "deploy-all exposes an explicit non-viaIR verification profile"
+        );
+        assertTrue(_contains(foundrySource, "via_ir = false"), "non-viaIR verification profile disables viaIR");
 
         // Artifact emit unchanged.
         assertTrue(
             _contains(artifactsSource, "solcInputHash = crypto.createHash('md5').update(metadataString)"),
             "artifact emitter hashes metadata"
+        );
+        assertTrue(
+            _contains(distributeSource, "['BannyLPSplitHook', 'JBUniswapV4LPSplitHook']"),
+            "artifact distributor resolves Banny LP hook through the LP split hook manifest entry"
+        );
+        assertTrue(
+            _contains(distributeSource, "const baseName = artifactNameFor({name: target.name});"),
+            "artifact distributor must apply aliases before manifest lookup"
         );
         string memory emittedArtifactObject =
             _section({haystack: artifactsSource, startNeedle: "return {", endNeedle: "history: []"});
