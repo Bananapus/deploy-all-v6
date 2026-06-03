@@ -122,14 +122,14 @@ import {JBOmnichainDeployer} from "@bananapus/omnichain-deployers-v6/src/JBOmnic
 ///   RPC_OPTIMISM_MAINNET
 ///   RPC_BASE_MAINNET
 ///   RPC_ARBITRUM_MAINNET
-contract DeployFullStackTest is Test {
+abstract contract DeployFullStackBase is Test {
     // ════════════════════════════════════════════════════════════════════
     //  Constants (must match Deploy.s.sol)
     // ════════════════════════════════════════════════════════════════════
 
-    IPermit2 private constant _PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
-    uint256 private constant FEE_PROJECT_ID = 1;
-    bytes32 private constant OMNICHAIN_DEPLOYER_SALT = "JBOmnichainDeployerV6_";
+    IPermit2 internal constant _PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    uint256 internal constant FEE_PROJECT_ID = 1;
+    bytes32 internal constant OMNICHAIN_DEPLOYER_SALT = "JBOmnichainDeployerV6_";
 
     // ════════════════════════════════════════════════════════════════════
     //  Chain configs
@@ -166,34 +166,34 @@ contract DeployFullStackTest is Test {
     //  Deployed contract references (reset per chain)
     // ════════════════════════════════════════════════════════════════════
 
-    address private _deployer;
-    address private _trustedForwarder;
-    JBPermissions private _permissions;
-    JBProjects private _projects;
-    JBDirectory private _directory;
-    JBSplits private _splits;
-    JBRulesets private _rulesets;
-    JBPrices private _prices;
-    JBTokens private _tokens;
-    JBFundAccessLimits private _fundAccess;
-    JBFeelessAddresses private _feeless;
-    JBTerminalStore private _terminalStore;
-    JBMultiTerminal private _terminal;
-    JBController private _controller;
-    JBAddressRegistry private _addressRegistry;
-    JB721TiersHookStore private _hookStore;
-    JB721TiersHook private _hook721;
-    JB721TiersHookDeployer private _hookDeployer;
-    JB721TiersHookProjectDeployer private _hookProjectDeployer;
-    JBUniswapV4Hook private _uniswapV4Hook;
-    JBBuybackHookRegistry private _buybackRegistry;
-    JBBuybackHook private _buybackHook;
-    JBRouterTerminalRegistry private _routerTerminalRegistry;
-    JBRouterTerminal private _routerTerminal;
-    JBUniswapV4LPSplitHook private _lpSplitHook;
-    JBUniswapV4LPSplitHookDeployer private _lpSplitHookDeployer;
-    JBSuckerRegistry private _suckerRegistry;
-    JBOmnichainDeployer private _omnichainDeployer;
+    address internal _deployer;
+    address internal _trustedForwarder;
+    JBPermissions internal _permissions;
+    JBProjects internal _projects;
+    JBDirectory internal _directory;
+    JBSplits internal _splits;
+    JBRulesets internal _rulesets;
+    JBPrices internal _prices;
+    JBTokens internal _tokens;
+    JBFundAccessLimits internal _fundAccess;
+    JBFeelessAddresses internal _feeless;
+    JBTerminalStore internal _terminalStore;
+    JBMultiTerminal internal _terminal;
+    JBController internal _controller;
+    JBAddressRegistry internal _addressRegistry;
+    JB721TiersHookStore internal _hookStore;
+    JB721TiersHook internal _hook721;
+    JB721TiersHookDeployer internal _hookDeployer;
+    JB721TiersHookProjectDeployer internal _hookProjectDeployer;
+    JBUniswapV4Hook internal _uniswapV4Hook;
+    JBBuybackHookRegistry internal _buybackRegistry;
+    JBBuybackHook internal _buybackHook;
+    JBRouterTerminalRegistry internal _routerTerminalRegistry;
+    JBRouterTerminal internal _routerTerminal;
+    JBUniswapV4LPSplitHook internal _lpSplitHook;
+    JBUniswapV4LPSplitHookDeployer internal _lpSplitHookDeployer;
+    JBSuckerRegistry internal _suckerRegistry;
+    JBOmnichainDeployer internal _omnichainDeployer;
 
     // ════════════════════════════════════════════════════════════════════
     //  Chain config builders
@@ -995,11 +995,14 @@ contract DeployFullStackTest is Test {
         assertTrue(pricePerUnit > 100e18, string.concat(chainName, ": ETH price too low"));
         assertTrue(pricePerUnit < 100_000e18, string.concat(chainName, ": ETH price too high"));
     }
+}
 
-    // ════════════════════════════════════════════════════════════════════
-    //  Tests — one per chain
-    // ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+//  Concrete chain tests
+// ════════════════════════════════════════════════════════════════════════════
 
+/// @notice Runs the full-stack deployment (phases 01-05) on each chain fork.
+contract DeployFullStackTest is DeployFullStackBase {
     /// @notice Full-stack deployment on Ethereum mainnet fork.
     function test_fullStack_ethereum() public {
         ChainConfig memory cfg = _ethereumConfig();
