@@ -470,10 +470,19 @@ echo ""
 echo "── Phase 2: deferred library linking ────────────────────────────────"
 
 CREATE2_FACTORY=0x4e59b44847b379578588920cA78FbF26c0B4956C
+DEPLOYMENT_NONCE="$(sed -nE 's/.*DEPLOYMENT_NONCE = ([0-9]+);.*/\1/p' "$DEPLOY_ROOT/script/Deploy.s.sol" | head -n 1)"
+if [[ -z "$DEPLOYMENT_NONCE" ]]; then
+  echo "ERROR: could not read DEPLOYMENT_NONCE from script/Deploy.s.sol"
+  exit 1
+fi
+echo "Using DEPLOYMENT_NONCE=$DEPLOYMENT_NONCE for deferred library linking."
 
-# Map: contract name → keccak256("_<libName>V6_") salt-string used by
+# Map: contract name → keccak256("_<libName>V6_") base salt-string used by
 # `_deployPrecompiledIfNeeded` in deploy-all-v6/script/Deploy.s.sol's
-# `_deployLibraries()` phase. These must match the SALT constants there.
+# `_deployLibraries()` phase. The deploy script folds DEPLOYMENT_NONCE into
+# every base salt via `_saltOf`; the linker must do the same or dependent
+# bytecode will be linked to a different address namespace than the deployed
+# libraries.
 LIB_SALTS=(
   "JBHeldFees:_JBHeldFeesV6_"
   "JBPayoutSplitGroupLib:_JBPayoutSplitGroupLibV6_"
@@ -498,7 +507,9 @@ for entry in "${LIB_SALTS[@]}"; do
     continue
   fi
   bytecode=$(jq -r '.bytecode.object' "$art")
-  salt=$(cast keccak "$salt_str")
+  base_salt=$(cast keccak "$salt_str")
+  folded_salt_input=$(cast abi-encode "f(uint256,bytes32)" "$DEPLOYMENT_NONCE" "$base_salt")
+  salt=$(cast keccak "$folded_salt_input")
   initcode_hash=$(cast keccak "$bytecode")
   addr=$(cast create2 --deployer "$CREATE2_FACTORY" --salt "$salt" --init-code-hash "$initcode_hash")
   # Lowercase, strip 0x. Solc placeholder substitution requires lowercase hex.

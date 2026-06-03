@@ -37,6 +37,8 @@ const DEPLOY_ROOT = path.resolve(POST_DEPLOY_DIR, '..', '..');
 const MONOREPO_ROOT = path.resolve(DEPLOY_ROOT, '..');
 const ARTIFACTS_DIR = path.join(DEPLOY_ROOT, 'artifacts');
 const CACHE_DIR = path.join(POST_DEPLOY_DIR, '.cache');
+const EXPLORER_MIN_INTERVAL_MS = Number(process.env.ETHERSCAN_MIN_INTERVAL_MS || 500);
+let lastExplorerFetchAt = 0;
 
 // ── CLI args ──────────────────────────────────────────────────────────────
 const args = parseArgs(process.argv.slice(2));
@@ -89,6 +91,10 @@ if (targets.length === 0) {
 
 console.log(`Verifying ${targets.length} contract(s) on chain ${CHAIN_ID} (${chain.alias}).`);
 
+const ARTIFACT_ALIASES = new Map([
+  ['BannyLPSplitHook', 'JBUniswapV4LPSplitHook']
+]);
+
 // Explicit allowlist of address-dump entries that may legitimately be skipped without failing the
 // chain. Empty by default — every entry in addresses-<chainId>.json must verify successfully.
 // Add a name here only if there is a documented reason it has no published artifact yet.
@@ -97,9 +103,10 @@ const VERIFY_SKIP_ALLOWLIST = new Set();
 // ── Drive verification, contract by contract (Etherscan rate limit: ~5 req/s on free tier) ──
 let permanentFailures = 0;
 let skipFailures = 0;
+let transientFailures = 0;
 for (const target of targets) {
   // Strip route suffix (e.g., "__ETH_USD") for manifest lookup.
-  const baseName = target.name.split('__')[0];
+  const baseName = artifactNameFor(target.name);
   const entry = manifest.contracts[baseName];
   if (!entry) {
     if (VERIFY_SKIP_ALLOWLIST.has(target.name)) {
@@ -108,6 +115,21 @@ for (const target of targets) {
       console.error(`  ✗       ${target.name}: not in manifest (no published artifact)`);
       skipFailures += 1;
     }
+    continue;
+  }
+  const cloneImplementation = cloneImplementationFor(target.name);
+  if (cloneImplementation) {
+    status.contracts[target.name] = {
+      status: 'skipped_clone',
+      address: target.address,
+      chainId: CHAIN_ID,
+      implementation: cloneImplementation.address,
+      implementationName: cloneImplementation.name,
+      reason: 'Explorer source/proxy verification does not support this clone runtime; implementation is verified separately.',
+      skippedAt: new Date().toISOString()
+    };
+    persistStatus();
+    console.warn(`  CLONE   ${target.name}: skipped source verification; implementation ${cloneImplementation.name} is verified separately`);
     continue;
   }
   const cur = status.contracts[target.name] || {};
@@ -143,9 +165,13 @@ for (const target of targets) {
   } catch (err) {
     const reason = err?.message || String(err);
     if (err?.transient) {
+      transientFailures += 1;
       status.contracts[target.name] = {
         status: 'transient_failed',
         address: target.address,
+        chainId: CHAIN_ID,
+        sourcePath: entry.sourcePath,
+        gitCommit: entry.gitCommit,
         reason,
         lastAttemptAt: new Date().toISOString()
       };
@@ -168,17 +194,21 @@ for (const target of targets) {
 console.log('');
 const verifiedCount = Object.values(status.contracts).filter((s) => s.status === 'verified').length;
 console.log(
-  `Chain ${CHAIN_ID} summary: ${verifiedCount} verified, ${permanentFailures} permanent failures, ${skipFailures} unverifiable-skips.`
+  `Chain ${CHAIN_ID} summary: ${verifiedCount} verified, ${permanentFailures} permanent failures, ${skipFailures} unverifiable-skips, ${transientFailures} transient failures.`
 );
 // Exit nonzero on either failure category: silent skips of current address entries are treated
 // as critical the same way actual permanent failures are.
-process.exit(permanentFailures + skipFailures > 0 ? 1 : 0);
+process.exit(permanentFailures + skipFailures + transientFailures > 0 ? 1 : 0);
 
 // ════════════════════════════════════════════════════════════════════════
 //  Helpers
 // ════════════════════════════════════════════════════════════════════════
 
 async function verifyOne({ target, entry, baseName }) {
+  // Reruns should notice verifications that completed after a previous polling window
+  // instead of submitting duplicate `verifysourcecode` requests.
+  if (await contractHasAbi(target.address)) return;
+
   // Load artifact (we need its metadata for the exact solc commit hash, and
   // its creation bytecode length to slice the constructor args).
   const artifact = readJson(path.join(ARTIFACTS_DIR, `${baseName}.json`));
@@ -197,9 +227,10 @@ async function verifyOne({ target, entry, baseName }) {
   // internal call to the deterministic CREATE2 factory instead — its input is exactly
   // `0x + salt(32 bytes) + creationCode + constructorArgs`. Fall back to the outer input if no
   // factory call is present (non-Sphinx deploys).
-  const factoryInput = await getFactoryCallInput(creation.txHash);
-  const txInput = factoryInput || await getTxInput(creation.txHash);
-  const ctorArgsHex = sliceConstructorArgs(txInput, artifact.bytecode.object);
+  const ctorArgsHex = constructorArgsOverride(baseName) || await constructorArgsFromCreation({
+    creation,
+    artifact
+  });
 
   const repoDir = resolveSourceRoot(entry);
   if (!fs.existsSync(repoDir)) throw nonTransient(`Source root not found: ${repoDir}`);
@@ -212,11 +243,14 @@ async function verifyOne({ target, entry, baseName }) {
     '--chain-id', CHAIN_ID,
     '--watch',
     '--verifier', chain.verifier,
-    '--verifier-url', chain.apiUrl,
+    '--verifier-url', chain.forgeApiUrl || chain.apiUrl,
     '--etherscan-api-key', ETHERSCAN_KEY,
     '--num-of-optimizations', String(entry.optimizerRuns),
     '--compiler-version', solcVersionFull,
-    '--evm-version', entry.evmVersion
+    '--evm-version', entry.evmVersion,
+    '--skip-is-verified-check',
+    '--retries', String(process.env.POST_DEPLOY_FORGE_VERIFY_RETRIES || 24),
+    '--delay', String(process.env.POST_DEPLOY_FORGE_VERIFY_DELAY_SECONDS || 20)
   ];
   if (entry.viaIr) forgeArgs.push('--via-ir');
   if (ctorArgsHex.length > 0) {
@@ -234,13 +268,69 @@ async function verifyOne({ target, entry, baseName }) {
     }
   }
 
-  // Run forge with retry on transient failures.
-  await withRetry(async () => {
-    const result = await runProcess('forge', forgeArgs, repoDir, {
-      FOUNDRY_VIA_IR: entry.viaIr ? 'true' : 'false'
-    });
-    classifyForgeResult(result);
+  const result = await runProcess('forge', forgeArgs, repoDir, {
+    FOUNDRY_VIA_IR: entry.viaIr ? 'true' : 'false'
   });
+  classifyForgeResult(result);
+}
+
+async function constructorArgsFromCreation({creation, artifact}) {
+  const fromCreationBytecode = sliceConstructorArgsFromCreationBytecode(
+    creation.creationBytecode,
+    artifact.bytecode.object
+  );
+  if (fromCreationBytecode !== null) return fromCreationBytecode;
+
+  const factoryInput = await getFactoryCallInput(creation.txHash);
+  const txInput = factoryInput || await getTxInput(creation.txHash);
+  return sliceConstructorArgs(txInput, artifact.bytecode.object);
+}
+
+function constructorArgsOverride(baseName) {
+  if (baseName === 'JBUniswapV4LPSplitHook') {
+    return encodeAddressArgs([
+      addresses.JBDirectory,
+      addresses.JBPermissions,
+      addresses.JBTokens,
+      '0x000000000022D473030F116dDEE9F6B43aC78BA3',
+      addresses.JBSuckerRegistry
+    ]);
+  }
+  return null;
+}
+
+function encodeAddressArgs(values) {
+  return values.map((value) => {
+    const addr = String(value || '').toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(addr)) throw nonTransient(`Invalid constructor address: ${value}`);
+    return addr.slice(2).padStart(64, '0');
+  }).join('');
+}
+
+function sliceConstructorArgsFromCreationBytecode(creationBytecodeHex, artifactCreationCodeHex) {
+  if (!creationBytecodeHex) return null;
+  const input = creationBytecodeHex.startsWith('0x') ? creationBytecodeHex.slice(2) : creationBytecodeHex;
+  const creation = artifactCreationCodeHex.startsWith('0x') ? artifactCreationCodeHex.slice(2) : artifactCreationCodeHex;
+  if (input.toLowerCase().startsWith(creation.toLowerCase())) return input.slice(creation.length);
+  return null;
+}
+
+function artifactNameFor(name) {
+  const baseName = name.split('__')[0];
+  return ARTIFACT_ALIASES.get(baseName) || baseName;
+}
+
+function cloneImplementationFor(name) {
+  let implementationName = null;
+  if (name === 'BannyLPSplitHook') implementationName = 'JBUniswapV4LPSplitHook';
+  else if (name.startsWith('JBERC20__')) implementationName = 'JBERC20';
+  else if (name.startsWith('JB721TiersHook__')) implementationName = 'JB721TiersHook';
+  else if (name.startsWith('JBProjectPayer__')) implementationName = 'JBProjectPayer';
+  if (!implementationName) return null;
+
+  const implementationAddress = addresses[implementationName];
+  if (!implementationAddress) return null;
+  return { name: implementationName, address: String(implementationAddress).toLowerCase() };
 }
 
 function resolveSourceRoot(entry) {
@@ -253,26 +343,35 @@ function classifyForgeResult({ code, stdout, stderr }) {
   if (code === 0 && /verified|already verified|pass - verified/.test(out)) return; // success
   if (code === 0) return; // forge --watch returns 0 on success; assume success if no failure markers.
 
-  // Transient classifications.
-  if (/rate limit|429|too many requests|timeout|econnreset|service unavailable|gateway|temporarily/.test(out)) {
-    throw transient(`forge verify transient: code=${code}`);
-  }
-  if (/pending in queue|in progress/.test(out)) {
-    throw transient(`forge verify pending: code=${code}`);
-  }
-  // Permanent classifications.
+  // Permanent classifications. Check these before transient words because Foundry can print
+  // "pending" logs before the final explorer status resolves to a hard failure.
   if (/already verified/.test(out)) return; // edge case: forge exits non-zero but it's already verified.
-  if (/source code does not match|bytecode does not match|unable to verify/.test(out)) {
+  if (/source code does not match|bytecode does not match|unable to verify|fail - unable to verify|invalid constructor arguments/.test(out)) {
     throw nonTransient(`forge verify rejected: source/bytecode mismatch`);
   }
   if (/compiler version mismatch|wrong compiler/.test(out)) {
     throw nonTransient(`forge verify rejected: compiler version mismatch`);
   }
+
+  // Transient classifications.
+  if (/rate limit|429|too many requests|timeout|econnreset|service unavailable|gateway|temporarily/.test(out)) {
+    throw transient(`forge verify transient: code=${code}: ${truncate(stderr || stdout, 800)}`);
+  }
+  if (/pending in queue|in progress/.test(out)) {
+    throw transient(`forge verify pending: code=${code}: ${truncate(stderr || stdout, 800)}`);
+  }
   throw nonTransient(`forge verify failed (code=${code}): ${truncate(stderr || stdout, 400)}`);
 }
 
 // ── Retry harness ─────────────────────────────────────────────────────────
-async function withRetry(fn, { maxAttempts = 10, baseMs = 1000, capMs = 60_000 } = {}) {
+async function withRetry(
+  fn,
+  {
+    maxAttempts = Number(process.env.POST_DEPLOY_VERIFY_RETRY_ATTEMPTS || 18),
+    baseMs = Number(process.env.POST_DEPLOY_VERIFY_RETRY_BASE_MS || 2000),
+    capMs = Number(process.env.POST_DEPLOY_VERIFY_RETRY_CAP_MS || 120_000)
+  } = {}
+) {
   let attempt = 0;
   let lastErr;
   while (attempt < maxAttempts) {
@@ -315,13 +414,38 @@ async function getContractCreation(address) {
       throw transient(`Explorer non-JSON response: ${truncate(text, 200)}`);
     }
     if (body.status === '1' && Array.isArray(body.result) && body.result[0]?.txHash) {
-      return { txHash: body.result[0].txHash, creator: body.result[0].contractCreator };
+      return {
+        txHash: body.result[0].txHash,
+        creator: body.result[0].contractCreator,
+        creationBytecode: body.result[0].creationBytecode
+      };
     }
     // Etherscan returns status=0 with NOTOK message for various reasons.
     const msg = String(body.message || body.result || 'unknown');
     if (/rate limit|max calls|throttle/i.test(msg)) throw transient(`Explorer rate limited: ${msg}`);
     if (/not.*found|no.*record/i.test(msg)) throw nonTransient(`No creation tx for ${address} (yet?)`);
     throw transient(`Explorer error: ${msg}`);
+  });
+}
+
+async function contractHasAbi(address) {
+  return await withRetry(async () => {
+    const url = `${chain.apiUrl}?chainid=${CHAIN_ID}&module=contract&action=getabi&address=${address}&apikey=${ETHERSCAN_KEY}`;
+    const res = await fetchWithTimeout(url);
+    const text = await res.text();
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw transient(`Explorer non-JSON ABI response: ${truncate(text, 200)}`);
+    }
+
+    if (body.status === '1' && typeof body.result === 'string' && body.result.startsWith('[')) return true;
+
+    const msg = String(body.message || body.result || 'unknown');
+    if (/rate limit|max calls|throttle/i.test(msg)) throw transient(`Explorer rate limited: ${msg}`);
+    if (/not verified|contract source code not verified|invalid address format/i.test(msg)) return false;
+    return false;
   });
 }
 
@@ -427,6 +551,10 @@ async function runProcess(cmd, argv, cwd, envOverrides = {}) {
 }
 
 async function fetchWithTimeout(url, { timeoutMs = 30_000 } = {}) {
+  const elapsed = Date.now() - lastExplorerFetchAt;
+  if (elapsed < EXPLORER_MIN_INTERVAL_MS) await sleep(EXPLORER_MIN_INTERVAL_MS - elapsed);
+  lastExplorerFetchAt = Date.now();
+
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
