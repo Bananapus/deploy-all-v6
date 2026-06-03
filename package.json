@@ -1,6 +1,6 @@
 {
   "name": "@bananapus/deploy-all-v6",
-  "version": "0.0.58",
+  "version": "0.0.59",
   "license": "MIT",
   "description": "One-shot deployment orchestrator for the Juicebox V6 ecosystem.",
   "private": true,
@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@arbitrum/nitro-contracts": "3.2.0",
-    "@ballkidz/defifa": "^0.0.54",
+    "@ballkidz/defifa": "^0.0.56",
     "@bananapus/721-hook-v6": "^0.0.68",
     "@bananapus/address-registry-v6": "^0.0.33",
     "@bananapus/buyback-hook-v6": "^0.0.68",
