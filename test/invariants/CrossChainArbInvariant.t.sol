@@ -224,13 +224,16 @@ contract CrossChainArbHandler is Test {
 
         uint256 beforeBalance = holder.balance;
         vm.prank(holder);
+        // Signature order is (holder, projectId, cashOutCount, tokenToReclaim, minReclaimed, beneficiary, metadata).
+        // The selector must match exactly: a mismatched selector reverts and is swallowed below, silently no-oping
+        // the cash-out leg, so `cashOutCalls` is asserted live in the sanity test to keep this path honest.
         (bool ok,) = TERMINAL.call(
             abi.encodeWithSignature(
-                "cashOutTokensOf(address,uint256,address,uint256,uint256,address,bytes)",
+                "cashOutTokensOf(address,uint256,uint256,address,uint256,address,bytes)",
                 holder,
                 REVNET_ID,
-                JBConstants.NATIVE_TOKEN,
                 cashAmount,
+                JBConstants.NATIVE_TOKEN,
                 0,
                 holder,
                 ""
@@ -632,6 +635,7 @@ contract CrossChainArbInvariant is RevnetForkBase {
         handler.claimAsBridge({holderSeed: 0, amount: 1 ether});
 
         handler.cashOut({holderSeed: 0, amountSeed: 100});
+        assertGt(handler.cashOutCalls(), 0, "cashOut should have executed (selector is live, not a silent no-op)");
 
         handler.borrow({holderSeed: 0, amountSeed: 50});
 
