@@ -190,6 +190,15 @@ contract DistributorVestingLoanForkTest is RevnetForkBase {
         REVLoan memory loan = LOANS_CONTRACT.loanOf(loanId);
         uint256 sourceFee = LOANS_CONTRACT.determineSourceFeeAmount(loan, loan.amount);
         assertEq(sourceFee, 0, "no extra source fee inside the prepaid window");
+
+        // The window is FINITE, not a vacuous always-zero: well past `prepaidDuration` (the fee ramps with elapsed
+        // time, so sample mid-way to the liquidation deadline) a non-zero source fee accrues. Warp back to the
+        // loan-open instant afterward so the within-window repay below still pays zero.
+        assertGt(loan.prepaidDuration, 0, "loan has a non-trivial prepaid window");
+        vm.warp(uint256(loan.createdAt) + LOANS_CONTRACT.LOAN_LIQUIDATION_DURATION() / 2);
+        assertGt(LOANS_CONTRACT.determineSourceFeeAmount(loan, loan.amount), 0, "a source fee accrues past the window");
+        vm.warp(uint256(loan.createdAt));
+
         uint256 repayAmount = uint256(loan.amount) + sourceFee;
 
         uint256 distributorRewardBefore = rewardToken.balanceOf(address(distributor));

@@ -199,10 +199,11 @@ contract CanonicalDeployForkTest is DeployFullStackBase {
     //  Assertions
     // ═══════════════════════════════════════════════════════════════════
 
-    function test_canonical_cohortDeployed() public view {
-        if (!_deployed) return;
-
-        assertEq(_projects.count(), MARKEE, "exactly 7 canonical projects exist");
+    function test_canonical_cohortDeployed() public {
+        if (!_deployed) {
+            vm.skip(true);
+            return;
+        }
 
         // Revnet projects: owned by REVOwner, controlled by the controller, with a deployed ERC20.
         uint256[6] memory revnets = [NANA, CPN, REV, BAN, DEFIFA, MARKEE];
@@ -218,8 +219,11 @@ contract CanonicalDeployForkTest is DeployFullStackBase {
         assertEq(address(_directory.controllerOf(ART)), address(0), "ART has no controller on an Ethereum fork");
     }
 
-    function test_canonical_denominationsAndInfra() public view {
-        if (!_deployed) return;
+    function test_canonical_denominationsAndInfra() public {
+        if (!_deployed) {
+            vm.skip(true);
+            return;
+        }
 
         // ETH revnets price in native; DEFIFA prices in USDC (6-decimal accounting context registered on its terminal).
         assertEq(

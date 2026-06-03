@@ -133,8 +133,14 @@ contract MockCCIPRouter {
 /// A single mainnet fork models "two chains": the real `prepare` path burns project tokens + drains the terminal into
 /// the sucker's outbox (source side); a synthetic `fromRemote`/`ccipReceive` + `claim` re-mints those tokens + deposits
 /// the bridged terminal tokens back (remote side). On one project this is an exact round trip — what the sucker
-/// conveys
-/// out it conveys back, proving no value is created or destroyed in the conveyance.
+/// conveys out it conveys back, proving the contract's `prepare`/`claim` accounting (burn==mint, drain==deposit) is
+/// self-consistent: a claim that minted or deposited the wrong amount would break the supply/terminal equalities.
+///
+/// LIMITATION (by design of a one-fork sim): the AMB itself is mocked — the harness constructs the inbox root and
+/// credits the sucker the "bridged" tokens, so these tests do NOT prove the bridge actually delivered, nor (on the
+/// happy path) that the merkle/peer GATES reject bad input. Those security gates are proven SEPARATELY and
+/// non-tautologically in `test/fork/SuckerSecurityGatesFork.t.sol` (forged leaves, non-peer/non-router messages, and
+/// spoofed senders all revert).
 abstract contract SuckerConservationBase is RevnetForkBase {
     // The remote chain modeled by the suckers (OP, chainId 10).
     uint256 internal constant REMOTE_CHAIN_ID = 10;

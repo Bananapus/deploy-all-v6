@@ -42,6 +42,7 @@ contract ComposedConservationHandler is Test {
 
     address[] public holders;
     uint256[] public loanIds;
+    mapping(uint256 => address) public loanOwnerOf;
 
     // ── ETH-flow ledgers (consumed by the invariants)
     uint256 public totalPaidIn; // ETH tendered on pay
@@ -162,6 +163,7 @@ contract ComposedConservationHandler is Test {
         if (!ok) return;
         (uint256 loanId,) = abi.decode(res, (uint256, REVLoan));
         loanIds.push(loanId);
+        loanOwnerOf[loanId] = holder;
         totalBorrowedOut += holder.balance - ethBefore;
         borrowCalls++;
     }
@@ -175,7 +177,9 @@ contract ComposedConservationHandler is Test {
         REVLoan memory l = abi.decode(loanRes, (REVLoan));
         if (l.amount == 0) return;
 
-        address payer = holders[0];
+        // Repay as the actual loan owner — repayLoan requires msg.sender == owner (or REPAY_LOAN permission), so a
+        // hardcoded holders[0] would silently no-op for loans owned by other holders.
+        address payer = loanOwnerOf[loanId];
         uint256 repayAmount = uint256(l.amount) + 1 ether; // overpay; excess refunded.
         vm.deal(payer, payer.balance + repayAmount);
         uint256 payerBefore = payer.balance;

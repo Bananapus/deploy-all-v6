@@ -133,14 +133,16 @@ contract SuckerConservationInvariant is SuckerConservationBase {
         assertEq(jbTokens().totalSupplyOf(revnetId), tracked, "supply == sum of tracked holder balances");
     }
 
-    /// @notice No ETH is created: cumulative cash-outs never exceed cumulative pay-ins.
+    /// @notice No ETH is created: cumulative cash-outs never exceed cumulative pay-ins. No slack — with
+    /// cashOutTaxRate=0 and splitPercent=0 the revnet is exactly conservative and cash-outs round DOWN.
     function invariant_noEthCreated() public view {
-        assertLe(totalCashedOut, totalPaidIn + 1, "cumulative cash-outs cannot exceed cumulative pay-ins");
+        assertLe(totalCashedOut, totalPaidIn, "cumulative cash-outs cannot exceed cumulative pay-ins");
     }
 
-    /// @notice The terminal balance is bounded above by cumulative inflows.
+    /// @notice The terminal balance is bounded above by cumulative inflows (exactly: it equals inflows minus
+    /// cash-outs, and bridge round trips are terminal-neutral).
     function invariant_terminalBoundedByInflows() public view {
-        assertLe(_terminalBalance(revnetId, NATIVE), totalPaidIn + 1, "terminal balance bounded by cumulative inflows");
+        assertLe(_terminalBalance(revnetId, NATIVE), totalPaidIn, "terminal balance bounded by cumulative inflows");
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -155,6 +157,7 @@ contract SuckerConservationInvariant is SuckerConservationBase {
         handler_pay(2, 1 ether);
         handler_bridgeRoundTrip(2, type(uint256).max);
         assertGt(roundTrips, 0, "round trips executed");
+        assertGt(cashOutCalls, 0, "a cash-out executed (the cashOut leg is not silently no-oping)");
 
         invariant_supplyEqualsTrackedBalances();
         invariant_noEthCreated();
