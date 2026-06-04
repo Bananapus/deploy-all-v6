@@ -432,9 +432,7 @@ contract Deploy is Script, Sphinx {
     IJBSuckerDeployer private _baseSuckerDeployer;
     IJBSuckerDeployer private _arbitrumSuckerDeployer;
     IJBSuckerDeployer private _tempoCcipDeployer;
-    // Standard (non-swap) CCIP sucker deployers keyed by remote chain id. Populated in `_deployCCIPRoute`.
-    // Used by USDC-denominated revnets (DEFIFA) to bridge canonical USDC via CCIP's CCTP-backed pool — the native
-    // OP/Arb bridges would deliver bridge-wrapped USDC.e, not canonical Circle USDC.
+    // Standard CCIP sucker deployers keyed by remote chain id. Populated in `_deployCCIPRoute`.
     mapping(uint256 remoteChainId => IJBSuckerDeployer) private _ccipSuckerDeployerForRemoteChain;
 
     // Omnichain Deployer
@@ -585,7 +583,7 @@ contract Deploy is Script, Sphinx {
         // in the first proposal.
         _deployBanny();
 
-        // Phase 10a: Defifa Revnet (project ID 5) — creates the DEFIFA revnet (USDC-based, all chains).
+        // Phase 10a: Defifa Revnet (project ID 5) — creates the DEFIFA revnet (ETH-based, all chains).
         // Must come BEFORE _deployDefifa so the revnet project ID can be used as the Defifa fee project.
         _deployDefifaRevnet();
 
@@ -1409,7 +1407,6 @@ contract Deploy is Script, Sphinx {
         IJBSuckerDeployer ccipDeployer =
             IJBSuckerDeployer(address(_deployCCIPSuckerFor({salt: standardSalt, remoteChainId: remoteChainId})));
         _preApprovedSuckerDeployers.push(address(ccipDeployer));
-        // Retain a reference so USDC revnets can wire the standard CCIP deployer for this edge by remote chain id.
         _ccipSuckerDeployerForRemoteChain[remoteChainId] = ccipDeployer;
     }
 
@@ -2452,7 +2449,7 @@ contract Deploy is Script, Sphinx {
             splits: new JBSplit[](0)
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(BAN_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildCcipSuckerConfig(BAN_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: banConfig});
 
         // Use strict canonical identity gates before returning early. A merely Revnet-shaped project 4 is not enough.
@@ -3665,16 +3662,13 @@ contract Deploy is Script, Sphinx {
     //  Phase 10a: Defifa Revnet (project ID 5)
     // ════════════════════════════════════════════════════════════════════
 
-    /// @notice Deploys the Defifa revnet — a USDC-based revnet on all chains.
+    /// @notice Deploys the Defifa revnet — an ETH-based revnet on all chains.
     function _deployDefifaRevnet() internal {
         address operator = 0x6b92c73682f0e1fac35A18ab17efa5e77DDE9fE1;
 
-        // DEFIFA is USD-denominated, so it accepts USDC directly (valued 1:1-ish into USD via the registered
-        // USDC/USD feed) rather than forcing every payer to pre-swap into native ETH. USDC has 6 decimals and is
-        // identified by the low 32 bits of its (per-chain) address.
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
-            JBAccountingContext({token: _usdcToken, decimals: 6, currency: _currencyIdOf(_usdcToken)});
+            JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -3735,13 +3729,13 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Defifa", ticker: "DEFIFA", uri: DEFIFA_REV_URI, salt: DEFIFA_REV_ERC20_SALT
             }),
-            baseCurrency: USD_CURRENCY,
+            baseCurrency: ETH_CURRENCY,
             operator: operator,
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildDefifaSuckerConfig(DEFIFA_REV_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildCcipSuckerConfig(DEFIFA_REV_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: defifaConfig});
 
         // Skip only if the existing project matches the exact intended revnet shape.
@@ -4002,7 +3996,7 @@ contract Deploy is Script, Sphinx {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(MARKEE_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildCcipSuckerConfig(MARKEE_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: markeeConfig});
 
         // Skip only if already configured with the exact intended revnet shape.
@@ -4178,54 +4172,34 @@ contract Deploy is Script, Sphinx {
         return REVSuckerDeploymentConfig({deployerConfigurations: suckerDeployerConfigs, salt: salt});
     }
 
-    /// @notice The canonical Circle USDC address for a given chain id.
-    /// @dev Mirrors the per-chain `_usdcToken` assignments in `_setupChainAddresses`, but is addressable by any
-    /// chain id so a sucker can resolve the REMOTE chain's USDC for its token mapping. These are the native Circle
-    /// USDC deployments (NOT bridge-wrapped USDC.e) — required because DEFIFA bridges canonical USDC over CCIP.
-    function _usdcTokenFor(uint256 chainId) internal pure returns (address) {
-        if (chainId == 1) return 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; // Ethereum
-        if (chainId == 11_155_111) return 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // Ethereum Sepolia
-        if (chainId == 10) return 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85; // Optimism
-        if (chainId == 11_155_420) return 0x5fd84259d66Cd46123540766Be93DFE6D43130D7; // Optimism Sepolia
-        if (chainId == 8453) return 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913; // Base
-        if (chainId == 84_532) return 0x036CbD53842c5426634e7929541eC2318f3dCF7e; // Base Sepolia
-        if (chainId == 42_161) return 0xaf88d065e77c8cC2239327C5EDb3A432268e5831; // Arbitrum
-        if (chainId == 421_614) return 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d; // Arbitrum Sepolia
-        revert Deploy_MissingDependency("USDC", address(0));
-    }
-
-    /// @notice Builds DEFIFA's USDC sucker config: canonical USDC bridged over the standard CCIP suckers.
-    /// @dev Same L1-star topology as `_buildSuckerConfig` (L1 ↔ each L2), but uses the CCIP deployers (which route
-    /// USDC through Chainlink's CCTP-backed pool and deliver canonical USDC) instead of the native bridges (which
-    /// would deliver bridge-wrapped USDC.e). Each edge maps this chain's USDC to the remote chain's USDC.
-    function _buildDefifaSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
+    /// @notice Builds a native-token CCIP sucker config using the per-route CCIP sucker deployers.
+    function _buildCcipSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
         JBSuckerDeployerConfig[] memory suckerDeployerConfigs;
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             bool isMainnet = block.chainid == 1;
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
-            suckerDeployerConfigs[0] = _defifaUsdcCcipEdge(isMainnet ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID);
-            suckerDeployerConfigs[1] = _defifaUsdcCcipEdge(isMainnet ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID);
-            suckerDeployerConfigs[2] = _defifaUsdcCcipEdge(isMainnet ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID);
+            suckerDeployerConfigs[0] = _nativeCcipEdge(isMainnet ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID);
+            suckerDeployerConfigs[1] = _nativeCcipEdge(isMainnet ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID);
+            suckerDeployerConfigs[2] = _nativeCcipEdge(isMainnet ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID);
         } else {
-            // L2 -> L1: bridge back to (Sepolia) mainnet.
             bool isTestnet = block.chainid == 11_155_420 || block.chainid == 84_532 || block.chainid == 421_614;
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
-            suckerDeployerConfigs[0] = _defifaUsdcCcipEdge(isTestnet ? CCIPHelper.ETH_SEP_ID : CCIPHelper.ETH_ID);
+            suckerDeployerConfigs[0] = _nativeCcipEdge(isTestnet ? CCIPHelper.ETH_SEP_ID : CCIPHelper.ETH_ID);
         }
 
         return REVSuckerDeploymentConfig({deployerConfigurations: suckerDeployerConfigs, salt: salt});
     }
 
-    /// @notice One CCIP sucker edge mapping this chain's canonical USDC to the remote chain's canonical USDC.
-    function _defifaUsdcCcipEdge(uint256 remoteChainId) internal view returns (JBSuckerDeployerConfig memory) {
+    /// @notice One CCIP sucker edge mapping this chain's native token sentinel to the remote native token sentinel.
+    function _nativeCcipEdge(uint256 remoteChainId) internal view returns (JBSuckerDeployerConfig memory) {
         IJBSuckerDeployer deployer = _ccipSuckerDeployerForRemoteChain[remoteChainId];
         if (address(deployer) == address(0)) revert Deploy_MissingDependency("CCIPSuckerDeployer", address(0));
 
         JBTokenMapping[] memory tokenMappings = new JBTokenMapping[](1);
         tokenMappings[0] = JBTokenMapping({
-            localToken: _usdcToken,
+            localToken: JBConstants.NATIVE_TOKEN,
             minGas: 200_000,
-            remoteToken: bytes32(uint256(uint160(_usdcTokenFor(remoteChainId))))
+            remoteToken: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))
         });
 
         return JBSuckerDeployerConfig({deployer: deployer, peer: bytes32(0), mappings: tokenMappings});
@@ -4523,23 +4497,23 @@ contract Deploy is Script, Sphinx {
     }
 
     /// @notice The terminal token a canonical revnet is expected to accept on this chain.
-    /// @dev Mirrors `Verify.s.sol`'s `_expectedTerminalTokenFor`. DEFIFA(5) and ART(6) are USD-denominated and
-    /// accept USDC directly (valued into USD via the registered USDC/USD feed); every other canonical revnet
-    /// accepts native ETH. Keeping this in lockstep with the accounting contexts passed to `deployFor` (and with
-    /// the verifier) is what lets the idempotent resume/re-propose path recognize an already-deployed revnet.
+    /// @dev Mirrors `Verify.s.sol`'s `_expectedTerminalTokenFor`. ART(6) is USD-denominated and accepts USDC
+    /// directly (valued into USD via the registered USDC/USD feed); every other canonical revnet accepts native ETH.
+    /// Keeping this in lockstep with the accounting contexts passed to `deployFor` (and with the verifier) is what
+    /// lets the idempotent resume/re-propose path recognize an already-deployed revnet.
     function _expectedTerminalTokenFor(uint256 projectId)
         internal
         view
         returns (address token, uint8 decimals, uint32 currency)
     {
-        if (projectId == _DEFIFA_REV_PROJECT_ID || projectId == _ART_PROJECT_ID) {
+        if (projectId == _ART_PROJECT_ID) {
             return (_usdcToken, 6, _currencyIdOf(_usdcToken));
         }
         return (JBConstants.NATIVE_TOKEN, DECIMALS, NATIVE_CURRENCY);
     }
 
     /// @notice Asserts a project's terminal wiring matches the canonical shape for the token it is meant to accept.
-    /// @dev Token-aware: native ETH for most revnets, canonical USDC for the USD-denominated DEFIFA(5)/ART(6).
+    /// @dev Token-aware: native ETH for most revnets, canonical USDC for the USD-denominated ART(6).
     function _terminalConfigIsCanonical(uint256 projectId) internal view returns (bool) {
         (address expectedToken, uint8 expectedDecimals, uint32 expectedCurrency) = _expectedTerminalTokenFor(projectId);
 

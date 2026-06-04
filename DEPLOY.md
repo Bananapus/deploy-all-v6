@@ -17,7 +17,7 @@ Operator guide for deploying, resuming, and verifying the Juicebox V6 ecosystem.
 
 Chains without a PositionManager skip active Uniswap routing surfaces (buyback hook, router terminal, and LP split hook). Revnets still deploy; BAN keeps its reserved split routed to the operator on those chains.
 
-The canonical deployment allowlists standard OP, Base, Arbitrum, and CCIP deployers. Initial project configs use the standard native bridge deployers unless a manifest explicitly selects the CCIP deployer.
+The canonical deployment allowlists standard OP, Base, Arbitrum, and CCIP deployers. CPN, NANA, and REV use the standard native bridge deployers; BAN, DEFIFA, and MARKEE use the route-specific CCIP deployers with native-token mappings.
 
 ## Deployment phases
 

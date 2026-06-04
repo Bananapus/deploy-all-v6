@@ -105,20 +105,17 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         assertFalse(_contains(hashHelper, "_routerTerminalRegistry"), "config hash must not encode router terminal");
         assertFalse(_contains(hashHelper, "_terminal"), "config hash must not encode multi terminal");
 
-        // The terminal guard must be token-aware: DEFIFA(5)/ART(6) are USD-denominated and accept USDC directly,
-        // so the canonical replay/resume check must compare against USDC (not native ETH) for those projects.
-        // Otherwise an already-deployed DEFIFA/ART fails the canonical check and the idempotent re-propose reverts.
+        // The terminal guard must be token-aware: ART(6) is USD-denominated and accepts USDC directly,
+        // so the canonical replay/resume check must compare against USDC (not native ETH) for that project.
+        // DEFIFA(5) uses native ETH like the other all-chain revnets.
         string memory expectedTokenHelper = _section({
             haystack: deploySource,
             startNeedle: "function _expectedTerminalTokenFor(",
             endNeedle: "function _terminalConfigIsCanonical("
         });
-        assertTrue(
-            _contains(expectedTokenHelper, "_DEFIFA_REV_PROJECT_ID")
-                && _contains(expectedTokenHelper, "_ART_PROJECT_ID"),
-            "expected terminal token must special-case DEFIFA and ART"
-        );
-        assertTrue(_contains(expectedTokenHelper, "_usdcToken"), "DEFIFA/ART expected terminal token must be USDC");
+        assertFalse(_contains(expectedTokenHelper, "_DEFIFA_REV_PROJECT_ID"), "DEFIFA expected token must be native");
+        assertTrue(_contains(expectedTokenHelper, "_ART_PROJECT_ID"), "expected terminal token must special-case ART");
+        assertTrue(_contains(expectedTokenHelper, "_usdcToken"), "ART expected terminal token must be USDC");
         string memory terminalConfigGuard = _section({
             haystack: deploySource,
             startNeedle: "function _terminalConfigIsCanonical(",
@@ -169,6 +166,65 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         assertFalse(
             _contains(deploySource, "Deploy_MissingPermission"),
             "deploy script no longer has a revnet peer-permission preflight"
+        );
+    }
+
+    function test_banDefifaAndMarkeeUseNativeCcipSuckerConfigs() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+        string memory bannySource = _section({
+            haystack: deploySource, startNeedle: "function _deployBanny()", endNeedle: "function _registerBannyDrop1()"
+        });
+        string memory defifaSource = _section({
+            haystack: deploySource, startNeedle: "function _deployDefifaRevnet()", endNeedle: "function _deployArt()"
+        });
+        string memory markeeSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _deployMarkee()",
+            endNeedle: "function _deployProjectHandles()"
+        });
+        string memory ccipConfigSource = _section({
+            haystack: deploySource,
+            startNeedle: "function _buildCcipSuckerConfig(",
+            endNeedle: "function _nativeCcipEdge("
+        });
+        string memory ccipEdgeSource = _section({
+            haystack: deploySource, startNeedle: "function _nativeCcipEdge(", endNeedle: "function _currencyIdOf("
+        });
+
+        assertTrue(
+            _contains(bannySource, "_buildCcipSuckerConfig(BAN_SUCKER_SALT)"), "BAN uses route-specific CCIP suckers"
+        );
+        assertFalse(
+            _contains(bannySource, "_buildSuckerConfig(BAN_SUCKER_SALT)"),
+            "BAN must not use standard OP/Base/Arb suckers"
+        );
+        assertTrue(
+            _contains(defifaSource, "_buildCcipSuckerConfig(DEFIFA_REV_SUCKER_SALT)"),
+            "DEFIFA uses route-specific CCIP suckers"
+        );
+        assertFalse(
+            _contains(defifaSource, "_buildSuckerConfig(DEFIFA_REV_SUCKER_SALT)"),
+            "DEFIFA must not use standard OP/Base/Arb suckers"
+        );
+        assertTrue(
+            _contains(markeeSource, "_buildCcipSuckerConfig(MARKEE_SUCKER_SALT)"),
+            "MARKEE uses route-specific CCIP suckers"
+        );
+        assertTrue(
+            _contains(deploySource, "_ccipSuckerDeployerForRemoteChain[remoteChainId] = ccipDeployer"),
+            "deploy indexes route-specific CCIP deployers"
+        );
+        assertTrue(_contains(ccipConfigSource, "CCIPHelper.OP_ID"), "mainnet CCIP config includes OP");
+        assertTrue(_contains(ccipConfigSource, "CCIPHelper.BASE_ID"), "mainnet CCIP config includes Base");
+        assertTrue(_contains(ccipConfigSource, "CCIPHelper.ARB_ID"), "mainnet CCIP config includes Arbitrum");
+        assertTrue(
+            _contains(ccipEdgeSource, "_ccipSuckerDeployerForRemoteChain[remoteChainId]"),
+            "CCIP config resolves the per-route deployer"
+        );
+        assertTrue(_contains(ccipEdgeSource, "localToken: JBConstants.NATIVE_TOKEN"), "CCIP config maps native");
+        assertTrue(
+            _contains(ccipEdgeSource, "remoteToken: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))"),
+            "CCIP config maps to remote native"
         );
     }
 

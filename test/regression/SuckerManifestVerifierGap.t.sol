@@ -15,11 +15,11 @@ contract SuckerManifestVerifierGapTest is Test {
     function test_suckerManifestVerifierRejectsMalformedPairsAndManifestDrift() public {
         _suckerManifestVerifierRejectsMalformedPairWithNoLocalSucker();
         _suckerManifestVerifierRejectsPairWithDisabledNativeTokenMapping();
-        // M2-1: a correct USDC-only DEFIFA(5) pair must PASS the manifest checks (the inverse case).
+        // M2-1: a correct USDC-only ART(6) pair must PASS the manifest checks (the inverse case).
         // Kept as an internal subcase (not a separate `test_`) because forge runs test functions in
         // parallel threads that share the OS process env; `vm.setEnv("VERIFY_SUCKER_PAIRS_*")` would
         // otherwise race a sibling test. Running it sequentially inside one test function avoids that.
-        _suckerManifestAcceptsUsdcOnlyDefifaPair();
+        _suckerManifestAcceptsUsdcOnlyArtPair();
         _suckerManifestVerifierRejectsWrongPeerInExactManifest();
         _suckerManifestVerifierRejectsWrongRemoteChainIdInExactManifest();
     }
@@ -87,14 +87,14 @@ contract SuckerManifestVerifierGapTest is Test {
         harness.verifySuckerManifest();
     }
 
-    /// @dev Coverage for MAY2.md M2-1 (the inverse of MAY.md H-1): DEFIFA(5)/ART(6) now bridge USDC,
-    /// not the native token, so the manifest mapping checks must resolve the project's USDC accounting
-    /// token. Pre-fix, the loop hard-coded `remoteTokenFor(NATIVE_TOKEN)` and would flag a correct
-    /// USDC-only DEFIFA pair (which has NO native mapping) as a critical failure. This asserts the
-    /// post-fix behavior: a DEFIFA(5) pair whose sucker maps USDC (enabled) but has NO native mapping
+    /// @dev Coverage for MAY2.md M2-1 (the inverse of MAY.md H-1): ART(6) bridges USDC, not the native
+    /// token, so the manifest mapping checks must resolve the project's USDC accounting token. Pre-fix,
+    /// the loop hard-coded `remoteTokenFor(NATIVE_TOKEN)` and would flag a correct USDC-only ART pair
+    /// (which has NO native mapping) as a critical failure. This asserts the post-fix behavior: an ART(6)
+    /// pair whose sucker maps USDC (enabled) but has NO native mapping
     /// passes the verifier. Runs on Ethereum Sepolia so `_usdcTokenFor` resolves a non-zero USDC
     /// address and the chain is non-production (no mandatory per-project env).
-    function _suckerManifestAcceptsUsdcOnlyDefifaPair() internal {
+    function _suckerManifestAcceptsUsdcOnlyArtPair() internal {
         _clearSuckerManifestEnv();
         vm.chainId(11_155_111);
 
@@ -102,9 +102,9 @@ contract SuckerManifestVerifierGapTest is Test {
         address sepoliaUsdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
 
         // Sucker maps USDC (enabled) and returns a disabled/empty mapping for any other token
-        // (notably the native sentinel) — exactly the shape of a correct USDC-only DEFIFA sucker.
+        // (notably the native sentinel) — exactly the shape of a correct USDC-only ART sucker.
         MockTokenAwareSucker local = new MockTokenAwareSucker({
-            peer_: bytes32(uint256(uint160(makeAddr("remote defifa sucker")))),
+            peer_: bytes32(uint256(uint160(makeAddr("remote art sucker")))),
             peerChainId_: 1,
             enabledToken_: sepoliaUsdc,
             enabledRemoteToken_: JBRemoteToken({
@@ -116,13 +116,13 @@ contract SuckerManifestVerifierGapTest is Test {
         });
 
         MockSuckerRegistry registry = new MockSuckerRegistry();
-        registry.setPairs(5, _singlePair({local: address(local), remote: local.peer(), remoteChainId: 1}));
+        registry.setPairs(6, _singlePair({local: address(local), remote: local.peer(), remoteChainId: 1}));
 
         VerifySuckerManifestHarness harness = new VerifySuckerManifestHarness();
         harness.setSuckerRegistry(address(registry));
-        // The canonical set only includes DEFIFA(5) when `projects.count() >= 5`. Wire a mock so the
-        // verifier's `_canonicalRevnetProjectIdsAndLabels` actually iterates project 5.
-        harness.setProjects(address(new MockProjects(5)));
+        // The canonical set only includes ART(6) when `projects.count() >= 6`. Wire a mock so the
+        // verifier's `_canonicalRevnetProjectIdsAndLabels` actually iterates project 6.
+        harness.setProjects(address(new MockProjects(6)));
 
         // Sanity: a native-token lookup is disabled, but the USDC lookup is enabled — so the only way
         // the verifier passes is by resolving the USDC accounting token (the M2-1 fix).
@@ -131,15 +131,16 @@ contract SuckerManifestVerifierGapTest is Test {
 
         // Forge env vars persist across subtests, so set EVERY canonical project's expected pair
         // count explicitly: 0 for the baseline four (the mock registry returns no pairs for them) and
-        // 1 for DEFIFA(5) (the USDC pair). This isolates the assertion to the DEFIFA mapping check.
+        // 1 for ART(6) (the USDC pair). This isolates the assertion to the ART mapping check.
         vm.setEnv("VERIFY_SUCKER_PAIRS_1", "0");
         vm.setEnv("VERIFY_SUCKER_PAIRS_2", "0");
         vm.setEnv("VERIFY_SUCKER_PAIRS_3", "0");
         vm.setEnv("VERIFY_SUCKER_PAIRS_4", "0");
-        vm.setEnv("VERIFY_SUCKER_PAIRS_5", "1");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_5", "0");
+        vm.setEnv("VERIFY_SUCKER_PAIRS_6", "1");
 
         // Must NOT revert. Pre-fix this reverted with
-        // "DEFIFA(5) sucker pair 0 accounting-token remote mapping is enabled".
+        // "ART(6) sucker pair 0 accounting-token remote mapping is enabled".
         harness.verifySuckerManifest();
 
         // Restore env so this test cannot leak `VERIFY_SUCKER_PAIRS_*` into sibling tests (forge
@@ -251,7 +252,7 @@ contract SuckerManifestVerifierGapTest is Test {
     /// main-loop enabled check in `_verifySuckerManifest` and the per-pair addr/emergencyHatch twin
     /// in `_checkSuckerPairAgainstManifest`) must resolve the project's bridged token via
     /// `_expectedTerminalTokenFor`, and neither may hard-code a native-token lookup — otherwise the
-    /// USDC-only DEFIFA(5)/ART(6) pairs spuriously fail a correct deployment.
+    /// USDC-only ART(6) pairs spuriously fail a correct deployment.
     function test_suckerManifestSourceUsesPerProjectBridgedToken() public view {
         string memory src = vm.readFile("script/Verify.s.sol");
         assertTrue(
@@ -260,7 +261,7 @@ contract SuckerManifestVerifierGapTest is Test {
         );
         assertFalse(
             vm.contains(src, "remoteTokenFor(address)\", JBConstants.NATIVE_TOKEN"),
-            "sucker-manifest checks must not hard-code remoteTokenFor(NATIVE_TOKEN) (breaks USDC DEFIFA/ART)"
+            "sucker-manifest checks must not hard-code remoteTokenFor(NATIVE_TOKEN) (breaks USDC ART)"
         );
     }
 
@@ -340,7 +341,7 @@ contract MockSucker {
 
 /// @dev A sucker mock that returns its configured (enabled) mapping ONLY for one token, and an
 /// empty/disabled mapping for every other token. Used to prove the manifest verifier resolves the
-/// correct per-project accounting token (USDC for DEFIFA/ART) rather than a hard-coded native lookup.
+/// correct per-project accounting token (USDC for ART) rather than a hard-coded native lookup.
 contract MockTokenAwareSucker {
     bytes32 internal immutable _peer;
     uint256 internal immutable _peerChainId;
