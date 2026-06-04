@@ -1,23 +1,23 @@
 # User Journeys
 
-## Repo Purpose
+## Repo purpose
 
 This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, recovery, and verification for the composed stack. It does not own subsystem business logic.
 
-## Primary Actors
+## Primary actors
 
 - operators rehearsing the full ecosystem before a live rollout
 - engineers executing multi-package deployments across chains
 - responders recovering from interrupted deployments
 - reviewers validating cross-package composition after upstream changes
 
-## Key Surfaces
+## Key surfaces
 
 - `script/Deploy.s.sol`: full deployment entrypoint; its deployment nonce is the recovery lever for redeploying from fresh salts after an interruption
 - `script/Verify.s.sol`: verification and drift-check path
 - fork-heavy tests in `test/`: composition and deployment-shape regression coverage
 
-## Journey 1: Rehearse A Full Ecosystem Deployment On Forks
+## Journey 1: Rehearse a full ecosystem deployment on forks
 
 **Actor:** release engineer or reviewer.
 
@@ -43,7 +43,7 @@ This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, 
 
 - the team either has cross-package deployment confidence or a concrete composition failure to investigate
 
-## Journey 2: Execute A Phased Main Deployment
+## Journey 2: Execute a phased main deployment
 
 **Actor:** deployment operator.
 
@@ -69,7 +69,7 @@ This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, 
 
 - deployment outputs exist in dependency order and can be consumed by recovery and verify paths
 
-## Journey 3: Recover From An Interrupted Deployment
+## Journey 3: Recover from an interrupted deployment
 
 **Actor:** deployment responder.
 
@@ -95,7 +95,7 @@ This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, 
 
 - the deployment either lands cleanly at a fresh address namespace or stops before more drift is introduced
 
-## Journey 4: Verify The Deployment Before Calling It Live
+## Journey 4: Verify the deployment before calling it live
 
 **Actor:** reviewer or deployment lead.
 
@@ -121,13 +121,13 @@ This repo orchestrates deployment of the full V6 ecosystem. It owns sequencing, 
 
 - the team either accepts the deployment as live-ready or has a concrete mismatch to fix
 
-## Trust Boundaries
+## Trust boundaries
 
 - this repo trusts sibling packages and their artifacts to represent the intended code
 - operators trust recovery and verification state to reflect the real deployment accurately
 - live-chain correctness still depends on chain-specific conditions this repo cannot abstract away
 
-## Hand-Offs
+## Hand-offs
 
 - Use individual package repos to understand subsystem behavior; this repo only proves that the combined system still deploys and composes correctly.
 - Use [nana-fee-project-deployer-v6](../nana-fee-project-deployer-v6/USER_JOURNEYS.md) when the operational question is specifically about project `#1` rather than the whole rollout.

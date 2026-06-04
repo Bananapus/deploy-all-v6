@@ -2,7 +2,7 @@
 
 Operator guide for deploying, resuming, and verifying the Juicebox V6 ecosystem.
 
-## Supported Chains
+## Supported chains
 
 | Chain | ID | Uniswap V4 | Suckers |
 |---|---|---|---|
@@ -19,7 +19,7 @@ Chains without a PositionManager skip active Uniswap routing surfaces (buyback h
 
 The canonical deployment allowlists standard OP, Base, Arbitrum, and CCIP deployers. Initial project configs use the standard native bridge deployers unless a manifest explicitly selects the CCIP deployer.
 
-## Deployment Phases
+## Deployment phases
 
 The deploy script (`script/Deploy.s.sol`) executes 11 phases in strict order:
 
@@ -44,7 +44,7 @@ The deploy script (`script/Deploy.s.sol`) executes 11 phases in strict order:
 
 All contracts use CREATE2 with deterministic salts. Addresses are identical across chains for the same salt + initcode.
 
-## Pre-Deploy Checklist
+## Pre-deploy checklist
 
 Before running a deployment:
 
@@ -63,11 +63,11 @@ Before running a deployment:
 6. **Gas estimation.** Full deploy is ~50M+ gas across all phases. Ensure the deployer has sufficient ETH/native token.
 7. **Safe address.** The deploy script uses Sphinx for multi-sig execution. Confirm `safeAddress()` returns the correct multi-sig for the target chain.
 
-## Running the Deploy
+## Running the deploy
 
 Deployments are executed through [Sphinx](https://sphinx.dev), which batches the deploy transactions through the multi-sig safe. The Sphinx CLI proposes the deployment, which must then be approved by safe signers.
 
-### Pre-Deploy Rehearsal (Gas-Free Address + ABI Preview)
+### Pre-deploy rehearsal (gas-free address + ABI preview)
 
 Before any real broadcast, run `script/rehearse-addresses.sh` to produce the deterministic CREATE2 addresses and the full ABI bundle for every supported chain. Nothing is signed or sent on-chain — the simulation runs in a per-chain anvil fork and `_dumpAddresses` writes the same CREATE2 addresses the eventual Sphinx broadcast will land at. Use this to:
 
@@ -101,7 +101,7 @@ rehearsal-output/
 
 The bundle is `.gitignore`d — re-run the script anytime to refresh.
 
-### Dry Run (Forge Simulation)
+### Dry run (Forge simulation)
 
 ```bash
 forge script script/Deploy.s.sol \
@@ -112,7 +112,7 @@ forge script script/Deploy.s.sol \
 
 No `--broadcast` flag = simulation only. The `--sender` override impersonates the Sphinx safe for the simulation so the REVOwner wire-up call (and any other safe-gated calls) passes; production via `npx sphinx propose` handles this automatically. Verify all phases complete without revert, and that `script/post-deploy/.cache/addresses-<chainId>.json` is emitted at the end.
 
-### Production Deploy (via Sphinx)
+### Production deploy (via Sphinx)
 
 ```bash
 pnpm artifacts                                # pre-compile every contract from its installed package
@@ -140,7 +140,7 @@ Key points:
 - The `_isDeployed` helper computes expected addresses using `safeAddress()` as the deployer for most contracts. For Uniswap V4 hooks (where address bit-flags matter), addresses are computed using the `_CREATE2_FACTORY` instead.
 - No special action is needed from operators — this is standard Sphinx behavior.
 
-### Execution Model
+### Execution model
 
 **Deploy.s.sol** is executed through Sphinx. The operator runs `npx sphinx propose`, which:
 1. Compiles and simulates the deploy script locally
@@ -154,7 +154,7 @@ If a deploy is interrupted, recovery is to bump the deployment nonce in **Deploy
 
 **LivePostDeploySmoke.s.sol** is executed through Sphinx after read-only verification. It proposes a small, budgeted set of real production actions from the V6 deployment Safe: core-project buyback payments, partial cash-outs when available, a REV loan open/repay round trip, and distributor keeper checks.
 
-### Post-Deploy: Verification + Artifact Emission
+### Post-deploy: verification and artifact emission
 
 **Sphinx's auto-verification and auto-artifact pipeline are intentionally bypassed in v6.** Every contract that Deploy.s.sol routes through `_loadCreationCode` + `_deployFromArtifact` is pre-compiled from its installed npm package with the manifest's recorded compile profile (`via_ir` + `optimizerRuns`), then deployed via raw bytecode. Sphinx's bundled verifier doesn't know about that pre-compile step and would submit the wrong settings to Etherscan. Instead, v6 ships a local pipeline at `script/post-deploy.sh`.
 
@@ -228,7 +228,7 @@ Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so th
 - **Per-route CCIP suckers** are emitted to `addresses-<chainId>.json` with a remote-chain suffix: `JBCCIPSucker__<RouteSuffix>`, `JBCCIPSuckerDeployer__<RouteSuffix>` (where `<RouteSuffix>` is `ETH`, `OP`, `BASE`, `ARB`, or their `_SEP` variants). The standard per-source-chain singletons (`JBOptimismSucker`, `JBBaseSucker`, `JBArbitrumSucker`) and deployers are emitted without a suffix. The pipeline emits the full singleton implementation address for every pre-approved sucker deployer so the verifier can prove the implementation bytecode matches the published artifact. Together with the ~50 single-instance contracts plus the 4 deadlines + JBERC20 + ETH/USD + USD/ETH + ETH/native + USDC/USD price feeds emitted by the base dump, this covers the full deployment surface.
 - **No Blockscout fallback yet.** All supported chains are on Etherscan v2. Blockscout-only chains will need a `chains.json` entry with `"verifier": "blockscout"` + a Sourcify fallback.
 
-### Project Identity Verification
+### Project identity verification
 
 The deploy script uses canonical identity gates to verify that pre-existing projects match the expected deployment shape. These go beyond simple `projects.count()` / `controllerOf` checks:
 
@@ -236,11 +236,11 @@ The deploy script uses canonical identity gates to verify that pre-existing proj
 - **Project 4 (BAN):** Additionally checks REVOwner's 721 hook registration, hook PROJECT_ID, STORE, BANNY symbol, and Banny resolver manifest.
 - **Project 6 (ART off-Base):** Verified as a placeholder project shell owned by `VERIFY_ART_OPS_OPERATOR`, preserving MARKEE's project ID without requiring revnet wiring.
 
-## Interrupted Deploy: Redeploying From Fresh Salts
+## Interrupted deploy: redeploying from fresh salts
 
 If a deploy is interrupted (gas spike, RPC timeout, operator error), do not re-propose the same script unchanged: CREATE2 with identical `(deployer, salt, initCodeHash)` reverts on every contract that already exists. Instead, redeploy the full stack from fresh salts.
 
-### How Fresh-Salt Recovery Works
+### How fresh-salt recovery works
 
 `Deploy.s.sol` carries a single salt-version lever, `DEPLOYMENT_NONCE`, that applies to the entire deployment. Every CREATE2/CREATE3 salt is folded with this nonce via `_saltOf` (and the core salt derives from it directly), so incrementing the nonce by one yields a fully fresh, non-colliding address namespace for every contract. The mined Uniswap V4 hook salt re-derives over the folded namespace as well.
 
@@ -248,7 +248,7 @@ Because the new addresses are empty, the redeploy runs from a clean slate: there
 
 For CREATE3 deploys (currently only `JBOmnichainDeployer`), `_deployCreate3PrecompiledIfNeeded` checks `addr.codehash` against a sandbox-CREATE reference codehash: the deployed bytecode must match a reference computed by running the artifact's constructor in this script. This guards against a third party placing bytecode at the predicted CREATE3 address via the permissionless canonical factory; a mismatch reverts with `Deploy_Create3CodehashMismatch` rather than silently accepting foreign bytecode.
 
-### Running A Fresh-Salt Redeploy
+### Running a fresh-salt redeploy
 
 1. Increment `DEPLOYMENT_NONCE` in `script/Deploy.s.sol`.
 2. Re-propose through Sphinx, the same way as the initial deploy:
@@ -260,11 +260,11 @@ npx sphinx propose --mainnets   # for production
 
 Sphinx batches the full deployment into a single multi-sig proposal at the new address namespace.
 
-### Cross-Chain Note
+### Cross-chain note
 
 The deployment nonce changes every contract address. When cross-chain address parity matters (sucker pairs, consistent project IDs), use the same `DEPLOYMENT_NONCE` across every chain in the set so addresses and project IDs stay aligned. Recovering only some chains to a different nonce would desynchronize them from the rest.
 
-### Recovery Rehearsal
+### Recovery rehearsal
 
 The test suite includes fork tests that prove a clean re-run lands the full stack at the expected addresses with consistent project IDs:
 
@@ -274,11 +274,11 @@ forge test --match-contract DeployResumeRehearsalFork -vvv --fork-url <RPC_URL>
 
 These tests exercise the full deploy and re-run it, asserting that core addresses and project IDs are stable across the repeat.
 
-## Post-Deploy Verification: Using Verify.s.sol
+## Post-deploy verification: using Verify.s.sol
 
 After a successful deploy (or redeploy), run `Verify.s.sol` to validate all contracts are correctly wired together.
 
-### Setting Up Verification
+### Setting up verification
 
 Verify reads contract addresses from environment variables. Export each deployed address:
 
@@ -370,7 +370,7 @@ export VERIFY_CONFIG_HASH_5=0x...           # DEFIFA(5)
 export VERIFY_CONFIG_HASH_6=0x...           # ART(6) — Base only
 export VERIFY_CONFIG_HASH_7=0x...           # MARKEE(7)
 
-# Legacy CSV form still accepted (overridden by per-project values above when set).
+# CSV form accepted as a fallback (overridden by per-project values above when set).
 # export VERIFY_CONFIG_HASHES=0x...,0x...,0x...,0x...
 
 # Per-project operator manifest — required on production for every canonical
@@ -468,7 +468,7 @@ export VERIFY_CPN_ALLOWED_ADDRESSES_0=0x...,0x...
 # ... repeat for categories 1..4
 ```
 
-### Running Verification
+### Running verification
 
 ```bash
 forge script script/Verify.s.sol:Verify \
@@ -478,7 +478,7 @@ forge script script/Verify.s.sol:Verify \
 
 This is a read-only script — no `--broadcast` needed.
 
-### Live Smoke Proposal
+### Live smoke proposal
 
 After `Verify.s.sol` is green and the V6 deployment Safe is funded, run the live smoke proposal. It uses `safeAddress()` as the holder, beneficiary, and loan owner, so the Safe must have enough native token on each target chain for the configured smoke budgets plus gas.
 
@@ -503,7 +503,7 @@ The script reuses the core `VERIFY_*` addresses from `Verify.s.sol`. Set `VERIFY
 
 Optimism Sepolia skips the buyback, cash-out, and router-terminal smoke sections because that deployment intentionally has no PositionManager-backed Uniswap surfaces. Loan smoke is still budget-gated by REVLoans; set `SMOKE_LOAN_BUDGET=0` on Optimism Sepolia unless the no-buyback topology is explicitly being tested.
 
-### Verification Categories
+### Verification categories
 
 Verify checks 20 categories in order:
 
@@ -530,7 +530,7 @@ Verify checks 20 categories in order:
 | 19 | Sucker Manifest | Per-project sucker pair counts and remote chain connectivity |
 | 20 | External Addresses | Terminal/Router/REVLoans PERMIT2 wiring, Router WETH, OmnichainDeployer DIRECTORY |
 
-### Interpreting Results
+### Interpreting results
 
 The script logs each check as `PASS`, `FAIL`, or `SKIP` and prints a summary:
 
@@ -547,7 +547,7 @@ Any `FAIL` triggers a revert with a descriptive reason. Zero failures = deployme
 
 Skips are normal on testnets or chains with intentionally omitted components. On production chains, the verifier fail-closes for the full deployment surface.
 
-## Operator Checklist: Full Deployment Cycle
+## Operator checklist: full deployment cycle
 
 This is the complete sequence for deploying to a new chain:
 
@@ -558,7 +558,7 @@ This is the complete sequence for deploying to a new chain:
 - [ ] External dependencies verified (Uniswap, Chainlink, typeface)
 - [ ] Multi-sig address configured in Sphinx
 
-### 2. Dry Run
+### 2. Dry run
 
 - [ ] `forge script script/Deploy.s.sol --rpc-url <RPC_URL> -vvvv` completes without revert
 - [ ] All 11 phases logged as completed
@@ -571,7 +571,7 @@ This is the complete sequence for deploying to a new chain:
 - [ ] Record all deployed contract addresses from the Sphinx execution log
 - [ ] If interrupted: proceed to step 4
 
-### 4. Recover From Interruption (if needed)
+### 4. Recover from interruption (if needed)
 
 - [ ] Increment `DEPLOYMENT_NONCE` in `script/Deploy.s.sol` so every salt re-namespaces into a fresh address space
 - [ ] `npx sphinx propose --testnets` (or `--mainnets`) to redeploy the full stack from the fresh salts
@@ -585,14 +585,14 @@ This is the complete sequence for deploying to a new chain:
 - [ ] Confirm 0 failures in the summary
 - [ ] Review any skipped checks — confirm they correspond to intentionally omitted components
 
-### 6. Live Smoke Proposal
+### 6. Live smoke proposal
 
 - [ ] Fund the V6 deployment Safe with at least `SMOKE_BUYBACK_BUDGET + SMOKE_LOAN_BUDGET` native token plus gas per chain
 - [ ] `npm run deploy:propose:live-smoke:testnets` or `npm run deploy:propose:live-smoke:mainnets`
 - [ ] Safe signers approve and execute the smoke proposal
 - [ ] Confirm buyback project payments, partial cash-outs, REV loan borrow/repay, and distributor ops pass
 
-### 7. Post-Verification Spot Checks
+### 7. Post-verification spot checks
 
 These manual checks complement the automated verification:
 
@@ -604,7 +604,7 @@ These manual checks complement the automated verification:
 - [ ] Make a small test payment to project 1 via the terminal
 - [ ] Verify the payment appears in the project's balance via `terminalStore.balanceOf()`
 
-### 6a. Off-Chain Event-Log Reconciliation (Required Before Sign-Off)
+### 6a. Off-chain event-log reconciliation (required before sign-off)
 
 Two surfaces cannot be exhaustively verified on-chain because the relevant registries are
 not enumerable. Each requires a reviewer to reconcile the deployment's event log against the
@@ -649,7 +649,7 @@ allowed-but-unexpected deployer on chain.
 - [ ] Flag any allowed deployer not on the expected list — an unintended allowlisted route
       can mint or move project tokens that the canonical deployment never sanctioned.
 
-### 7. Cross-Chain (Multi-Chain Deployments)
+### 7. Cross-chain (multi-chain deployments)
 
 When deploying to multiple chains:
 

@@ -2,7 +2,7 @@
 
 This repo is the full-stack deployment orchestrator. Treat it as production code: wrong wiring here can make correct runtime contracts unsafe.
 
-## Audit Objective
+## Audit objective
 
 There is a billion dollars of well-meaning projects' money in the Juicebox Money Engine, growing exponentially. Your job is to hack it before anyone else. Whoever hacks it first saves/steals the money, and you are obsessed with being this winner, while also being a steward of the protocol and wanting it to keep growing safely.
 
@@ -26,12 +26,12 @@ Out of scope:
 
 - re-auditing the internal logic of every deployed dependency in `node_modules`
 
-## Start Here
+## Start here
 
 1. `script/Deploy.s.sol`
 2. `script/Verify.s.sol`
 
-## Security Model
+## Security model
 
 This repo does not introduce a new treasury or hook. It assembles the ecosystem:
 
@@ -48,7 +48,7 @@ The key audit mindset is that many runtime trust assumptions are born during dep
 - which project ID receives fees
 - which deployers are approved to create privileged bridge peers
 
-## Roles And Privileges
+## Roles and privileges
 
 | Role | Powers | How constrained |
 |------|--------|-----------------|
@@ -56,14 +56,14 @@ The key audit mindset is that many runtime trust assumptions are born during dep
 | Fresh-salt redeploy | Recover from a partial deployment by bumping the deployment nonce | Must converge to the same topology as a clean run |
 | Verify flow | Certify deployment correctness | Must fail on real drift, not only missing contracts |
 
-## Integration Assumptions
+## Integration assumptions
 
 | Dependency | Assumption | What breaks if wrong |
 |------------|------------|----------------------|
 | Per-chain constants | Match canonical addresses and chain intent | Deployment succeeds but wires the wrong system |
 | Downstream deployers and registries | Expose expected ownership and pairing behavior | Privileged peers and fee sinks misconfigure silently |
 
-## Critical Invariants
+## Critical invariants
 
 1. Deployment order is semantically correct.
    Every contract must be deployed only after its dependencies exist and are in the expected state.
@@ -80,7 +80,7 @@ The key audit mindset is that many runtime trust assumptions are born during dep
 5. Deployment does not leave hidden authority behind.
    Ownership, wildcard permissions, and allowlists must converge to the intended steady-state trust model.
 
-## Attack Surfaces
+## Attack surfaces
 
 - hardcoded chain-specific addresses
 - constructor and initializer parameters
@@ -88,7 +88,7 @@ The key audit mindset is that many runtime trust assumptions are born during dep
 - the deployment nonce that drives fresh-salt redeploys
 - verification scripts that can go stale while deployments still succeed
 
-## Accepted Risks Or Behaviors
+## Accepted risks or behaviors
 
 - Some phases intentionally differ by chain because external infrastructure is not uniform across all targets.
 - Deployment recovery is part of the supported operational surface, not an emergency-only side path.

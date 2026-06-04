@@ -1,6 +1,6 @@
 # Administration
 
-## At A Glance
+## At a glance
 
 | Item | Details |
 | --- | --- |
@@ -13,7 +13,7 @@
 
 `deploy-all-v6` does not create a runtime control plane of its own. Its job is to assign the right owners, registries, defaults, and operator addresses during deployment. The key question for this repo is who receives power at deployment time.
 
-## Control Model
+## Control model
 
 - The script is deployment-only.
 - `safeAddress()` is the protocol-level owner target for most `Ownable` contracts and configurator roles.
@@ -22,13 +22,13 @@
 
 ## Roles
 
-| Role | How Assigned | Scope | Notes |
+| Role | How assigned | Scope | Notes |
 | --- | --- | --- | --- |
 | Sphinx safe | `safeAddress()` in the deployment script | Protocol-wide | Receives ownership of most protocol-owned contracts |
 | Revnet split operator | Hardcoded in deployment config per revnet | Per revnet | Distinct from the safe |
 | Sucker deployer configurator | Constructor `configurator` | Per deployer | Usually the same safe |
 
-## Privileged Surfaces
+## Privileged surfaces
 
 The important admin actions here are deployment-time assignments, not runtime setters:
 
@@ -41,20 +41,20 @@ The important admin actions here are deployment-time assignments, not runtime se
   - `JBSuckerRegistry.allowSuckerDeployers(...)`
   - chain-specific sucker deployer configuration calls
 
-## Immutable And One-Way
+## Immutable and one-way
 
 - Constructor ownership targets are immutable once deployment succeeds.
 - Revnet stage definitions and many revnet operator assignments are deployment-final.
 - Price-feed additions and singleton deployer configuration create downstream immutables that are hard to unwind.
 - A bad deployment order or constructor arg can poison later layers because those addresses are fed forward.
 
-## Operational Notes
+## Operational notes
 
 - Rehearse the full rollout before changing owner targets or post-deploy wiring.
 - Treat changes to `safeAddress()`, revnet operator addresses, and fee-project assumptions as control-plane changes, not script refactors.
 - Keep deployment order explicit; later phases assume earlier addresses are final.
 
-## Machine Notes
+## Machine notes
 
 - Do not infer runtime authority from this repo after deployment; it only assigns authority to downstream contracts.
 - Treat `script/Deploy.s.sol` as the source of truth for owner targets, registry defaults, and initial allowlists.
@@ -66,13 +66,13 @@ The important admin actions here are deployment-time assignments, not runtime se
 - If deployment succeeds with bad immutable config, recovery usually means redeploying the affected layer and migrating projects or terminals to it.
 - There is no generic in-place fix for wrong constructor owners or wrong revnet stage config.
 
-## Admin Boundaries
+## Admin boundaries
 
 - This repo cannot repair a bad immutable deployment after the fact by itself.
 - It cannot override the runtime admin rules of downstream repos; it only instantiates them.
 - Once ownership is handed to the safe or downstream revnet machinery, this repo has no continuing authority.
 
-## Source Map
+## Source map
 
 - `script/Deploy.s.sol`
 - `script/Verify.s.sol`
