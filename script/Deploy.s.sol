@@ -1882,10 +1882,17 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: REV_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: REV_BASE_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: REV_OP_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: REV_ARB_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(1), count: REV_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[1] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: REV_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[2] =
+                REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: REV_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[3] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(42_161), count: REV_ARB_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: REV_START_TIME,
@@ -1905,7 +1912,7 @@ contract Deploy is Script, Sphinx {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
                 // forge-lint: disable-next-line(unsafe-typecast)
-                chainId: PREMINT_CHAIN_ID,
+                chainId: _autoIssuanceChainId(PREMINT_CHAIN_ID),
                 // forge-lint: disable-next-line(unsafe-typecast)
                 count: uint104(1_550_000 * DECIMAL_MULTIPLIER),
                 beneficiary: operator
@@ -2003,10 +2010,17 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: CPN_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[1] = REVAutoIssuance({chainId: 10, count: CPN_OP_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[2] = REVAutoIssuance({chainId: 8453, count: CPN_BASE_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: CPN_ARB_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(1), count: CPN_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[1] =
+                REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: CPN_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[2] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: CPN_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[3] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(42_161), count: CPN_ARB_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: CPN_START_TIME,
@@ -2137,10 +2151,17 @@ contract Deploy is Script, Sphinx {
         });
 
         REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-        autoIssuances[0] = REVAutoIssuance({chainId: 1, count: NANA_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-        autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: NANA_BASE_AUTO_ISSUANCE, beneficiary: operator});
-        autoIssuances[2] = REVAutoIssuance({chainId: 10, count: NANA_OP_AUTO_ISSUANCE, beneficiary: operator});
-        autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: NANA_ARB_AUTO_ISSUANCE, beneficiary: operator});
+        autoIssuances[0] = REVAutoIssuance({
+            chainId: _autoIssuanceChainId(1), count: NANA_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+        });
+        autoIssuances[1] = REVAutoIssuance({
+            chainId: _autoIssuanceChainId(8453), count: NANA_BASE_AUTO_ISSUANCE, beneficiary: operator
+        });
+        autoIssuances[2] =
+            REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: NANA_OP_AUTO_ISSUANCE, beneficiary: operator});
+        autoIssuances[3] = REVAutoIssuance({
+            chainId: _autoIssuanceChainId(42_161), count: NANA_ARB_AUTO_ISSUANCE, beneficiary: operator
+        });
 
         REVStageConfig[] memory stages = new REVStageConfig[](1);
         stages[0] = REVStageConfig({
@@ -2284,10 +2305,17 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: BAN_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: BAN_BASE_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: BAN_OP_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: BAN_ARB_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(1), count: BAN_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[1] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: BAN_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[2] =
+                REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: BAN_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[3] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(42_161), count: BAN_ARB_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: BAN_START_TIME,
@@ -2307,7 +2335,7 @@ contract Deploy is Script, Sphinx {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
                 // forge-lint: disable-next-line(unsafe-typecast)
-                chainId: PREMINT_CHAIN_ID,
+                chainId: _autoIssuanceChainId(PREMINT_CHAIN_ID),
                 // forge-lint: disable-next-line(unsafe-typecast)
                 count: uint104(1_000_000 * DECIMAL_MULTIPLIER),
                 beneficiary: operator
@@ -3831,7 +3859,9 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
-            autoIssuances[0] = REVAutoIssuance({chainId: 8453, count: ART_BASE_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: ART_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: ART_START_TIME,
@@ -3942,11 +3972,18 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: MARKEE_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: MARKEE_BASE_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: MARKEE_OP_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[3] =
-                REVAutoIssuance({chainId: 42_161, count: MARKEE_ARB_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(1), count: MARKEE_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[1] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: MARKEE_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[2] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(10), count: MARKEE_OP_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[3] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(42_161), count: MARKEE_ARB_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: MARKEE_START_TIME,
@@ -4203,6 +4240,20 @@ contract Deploy is Script, Sphinx {
         });
 
         return JBSuckerDeployerConfig({deployer: deployer, peer: bytes32(0), mappings: tokenMappings});
+    }
+
+    function _autoIssuanceChainId(uint32 mainnetChainId) internal view returns (uint32) {
+        if (!_isTestnetChain()) return mainnetChainId;
+        if (mainnetChainId == 1) return 11_155_111;
+        if (mainnetChainId == 10) return 11_155_420;
+        if (mainnetChainId == 8453) return 84_532;
+        if (mainnetChainId == 42_161) return 421_614;
+        return mainnetChainId;
+    }
+
+    function _isTestnetChain() internal view returns (bool) {
+        return block.chainid == 11_155_111 || block.chainid == 11_155_420 || block.chainid == 84_532
+            || block.chainid == 421_614;
     }
 
     /// @dev Juicebox price-feed currency IDs use the low 32 bits of ERC-20 token addresses.
