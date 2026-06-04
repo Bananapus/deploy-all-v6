@@ -12,7 +12,7 @@
 - [AUDIT_INSTRUCTIONS.md](./AUDIT_INSTRUCTIONS.md) — what to focus on and how to start.
 - [DEPLOY.md](./DEPLOY.md) — operator deployment runbook.
 - [STYLE_GUIDE.md](./STYLE_GUIDE.md) — code and documentation conventions.
-- [CHANGELOG.md](./CHANGELOG.md) — deployment-shape deltas.
+- [CHANGELOG.md](./CHANGELOG.md) - V5 to V6 deployment migration changelog.
 - [references/operations.md](./references/operations.md) — operational procedures reference.
 - [references/runtime.md](./references/runtime.md) — runtime behavior reference.
 
