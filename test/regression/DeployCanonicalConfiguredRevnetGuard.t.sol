@@ -33,34 +33,31 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         });
 
         assertTrue(
-            _contains(deploySource, '"https://jbm.infura-ipfs.io/ipfs/QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn"'),
-            "DEFIFA URI is pinned"
+            _contains(deploySource, '"ipfs://Qmb3Fo96jFFEj4jGJPXn5uNMTS6s21Kzq7cjbzpRdAoGCq"'), "DEFIFA URI is pinned"
         );
         assertTrue(
-            _contains(deploySource, '"https://jbm.infura-ipfs.io/ipfs/QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S"'),
-            "ART URI is pinned"
+            _contains(deploySource, '"ipfs://QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S"'), "ART URI is pinned"
         );
         assertTrue(
-            _contains(deploySource, '"https://jbm.infura-ipfs.io/ipfs/QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E"'),
-            "MARKEE URI is pinned"
+            _contains(deploySource, '"ipfs://QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E"'), "MARKEE URI is pinned"
         );
 
         _assertStrictConfiguredRevnetGuard({
             deployFunctionSource: revSource,
             projectIdName: "_revProjectId",
             expectedSymbol: "REV",
-            expectedUri: '"ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W"'
+            expectedUri: '"ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro"'
         });
         _assertStrictConfiguredRevnetGuard({
             deployFunctionSource: cpnSource,
             projectIdName: "_cpnProjectId",
             expectedSymbol: "CPN",
-            expectedUri: '"ipfs://QmUAFevoMn1iqSEQR8LogQYRxm39TNxQTPYnuLuq5BmfEi"'
+            expectedUri: '"ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi"'
         });
         _assertStrictConfiguredRevnetGuard({
             deployFunctionSource: defifaSource,
             projectIdName: "_DEFIFA_REV_PROJECT_ID",
-            expectedSymbol: "DEFIFA",
+            expectedSymbol: "DGN",
             expectedUri: "DEFIFA_REV_URI"
         });
         _assertStrictConfiguredRevnetGuard({

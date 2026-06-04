@@ -546,7 +546,7 @@ contract Verify is Script {
             return;
         }
 
-        _verifyCanonicalRevnetProject({projectId: _FEE_PROJECT_ID, symbol: "NANA", label: "NANA(1)"});
+        _verifyCanonicalRevnetProject({projectId: _FEE_PROJECT_ID, symbol: "JBP6", label: "NANA(1)"});
         _verifyCanonicalRevnetProject({projectId: _CPN_PROJECT_ID, symbol: "CPN", label: "CPN(2)"});
         _verifyCanonicalRevnetProject({projectId: _REV_PROJECT_ID, symbol: "REV", label: "REV(3)"});
         _verifyCanonicalRevnetProject({projectId: _BAN_PROJECT_ID, symbol: "BAN", label: "BAN(4)"});
@@ -562,7 +562,7 @@ contract Verify is Script {
         }
 
         if (totalProjects >= _DEFIFA_REV_PROJECT_ID) {
-            _verifyCanonicalRevnetProject({projectId: _DEFIFA_REV_PROJECT_ID, symbol: "DEFIFA", label: "DEFIFA(5)"});
+            _verifyCanonicalRevnetProject({projectId: _DEFIFA_REV_PROJECT_ID, symbol: "DGN", label: "DEFIFA(5)"});
         }
         if (totalProjects >= _ART_PROJECT_ID) {
             // ART is a fully wired revnet ONLY on Base — off-Base, project 6 is a bare placeholder

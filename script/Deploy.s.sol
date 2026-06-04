@@ -1964,7 +1964,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "REV",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W",
+                    expectedUri: "ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro",
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_revProjectId);
@@ -2106,7 +2106,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "CPN",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "ipfs://QmUAFevoMn1iqSEQR8LogQYRxm39TNxQTPYnuLuq5BmfEi",
+                    expectedUri: "ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi",
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_cpnProjectId);
@@ -3774,7 +3774,7 @@ contract Deploy is Script, Sphinx {
         ) {
             if (!_isCanonicalRevnetProject({
                     projectId: _DEFIFA_REV_PROJECT_ID,
-                    expectedSymbol: "DEFIFA",
+                    expectedSymbol: "DGN",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
                     expectedUri: DEFIFA_REV_URI,
@@ -4322,7 +4322,7 @@ contract Deploy is Script, Sphinx {
                 projectId: _BAN_PROJECT_ID,
                 expectedSymbol: "BAN",
                 expectedConfigurationHash: expectedConfigurationHash,
-                expectedUri: "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp",
+                expectedUri: "ipfs://QmZU9P4xriSMyXkK96sCQiNcUUyJQzMFkGUpPxgWf6hBhq",
                 expectedReservedSplitBeneficiary: expectedReservedSplitBeneficiary,
                 expectedReservedSplitHook: expectedReservedSplitHook
             })) return false;
@@ -4441,10 +4441,10 @@ contract Deploy is Script, Sphinx {
         if (_revDeployer.FEE_REVNET_ID() != projectId) return false;
         if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
         if (!_revOwner.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
-        if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "NANA"})) return false;
+        if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "JBP6"})) return false;
         if (
             keccak256(bytes(_controller.uriOf(projectId)))
-                != keccak256(bytes("ipfs://QmWCgCaryfsJYBu5LczFuBz3UKK5VEU3BZFYp2mHJTLeRQ"))
+                != keccak256(bytes("ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA"))
         ) return false;
         if (!_reservedSplitIsCanonical({projectId: projectId, expectedBeneficiary: payable(expectedOperator)})) {
             return false;
