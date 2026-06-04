@@ -1888,8 +1888,9 @@ contract Deploy is Script, Sphinx {
             autoIssuances[1] = REVAutoIssuance({
                 chainId: _autoIssuanceChainId(8453), count: REV_BASE_AUTO_ISSUANCE, beneficiary: operator
             });
-            autoIssuances[2] =
-                REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: REV_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[2] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(10), count: REV_OP_AUTO_ISSUANCE, beneficiary: operator
+            });
             autoIssuances[3] = REVAutoIssuance({
                 chainId: _autoIssuanceChainId(42_161), count: REV_ARB_AUTO_ISSUANCE, beneficiary: operator
             });
@@ -2013,8 +2014,9 @@ contract Deploy is Script, Sphinx {
             autoIssuances[0] = REVAutoIssuance({
                 chainId: _autoIssuanceChainId(1), count: CPN_MAINNET_AUTO_ISSUANCE, beneficiary: operator
             });
-            autoIssuances[1] =
-                REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: CPN_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[1] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(10), count: CPN_OP_AUTO_ISSUANCE, beneficiary: operator
+            });
             autoIssuances[2] = REVAutoIssuance({
                 chainId: _autoIssuanceChainId(8453), count: CPN_BASE_AUTO_ISSUANCE, beneficiary: operator
             });
@@ -2157,8 +2159,9 @@ contract Deploy is Script, Sphinx {
         autoIssuances[1] = REVAutoIssuance({
             chainId: _autoIssuanceChainId(8453), count: NANA_BASE_AUTO_ISSUANCE, beneficiary: operator
         });
-        autoIssuances[2] =
-            REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: NANA_OP_AUTO_ISSUANCE, beneficiary: operator});
+        autoIssuances[2] = REVAutoIssuance({
+            chainId: _autoIssuanceChainId(10), count: NANA_OP_AUTO_ISSUANCE, beneficiary: operator
+        });
         autoIssuances[3] = REVAutoIssuance({
             chainId: _autoIssuanceChainId(42_161), count: NANA_ARB_AUTO_ISSUANCE, beneficiary: operator
         });
@@ -2311,8 +2314,9 @@ contract Deploy is Script, Sphinx {
             autoIssuances[1] = REVAutoIssuance({
                 chainId: _autoIssuanceChainId(8453), count: BAN_BASE_AUTO_ISSUANCE, beneficiary: operator
             });
-            autoIssuances[2] =
-                REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: BAN_OP_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[2] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(10), count: BAN_OP_AUTO_ISSUANCE, beneficiary: operator
+            });
             autoIssuances[3] = REVAutoIssuance({
                 chainId: _autoIssuanceChainId(42_161), count: BAN_ARB_AUTO_ISSUANCE, beneficiary: operator
             });
