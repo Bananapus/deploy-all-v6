@@ -4725,8 +4725,7 @@ contract Verify is Script {
     /// value into runtime bytecode at compiler-chosen offsets. The artifact carries zero bytes
     /// at those positions; a real deployment carries the constructor-injected values. Raw
     /// `extcodehash` equality fails for any such contract — but the bytes OUTSIDE those ranges
-    /// are byte-equal between artifact and live, which is what proves the canonical source was
-    /// compiled and deployed.
+    /// are byte-equal between artifact and live, proving the canonical source was compiled and deployed.
     ///
     /// Requires `bytecode_hash = "none"` in the build profile. Missing or malformed artifacts fail
     /// closed on production chains, and are skipped only on non-production chains.
