@@ -349,12 +349,10 @@ contract Deploy is Script, Sphinx {
 
     // ── Defifa Revnet constants ──
     uint48 private constant DEFIFA_REV_START_TIME = 0;
-    string private constant DEFIFA_REV_URI =
-        "https://jbm.infura-ipfs.io/ipfs/QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn";
+    string private constant DEFIFA_REV_URI = "ipfs://Qmb3Fo96jFFEj4jGJPXn5uNMTS6s21Kzq7cjbzpRdAoGCq";
 
     // ── MARKEE constants ──
-    string private constant MARKEE_URI =
-        "https://jbm.infura-ipfs.io/ipfs/QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E";
+    string private constant MARKEE_URI = "ipfs://QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E";
     uint48 private constant MARKEE_START_TIME = 1_766_329_380;
     uint48 private constant MARKEE_STAGE_1_START_TIME = 1_797_886_116;
     uint48 private constant MARKEE_STAGE_2_START_TIME = 1_860_999_588;
@@ -365,7 +363,7 @@ contract Deploy is Script, Sphinx {
     uint104 private constant MARKEE_ARB_AUTO_ISSUANCE = 0;
 
     // ── ART constants ──
-    string private constant ART_URI = "https://jbm.infura-ipfs.io/ipfs/QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S";
+    string private constant ART_URI = "ipfs://QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S";
     uint48 private constant ART_START_TIME = 1_758_234_169;
     uint48 private constant ART_STAGE_1_START_TIME = 1_767_306_169;
     uint48 private constant ART_STAGE_2_START_TIME = 1_839_882_169;
@@ -1948,7 +1946,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Revnet",
                 ticker: "REV",
-                uri: "ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W",
+                uri: "ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro",
                 salt: REV_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2066,7 +2064,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Croptop Publishing Network",
                 ticker: "CPN",
-                uri: "ipfs://QmUAFevoMn1iqSEQR8LogQYRxm39TNxQTPYnuLuq5BmfEi",
+                uri: "ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi",
                 salt: CPN_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2181,9 +2179,9 @@ contract Deploy is Script, Sphinx {
 
         REVConfig memory nanaConfig = REVConfig({
             description: REVDescription({
-                name: "Bananapus (Juicebox V6)",
-                ticker: "NANA",
-                uri: "ipfs://QmWCgCaryfsJYBu5LczFuBz3UKK5VEU3BZFYp2mHJTLeRQ",
+                name: "Juicebox Protocol V6",
+                ticker: "JBP6",
+                uri: "ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA",
                 salt: NANA_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2378,7 +2376,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Banny Network",
                 ticker: "BAN",
-                uri: "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp",
+                uri: "ipfs://QmZU9P4xriSMyXkK96sCQiNcUUyJQzMFkGUpPxgWf6hBhq",
                 salt: BAN_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -3758,7 +3756,7 @@ contract Deploy is Script, Sphinx {
 
         REVConfig memory defifaConfig = REVConfig({
             description: REVDescription({
-                name: "Defifa", ticker: "DEFIFA", uri: DEFIFA_REV_URI, salt: DEFIFA_REV_ERC20_SALT
+                name: "Defifa Game Network", ticker: "DGN", uri: DEFIFA_REV_URI, salt: DEFIFA_REV_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
             operator: operator,
