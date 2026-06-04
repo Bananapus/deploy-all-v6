@@ -42,7 +42,6 @@
     "@bananapus/core-v6": "^0.0.82",
     "@bananapus/distributor-v6": "^0.0.38",
     "@bananapus/omnichain-deployers-v6": "^0.0.58",
-    "@bananapus/ownable-v6": "^0.0.37",
     "@bananapus/permission-ids-v6": "^0.0.30",
     "@bananapus/project-handles-v6": "^0.0.26",
     "@bananapus/project-payer-v6": "^0.0.22",
@@ -52,20 +51,18 @@
     "@bananapus/univ4-router-v6": "^0.0.53",
     "@bannynet/core-v6": "^0.0.44",
     "@chainlink/contracts": "1.5.0",
-    "@chainlink/contracts-ccip": "1.6.4",
     "@croptop/core-v6": "^0.0.67",
     "@openzeppelin/contracts": "5.6.1",
-    "@openzeppelin/uniswap-hooks": "1.1.1",
     "@rev-net/core-v6": "^0.0.89",
     "@uniswap/permit2": "github:Uniswap/permit2#cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
     "@uniswap/v3-core": "1.0.1",
-    "@uniswap/v3-periphery": "1.4.4",
     "@uniswap/v4-core": "1.0.2",
     "@uniswap/v4-periphery": "1.0.3",
     "base64-sol": "1.1.0",
     "solady": "0.1.26"
   },
   "devDependencies": {
+    "@chainlink/contracts-ccip": "1.6.4",
     "@sphinx-labs/plugins": "0.33.3",
     "patch-package": "8.0.1"
   }
