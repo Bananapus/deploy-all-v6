@@ -2159,9 +2159,8 @@ contract Deploy is Script, Sphinx {
         autoIssuances[1] = REVAutoIssuance({
             chainId: _autoIssuanceChainId(8453), count: NANA_BASE_AUTO_ISSUANCE, beneficiary: operator
         });
-        autoIssuances[2] = REVAutoIssuance({
-            chainId: _autoIssuanceChainId(10), count: NANA_OP_AUTO_ISSUANCE, beneficiary: operator
-        });
+        autoIssuances[2] =
+            REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: NANA_OP_AUTO_ISSUANCE, beneficiary: operator});
         autoIssuances[3] = REVAutoIssuance({
             chainId: _autoIssuanceChainId(42_161), count: NANA_ARB_AUTO_ISSUANCE, beneficiary: operator
         });
