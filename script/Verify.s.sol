@@ -546,7 +546,7 @@ contract Verify is Script {
             return;
         }
 
-        _verifyCanonicalRevnetProject({projectId: _FEE_PROJECT_ID, symbol: "NANA", label: "NANA(1)"});
+        _verifyCanonicalRevnetProject({projectId: _FEE_PROJECT_ID, symbol: "JBP6", label: "NANA(1)"});
         _verifyCanonicalRevnetProject({projectId: _CPN_PROJECT_ID, symbol: "CPN", label: "CPN(2)"});
         _verifyCanonicalRevnetProject({projectId: _REV_PROJECT_ID, symbol: "REV", label: "REV(3)"});
         _verifyCanonicalRevnetProject({projectId: _BAN_PROJECT_ID, symbol: "BAN", label: "BAN(4)"});
@@ -562,7 +562,7 @@ contract Verify is Script {
         }
 
         if (totalProjects >= _DEFIFA_REV_PROJECT_ID) {
-            _verifyCanonicalRevnetProject({projectId: _DEFIFA_REV_PROJECT_ID, symbol: "DEFIFA", label: "DEFIFA(5)"});
+            _verifyCanonicalRevnetProject({projectId: _DEFIFA_REV_PROJECT_ID, symbol: "DGN", label: "DEFIFA(5)"});
         }
         if (totalProjects >= _ART_PROJECT_ID) {
             // ART is a fully wired revnet ONLY on Base — off-Base, project 6 is a bare placeholder
@@ -720,7 +720,7 @@ contract Verify is Script {
                 critical: true
             });
 
-            // The expected accounting token differs per revnet: DEFIFA(5)/ART(6) accept USDC (6 decimals);
+            // The expected accounting token differs per revnet: ART(6) accepts USDC (6 decimals);
             // everyone else accepts the native token (18 decimals). `tokenName`/`sentinelLabel` keep the
             // native-project assertion strings byte-identical to the pre-USDC verifier.
             (
@@ -1913,7 +1913,7 @@ contract Verify is Script {
             }
 
             // Verify all canonical projects' primary terminal for their accepted token is the JBMultiTerminal.
-            // DEFIFA(5)/ART(6) accept USDC, not native, so resolve the expected token per project.
+            // ART(6) accepts USDC, not native, so resolve the expected token per project.
             for (uint256 i; i < projectIds.length; i++) {
                 (address expToken,,, string memory tokenName,) = _expectedTerminalTokenFor(projectIds[i]);
                 _check({
@@ -3367,15 +3367,15 @@ contract Verify is Script {
                     });
                 }
 
-                // The project's accounting-token bridge mapping must be enabled. DEFIFA(5)/ART(6)
-                // bridge USDC (their accounting token); every other canonical revnet bridges the
+                // The project's accounting-token bridge mapping must be enabled. ART(6)
+                // bridges USDC (its accounting token); every other canonical revnet bridges the
                 // native token. A pair whose accounting-token mapping is disabled (or
                 // emergency-hatch-stuck) is structurally indistinguishable from a properly-deployed
                 // pair on the count + remote checks, but the cross-chain transfer path is dead for
                 // end users. Reject the disabled mapping so a launch cannot ship a
                 // registered-but-unusable sucker pair. Mirrors the deploy-side per-project token
-                // selection (`_expectedTerminalTokenFor`) so this check stays in sync with the
-                // USDC-accounting projects rather than spuriously failing them on a native lookup.
+                // selection (`_expectedTerminalTokenFor`) so this check stays in sync with any
+                // USDC-accounting project rather than spuriously failing it on a native lookup.
                 (address expectedLocalToken,,,,) = _expectedTerminalTokenFor(pids[i]);
                 (bool okMap, bytes memory mapData) =
                     local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", expectedLocalToken));
@@ -3403,7 +3403,7 @@ contract Verify is Script {
                 // `VERIFY_SUCKER_PAIR_<projectId>_<j>` carries
                 // `<peer>:<remoteChainId>:<remoteToken>:<emergencyHatch>` so each pair's
                 // remote peer (bytes32), remote chain id (decimal uint), remote bridged-token addr
-                // (bytes32 — remote USDC for DEFIFA(5)/ART(6), remote native otherwise), and
+                // (bytes32 — remote USDC for ART(6), remote native otherwise), and
                 // emergency-hatch flag (0/1) can be checked exactly. Without this
                 // a deployment can ship the right pair count + nonzero/enabled liveness
                 // predicates while the actual peers / chain ids / token mappings drift
@@ -3486,8 +3486,8 @@ contract Verify is Script {
         }
         bytes32 expectedPeer = vm.parseBytes32(parts[0]);
         uint256 expectedRemoteChainId = vm.parseUint(parts[1]);
-        // The manifest's third field carries the remote bridged token: remote USDC for DEFIFA(5)/ART(6)
-        // (which bridge their USDC accounting token), remote native token for every other revnet.
+        // The manifest's third field carries the remote bridged token: remote USDC for ART(6)
+        // (which bridges its USDC accounting token), remote native token for every other revnet.
         bytes32 expectedRemoteToken = vm.parseBytes32(parts[2]);
         bool expectedEmergencyHatch = vm.parseUint(parts[3]) != 0;
 
@@ -3518,8 +3518,8 @@ contract Verify is Script {
         // 4. Accounting-token mapping: addr + emergencyHatch. The first 32 bytes hold `enabled`
         //    (already asserted above), the next hold `emergencyHatch`, then `minGas`, then
         //    `addr` — total 4 word slots in the ABI-encoded JBRemoteToken layout. Resolve the
-        //    project's bridged token (USDC for DEFIFA(5)/ART(6), native otherwise) so the manifest
-        //    check stays in sync with the USDC-accounting projects (mirrors `_expectedTerminalTokenFor`).
+        //    project's bridged token (USDC for ART(6), native otherwise) so the manifest check stays in sync
+        //    with any USDC-accounting project (mirrors `_expectedTerminalTokenFor`).
         (address expectedLocalToken,,,,) = _expectedTerminalTokenFor(projectId);
         (bool okMap, bytes memory mapData) =
             local.staticcall(abi.encodeWithSignature("remoteTokenFor(address)", expectedLocalToken));
@@ -4112,9 +4112,9 @@ contract Verify is Script {
         }
     }
 
-    /// Returns the canonical Circle USDC address for a chain. Mirrors Deploy.s.sol's `_usdcToken` assignments and
-    /// `_usdcTokenFor`. DEFIFA(5) and ART(6) are USD-denominated and accept USDC directly, so their terminal
-    /// accounting context is keyed to this token rather than the native sentinel.
+    /// Returns the canonical Circle USDC address for a chain. Mirrors Deploy.s.sol's `_usdcToken` assignments.
+    /// ART(6) is USD-denominated and accepts USDC directly, so its terminal accounting context is keyed to this token
+    /// rather than the native sentinel.
     function _usdcTokenFor(uint256 chainId) internal pure returns (address) {
         if (chainId == 1) return 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         if (chainId == 11_155_111) return 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
@@ -4128,15 +4128,15 @@ contract Verify is Script {
     }
 
     /// @notice The expected terminal accounting-context shape for a canonical revnet.
-    /// @dev DEFIFA(5) and ART(6) are USD-denominated and accept USDC (6 decimals); every other canonical revnet
-    /// accepts the native token (18 decimals). `tokenName`/`sentinelLabel` keep the native-project assertion labels
-    /// byte-identical to the pre-USDC verifier so existing regression strings still match.
+    /// @dev ART(6) is USD-denominated and accepts USDC (6 decimals); every other canonical revnet accepts the native
+    /// token (18 decimals). `tokenName`/`sentinelLabel` keep the native-project assertion labels byte-identical to the
+    /// pre-USDC verifier so existing regression strings still match.
     function _expectedTerminalTokenFor(uint256 projectId)
         internal
         view
         returns (address token, uint8 decimals, uint32 currency, string memory tokenName, string memory sentinelLabel)
     {
-        if (projectId == _DEFIFA_REV_PROJECT_ID || projectId == _ART_PROJECT_ID) {
+        if (projectId == _ART_PROJECT_ID) {
             token = _usdcTokenFor(block.chainid);
             return (token, 6, uint32(uint160(token)), "USDC", "USDC");
         }
@@ -4725,8 +4725,7 @@ contract Verify is Script {
     /// value into runtime bytecode at compiler-chosen offsets. The artifact carries zero bytes
     /// at those positions; a real deployment carries the constructor-injected values. Raw
     /// `extcodehash` equality fails for any such contract — but the bytes OUTSIDE those ranges
-    /// are byte-equal between artifact and live, which is what proves the canonical source was
-    /// compiled and deployed.
+    /// are byte-equal between artifact and live, proving the canonical source was compiled and deployed.
     ///
     /// Requires `bytecode_hash = "none"` in the build profile. Missing or malformed artifacts fail
     /// closed on production chains, and are skipped only on non-production chains.

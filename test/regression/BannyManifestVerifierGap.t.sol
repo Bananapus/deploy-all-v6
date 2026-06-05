@@ -24,7 +24,7 @@ contract BannyManifestVerifierGapTest is Test {
         MockRevDeployer revDeployer = new MockRevDeployer();
         MockTokens tokens = new MockTokens();
 
-        tokens.setTokenOf(1, address(new MockToken("NANA")));
+        tokens.setTokenOf(1, address(new MockToken("JBP6")));
         tokens.setTokenOf(2, address(new MockToken("CPN")));
         tokens.setTokenOf(3, address(new MockToken("REV")));
         tokens.setTokenOf(4, address(new MockToken("BAN")));

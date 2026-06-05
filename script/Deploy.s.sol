@@ -349,12 +349,10 @@ contract Deploy is Script, Sphinx {
 
     // ── Defifa Revnet constants ──
     uint48 private constant DEFIFA_REV_START_TIME = 0;
-    string private constant DEFIFA_REV_URI =
-        "https://jbm.infura-ipfs.io/ipfs/QmSVqxSQQqkNfDTArdrNRQVpPTvDjPHXBKavhFgUNVNfEn";
+    string private constant DEFIFA_REV_URI = "ipfs://Qmb3Fo96jFFEj4jGJPXn5uNMTS6s21Kzq7cjbzpRdAoGCq";
 
     // ── MARKEE constants ──
-    string private constant MARKEE_URI =
-        "https://jbm.infura-ipfs.io/ipfs/QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E";
+    string private constant MARKEE_URI = "ipfs://QmWgNJGFLZZdVCn5PuUEDBkSa7iL8jgFVKgJq93Aqub56E";
     uint48 private constant MARKEE_START_TIME = 1_766_329_380;
     uint48 private constant MARKEE_STAGE_1_START_TIME = 1_797_886_116;
     uint48 private constant MARKEE_STAGE_2_START_TIME = 1_860_999_588;
@@ -365,7 +363,7 @@ contract Deploy is Script, Sphinx {
     uint104 private constant MARKEE_ARB_AUTO_ISSUANCE = 0;
 
     // ── ART constants ──
-    string private constant ART_URI = "https://jbm.infura-ipfs.io/ipfs/QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S";
+    string private constant ART_URI = "ipfs://QmNaP7LAFYwUcFUQrext1tZmhCHkHDrfrbqXbt7MZqmM9S";
     uint48 private constant ART_START_TIME = 1_758_234_169;
     uint48 private constant ART_STAGE_1_START_TIME = 1_767_306_169;
     uint48 private constant ART_STAGE_2_START_TIME = 1_839_882_169;
@@ -432,9 +430,7 @@ contract Deploy is Script, Sphinx {
     IJBSuckerDeployer private _baseSuckerDeployer;
     IJBSuckerDeployer private _arbitrumSuckerDeployer;
     IJBSuckerDeployer private _tempoCcipDeployer;
-    // Standard (non-swap) CCIP sucker deployers keyed by remote chain id. Populated in `_deployCCIPRoute`.
-    // Used by USDC-denominated revnets (DEFIFA) to bridge canonical USDC via CCIP's CCTP-backed pool — the native
-    // OP/Arb bridges would deliver bridge-wrapped USDC.e, not canonical Circle USDC.
+    // Standard CCIP sucker deployers keyed by remote chain id. Populated in `_deployCCIPRoute`.
     mapping(uint256 remoteChainId => IJBSuckerDeployer) private _ccipSuckerDeployerForRemoteChain;
 
     // Omnichain Deployer
@@ -585,7 +581,7 @@ contract Deploy is Script, Sphinx {
         // in the first proposal.
         _deployBanny();
 
-        // Phase 10a: Defifa Revnet (project ID 5) — creates the DEFIFA revnet (USDC-based, all chains).
+        // Phase 10a: Defifa Revnet (project ID 5) — creates the DEFIFA revnet (ETH-based, all chains).
         // Must come BEFORE _deployDefifa so the revnet project ID can be used as the Defifa fee project.
         _deployDefifaRevnet();
 
@@ -1409,7 +1405,6 @@ contract Deploy is Script, Sphinx {
         IJBSuckerDeployer ccipDeployer =
             IJBSuckerDeployer(address(_deployCCIPSuckerFor({salt: standardSalt, remoteChainId: remoteChainId})));
         _preApprovedSuckerDeployers.push(address(ccipDeployer));
-        // Retain a reference so USDC revnets can wire the standard CCIP deployer for this edge by remote chain id.
         _ccipSuckerDeployerForRemoteChain[remoteChainId] = ccipDeployer;
     }
 
@@ -1885,10 +1880,18 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: REV_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: REV_BASE_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: REV_OP_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: REV_ARB_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(1), count: REV_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[1] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: REV_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[2] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(10), count: REV_OP_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[3] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(42_161), count: REV_ARB_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: REV_START_TIME,
@@ -1908,7 +1911,7 @@ contract Deploy is Script, Sphinx {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
                 // forge-lint: disable-next-line(unsafe-typecast)
-                chainId: PREMINT_CHAIN_ID,
+                chainId: _autoIssuanceChainId(PREMINT_CHAIN_ID),
                 // forge-lint: disable-next-line(unsafe-typecast)
                 count: uint104(1_550_000 * DECIMAL_MULTIPLIER),
                 beneficiary: operator
@@ -1943,7 +1946,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Revnet",
                 ticker: "REV",
-                uri: "ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W",
+                uri: "ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro",
                 salt: REV_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -1961,7 +1964,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "REV",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "ipfs://QmcCBD5fM927LjkLDSJWtNEU9FohcbiPSfqtGRHXFHzJ4W",
+                    expectedUri: "ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro",
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_revProjectId);
@@ -2006,10 +2009,18 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: CPN_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[1] = REVAutoIssuance({chainId: 10, count: CPN_OP_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[2] = REVAutoIssuance({chainId: 8453, count: CPN_BASE_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: CPN_ARB_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(1), count: CPN_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[1] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(10), count: CPN_OP_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[2] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: CPN_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[3] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(42_161), count: CPN_ARB_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: CPN_START_TIME,
@@ -2053,7 +2064,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Croptop Publishing Network",
                 ticker: "CPN",
-                uri: "ipfs://QmUAFevoMn1iqSEQR8LogQYRxm39TNxQTPYnuLuq5BmfEi",
+                uri: "ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi",
                 salt: CPN_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2095,7 +2106,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "CPN",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "ipfs://QmUAFevoMn1iqSEQR8LogQYRxm39TNxQTPYnuLuq5BmfEi",
+                    expectedUri: "ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi",
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_cpnProjectId);
@@ -2140,10 +2151,17 @@ contract Deploy is Script, Sphinx {
         });
 
         REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-        autoIssuances[0] = REVAutoIssuance({chainId: 1, count: NANA_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-        autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: NANA_BASE_AUTO_ISSUANCE, beneficiary: operator});
-        autoIssuances[2] = REVAutoIssuance({chainId: 10, count: NANA_OP_AUTO_ISSUANCE, beneficiary: operator});
-        autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: NANA_ARB_AUTO_ISSUANCE, beneficiary: operator});
+        autoIssuances[0] = REVAutoIssuance({
+            chainId: _autoIssuanceChainId(1), count: NANA_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+        });
+        autoIssuances[1] = REVAutoIssuance({
+            chainId: _autoIssuanceChainId(8453), count: NANA_BASE_AUTO_ISSUANCE, beneficiary: operator
+        });
+        autoIssuances[2] =
+            REVAutoIssuance({chainId: _autoIssuanceChainId(10), count: NANA_OP_AUTO_ISSUANCE, beneficiary: operator});
+        autoIssuances[3] = REVAutoIssuance({
+            chainId: _autoIssuanceChainId(42_161), count: NANA_ARB_AUTO_ISSUANCE, beneficiary: operator
+        });
 
         REVStageConfig[] memory stages = new REVStageConfig[](1);
         stages[0] = REVStageConfig({
@@ -2161,9 +2179,9 @@ contract Deploy is Script, Sphinx {
 
         REVConfig memory nanaConfig = REVConfig({
             description: REVDescription({
-                name: "Bananapus (Juicebox V6)",
-                ticker: "NANA",
-                uri: "ipfs://QmWCgCaryfsJYBu5LczFuBz3UKK5VEU3BZFYp2mHJTLeRQ",
+                name: "Juicebox Protocol V6",
+                ticker: "JBP6",
+                uri: "ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA",
                 salt: NANA_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2287,10 +2305,18 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: BAN_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: BAN_BASE_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: BAN_OP_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[3] = REVAutoIssuance({chainId: 42_161, count: BAN_ARB_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(1), count: BAN_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[1] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: BAN_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[2] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(10), count: BAN_OP_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[3] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(42_161), count: BAN_ARB_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: BAN_START_TIME,
@@ -2310,7 +2336,7 @@ contract Deploy is Script, Sphinx {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
             autoIssuances[0] = REVAutoIssuance({
                 // forge-lint: disable-next-line(unsafe-typecast)
-                chainId: PREMINT_CHAIN_ID,
+                chainId: _autoIssuanceChainId(PREMINT_CHAIN_ID),
                 // forge-lint: disable-next-line(unsafe-typecast)
                 count: uint104(1_000_000 * DECIMAL_MULTIPLIER),
                 beneficiary: operator
@@ -2350,7 +2376,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Banny Network",
                 ticker: "BAN",
-                uri: "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp",
+                uri: "ipfs://QmZU9P4xriSMyXkK96sCQiNcUUyJQzMFkGUpPxgWf6hBhq",
                 salt: BAN_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2452,7 +2478,7 @@ contract Deploy is Script, Sphinx {
             splits: new JBSplit[](0)
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(BAN_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildCcipSuckerConfig(BAN_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: banConfig});
 
         // Use strict canonical identity gates before returning early. A merely Revnet-shaped project 4 is not enough.
@@ -3665,16 +3691,13 @@ contract Deploy is Script, Sphinx {
     //  Phase 10a: Defifa Revnet (project ID 5)
     // ════════════════════════════════════════════════════════════════════
 
-    /// @notice Deploys the Defifa revnet — a USDC-based revnet on all chains.
+    /// @notice Deploys the Defifa revnet — an ETH-based revnet on all chains.
     function _deployDefifaRevnet() internal {
         address operator = 0x6b92c73682f0e1fac35A18ab17efa5e77DDE9fE1;
 
-        // DEFIFA is USD-denominated, so it accepts USDC directly (valued 1:1-ish into USD via the registered
-        // USDC/USD feed) rather than forcing every payer to pre-swap into native ETH. USDC has 6 decimals and is
-        // identified by the low 32 bits of its (per-chain) address.
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
-            JBAccountingContext({token: _usdcToken, decimals: 6, currency: _currencyIdOf(_usdcToken)});
+            JBAccountingContext({token: JBConstants.NATIVE_TOKEN, decimals: DECIMALS, currency: NATIVE_CURRENCY});
 
         JBSplit[] memory splits = new JBSplit[](1);
         splits[0] = JBSplit({
@@ -3733,15 +3756,15 @@ contract Deploy is Script, Sphinx {
 
         REVConfig memory defifaConfig = REVConfig({
             description: REVDescription({
-                name: "Defifa", ticker: "DEFIFA", uri: DEFIFA_REV_URI, salt: DEFIFA_REV_ERC20_SALT
+                name: "Defifa Game Network", ticker: "DGN", uri: DEFIFA_REV_URI, salt: DEFIFA_REV_ERC20_SALT
             }),
-            baseCurrency: USD_CURRENCY,
+            baseCurrency: ETH_CURRENCY,
             operator: operator,
             scopeCashOutsToLocalBalances: false,
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildDefifaSuckerConfig(DEFIFA_REV_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildCcipSuckerConfig(DEFIFA_REV_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: defifaConfig});
 
         // Skip only if the existing project matches the exact intended revnet shape.
@@ -3751,7 +3774,7 @@ contract Deploy is Script, Sphinx {
         ) {
             if (!_isCanonicalRevnetProject({
                     projectId: _DEFIFA_REV_PROJECT_ID,
-                    expectedSymbol: "DEFIFA",
+                    expectedSymbol: "DGN",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
                     expectedUri: DEFIFA_REV_URI,
@@ -3837,7 +3860,9 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](1);
-            autoIssuances[0] = REVAutoIssuance({chainId: 8453, count: ART_BASE_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: ART_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: ART_START_TIME,
@@ -3948,11 +3973,18 @@ contract Deploy is Script, Sphinx {
 
         {
             REVAutoIssuance[] memory autoIssuances = new REVAutoIssuance[](4);
-            autoIssuances[0] = REVAutoIssuance({chainId: 1, count: MARKEE_MAINNET_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[1] = REVAutoIssuance({chainId: 8453, count: MARKEE_BASE_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[2] = REVAutoIssuance({chainId: 10, count: MARKEE_OP_AUTO_ISSUANCE, beneficiary: operator});
-            autoIssuances[3] =
-                REVAutoIssuance({chainId: 42_161, count: MARKEE_ARB_AUTO_ISSUANCE, beneficiary: operator});
+            autoIssuances[0] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(1), count: MARKEE_MAINNET_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[1] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(8453), count: MARKEE_BASE_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[2] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(10), count: MARKEE_OP_AUTO_ISSUANCE, beneficiary: operator
+            });
+            autoIssuances[3] = REVAutoIssuance({
+                chainId: _autoIssuanceChainId(42_161), count: MARKEE_ARB_AUTO_ISSUANCE, beneficiary: operator
+            });
 
             stages[0] = REVStageConfig({
                 startsAtOrAfter: MARKEE_START_TIME,
@@ -4002,7 +4034,7 @@ contract Deploy is Script, Sphinx {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(MARKEE_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildCcipSuckerConfig(MARKEE_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: markeeConfig});
 
         // Skip only if already configured with the exact intended revnet shape.
@@ -4178,57 +4210,51 @@ contract Deploy is Script, Sphinx {
         return REVSuckerDeploymentConfig({deployerConfigurations: suckerDeployerConfigs, salt: salt});
     }
 
-    /// @notice The canonical Circle USDC address for a given chain id.
-    /// @dev Mirrors the per-chain `_usdcToken` assignments in `_setupChainAddresses`, but is addressable by any
-    /// chain id so a sucker can resolve the REMOTE chain's USDC for its token mapping. These are the native Circle
-    /// USDC deployments (NOT bridge-wrapped USDC.e) — required because DEFIFA bridges canonical USDC over CCIP.
-    function _usdcTokenFor(uint256 chainId) internal pure returns (address) {
-        if (chainId == 1) return 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; // Ethereum
-        if (chainId == 11_155_111) return 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // Ethereum Sepolia
-        if (chainId == 10) return 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85; // Optimism
-        if (chainId == 11_155_420) return 0x5fd84259d66Cd46123540766Be93DFE6D43130D7; // Optimism Sepolia
-        if (chainId == 8453) return 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913; // Base
-        if (chainId == 84_532) return 0x036CbD53842c5426634e7929541eC2318f3dCF7e; // Base Sepolia
-        if (chainId == 42_161) return 0xaf88d065e77c8cC2239327C5EDb3A432268e5831; // Arbitrum
-        if (chainId == 421_614) return 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d; // Arbitrum Sepolia
-        revert Deploy_MissingDependency("USDC", address(0));
-    }
-
-    /// @notice Builds DEFIFA's USDC sucker config: canonical USDC bridged over the standard CCIP suckers.
-    /// @dev Same L1-star topology as `_buildSuckerConfig` (L1 ↔ each L2), but uses the CCIP deployers (which route
-    /// USDC through Chainlink's CCTP-backed pool and deliver canonical USDC) instead of the native bridges (which
-    /// would deliver bridge-wrapped USDC.e). Each edge maps this chain's USDC to the remote chain's USDC.
-    function _buildDefifaSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
+    /// @notice Builds a native-token CCIP sucker config using the per-route CCIP sucker deployers.
+    function _buildCcipSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
         JBSuckerDeployerConfig[] memory suckerDeployerConfigs;
         if (block.chainid == 1 || block.chainid == 11_155_111) {
             bool isMainnet = block.chainid == 1;
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
-            suckerDeployerConfigs[0] = _defifaUsdcCcipEdge(isMainnet ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID);
-            suckerDeployerConfigs[1] = _defifaUsdcCcipEdge(isMainnet ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID);
-            suckerDeployerConfigs[2] = _defifaUsdcCcipEdge(isMainnet ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID);
+            suckerDeployerConfigs[0] = _nativeCcipEdge(isMainnet ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID);
+            suckerDeployerConfigs[1] = _nativeCcipEdge(isMainnet ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID);
+            suckerDeployerConfigs[2] = _nativeCcipEdge(isMainnet ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID);
         } else {
-            // L2 -> L1: bridge back to (Sepolia) mainnet.
             bool isTestnet = block.chainid == 11_155_420 || block.chainid == 84_532 || block.chainid == 421_614;
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
-            suckerDeployerConfigs[0] = _defifaUsdcCcipEdge(isTestnet ? CCIPHelper.ETH_SEP_ID : CCIPHelper.ETH_ID);
+            suckerDeployerConfigs[0] = _nativeCcipEdge(isTestnet ? CCIPHelper.ETH_SEP_ID : CCIPHelper.ETH_ID);
         }
 
         return REVSuckerDeploymentConfig({deployerConfigurations: suckerDeployerConfigs, salt: salt});
     }
 
-    /// @notice One CCIP sucker edge mapping this chain's canonical USDC to the remote chain's canonical USDC.
-    function _defifaUsdcCcipEdge(uint256 remoteChainId) internal view returns (JBSuckerDeployerConfig memory) {
+    /// @notice One CCIP sucker edge mapping this chain's native token sentinel to the remote native token sentinel.
+    function _nativeCcipEdge(uint256 remoteChainId) internal view returns (JBSuckerDeployerConfig memory) {
         IJBSuckerDeployer deployer = _ccipSuckerDeployerForRemoteChain[remoteChainId];
         if (address(deployer) == address(0)) revert Deploy_MissingDependency("CCIPSuckerDeployer", address(0));
 
         JBTokenMapping[] memory tokenMappings = new JBTokenMapping[](1);
         tokenMappings[0] = JBTokenMapping({
-            localToken: _usdcToken,
+            localToken: JBConstants.NATIVE_TOKEN,
             minGas: 200_000,
-            remoteToken: bytes32(uint256(uint160(_usdcTokenFor(remoteChainId))))
+            remoteToken: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))
         });
 
         return JBSuckerDeployerConfig({deployer: deployer, peer: bytes32(0), mappings: tokenMappings});
+    }
+
+    function _autoIssuanceChainId(uint32 mainnetChainId) internal view returns (uint32) {
+        if (!_isTestnetChain()) return mainnetChainId;
+        if (mainnetChainId == 1) return 11_155_111;
+        if (mainnetChainId == 10) return 11_155_420;
+        if (mainnetChainId == 8453) return 84_532;
+        if (mainnetChainId == 42_161) return 421_614;
+        return mainnetChainId;
+    }
+
+    function _isTestnetChain() internal view returns (bool) {
+        return block.chainid == 11_155_111 || block.chainid == 11_155_420 || block.chainid == 84_532
+            || block.chainid == 421_614;
     }
 
     /// @dev Juicebox price-feed currency IDs use the low 32 bits of ERC-20 token addresses.
@@ -4296,7 +4322,7 @@ contract Deploy is Script, Sphinx {
                 projectId: _BAN_PROJECT_ID,
                 expectedSymbol: "BAN",
                 expectedConfigurationHash: expectedConfigurationHash,
-                expectedUri: "ipfs://Qme34ww9HuwnsWF6sYDpDfpSdYHpPCGsEyJULk1BikCVYp",
+                expectedUri: "ipfs://QmZU9P4xriSMyXkK96sCQiNcUUyJQzMFkGUpPxgWf6hBhq",
                 expectedReservedSplitBeneficiary: expectedReservedSplitBeneficiary,
                 expectedReservedSplitHook: expectedReservedSplitHook
             })) return false;
@@ -4415,10 +4441,10 @@ contract Deploy is Script, Sphinx {
         if (_revDeployer.FEE_REVNET_ID() != projectId) return false;
         if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
         if (!_revOwner.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
-        if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "NANA"})) return false;
+        if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "JBP6"})) return false;
         if (
             keccak256(bytes(_controller.uriOf(projectId)))
-                != keccak256(bytes("ipfs://QmWCgCaryfsJYBu5LczFuBz3UKK5VEU3BZFYp2mHJTLeRQ"))
+                != keccak256(bytes("ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA"))
         ) return false;
         if (!_reservedSplitIsCanonical({projectId: projectId, expectedBeneficiary: payable(expectedOperator)})) {
             return false;
@@ -4523,23 +4549,23 @@ contract Deploy is Script, Sphinx {
     }
 
     /// @notice The terminal token a canonical revnet is expected to accept on this chain.
-    /// @dev Mirrors `Verify.s.sol`'s `_expectedTerminalTokenFor`. DEFIFA(5) and ART(6) are USD-denominated and
-    /// accept USDC directly (valued into USD via the registered USDC/USD feed); every other canonical revnet
-    /// accepts native ETH. Keeping this in lockstep with the accounting contexts passed to `deployFor` (and with
-    /// the verifier) is what lets the idempotent resume/re-propose path recognize an already-deployed revnet.
+    /// @dev Mirrors `Verify.s.sol`'s `_expectedTerminalTokenFor`. ART(6) is USD-denominated and accepts USDC
+    /// directly (valued into USD via the registered USDC/USD feed); every other canonical revnet accepts native ETH.
+    /// Keeping this in lockstep with the accounting contexts passed to `deployFor` (and with the verifier) is what
+    /// lets the idempotent resume/re-propose path recognize an already-deployed revnet.
     function _expectedTerminalTokenFor(uint256 projectId)
         internal
         view
         returns (address token, uint8 decimals, uint32 currency)
     {
-        if (projectId == _DEFIFA_REV_PROJECT_ID || projectId == _ART_PROJECT_ID) {
+        if (projectId == _ART_PROJECT_ID) {
             return (_usdcToken, 6, _currencyIdOf(_usdcToken));
         }
         return (JBConstants.NATIVE_TOKEN, DECIMALS, NATIVE_CURRENCY);
     }
 
     /// @notice Asserts a project's terminal wiring matches the canonical shape for the token it is meant to accept.
-    /// @dev Token-aware: native ETH for most revnets, canonical USDC for the USD-denominated DEFIFA(5)/ART(6).
+    /// @dev Token-aware: native ETH for most revnets, canonical USDC for the USD-denominated ART(6).
     function _terminalConfigIsCanonical(uint256 projectId) internal view returns (bool) {
         (address expectedToken, uint8 expectedDecimals, uint32 expectedCurrency) = _expectedTerminalTokenFor(projectId);
 

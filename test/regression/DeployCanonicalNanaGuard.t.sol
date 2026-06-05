@@ -43,6 +43,11 @@ contract DeployCanonicalNanaGuardTest is Test {
             "guard must not require an unnecessary SET_SUCKER_PEER operator grant"
         );
         assertTrue(_contains(guardSource, "uriOf(projectId)"), "guard checks project URI");
+        assertTrue(_contains(guardSource, 'expectedSymbol: "JBP6"'), "guard checks the JBP6 token symbol");
+        assertTrue(
+            _contains(guardSource, '"ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA"'),
+            "guard checks the JBP6 project URI"
+        );
         assertTrue(_contains(guardSource, "_reservedSplitIsCanonical"), "guard checks reserved split routing");
         assertTrue(_contains(guardSource, "_terminalConfigIsCanonical"), "guard checks terminal setup");
     }

@@ -43,7 +43,6 @@ contract CanonicalDeployForkTest is DeployFullStackBase {
     uint256 internal constant ART = 6;
     uint256 internal constant MARKEE = 7;
 
-    address internal constant USDC_ETHEREUM = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant ART_OPERATOR = 0xbB96A6D3D251dFDA76F96d1650f9Cfd53b41c8d1;
 
     REVLoans internal _revLoans;
@@ -68,7 +67,7 @@ contract CanonicalDeployForkTest is DeployFullStackBase {
         _deployEthRevnet(CPN, "CPN", "$CPN");
         _deployEthRevnet(NANA, "NANA", "$NANA");
         _deployEthRevnet(BAN, "BAN", "$BAN");
-        _deployUsdcRevnetAt(DEFIFA, "DEFIFA", "$DEFIFA");
+        _deployEthRevnet(DEFIFA, "DEFIFA", "$DEFIFA");
         _deployArtPlaceholder();
         _deployEthRevnet(MARKEE, "MARKEE", "$MARKEE");
     }
@@ -169,19 +168,6 @@ contract CanonicalDeployForkTest is DeployFullStackBase {
         _deployAt(id, cfg, tc);
     }
 
-    function _deployUsdcRevnetAt(uint256 id, string memory name, string memory ticker) internal {
-        REVConfig memory cfg = REVConfig({
-            description: REVDescription(name, ticker, "ipfs://canonical", bytes32(id)),
-            baseCurrency: uint32(uint160(USDC_ETHEREUM)),
-            operator: _deployer,
-            scopeCashOutsToLocalBalances: false,
-            stageConfigurations: _oneStage(uint112(1000e18), 2000)
-        });
-        JBAccountingContext[] memory tc = new JBAccountingContext[](1);
-        tc[0] = JBAccountingContext({token: USDC_ETHEREUM, decimals: 6, currency: uint32(uint160(USDC_ETHEREUM))});
-        _deployAt(id, cfg, tc);
-    }
-
     function _deployAt(uint256 id, REVConfig memory cfg, JBAccountingContext[] memory tc) internal {
         vm.startPrank(_deployer);
         _projects.approve(address(_revDeployer), id);
@@ -225,13 +211,13 @@ contract CanonicalDeployForkTest is DeployFullStackBase {
             return;
         }
 
-        // ETH revnets price in native; DEFIFA prices in USDC (6-decimal accounting context registered on its terminal).
+        // ETH revnets, including DEFIFA, price in native.
         assertEq(
             _terminal.accountingContextForTokenOf(NANA, JBConstants.NATIVE_TOKEN).decimals, 18, "NANA accepts native"
         );
-        JBAccountingContext memory defifaCtx = _terminal.accountingContextForTokenOf(DEFIFA, USDC_ETHEREUM);
-        assertEq(defifaCtx.token, USDC_ETHEREUM, "DEFIFA accepts USDC");
-        assertEq(defifaCtx.decimals, 6, "DEFIFA USDC context is 6-decimal");
+        JBAccountingContext memory defifaCtx = _terminal.accountingContextForTokenOf(DEFIFA, JBConstants.NATIVE_TOKEN);
+        assertEq(defifaCtx.token, JBConstants.NATIVE_TOKEN, "DEFIFA accepts native");
+        assertEq(defifaCtx.decimals, 18, "DEFIFA native context is 18-decimal");
 
         // Revnet infrastructure is consistently wired.
         assertEq(address(_revOwner.deployer()), address(_revDeployer), "REVOwner bound to the deployer");
