@@ -13,7 +13,7 @@ This is a V5-to-V6 migration changelog, not a package release log or commit hist
 ## Summary
 
 - The deployment cohort now includes the router-terminal stack rather than the V5 swap-terminal stack.
-- The cohort includes V6-only packages such as distributor, project handles, project payer, Uniswap V4 router, and Uniswap V4 LP split hook.
+- The cohort includes V6-only packages such as project handles, project payer, Uniswap V4 router, and Uniswap V4 LP split hook.
 - Canonical artifacts include V6 ABIs for core, 721 hook, buyback hook, router terminal, suckers, revnet, Croptop, Banny, Defifa, and the V6-only packages.
 - Deployment wiring assumes the V6 permission map and V6 sibling package addresses. V5 hardcoded permission IDs or swap-terminal addresses should not be reused.
 
@@ -24,7 +24,7 @@ This is a V5-to-V6 migration changelog, not a package release log or commit hist
 - The highest-risk artifact changes are:
   - `JBSwapTerminal` artifacts are replaced by `JBRouterTerminal` and `JBRouterTerminalRegistry`.
   - `REVDeployer` artifacts now pair with `REVOwner`.
-  - V6-only artifacts such as `JBDistributor`, `JBProjectHandles`, `JBProjectPayer`, `JBUniswapV4Hook`, and `JBUniswapV4LPSplitHook` have no V5 ABI.
+  - V6-only artifacts such as `JBProjectHandles`, `JBProjectPayer`, `JBUniswapV4Hook`, and `JBUniswapV4LPSplitHook` have no V5 ABI.
 
 ## Machine-Checked ABI Coverage
 

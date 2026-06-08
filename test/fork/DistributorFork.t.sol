@@ -9,13 +9,13 @@ import {IREVOwner} from "@rev-net/core-v6/src/interfaces/IREVOwner.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// @notice Runtime coverage for `JBTokenDistributor` (an IVotes-token reward distributor, deployed by Deploy.s.sol).
+/// @notice Runtime coverage for `JBTokenDistributor` (an IVotes-token reward distributor, instantiated by the test).
 /// Pins two behaviors:
 ///   1. Happy path: stakers who hold + delegate the revnet token before a round's snapshot receive rewards
 ///      proportional to their stake once the reward vests.
 ///   2. A round funded when the stake token has ZERO total supply at the round's snapshot block pins `totalStake = 0`,
 ///      so stakers who appear later can never claim that round's rewards; the pot is only recoverable through the
-///      permissionless `burnExpiredRewards` recycle after `CLAIM_DURATION`.
+///      permissionless `recycleExpiredRewards` recycle after `CLAIM_DURATION`.
 ///
 /// Run with: forge test --match-contract DistributorForkTest -vvv
 contract DistributorForkTest is RevnetForkBase {
@@ -169,16 +169,16 @@ contract DistributorForkTest is RevnetForkBase {
         assertEq(distributor.claimedFor(stakeToken, _id(ALICE), IERC20(address(reward))), 0, "nothing entered vesting");
         assertEq(reward.balanceOf(address(distributor)), fundAmount, "full pot stranded in the distributor");
 
-        // Recovery ONLY via expiry recycle. Before the deadline, burnExpiredRewards is a no-op.
+        // Recovery ONLY via expiry recycle. Before the deadline, recycleExpiredRewards is a no-op.
         uint256[] memory r = new uint256[](1);
         r[0] = 0;
-        assertEq(distributor.burnExpiredRewards(stakeToken, IERC20(address(reward)), r), 0, "not yet expired");
+        assertEq(distributor.recycleExpiredRewards(stakeToken, IERC20(address(reward)), r), 0, "not yet expired");
 
         // Warp past the claim deadline (round-1 start + CLAIM_DURATION) and recycle.
         vm.warp(distributor.roundStartTimestamp(1) + CLAIM_DURATION + 1);
         vm.roll(block.number + 1);
         assertEq(
-            distributor.burnExpiredRewards(stakeToken, IERC20(address(reward)), r),
+            distributor.recycleExpiredRewards(stakeToken, IERC20(address(reward)), r),
             fundAmount,
             "the only recovery is the expiry recycle of the full unclaimed pot"
         );

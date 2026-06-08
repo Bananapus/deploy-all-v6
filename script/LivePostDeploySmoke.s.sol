@@ -18,17 +18,14 @@ import {JBSingleAllowance} from "@bananapus/core-v6/src/structs/JBSingleAllowanc
 import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
 
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
-import {IJBDistributor} from "@bananapus/distributor-v6/src/interfaces/IJBDistributor.sol";
 
 import {REVLoan} from "@rev-net/core-v6/src/structs/REVLoan.sol";
 import {REVLoans} from "@rev-net/core-v6/src/REVLoans.sol";
-import {REVOwner} from "@rev-net/core-v6/src/REVOwner.sol";
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 /// @title LivePostDeploySmoke
-/// @notice Sphinx proposal for post-deploy smoke checks that exercise production payment, buyback, loan, and keeper
-/// paths.
+/// @notice Sphinx proposal for post-deploy smoke checks that exercise production payment, buyback, and loan paths.
 /// @dev This script makes small live transactions from the V6 deployment Safe. It is intentionally separate from
 /// read-only `Verify.s.sol`.
 contract LivePostDeploySmoke is Script, Sphinx {
@@ -59,17 +56,12 @@ contract LivePostDeploySmoke is Script, Sphinx {
     uint256 private constant _DEFAULT_LOAN_PAYMENT = 0.025 ether;
     uint256 private constant _DEFAULT_CASH_OUT_DIVISOR = 4;
 
-    uint48 private constant _DEFAULT_CLAIM_DURATION = 420 days;
-
     JBProjects private _projects;
     JBMultiTerminal private _terminal;
     JBTokens private _tokens;
     JBPermissions private _permissions;
     JBBuybackHookRegistry private _buybackRegistry;
     REVLoans private _revLoans;
-    REVOwner private _revOwner;
-    IJBDistributor private _distributor721;
-    IJBDistributor private _tokenDistributor;
 
     address private _account;
     address private _expectedBuybackHook;
@@ -79,7 +71,6 @@ contract LivePostDeploySmoke is Script, Sphinx {
     uint256 private _loanPayment;
     uint256 private _loanProjectId;
     uint256 private _cashOutDivisor;
-    bool private _pokeDistributors;
 
     function configureSphinx() public override {
         sphinxConfig.projectName = "V6";
@@ -105,7 +96,6 @@ contract LivePostDeploySmoke is Script, Sphinx {
     function execute() public sphinx {
         if (_buybackBudget != 0) _exerciseBuybackProjects();
         if (_loanBudget != 0) _exerciseLoanRoundTrip();
-        _exerciseDistributorOps();
     }
 
     function _load() internal {
@@ -117,9 +107,6 @@ contract LivePostDeploySmoke is Script, Sphinx {
         _permissions = JBPermissions(_requiredAddress("VERIFY_PERMISSIONS"));
         _buybackRegistry = JBBuybackHookRegistry(vm.envOr({name: "VERIFY_BUYBACK_REGISTRY", defaultValue: address(0)}));
         _revLoans = REVLoans(payable(vm.envOr({name: "VERIFY_REV_LOANS", defaultValue: address(0)})));
-        _revOwner = REVOwner(vm.envOr({name: "VERIFY_REV_OWNER", defaultValue: address(0)}));
-        _distributor721 = IJBDistributor(vm.envOr({name: "VERIFY_721_DISTRIBUTOR", defaultValue: address(0)}));
-        _tokenDistributor = IJBDistributor(vm.envOr({name: "VERIFY_TOKEN_DISTRIBUTOR", defaultValue: address(0)}));
 
         _expectedBuybackHook = vm.envOr({name: "VERIFY_BUYBACK_HOOK", defaultValue: address(0)});
         _buybackBudget = vm.envOr({name: "SMOKE_BUYBACK_BUDGET", defaultValue: _DEFAULT_BUYBACK_BUDGET});
@@ -128,7 +115,6 @@ contract LivePostDeploySmoke is Script, Sphinx {
         _loanPayment = vm.envOr({name: "SMOKE_LOAN_PAYMENT_AMOUNT", defaultValue: _DEFAULT_LOAN_PAYMENT});
         _loanProjectId = vm.envOr({name: "SMOKE_LOAN_PROJECT_ID", defaultValue: _REV_PROJECT_ID});
         _cashOutDivisor = vm.envOr({name: "SMOKE_BUYBACK_CASH_OUT_DIVISOR", defaultValue: _DEFAULT_CASH_OUT_DIVISOR});
-        _pokeDistributors = vm.envOr({name: "SMOKE_POKE_DISTRIBUTORS", defaultValue: true});
 
         if (_buybackPayment > _buybackBudget) {
             revert LivePostDeploySmoke_InvalidBudget("SMOKE_BUYBACK_PAYMENT_AMOUNT", _buybackPayment, _buybackBudget);
@@ -344,35 +330,6 @@ contract LivePostDeploySmoke is Script, Sphinx {
         if (restorePermissions) _restoreBurnPermission(priorPermissions);
 
         console.log("  [PASS] loan opened and repaid");
-    }
-
-    function _exerciseDistributorOps() internal {
-        console.log("");
-        console.log("--- Distributor ops smoke ---");
-        _verifyAndMaybePokeDistributor({distributor: _distributor721, label: "721 distributor"});
-        _verifyAndMaybePokeDistributor({distributor: _tokenDistributor, label: "token distributor"});
-    }
-
-    function _verifyAndMaybePokeDistributor(IJBDistributor distributor, string memory label) internal {
-        if (address(distributor) == address(0)) {
-            console.log(string.concat("  [SKIP] ", label, " unset"));
-            return;
-        }
-
-        if (distributor.CLAIM_DURATION() != _DEFAULT_CLAIM_DURATION) {
-            revert LivePostDeploySmoke_UnexpectedValue(
-                string.concat(label, " claim duration"), _DEFAULT_CLAIM_DURATION, distributor.CLAIM_DURATION()
-            );
-        }
-        if (address(distributor.REV_LOANS()) != address(_revLoans)) {
-            revert LivePostDeploySmoke_UnexpectedHook(0, address(_revLoans), address(distributor.REV_LOANS()));
-        }
-        if (address(distributor.REV_OWNER()) != address(_revOwner)) {
-            revert LivePostDeploySmoke_UnexpectedHook(0, address(_revOwner), address(distributor.REV_OWNER()));
-        }
-
-        if (_pokeDistributors) distributor.poke();
-        console.log(string.concat("  [PASS] ", label));
     }
 
     function _grantBurnPermission() internal returns (uint256 packed, bool shouldRestore) {

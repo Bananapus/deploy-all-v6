@@ -58,7 +58,6 @@ declare -A REPO_PROFILE=(
   [banny-retail-v6]="true|true|200|cancun|0.8.28"
   [defifa]="true|true|200|cancun|0.8.28"
   [nana-project-handles-v6]="false|true|200|cancun|0.8.28"
-  [nana-distributor-v6]="true|true|200|cancun|0.8.28"
   [nana-project-payer-v6]="true|true|200|cancun|0.8.28"
   # deploy-all-v6 hosts ERC2771Forwarder (compiled from node_modules/@openzeppelin).
   [deploy-all-v6]="true|true|200|cancun|0.8.28"
@@ -83,7 +82,6 @@ declare -A NPM_PACKAGE=(
   [banny-retail-v6]="@bannynet/core-v6"
   [defifa]="@ballkidz/defifa"
   [nana-project-handles-v6]="@bananapus/project-handles-v6"
-  [nana-distributor-v6]="@bananapus/distributor-v6"
   [nana-project-payer-v6]="@bananapus/project-payer-v6"
 )
 
@@ -196,10 +194,6 @@ CONTRACTS=(
 
   # ── nana-project-handles-v6 ──
   "nana-project-handles-v6:JBProjectHandles:src/JBProjectHandles.sol"
-
-  # ── nana-distributor-v6 ──
-  "nana-distributor-v6:JB721Distributor:src/JB721Distributor.sol"
-  "nana-distributor-v6:JBTokenDistributor:src/JBTokenDistributor.sol"
 
   # ── nana-project-payer-v6 ──
   "nana-project-payer-v6:JBProjectPayer:src/JBProjectPayer.sol"
