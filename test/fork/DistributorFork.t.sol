@@ -9,7 +9,7 @@ import {IREVOwner} from "@rev-net/core-v6/src/interfaces/IREVOwner.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// @notice Runtime coverage for `JBTokenDistributor` (an IVotes-token reward distributor, deployed by Deploy.s.sol).
+/// @notice Runtime coverage for `JBTokenDistributor` (an IVotes-token reward distributor, instantiated by the test).
 /// Pins two behaviors:
 ///   1. Happy path: stakers who hold + delegate the revnet token before a round's snapshot receive rewards
 ///      proportional to their stake once the reward vests.

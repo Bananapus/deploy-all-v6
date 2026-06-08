@@ -74,8 +74,6 @@ import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
 
 // ── Periphery (optional on testnets) ──
 import {JBProjectHandles} from "@bananapus/project-handles-v6/src/JBProjectHandles.sol";
-import {JB721Distributor} from "@bananapus/distributor-v6/src/JB721Distributor.sol";
-import {JBTokenDistributor} from "@bananapus/distributor-v6/src/JBTokenDistributor.sol";
 import {JBProjectPayer} from "@bananapus/project-payer-v6/src/JBProjectPayer.sol";
 import {JBProjectPayerDeployer} from "@bananapus/project-payer-v6/src/JBProjectPayerDeployer.sol";
 
@@ -212,10 +210,6 @@ contract Verify is Script {
     // -- Periphery (optional on testnets) --
     // ENS-backed project handle registry.
     JBProjectHandles public projectHandles;
-    // 721 staking reward distributor.
-    JB721Distributor public distributor721;
-    // ERC-20 staking reward distributor.
-    JBTokenDistributor public tokenDistributor;
     // Project payer clone deployer.
     JBProjectPayerDeployer public projectPayerDeployer;
     // ════════════════════════════════════════════════════════════════════
@@ -249,10 +243,6 @@ contract Verify is Script {
     uint256 private constant _MARKEE_PROJECT_ID = 7;
     // Project creation fees are routed through a payer into the NANA project.
     uint256 private constant _PROJECT_CREATION_FEE = 0.0001 ether;
-    // Distributor vesting rounds must match Deploy.s.sol: four weekly rounds = 28 days.
-    uint256 private constant _VESTING_ROUNDS = 4;
-    // Reward rounds expire 420 days after they become claimable.
-    uint48 private constant _CLAIM_DURATION = 420 days;
 
     // ════════════════════════════════════════════════════════════════════
     //  Entry Point
@@ -383,9 +373,6 @@ contract Verify is Script {
 
         // Read periphery addresses from env (address(0) if intentionally omitted on a testnet).
         projectHandles = JBProjectHandles(vm.envOr({name: "VERIFY_PROJECT_HANDLES", defaultValue: address(0)}));
-        distributor721 = JB721Distributor(payable(vm.envOr({name: "VERIFY_721_DISTRIBUTOR", defaultValue: address(0)})));
-        tokenDistributor =
-            JBTokenDistributor(payable(vm.envOr({name: "VERIFY_TOKEN_DISTRIBUTOR", defaultValue: address(0)})));
         projectPayerDeployer =
             JBProjectPayerDeployer(vm.envOr({name: "VERIFY_PROJECT_PAYER_DEPLOYER", defaultValue: address(0)}));
         checkpointsDeployer =
@@ -428,12 +415,6 @@ contract Verify is Script {
             );
             require(
                 address(projectHandles) != address(0), "Verify: VERIFY_PROJECT_HANDLES required on production chain"
-            );
-            require(
-                address(distributor721) != address(0), "Verify: VERIFY_721_DISTRIBUTOR required on production chain"
-            );
-            require(
-                address(tokenDistributor) != address(0), "Verify: VERIFY_TOKEN_DISTRIBUTOR required on production chain"
             );
             require(
                 address(projectPayerDeployer) != address(0),
@@ -1938,8 +1919,6 @@ contract Verify is Script {
     function _verifyPeripheryExtensions() internal {
         console.log("--- Category 11: Periphery Extensions ---");
 
-        uint256 expectedRoundDuration = _expectedRoundDuration();
-
         if (address(projectHandles) == address(0)) {
             _skip("ProjectHandles not deployed (VERIFY_PROJECT_HANDLES not set)");
         } else {
@@ -1955,46 +1934,6 @@ contract Verify is Script {
                 condition: projectHandles.trustedForwarder() == projects.trustedForwarder(),
                 label: "ProjectHandles trusted forwarder matches core",
                 critical: true
-            });
-        }
-
-        if (address(distributor721) == address(0)) {
-            _skip("JB721Distributor not deployed (VERIFY_721_DISTRIBUTOR not set)");
-        } else {
-            _check({
-                condition: address(distributor721).code.length > 0, label: "JB721Distributor has code", critical: true
-            });
-            _check({
-                condition: address(distributor721.DIRECTORY()) == address(directory),
-                label: "JB721Distributor directory wiring",
-                critical: true
-            });
-            _verifyDistributorTiming({
-                claimDuration: distributor721.CLAIM_DURATION(),
-                roundDuration: distributor721.ROUND_DURATION(),
-                vestingRounds: distributor721.VESTING_ROUNDS(),
-                expectedRoundDuration: expectedRoundDuration
-            });
-        }
-
-        if (address(tokenDistributor) == address(0)) {
-            _skip("JBTokenDistributor not deployed (VERIFY_TOKEN_DISTRIBUTOR not set)");
-        } else {
-            _check({
-                condition: address(tokenDistributor).code.length > 0,
-                label: "JBTokenDistributor has code",
-                critical: true
-            });
-            _check({
-                condition: address(tokenDistributor.DIRECTORY()) == address(directory),
-                label: "JBTokenDistributor directory wiring",
-                critical: true
-            });
-            _verifyDistributorTiming({
-                claimDuration: tokenDistributor.CLAIM_DURATION(),
-                roundDuration: tokenDistributor.ROUND_DURATION(),
-                vestingRounds: tokenDistributor.VESTING_ROUNDS(),
-                expectedRoundDuration: expectedRoundDuration
             });
         }
 
@@ -4319,27 +4258,6 @@ contract Verify is Script {
     //  Internal Helpers
     // ════════════════════════════════════════════════════════════════════
 
-    function _verifyDistributorTiming(
-        uint48 claimDuration,
-        uint256 roundDuration,
-        uint256 vestingRounds,
-        uint256 expectedRoundDuration
-    )
-        internal
-    {
-        if (expectedRoundDuration != 0) {
-            _check({
-                condition: roundDuration == expectedRoundDuration, label: "Distributor round duration", critical: true
-            });
-        }
-        _check({condition: vestingRounds == _VESTING_ROUNDS, label: "Distributor vesting rounds", critical: true});
-        _check({condition: claimDuration == _CLAIM_DURATION, label: "Distributor claim duration", critical: true});
-    }
-
-    function _expectedRoundDuration() internal pure returns (uint256) {
-        return 604_800; // 7 days
-    }
-
     /// @dev Checks whether a project exists by calling ownerOf on the ERC-721.
     /// @param projectId The project ID to check.
     /// @param label Human-readable label for the check.
@@ -4378,7 +4296,7 @@ contract Verify is Script {
     /// - Croptop: CTPublisher, CTDeployer, CTProjectOwner
     /// - Buyback hook (default implementation)
     /// - 721 tiers hook (base implementation)
-    /// - Periphery: JBProjectHandles, JB721Distributor, JBTokenDistributor, JBProjectPayerDeployer
+    /// - Periphery: JBProjectHandles, JBProjectPayerDeployer
     /// - Address registry + Defifa: JBAddressRegistry, DefifaDeployer + sub-targets
     ///   (HOOK_CODE_ORIGIN, TOKEN_URI_RESOLVER, GOVERNOR)
     function _verifyImplementationIdentities() internal {
@@ -4516,12 +4434,6 @@ contract Verify is Script {
         // Periphery.
         _requireArtifactIdentity({
             artifactName: "JBProjectHandles", deployed: address(projectHandles), label: "JBProjectHandles"
-        });
-        _requireArtifactIdentity({
-            artifactName: "JB721Distributor", deployed: address(distributor721), label: "JB721Distributor"
-        });
-        _requireArtifactIdentity({
-            artifactName: "JBTokenDistributor", deployed: address(tokenDistributor), label: "JBTokenDistributor"
         });
         _requireArtifactIdentity({
             artifactName: "JBProjectPayerDeployer",

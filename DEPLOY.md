@@ -40,7 +40,7 @@ The deploy script (`script/Deploy.s.sol`) executes 11 phases in strict order:
 | 08 | Revnet Config | Configures CPN (project 2) and NANA (project 1) as revnets |
 | 09 | Banny | Banny721TokenUriResolver; creates BAN project (ID 4) |
 | 10 | Defifa | DefifaHook, DefifaTokenUriResolver, DefifaGovernor, DefifaDeployer |
-| 11 | Periphery Extensions | JBProjectHandles, JB721Distributor, JBTokenDistributor, JBProjectPayerDeployer |
+| 11 | Periphery Extensions | JBProjectHandles, JBProjectPayerDeployer |
 
 All contracts use CREATE2 with deterministic salts. Addresses are identical across chains for the same salt + initcode.
 
@@ -152,7 +152,7 @@ If a deploy is interrupted, recovery is to bump the deployment nonce in **Deploy
 
 **Verify.s.sol** is read-only and requires no broadcast. It reads deployed state and validates wiring.
 
-**LivePostDeploySmoke.s.sol** is executed through Sphinx after read-only verification. It proposes a small, budgeted set of real production actions from the V6 deployment Safe: core-project buyback payments, partial cash-outs when available, a REV loan open/repay round trip, and distributor keeper checks.
+**LivePostDeploySmoke.s.sol** is executed through Sphinx after read-only verification. It proposes a small, budgeted set of real production actions from the V6 deployment Safe: core-project buyback payments, partial cash-outs when available, and a REV loan open/repay round trip.
 
 ### Post-deploy: verification and artifact emission
 
@@ -318,8 +318,6 @@ export VERIFY_DEFIFA_DEPLOYER=0x...
 export VERIFY_TRUSTED_FORWARDER=0x...
 export VERIFY_SAFE=0x...
 export VERIFY_PROJECT_HANDLES=0x...
-export VERIFY_721_DISTRIBUTOR=0x...
-export VERIFY_TOKEN_DISTRIBUTOR=0x...
 export VERIFY_PROJECT_PAYER_DEPLOYER=0x...
 export VERIFY_LP_SPLIT_HOOK_DEPLOYER=0x...  # Canonical Uniswap V4 LP-split hook deployer.
 export VERIFY_UNISWAP_V4_HOOK=0x...         # Actual JBUniswapV4Hook oracle/router hook address.
@@ -496,7 +494,6 @@ export SMOKE_LOAN_BUDGET=50000000000000000
 export SMOKE_LOAN_PAYMENT_AMOUNT=25000000000000000
 export SMOKE_LOAN_PROJECT_ID=3
 export SMOKE_BUYBACK_CASH_OUT_DIVISOR=4      # set 0 to skip the cash-out leg
-export SMOKE_POKE_DISTRIBUTORS=true
 ```
 
 The script reuses the core `VERIFY_*` addresses from `Verify.s.sol`. Set `VERIFY_BUYBACK_HOOK` to pin the expected hook implementation. If a buyback or loan budget is set to `0`, that section is skipped.
@@ -519,7 +516,7 @@ Verify checks 20 categories in order:
 | 8 | Price Feeds | Per-chain oracle provenance (ETH/USD, USDC/USD aggregator addresses), staleness thresholds, L2 sequencer feeds |
 | 9 | Allowlists | Sucker deployer allowlist + count verification, feeless-address allowlist checks |
 | 10 | Routes | All canonical projects include the router terminal registry in their terminal lists |
-| 11 | Periphery Extensions | Project handles, distributors, and project payer deployer code and constructor wiring |
+| 11 | Periphery Extensions | Project handles and project payer deployer code and constructor wiring |
 | 12 | Token Implementation | JBERC20 clone template PROJECTS and PERMISSIONS wiring |
 | 13 | Ownership | Safe ownership of all ownable contracts (feeless, buyback registry, router terminal registry, REVLoans) |
 | 14 | Permissions & Forwarder | PERMISSIONS immutable on all permissioned contracts, trusted forwarder consistency |
@@ -590,7 +587,7 @@ This is the complete sequence for deploying to a new chain:
 - [ ] Fund the V6 deployment Safe with at least `SMOKE_BUYBACK_BUDGET + SMOKE_LOAN_BUDGET` native token plus gas per chain
 - [ ] `npm run deploy:propose:live-smoke:testnets` or `npm run deploy:propose:live-smoke:mainnets`
 - [ ] Safe signers approve and execute the smoke proposal
-- [ ] Confirm buyback project payments, partial cash-outs, REV loan borrow/repay, and distributor ops pass
+- [ ] Confirm buyback project payments, partial cash-outs, and REV loan borrow/repay pass
 
 ### 7. Post-verification spot checks
 
