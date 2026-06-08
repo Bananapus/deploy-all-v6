@@ -45,7 +45,7 @@
     "@bananapus/permission-ids-v6": "^0.0.31",
     "@bananapus/project-handles-v6": "^0.0.27",
     "@bananapus/project-payer-v6": "^0.0.23",
-    "@bananapus/router-terminal-v6": "^0.0.64",
+    "@bananapus/router-terminal-v6": "^0.0.65",
     "@bananapus/suckers-v6": "^0.0.73",
     "@bananapus/univ4-lp-split-hook-v6": "^0.0.62",
     "@bananapus/univ4-router-v6": "^0.0.55",
