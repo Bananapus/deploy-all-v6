@@ -35,16 +35,14 @@ contract MockAggregatorV3 {
     }
 }
 
-/// @notice Pins the canonical Chainlink staleness-threshold behavior: the canonical deployment registers each price
-/// feed with a staleness `THRESHOLD` EQUAL to that feed's heartbeat (ETH/USD 3600s at Deploy.s.sol:1596 etc.; USDC/USD
-/// 86400s at
-/// :1679 etc.). `JBChainlinkV3PriceFeed.currentUnitPrice` reverts when `block.timestamp > THRESHOLD + updatedAt`
-/// (JBChainlinkV3PriceFeed.sol:72), so a price exactly `THRESHOLD` seconds old is the LAST acceptable value — there
-/// is
-/// ZERO safety margin. The instant the feed goes one second past its heartbeat without an update (a normal occurrence
-/// between deviation-triggered updates), every conversion-dependent pay/payout/cash-out into a USD-base project
-/// (DEFIFA 5, ART 6, and NANA cross-pricing) reverts. Only one feed is registered per direction, so there is no
-/// backup to fall through to.
+/// @notice Pins the canonical Chainlink staleness-threshold behavior: most canonical deployments register each price
+/// feed with a staleness `THRESHOLD` EQUAL to that feed's heartbeat (ETH/USD 3600s; USDC/USD usually 86400s). Base
+/// Sepolia intentionally uses a wider USDC/USD threshold because its testnet feed updates sparsely.
+/// `JBChainlinkV3PriceFeed.currentUnitPrice` reverts when `block.timestamp > THRESHOLD + updatedAt`, so a price
+/// exactly `THRESHOLD` seconds old is the LAST acceptable value — there is ZERO safety margin. The instant the feed
+/// goes one second past its threshold without an update, every conversion-dependent pay/payout/cash-out into a
+/// USD-base project (DEFIFA 5, ART 6, and NANA cross-pricing) reverts. Only one feed is registered per direction, so
+/// there is no backup to fall through to.
 ///
 /// This test pins the zero-margin boundary at both canonical thresholds. The fix (raise THRESHOLD above the heartbeat,
 /// e.g. 2x) is a pre-deploy change because the per-feed THRESHOLD is immutable.

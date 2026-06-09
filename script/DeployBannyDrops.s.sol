@@ -20,3 +20,33 @@ contract DeployBannyDrops is Deploy {
         _finalizeBannyOwnership();
     }
 }
+
+/// @title DeployBannyDrop1
+/// @notice Follow-up deployment script for only Banny retail Drop 1 metadata/tier registration.
+contract DeployBannyDrop1 is Deploy {
+    function run() public override {
+        _requireExpectedSafe();
+        deployBannyDrop1();
+    }
+
+    function deployBannyDrop1() public sphinx {
+        _hydrateBannyDropContext();
+        _registerBannyDrop1();
+    }
+}
+
+/// @title DeployBannyDrop2
+/// @notice Follow-up deployment script for Banny retail Drop 2 metadata/tier registration and final handoff.
+/// @dev Run after `DeployBannyDrop1` has executed successfully.
+contract DeployBannyDrop2 is Deploy {
+    function run() public override {
+        _requireExpectedSafe();
+        deployBannyDrop2();
+    }
+
+    function deployBannyDrop2() public sphinx {
+        _hydrateBannyDropContext();
+        _registerBannyDrop2();
+        _finalizeBannyOwnership();
+    }
+}

@@ -97,6 +97,39 @@ contract RouterTerminalRouteVerifierGapTest is Test {
         harness.verifyHookRegistries();
     }
 
+    function test_hookRegistriesVerifierAllowsUnsetDefaultWhenRouterTerminalAbsent() public {
+        address primaryNativeTerminal = address(new MockCodeBearingContract());
+        address hookDeployer = address(new MockCodeBearingContract());
+        address hookStore = address(new MockCodeBearingContract());
+        MockHookProjectDeployer hookProjectDeployer = new MockHookProjectDeployer({hookDeployer_: hookDeployer});
+
+        MockRouterTerminalRegistry registry =
+            new MockRouterTerminalRegistry({defaultTerminal_: address(0), resolvedTerminal_: address(0)});
+        MockDirectory directory = new MockDirectory({
+            listedTerminal_: address(registry),
+            primaryNativeTerminal_: primaryNativeTerminal,
+            unexpectedTerminal_: address(0)
+        });
+
+        VerifyRouterTerminalRouteHarness harness = new VerifyRouterTerminalRouteHarness();
+        harness.setRouteMocks({
+            routerTerminalRegistry_: address(registry),
+            routerTerminal_: address(0),
+            directory_: address(directory),
+            terminal_: primaryNativeTerminal,
+            feelessAddresses_: address(new MockFeelessAddresses({feeless_: address(0)})),
+            hookDeployer_: hookDeployer,
+            hookStore_: hookStore,
+            hookProjectDeployer_: address(hookProjectDeployer)
+        });
+
+        assertEq(address(registry.defaultTerminal()), address(0));
+
+        // Coverage: chains that skip the Uniswap stack still deploy the registry for deterministic
+        // constructor args, but intentionally leave the router terminal/default unset.
+        harness.verifyHookRegistries();
+    }
+
     function test_routeVerifierRejectsUnexpectedCanonicalProjectTerminals() public {
         address routerTerminal = address(new MockCodeBearingContract());
         address primaryNativeTerminal = address(new MockCodeBearingContract());
