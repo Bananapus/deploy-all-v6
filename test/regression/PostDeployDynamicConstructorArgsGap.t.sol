@@ -103,6 +103,33 @@ contract PostDeployDynamicConstructorArgsGapTest is Test {
         assertNotEq(bannyDecoded[0], _wordAt(bannyArgs, 0xe0 + 32), "first decoded string is not its payload");
     }
 
+    function test_defifaResolverUsesSafeConstructorAndPostDeployTypefaceSetter() public view {
+        string memory deploySource = vm.readFile("script/Deploy.s.sol");
+
+        assertTrue(
+            _contains(
+                deploySource,
+                'artifactName: "DefifaTokenUriResolver", salt: DEFIFA_SALT, ctorArgs: abi.encode(safeAddress())'
+            ),
+            "Defifa resolver constructor owner must be the deployment safe"
+        );
+        assertTrue(
+            _contains(deploySource, "_defifaTokenUriResolver.setChainSpecificConstants(ITypeface(_typeface));"),
+            "Defifa resolver must initialize the per-chain Capsules typeface after deployment"
+        );
+        assertTrue(
+            _contains(deploySource, "address(_defifaTokenUriResolver.typeface()) != _typeface"),
+            "Defifa resolver must reject a preexisting noncanonical typeface"
+        );
+        assertFalse(
+            _contains(
+                deploySource,
+                'artifactName: "DefifaTokenUriResolver", salt: DEFIFA_SALT, ctorArgs: abi.encode(_typeface)'
+            ),
+            "Defifa resolver must not bake a chain-specific typeface into CREATE2 constructor args"
+        );
+    }
+
     function _decodeWordsLikeArtifactEmitter(
         string[] memory types,
         bytes memory data

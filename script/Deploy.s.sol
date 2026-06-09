@@ -1679,12 +1679,11 @@ contract Deploy is Script, Sphinx {
             });
         } else if (block.chainid == 84_532) {
             usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
-            // Base Sepolia USDC/USD Chainlink feed.
-            // Verified at https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet
+            // Base Sepolia's USDC/USD feed is correct, but sparse testnet updates can exceed a 24h window.
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165),
-                threshold: 86_400 seconds
+                threshold: 30 days
             });
         } else if (block.chainid == 42_161) {
             usdc = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
@@ -3593,9 +3592,14 @@ contract Deploy is Script, Sphinx {
         // ── DefifaTokenUriResolver (on-chain SVG renderer for game NFTs) ──
         _defifaTokenUriResolver = DefifaTokenUriResolver(
             _deployPrecompiledIfNeeded({
-                artifactName: "DefifaTokenUriResolver", salt: DEFIFA_SALT, ctorArgs: abi.encode(_typeface)
+                artifactName: "DefifaTokenUriResolver", salt: DEFIFA_SALT, ctorArgs: abi.encode(safeAddress())
             })
         );
+        if (address(_defifaTokenUriResolver.typeface()) == address(0)) {
+            _defifaTokenUriResolver.setChainSpecificConstants(ITypeface(_typeface));
+        } else if (address(_defifaTokenUriResolver.typeface()) != _typeface) {
+            revert Deploy_ExistingAddressMismatch(_typeface, address(_defifaTokenUriResolver.typeface()));
+        }
 
         // ── DefifaGovernor (scorecard attestation and ratification) ──
         _defifaGovernor = DefifaGovernor(
@@ -3605,9 +3609,8 @@ contract Deploy is Script, Sphinx {
         );
 
         // ── DefifaDeployer (factory that creates new Defifa games) ──
-        // DefifaDeployer takes all dependencies as constructor args (the prior chain-same ctor + one-shot
-        // `setChainSpecificConstants` setter was removed). Because `tokenUriResolver` depends on the chain-specific
-        // typeface, the deployer's CREATE2 address is chain-different (acceptable: the game factory is chain-local).
+        // DefifaDeployer takes all dependencies as constructor args. The resolver itself is chain-same, with the
+        // per-chain Capsules typeface configured through its one-shot setter above.
         bytes memory deployerArgs = abi.encode(
             address(_defifaHook),
             _defifaTokenUriResolver,

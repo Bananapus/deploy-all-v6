@@ -76,7 +76,9 @@ contract ExternalAddressVerifierGapTest is Test {
         harness.verifyExternalAddresses();
     }
 
-    function test_defifaVerifierAcceptsWrongTypefaceResolver() public {
+    function test_defifaVerifierRejectsWrongTypefaceResolver() public {
+        vm.chainId(1);
+
         address wrongTypeface = makeAddr("wrong typeface");
         address directory = makeAddr("directory");
         address controller = makeAddr("controller");
@@ -100,6 +102,13 @@ contract ExternalAddressVerifierGapTest is Test {
         governor.setOwner(address(deployer));
 
         VerifyExternalAddressHarness harness = new VerifyExternalAddressHarness();
+        harness.setExternalAddressMocks({
+            directory_: directory,
+            terminal_: address(new MockTerminal(CANONICAL_PERMIT2)),
+            routerTerminal_: address(new MockRouterTerminal(CANONICAL_PERMIT2, CANONICAL_MAINNET_WETH)),
+            revLoans_: address(new MockRevLoans(CANONICAL_PERMIT2)),
+            omnichainDeployer_: address(new MockOmnichainDeployer(directory))
+        });
         harness.setDefifaMocks({
             directory_: directory,
             controller_: controller,
@@ -109,11 +118,16 @@ contract ExternalAddressVerifierGapTest is Test {
             defifaDeployer_: address(deployer)
         });
 
-        assertEq(MockDefifaTokenUriResolver(address(deployer.TOKEN_URI_RESOLVER())).TYPEFACE(), wrongTypeface);
+        assertEq(MockDefifaTokenUriResolver(address(deployer.TOKEN_URI_RESOLVER())).typeface(), wrongTypeface);
 
-        // Current Verify.s.sol only checks that TOKEN_URI_RESOLVER has code. It does not
-        // authenticate DefifaTokenUriResolver.TYPEFACE(), so the wrong immutable passes.
-        harness.verifyAddressRegistryAndDefifa();
+        // The Defifa resolver must be pinned to the per-chain canonical Capsules typeface.
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Verify.Verify_CriticalCheckFailed.selector,
+                "DefifaTokenUriResolver.typeface == canonical Capsules typeface"
+            )
+        );
+        harness.verifyExternalAddresses();
     }
 
     /// @dev Coverage: the LP split hook deployer's `POSITION_MANAGER` immutable is the
@@ -528,7 +542,7 @@ contract MockDefifaTokenUriResolver {
         _typeface = typeface_;
     }
 
-    function TYPEFACE() external view returns (address) {
+    function typeface() external view returns (address) {
         return _typeface;
     }
 }

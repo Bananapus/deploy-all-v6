@@ -997,18 +997,15 @@ contract Verify is Script {
             _skip("BuybackRegistry checks (not deployed on this chain)");
         }
 
-        // Verify router terminal registry has a non-zero default terminal (only if deployed).
+        // Verify router terminal registry default wiring. Chains without the Uniswap stack deploy the registry so
+        // REVDeployer constructor args stay deterministic, but intentionally leave the router terminal/default unset.
         if (address(routerTerminalRegistry) != address(0)) {
-            // Read the default terminal from the router terminal registry.
-            _check({
-                condition: address(routerTerminalRegistry.defaultTerminal()) != address(0),
-                label: "RouterTerminalRegistry has default terminal set",
-                critical: true
-            });
-
-            // If the explicit router terminal address was provided, verify it matches the default.
             if (address(routerTerminal) != address(0)) {
-                // Verify the default terminal in the registry matches the expected router terminal.
+                _check({
+                    condition: address(routerTerminalRegistry.defaultTerminal()) != address(0),
+                    label: "RouterTerminalRegistry has default terminal set",
+                    critical: true
+                });
                 _check({
                     condition: address(routerTerminalRegistry.defaultTerminal()) == address(routerTerminal),
                     label: "RouterTerminalRegistry.defaultTerminal == JBRouterTerminal",
@@ -1023,6 +1020,12 @@ contract Verify is Script {
                         addr: address(routerTerminal), projectId: 0, caller: address(0)
                     }),
                     label: "RouterTerminal is NOT globally feeless",
+                    critical: true
+                });
+            } else {
+                _check({
+                    condition: address(routerTerminalRegistry.defaultTerminal()) == address(0),
+                    label: "RouterTerminalRegistry default terminal unset when router terminal absent",
                     critical: true
                 });
             }
@@ -1345,7 +1348,7 @@ contract Verify is Script {
                 _check({condition: belowMax, label: "ETH/USD price < $1,000,000", critical: true});
             } catch {
                 // Feed reverted — mark as critical failure (staleness, sequencer down, etc).
-                _check({condition: false, label: "ETH/USD feed.currentUnitPrice() did not revert", critical: true});
+                _check({condition: false, label: "ETH/USD feed.currentUnitPrice() reverted", critical: true});
             }
         }
 
@@ -1372,7 +1375,7 @@ contract Verify is Script {
                 _check({condition: isUnity, label: "ETH/NATIVE matching feed returns 1e18", critical: true});
             } catch {
                 // Feed reverted — mark as failure.
-                _check({condition: false, label: "ETH/NATIVE matching feed did not revert", critical: true});
+                _check({condition: false, label: "ETH/NATIVE matching feed reverted", critical: true});
             }
         }
 
@@ -1418,7 +1421,7 @@ contract Verify is Script {
                     _check({condition: aboveMin, label: "USDC/USD price > $0.90", critical: true});
                     _check({condition: belowMax, label: "USDC/USD price < $1.10", critical: true});
                 } catch {
-                    _check({condition: false, label: "USDC/USD feed.currentUnitPrice() did not revert", critical: true});
+                    _check({condition: false, label: "USDC/USD feed.currentUnitPrice() reverted", critical: true});
                 }
             }
         }
@@ -1593,6 +1596,8 @@ contract Verify is Script {
             return (0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1, 3600, address(0), 0);
         } else if (block.chainid == 42_161) {
             return (0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612, 3600, 0xFdB631F5EE196F0ed6FAa767959853A9F217697D, 3600);
+        } else if (block.chainid == 421_614) {
+            return (0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165, 3600, address(0), 0);
         }
         return (address(0), 0, address(0), 0);
     }
@@ -1617,7 +1622,7 @@ contract Verify is Script {
             return
                 (0x7e860098F58bBFC8648a4311b374B1D669a2bc6B, 86_400, 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433, 3600);
         } else if (block.chainid == 84_532) {
-            return (0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165, 86_400, address(0), 0);
+            return (0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165, 30 days, address(0), 0);
         } else if (block.chainid == 42_161) {
             return
                 (0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3, 86_400, 0xFdB631F5EE196F0ed6FAa767959853A9F217697D, 3600);
@@ -3581,7 +3586,7 @@ contract Verify is Script {
             critical: true
         });
 
-        // Defifa typeface. DefifaTokenUriResolver.TYPEFACE() must equal the per-chain
+        // Defifa typeface. DefifaTokenUriResolver.typeface() must equal the per-chain
         // canonical typeface contract. The resolver SVGs read on-chain glyphs from this typeface;
         // a wrong typeface ships incorrect or attacker-controlled imagery for every Defifa NFT.
         address expectedTypeface = _expectedDefifaTypeface();
@@ -3591,15 +3596,15 @@ contract Verify is Script {
             if (okResolver && resolverData.length >= 32) {
                 address resolver = abi.decode(resolverData, (address));
                 if (resolver != address(0)) {
-                    (bool okType, bytes memory typeData) = resolver.staticcall(abi.encodeWithSignature("TYPEFACE()"));
+                    (bool okType, bytes memory typeData) = resolver.staticcall(abi.encodeWithSignature("typeface()"));
                     if (okType && typeData.length >= 32) {
                         _check({
                             condition: abi.decode(typeData, (address)) == expectedTypeface,
-                            label: "DefifaTokenUriResolver.TYPEFACE == canonical Capsules typeface",
+                            label: "DefifaTokenUriResolver.typeface == canonical Capsules typeface",
                             critical: true
                         });
                     } else {
-                        _check({condition: false, label: "DefifaTokenUriResolver exposes TYPEFACE()", critical: true});
+                        _check({condition: false, label: "DefifaTokenUriResolver exposes typeface()", critical: true});
                     }
                 }
             }
