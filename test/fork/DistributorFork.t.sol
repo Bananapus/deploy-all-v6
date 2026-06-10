@@ -14,8 +14,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 ///   1. Happy path: stakers who hold + delegate the revnet token before a round's snapshot receive rewards
 ///      proportional to their stake once the reward vests.
 ///   2. A round funded when the stake token has ZERO total supply at the round's snapshot block pins `totalStake = 0`,
-///      so stakers who appear later can never claim that round's rewards; the pot is only recoverable through the
-///      permissionless `recycleExpiredRewards` recycle after `CLAIM_DURATION`.
+///      so stakers who appear later can never claim that round's rewards; because there are no claimants to protect,
+///      the pot can be permissionlessly recycled without waiting for `CLAIM_DURATION`.
 ///
 /// Run with: forge test --match-contract DistributorForkTest -vvv
 contract DistributorForkTest is RevnetForkBase {
@@ -140,8 +140,8 @@ contract DistributorForkTest is RevnetForkBase {
         assertLe(reward.balanceOf(address(distributor)), 2, "pot distributed (<= dust remains)");
     }
 
-    /// @notice A round funded with zero snapshot stake locks its rewards; only recoverable via expiry recycle.
-    function test_distributor_zeroTotalStake_locksUntilExpiry() public {
+    /// @notice A round funded with zero snapshot stake can be recycled immediately because it has no claimants.
+    function test_distributor_zeroTotalStake_recyclesWithoutExpiry() public {
         uint256 revnetId = _deployRevnet(0);
         address stakeToken = address(jbTokens().tokenOf(revnetId));
         // No pay yet -> zero supply. Mine a clean strictly-past block with zero supply.
@@ -169,18 +169,14 @@ contract DistributorForkTest is RevnetForkBase {
         assertEq(distributor.claimedFor(stakeToken, _id(ALICE), IERC20(address(reward))), 0, "nothing entered vesting");
         assertEq(reward.balanceOf(address(distributor)), fundAmount, "full pot stranded in the distributor");
 
-        // Recovery ONLY via expiry recycle. Before the deadline, recycleExpiredRewards is a no-op.
+        // Recovery is available immediately: with no snapshot stake, no claimant can be diluted by recycling.
         uint256[] memory r = new uint256[](1);
         r[0] = 0;
-        assertEq(distributor.recycleExpiredRewards(stakeToken, IERC20(address(reward)), r), 0, "not yet expired");
-
-        // Warp past the claim deadline (round-1 start + CLAIM_DURATION) and recycle.
-        vm.warp(distributor.roundStartTimestamp(1) + CLAIM_DURATION + 1);
-        vm.roll(block.number + 1);
         assertEq(
             distributor.recycleExpiredRewards(stakeToken, IERC20(address(reward)), r),
             fundAmount,
-            "the only recovery is the expiry recycle of the full unclaimed pot"
+            "zero-stake pot can recycle before expiry"
         );
+        assertEq(distributor.recycleExpiredRewards(stakeToken, IERC20(address(reward)), r), 0, "recycle is idempotent");
     }
 }
