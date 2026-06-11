@@ -196,7 +196,13 @@ contract Verify is Script {
     // The REV loans contract.
     REVLoans public revLoans;
     // Optional canonical Safe owner to assert during verification.
+    // `expectedSafe` is the DEPLOYMENT Safe — it stays as the sucker-deployer LAYER_SPECIFIC_CONFIGURATOR
+    // (admin gate) after deploy. `infraOwner` is the POST-HANDOFF owner of the Ownable singletons, fee
+    // project, and creation-fee payer (Deploy `_finalizeCriticalOwnership`), which is intentionally a
+    // different address. Checking both against a single value can never pass on a correctly-finalized deploy.
     address public expectedSafe;
+    // Optional post-deploy infrastructure owner (the ownership-handoff target). Used for Ownable owner checks.
+    address public infraOwner;
 
     // -- Address Registry & Defifa (optional) --
     // The address registry contract (optional, not deployed on all chains).
@@ -360,8 +366,12 @@ contract Verify is Script {
         revOwner = REVOwner(vm.envOr({name: "VERIFY_REV_OWNER", defaultValue: address(0)}));
         // Read the REV loans address from env (address(0) if not deployed on this chain).
         revLoans = REVLoans(payable(vm.envOr({name: "VERIFY_REV_LOANS", defaultValue: address(0)})));
-        // Read the canonical Safe owner if provided.
+        // Read the canonical DEPLOYMENT Safe if provided (sucker-deployer configurator / admin-gate checks).
         expectedSafe = vm.envOr({name: "VERIFY_SAFE", defaultValue: address(0)});
+        // Read the post-deploy infrastructure owner if provided. `_finalizeCriticalOwnership` transfers the
+        // Ownable singletons + fee project + creation-fee payer to this address, which is intentionally
+        // distinct from the deployment Safe — so Ownable owner checks compare against it, not `expectedSafe`.
+        infraOwner = vm.envOr({name: "VERIFY_INFRA_OWNER", defaultValue: address(0)});
 
         // Read the address registry address from env (address(0) if not deployed on this chain).
         addressRegistry = vm.envOr({name: "VERIFY_ADDRESS_REGISTRY", defaultValue: address(0)});
@@ -422,6 +432,7 @@ contract Verify is Script {
             );
             require(uniswapV4Hook != address(0), "Verify: VERIFY_UNISWAP_V4_HOOK required on production chain");
             require(expectedSafe != address(0), "Verify: VERIFY_SAFE required on production chain");
+            require(infraOwner != address(0), "Verify: VERIFY_INFRA_OWNER required on production chain");
             require(
                 expectedTrustedForwarder != address(0), "Verify: VERIFY_TRUSTED_FORWARDER required on production chain"
             );
@@ -2027,10 +2038,10 @@ contract Verify is Script {
                 critical: true
             });
 
-            if (expectedSafe != address(0)) {
+            if (infraOwner != address(0)) {
                 _check({
-                    condition: _staticAddress({target: receiver, signature: "owner()"}) == expectedSafe,
-                    label: "Creation fee payer owner == safe",
+                    condition: _staticAddress({target: receiver, signature: "owner()"}) == infraOwner,
+                    label: "Creation fee payer owner == infra owner",
                     critical: true
                 });
             }
@@ -2099,42 +2110,46 @@ contract Verify is Script {
     function _verifyOwnership() internal {
         console.log("--- Category 13: Ownership ---");
 
-        if (expectedSafe == address(0)) {
-            _skip("Ownership checks (VERIFY_SAFE not set)");
+        if (infraOwner == address(0)) {
+            _skip("Ownership checks (VERIFY_INFRA_OWNER not set)");
             console.log("");
             return;
         }
 
-        _check({condition: projects.owner() == expectedSafe, label: "JBProjects owner == safe", critical: true});
-        _check({condition: directory.owner() == expectedSafe, label: "JBDirectory owner == safe", critical: true});
-        _check({condition: prices.owner() == expectedSafe, label: "JBPrices owner == safe", critical: true});
+        // Ownership of these singletons (plus the fee project and creation-fee payer) is handed to
+        // `infraOwner` by Deploy `_finalizeCriticalOwnership`, NOT retained by the deployment Safe.
+        _check({condition: projects.owner() == infraOwner, label: "JBProjects owner == infra owner", critical: true});
+        _check({condition: directory.owner() == infraOwner, label: "JBDirectory owner == infra owner", critical: true});
+        _check({condition: prices.owner() == infraOwner, label: "JBPrices owner == infra owner", critical: true});
         _check({
-            condition: feelessAddresses.owner() == expectedSafe,
-            label: "JBFeelessAddresses owner == safe",
+            condition: feelessAddresses.owner() == infraOwner,
+            label: "JBFeelessAddresses owner == infra owner",
             critical: true
         });
 
         if (address(buybackRegistry) != address(0)) {
             _check({
-                condition: buybackRegistry.owner() == expectedSafe,
-                label: "JBBuybackHookRegistry owner == safe",
+                condition: buybackRegistry.owner() == infraOwner,
+                label: "JBBuybackHookRegistry owner == infra owner",
                 critical: true
             });
         }
 
         _check({
-            condition: suckerRegistry.owner() == expectedSafe, label: "JBSuckerRegistry owner == safe", critical: true
+            condition: suckerRegistry.owner() == infraOwner,
+            label: "JBSuckerRegistry owner == infra owner",
+            critical: true
         });
 
         if (address(routerTerminalRegistry) != address(0)) {
             _check({
-                condition: routerTerminalRegistry.owner() == expectedSafe,
-                label: "RouterTerminalRegistry owner == safe",
+                condition: routerTerminalRegistry.owner() == infraOwner,
+                label: "RouterTerminalRegistry owner == infra owner",
                 critical: true
             });
         }
         if (address(revLoans) != address(0)) {
-            _check({condition: revLoans.owner() == expectedSafe, label: "REVLoans owner == safe", critical: true});
+            _check({condition: revLoans.owner() == infraOwner, label: "REVLoans owner == infra owner", critical: true});
         }
 
         console.log("");
