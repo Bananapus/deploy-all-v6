@@ -102,6 +102,7 @@ contract CanonicalDeployForkTest is DeployFullStackBase {
             REV,
             IJBSuckerRegistry(address(_suckerRegistry)),
             _revLoans,
+            _trustedForwarder,
             _deployer
         );
         _revDeployer = new REVDeployer(
