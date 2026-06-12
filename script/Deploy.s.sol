@@ -1915,9 +1915,9 @@ contract Deploy is Script, Sphinx {
 
         REVConfig memory revConfig = REVConfig({
             description: REVDescription({
-                name: "Revnet",
+                name: "Revnet Network",
                 ticker: "REV",
-                uri: "ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro",
+                uri: "ipfs://QmS4bAGss85An49HmoYKKdD16YJyoz5JDPQQEgwbzuBBdz",
                 salt: REV_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -1935,7 +1935,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "REV",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro",
+                    expectedUri: "ipfs://QmS4bAGss85An49HmoYKKdD16YJyoz5JDPQQEgwbzuBBdz",
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_revProjectId);
@@ -2035,7 +2035,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Croptop Publishing Network",
                 ticker: "CPN",
-                uri: "ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi",
+                uri: "ipfs://QmPsD6FVrvAxsXYzNMyR6pHHa6wiJ9vrfe4YRU8ZhPcXHA",
                 salt: CPN_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2077,7 +2077,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "CPN",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi",
+                    expectedUri: "ipfs://QmPsD6FVrvAxsXYzNMyR6pHHa6wiJ9vrfe4YRU8ZhPcXHA",
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_cpnProjectId);
@@ -2152,7 +2152,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Juicebox Protocol V6",
                 ticker: "JBP6",
-                uri: "ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA",
+                uri: "ipfs://QmdKVuiSj9Au1b5TfpiyS5xVPFDpHRTP8bqSC3sN8MVRNk",
                 salt: NANA_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2347,7 +2347,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Banny Network",
                 ticker: "BAN",
-                uri: "ipfs://QmZU9P4xriSMyXkK96sCQiNcUUyJQzMFkGUpPxgWf6hBhq",
+                uri: "ipfs://QmNZ9qRrZMAxM16PwkbaJYc9LuwfipbcZyEg33oPpzWPco",
                 salt: BAN_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -4275,7 +4275,7 @@ contract Deploy is Script, Sphinx {
                 projectId: _BAN_PROJECT_ID,
                 expectedSymbol: "BAN",
                 expectedConfigurationHash: expectedConfigurationHash,
-                expectedUri: "ipfs://QmZU9P4xriSMyXkK96sCQiNcUUyJQzMFkGUpPxgWf6hBhq",
+                expectedUri: "ipfs://QmNZ9qRrZMAxM16PwkbaJYc9LuwfipbcZyEg33oPpzWPco",
                 expectedReservedSplitBeneficiary: expectedReservedSplitBeneficiary,
                 expectedReservedSplitHook: expectedReservedSplitHook
             })) return false;
@@ -4397,7 +4397,7 @@ contract Deploy is Script, Sphinx {
         if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "JBP6"})) return false;
         if (
             keccak256(bytes(_controller.uriOf(projectId)))
-                != keccak256(bytes("ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA"))
+                != keccak256(bytes("ipfs://QmdKVuiSj9Au1b5TfpiyS5xVPFDpHRTP8bqSC3sN8MVRNk"))
         ) return false;
         if (!_reservedSplitIsCanonical({projectId: projectId, expectedBeneficiary: payable(expectedOperator)})) {
             return false;
