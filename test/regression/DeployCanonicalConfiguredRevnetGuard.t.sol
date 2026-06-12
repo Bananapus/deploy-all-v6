@@ -252,6 +252,14 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
 
         assertTrue(_contains(anchorSource, 'vm.envOr({name: "DEFIFA_REV_START_TIME"'), "deploy reads pinned anchor");
         assertTrue(
+            _contains(anchorSource, "require(scriptedStartTime != 0"),
+            "deploy fails closed when the anchor env var is unset"
+        );
+        assertFalse(
+            _contains(anchorSource, "block.timestamp + 1 days"),
+            "deploy must not fall back to a per-chain timestamp (it diverges the cross-chain sucker config hash)"
+        );
+        assertTrue(
             _contains(packageJson, "DEFIFA_REV_START_TIME=$(($(date +%s) + 86400)) npx sphinx propose"),
             "proposal scripts pin one anchor before Sphinx loops chains"
         );
