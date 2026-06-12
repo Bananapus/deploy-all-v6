@@ -4194,19 +4194,44 @@ contract Deploy is Script, Sphinx {
         return REVSuckerDeploymentConfig({deployerConfigurations: combined, salt: salt});
     }
 
-    /// @notice Builds a native-token CCIP sucker config using the per-route CCIP sucker deployers.
+    /// @notice Builds a native-token CCIP sucker config wiring every chain to every other chain (full mesh).
+    /// @dev Each L2 carries direct L2<->L2 CCIP edges in addition to the Ethereum edge, using the per-route
+    /// deployers registered in `_deploySuckersCCIP`, so tokens move e.g. Base<->Arbitrum in one CCIP hop instead of
+    /// routing through Ethereum. The per-chain edge sets mirror the routes deployed in `_deploySuckersCCIP`.
     function _buildCcipSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
         JBSuckerDeployerConfig[] memory suckerDeployerConfigs;
         if (block.chainid == 1 || block.chainid == 11_155_111) {
+            // Ethereum: OP + Base + Arbitrum.
             bool isMainnet = block.chainid == 1;
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
             suckerDeployerConfigs[0] = _nativeCcipEdge(isMainnet ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID);
             suckerDeployerConfigs[1] = _nativeCcipEdge(isMainnet ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID);
             suckerDeployerConfigs[2] = _nativeCcipEdge(isMainnet ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID);
+        } else if (block.chainid == 42_161 || block.chainid == 421_614) {
+            // Arbitrum: Ethereum + OP + Base.
+            bool isMainnet = block.chainid == 42_161;
+            suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
+            suckerDeployerConfigs[0] = _nativeCcipEdge(isMainnet ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID);
+            suckerDeployerConfigs[1] = _nativeCcipEdge(isMainnet ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID);
+            suckerDeployerConfigs[2] = _nativeCcipEdge(isMainnet ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID);
+        } else if (block.chainid == 10 || block.chainid == 11_155_420) {
+            // Optimism: Ethereum + Arbitrum + Base.
+            bool isMainnet = block.chainid == 10;
+            suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
+            suckerDeployerConfigs[0] = _nativeCcipEdge(isMainnet ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID);
+            suckerDeployerConfigs[1] = _nativeCcipEdge(isMainnet ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID);
+            suckerDeployerConfigs[2] = _nativeCcipEdge(isMainnet ? CCIPHelper.BASE_ID : CCIPHelper.BASE_SEP_ID);
+        } else if (block.chainid == 8453 || block.chainid == 84_532) {
+            // Base: Ethereum + OP + Arbitrum.
+            bool isMainnet = block.chainid == 8453;
+            suckerDeployerConfigs = new JBSuckerDeployerConfig[](3);
+            suckerDeployerConfigs[0] = _nativeCcipEdge(isMainnet ? CCIPHelper.ETH_ID : CCIPHelper.ETH_SEP_ID);
+            suckerDeployerConfigs[1] = _nativeCcipEdge(isMainnet ? CCIPHelper.OP_ID : CCIPHelper.OP_SEP_ID);
+            suckerDeployerConfigs[2] = _nativeCcipEdge(isMainnet ? CCIPHelper.ARB_ID : CCIPHelper.ARB_SEP_ID);
         } else {
-            bool isTestnet = block.chainid == 11_155_420 || block.chainid == 84_532 || block.chainid == 421_614;
+            // Other chains (e.g. Tempo, once enabled): single edge back to Ethereum L1.
             suckerDeployerConfigs = new JBSuckerDeployerConfig[](1);
-            suckerDeployerConfigs[0] = _nativeCcipEdge(isTestnet ? CCIPHelper.ETH_SEP_ID : CCIPHelper.ETH_ID);
+            suckerDeployerConfigs[0] = _nativeCcipEdge(CCIPHelper.ETH_ID);
         }
 
         return REVSuckerDeploymentConfig({deployerConfigurations: suckerDeployerConfigs, salt: salt});
