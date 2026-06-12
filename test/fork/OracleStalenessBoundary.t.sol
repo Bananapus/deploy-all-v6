@@ -35,22 +35,22 @@ contract MockAggregatorV3 {
     }
 }
 
-/// @notice Pins the canonical Chainlink staleness-threshold behavior: most canonical deployments register each price
-/// feed with a staleness `THRESHOLD` EQUAL to that feed's heartbeat (ETH/USD 3600s; USDC/USD usually 86400s). Base
-/// Sepolia intentionally uses a wider USDC/USD threshold because its testnet feed updates sparsely.
-/// `JBChainlinkV3PriceFeed.currentUnitPrice` reverts when `block.timestamp > THRESHOLD + updatedAt`, so a price
-/// exactly `THRESHOLD` seconds old is the LAST acceptable value — there is ZERO safety margin. The instant the feed
-/// goes one second past its threshold without an update, every conversion-dependent pay/payout/cash-out into a
-/// USD-base project (DEFIFA 5, ART 6, and NANA cross-pricing) reverts. Only one feed is registered per direction, so
-/// there is no backup to fall through to.
+/// @notice Pins the zero-margin staleness behavior of `JBChainlinkV3PriceFeed`. When a feed's staleness `THRESHOLD`
+/// equals the underlying Chainlink heartbeat there is ZERO safety margin — `currentUnitPrice` reverts the instant
+/// `block.timestamp > THRESHOLD + updatedAt`, i.e. one second past the heartbeat without an update. ETH/USD ships at
+/// its 3600s heartbeat by design (volatile asset, sub-hourly mainnet updates). USDC/USD ships with margin precisely to
+/// avoid this edge: 48h (2x heartbeat) on mainnet and 30 days on testnet, where a stablecoin tolerates staleness and
+/// testnet feeds update sparsely. When a USD feed does lapse past its threshold, every conversion-dependent
+/// pay/payout/cash-out into a USD-base project (DEFIFA 5, ART 6, and NANA cross-pricing) reverts — only one feed is
+/// registered per direction, so there is no backup to fall through to.
 ///
-/// This test pins the zero-margin boundary at both canonical thresholds. The fix (raise THRESHOLD above the heartbeat,
-/// e.g. 2x) is a pre-deploy change because the per-feed THRESHOLD is immutable.
+/// This test pins the contract's zero-margin revert at exactly-`THRESHOLD`, using the Chainlink heartbeats as
+/// representative thresholds. It is the rationale behind the USDC/USD margin the deploy script now applies.
 ///
 /// Run with: forge test --match-contract OracleStalenessBoundaryTest -vvv
 contract OracleStalenessBoundaryTest is Test {
     uint256 internal constant ETH_USD_HEARTBEAT = 3600; // canonical ETH/USD staleness threshold
-    uint256 internal constant USDC_USD_HEARTBEAT = 86_400; // canonical USDC/USD staleness threshold
+    uint256 internal constant USDC_USD_HEARTBEAT = 86_400; // Chainlink USDC/USD heartbeat (deploy ships 48h mainnet / 30d testnet)
 
     function _assertZeroMargin(uint256 threshold) internal {
         MockAggregatorV3 agg = new MockAggregatorV3();
@@ -83,7 +83,8 @@ contract OracleStalenessBoundaryTest is Test {
         _assertZeroMargin(ETH_USD_HEARTBEAT);
     }
 
-    /// @notice USDC/USD (86400s): one second past the 24h heartbeat reverts every USDC-denominated conversion.
+    /// @notice USDC/USD at its 86400s Chainlink heartbeat: one second past reverts every USDC-denominated conversion
+    /// (the zero-margin case the deploy avoids by shipping 48h/30d).
     function test_oracle_usdcUsd_zeroStalenessMargin() public {
         _assertZeroMargin(USDC_USD_HEARTBEAT);
     }

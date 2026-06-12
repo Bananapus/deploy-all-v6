@@ -1643,21 +1643,21 @@ contract Deploy is Script, Sphinx {
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6),
-                threshold: 86_400 seconds
+                threshold: 48 hours
             });
         } else if (block.chainid == 11_155_111) {
             usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E),
-                threshold: 86_400 seconds
+                threshold: 30 days
             });
         } else if (block.chainid == 10) {
             usdc = 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
             usdcFeed = _deployChainlinkSequencerFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3),
-                threshold: 86_400 seconds,
+                threshold: 48 hours,
                 sequencerFeed: AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
                 gracePeriod: l2GracePeriod
             });
@@ -1666,14 +1666,14 @@ contract Deploy is Script, Sphinx {
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C),
-                threshold: 86_400 seconds
+                threshold: 30 days
             });
         } else if (block.chainid == 8453) {
             usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
             usdcFeed = _deployChainlinkSequencerFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B),
-                threshold: 86_400 seconds,
+                threshold: 48 hours,
                 sequencerFeed: AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
                 gracePeriod: l2GracePeriod
             });
@@ -1690,7 +1690,7 @@ contract Deploy is Script, Sphinx {
             usdcFeed = _deployChainlinkSequencerFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3),
-                threshold: 86_400 seconds,
+                threshold: 48 hours,
                 sequencerFeed: AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
                 gracePeriod: l2GracePeriod
             });
@@ -1699,7 +1699,7 @@ contract Deploy is Script, Sphinx {
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x0153002d20B96532C639313c2d54c3dA09109309),
-                threshold: 86_400 seconds
+                threshold: 30 days
             });
         }
         // Tempo USDC is intentionally excluded until a production feed is available.
