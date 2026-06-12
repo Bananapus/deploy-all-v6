@@ -1926,7 +1926,7 @@ contract Deploy is Script, Sphinx {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(REV_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildNativeAndCcipSuckerConfig(REV_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: revConfig});
 
         if (address(_directory.controllerOf(_revProjectId)) != address(0)) {
@@ -2044,7 +2044,7 @@ contract Deploy is Script, Sphinx {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(CPN_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildNativeAndCcipSuckerConfig(CPN_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: cpnConfig});
 
         REVDeploy721TiersHookConfig memory hookConfig = REVDeploy721TiersHookConfig({
@@ -2161,7 +2161,7 @@ contract Deploy is Script, Sphinx {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(NANA_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildNativeAndCcipSuckerConfig(NANA_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: nanaConfig});
 
         // Configure project ID 1 only if it has not already become the canonical NANA revnet.
@@ -3692,9 +3692,17 @@ contract Deploy is Script, Sphinx {
         // then added to that same value.
         uint48 defifaStage0Start = _defifaRevStartTime;
 
+        REVAutoIssuance[] memory defifaStage0AutoIssuances = new REVAutoIssuance[](1);
+        defifaStage0AutoIssuances[0] = REVAutoIssuance({
+            chainId: _autoIssuanceChainId(PREMINT_CHAIN_ID),
+            // forge-lint: disable-next-line(unsafe-typecast)
+            count: uint104(500_000 * DECIMAL_MULTIPLIER),
+            beneficiary: operator
+        });
+
         stages[0] = REVStageConfig({
             startsAtOrAfter: defifaStage0Start,
-            autoIssuances: new REVAutoIssuance[](0),
+            autoIssuances: defifaStage0AutoIssuances,
             splitPercent: 3800,
             splits: splits,
             // forge-lint: disable-next-line(unsafe-typecast)
@@ -4161,6 +4169,24 @@ contract Deploy is Script, Sphinx {
         }
 
         return REVSuckerDeploymentConfig({deployerConfigurations: suckerDeployerConfigs, salt: salt});
+    }
+
+    /// @notice Builds a sucker config carrying BOTH the standard native (OP/Base/Arb) suckers AND the
+    /// route-specific CCIP suckers, so a canonical project bridges over both paths (max user flexibility).
+    function _buildNativeAndCcipSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
+        JBSuckerDeployerConfig[] memory nativeConfigs = _buildSuckerConfig(salt).deployerConfigurations;
+        JBSuckerDeployerConfig[] memory ccipConfigs = _buildCcipSuckerConfig(salt).deployerConfigurations;
+
+        JBSuckerDeployerConfig[] memory combined =
+            new JBSuckerDeployerConfig[](nativeConfigs.length + ccipConfigs.length);
+        for (uint256 i; i < nativeConfigs.length; i++) {
+            combined[i] = nativeConfigs[i];
+        }
+        for (uint256 i; i < ccipConfigs.length; i++) {
+            combined[nativeConfigs.length + i] = ccipConfigs[i];
+        }
+
+        return REVSuckerDeploymentConfig({deployerConfigurations: combined, salt: salt});
     }
 
     /// @notice Builds a native-token CCIP sucker config using the per-route CCIP sucker deployers.
