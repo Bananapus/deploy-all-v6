@@ -50,7 +50,7 @@ contract MockAggregatorV3 {
 /// Run with: forge test --match-contract OracleStalenessBoundaryTest -vvv
 contract OracleStalenessBoundaryTest is Test {
     uint256 internal constant ETH_USD_HEARTBEAT = 3600; // canonical ETH/USD staleness threshold
-    uint256 internal constant USDC_USD_HEARTBEAT = 86_400; // Chainlink USDC/USD heartbeat (deploy ships 48h mainnet / 30d testnet)
+    uint256 internal constant USDC_USD_HEARTBEAT = 86_400; // Chainlink USDC/USD heartbeat (deploy ships 48h/30d)
 
     function _assertZeroMargin(uint256 threshold) internal {
         MockAggregatorV3 agg = new MockAggregatorV3();
