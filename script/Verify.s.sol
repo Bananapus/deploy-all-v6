@@ -1621,24 +1621,24 @@ contract Verify is Script {
         returns (address aggregator, uint256 threshold, address sequencerFeed, uint256 gracePeriod)
     {
         if (block.chainid == 1) {
-            return (0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6, 86_400, address(0), 0);
+            return (0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6, 48 hours, address(0), 0);
         } else if (block.chainid == 11_155_111) {
-            return (0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E, 86_400, address(0), 0);
+            return (0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E, 30 days, address(0), 0);
         } else if (block.chainid == 10) {
             return
-                (0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3, 86_400, 0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389, 3600);
+                (0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3, 48 hours, 0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389, 3600);
         } else if (block.chainid == 11_155_420) {
-            return (0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C, 86_400, address(0), 0);
+            return (0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C, 30 days, address(0), 0);
         } else if (block.chainid == 8453) {
             return
-                (0x7e860098F58bBFC8648a4311b374B1D669a2bc6B, 86_400, 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433, 3600);
+                (0x7e860098F58bBFC8648a4311b374B1D669a2bc6B, 48 hours, 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433, 3600);
         } else if (block.chainid == 84_532) {
             return (0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165, 30 days, address(0), 0);
         } else if (block.chainid == 42_161) {
             return
-                (0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3, 86_400, 0xFdB631F5EE196F0ed6FAa767959853A9F217697D, 3600);
+                (0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3, 48 hours, 0xFdB631F5EE196F0ed6FAa767959853A9F217697D, 3600);
         } else if (block.chainid == 421_614) {
-            return (0x0153002d20B96532C639313c2d54c3dA09109309, 86_400, address(0), 0);
+            return (0x0153002d20B96532C639313c2d54c3dA09109309, 30 days, address(0), 0);
         }
         return (address(0), 0, address(0), 0);
     }

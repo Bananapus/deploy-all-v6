@@ -34,7 +34,7 @@ contract OracleVerifierGapTest is Test {
         MockPriceFeed ethNativeFeed = new MockPriceFeed(1e18);
         MockPriceFeed usdEthFeed = new MockPriceFeed(3000e18);
         JBChainlinkV3PriceFeed usdcUsdFeed =
-            new JBChainlinkV3PriceFeed({feed: AggregatorV3Interface(MAINNET_USDC_USD), threshold: 86_400});
+            new JBChainlinkV3PriceFeed({feed: AggregatorV3Interface(MAINNET_USDC_USD), threshold: 48 hours});
 
         MockPriceStore priceStore = new MockPriceStore({
             ethUsdFeed_: address(ethUsdFeed),

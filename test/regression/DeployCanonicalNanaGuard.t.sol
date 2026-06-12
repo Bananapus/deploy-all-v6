@@ -45,7 +45,7 @@ contract DeployCanonicalNanaGuardTest is Test {
         assertTrue(_contains(guardSource, "uriOf(projectId)"), "guard checks project URI");
         assertTrue(_contains(guardSource, 'expectedSymbol: "JBP6"'), "guard checks the JBP6 token symbol");
         assertTrue(
-            _contains(guardSource, '"ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA"'),
+            _contains(guardSource, '"ipfs://QmdKVuiSj9Au1b5TfpiyS5xVPFDpHRTP8bqSC3sN8MVRNk"'),
             "guard checks the JBP6 project URI"
         );
         assertTrue(_contains(guardSource, "_reservedSplitIsCanonical"), "guard checks reserved split routing");

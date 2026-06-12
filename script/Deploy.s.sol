@@ -1643,21 +1643,21 @@ contract Deploy is Script, Sphinx {
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6),
-                threshold: 86_400 seconds
+                threshold: 48 hours
             });
         } else if (block.chainid == 11_155_111) {
             usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E),
-                threshold: 86_400 seconds
+                threshold: 30 days
             });
         } else if (block.chainid == 10) {
             usdc = 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
             usdcFeed = _deployChainlinkSequencerFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3),
-                threshold: 86_400 seconds,
+                threshold: 48 hours,
                 sequencerFeed: AggregatorV2V3Interface(0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389),
                 gracePeriod: l2GracePeriod
             });
@@ -1666,14 +1666,14 @@ contract Deploy is Script, Sphinx {
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C),
-                threshold: 86_400 seconds
+                threshold: 30 days
             });
         } else if (block.chainid == 8453) {
             usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
             usdcFeed = _deployChainlinkSequencerFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B),
-                threshold: 86_400 seconds,
+                threshold: 48 hours,
                 sequencerFeed: AggregatorV2V3Interface(0xBCF85224fc0756B9Fa45aA7892530B47e10b6433),
                 gracePeriod: l2GracePeriod
             });
@@ -1690,7 +1690,7 @@ contract Deploy is Script, Sphinx {
             usdcFeed = _deployChainlinkSequencerFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3),
-                threshold: 86_400 seconds,
+                threshold: 48 hours,
                 sequencerFeed: AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D),
                 gracePeriod: l2GracePeriod
             });
@@ -1699,7 +1699,7 @@ contract Deploy is Script, Sphinx {
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x0153002d20B96532C639313c2d54c3dA09109309),
-                threshold: 86_400 seconds
+                threshold: 30 days
             });
         }
         // Tempo USDC is intentionally excluded until a production feed is available.
@@ -1915,9 +1915,9 @@ contract Deploy is Script, Sphinx {
 
         REVConfig memory revConfig = REVConfig({
             description: REVDescription({
-                name: "Revnet",
+                name: "Revnet Network",
                 ticker: "REV",
-                uri: "ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro",
+                uri: "ipfs://QmS4bAGss85An49HmoYKKdD16YJyoz5JDPQQEgwbzuBBdz",
                 salt: REV_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -1926,7 +1926,7 @@ contract Deploy is Script, Sphinx {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(REV_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildNativeAndCcipSuckerConfig(REV_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: revConfig});
 
         if (address(_directory.controllerOf(_revProjectId)) != address(0)) {
@@ -1935,7 +1935,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "REV",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro",
+                    expectedUri: "ipfs://QmS4bAGss85An49HmoYKKdD16YJyoz5JDPQQEgwbzuBBdz",
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_revProjectId);
@@ -2035,7 +2035,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Croptop Publishing Network",
                 ticker: "CPN",
-                uri: "ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi",
+                uri: "ipfs://QmPsD6FVrvAxsXYzNMyR6pHHa6wiJ9vrfe4YRU8ZhPcXHA",
                 salt: CPN_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2044,7 +2044,7 @@ contract Deploy is Script, Sphinx {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(CPN_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildNativeAndCcipSuckerConfig(CPN_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: cpnConfig});
 
         REVDeploy721TiersHookConfig memory hookConfig = REVDeploy721TiersHookConfig({
@@ -2077,7 +2077,7 @@ contract Deploy is Script, Sphinx {
                     expectedSymbol: "CPN",
                     expectedConfigurationHash: expectedConfigurationHash,
                     expectedOperator: operator,
-                    expectedUri: "ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi",
+                    expectedUri: "ipfs://QmPsD6FVrvAxsXYzNMyR6pHHa6wiJ9vrfe4YRU8ZhPcXHA",
                     expectedReservedSplitBeneficiary: payable(operator)
                 })) {
                 revert Deploy_ProjectNotCanonical(_cpnProjectId);
@@ -2152,7 +2152,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Juicebox Protocol V6",
                 ticker: "JBP6",
-                uri: "ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA",
+                uri: "ipfs://QmdKVuiSj9Au1b5TfpiyS5xVPFDpHRTP8bqSC3sN8MVRNk",
                 salt: NANA_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -2161,7 +2161,7 @@ contract Deploy is Script, Sphinx {
             stageConfigurations: stages
         });
 
-        REVSuckerDeploymentConfig memory suckerConfig = _buildSuckerConfig(NANA_SUCKER_SALT);
+        REVSuckerDeploymentConfig memory suckerConfig = _buildNativeAndCcipSuckerConfig(NANA_SUCKER_SALT);
         bytes32 expectedConfigurationHash = _encodedConfigurationHashOf({configuration: nanaConfig});
 
         // Configure project ID 1 only if it has not already become the canonical NANA revnet.
@@ -2347,7 +2347,7 @@ contract Deploy is Script, Sphinx {
             description: REVDescription({
                 name: "Banny Network",
                 ticker: "BAN",
-                uri: "ipfs://QmZU9P4xriSMyXkK96sCQiNcUUyJQzMFkGUpPxgWf6hBhq",
+                uri: "ipfs://QmNZ9qRrZMAxM16PwkbaJYc9LuwfipbcZyEg33oPpzWPco",
                 salt: BAN_ERC20_SALT
             }),
             baseCurrency: ETH_CURRENCY,
@@ -3692,9 +3692,17 @@ contract Deploy is Script, Sphinx {
         // then added to that same value.
         uint48 defifaStage0Start = _defifaRevStartTime;
 
+        REVAutoIssuance[] memory defifaStage0AutoIssuances = new REVAutoIssuance[](1);
+        defifaStage0AutoIssuances[0] = REVAutoIssuance({
+            chainId: _autoIssuanceChainId(PREMINT_CHAIN_ID),
+            // forge-lint: disable-next-line(unsafe-typecast)
+            count: uint104(500_000 * DECIMAL_MULTIPLIER),
+            beneficiary: operator
+        });
+
         stages[0] = REVStageConfig({
             startsAtOrAfter: defifaStage0Start,
-            autoIssuances: new REVAutoIssuance[](0),
+            autoIssuances: defifaStage0AutoIssuances,
             splitPercent: 3800,
             splits: splits,
             // forge-lint: disable-next-line(unsafe-typecast)
@@ -4163,6 +4171,24 @@ contract Deploy is Script, Sphinx {
         return REVSuckerDeploymentConfig({deployerConfigurations: suckerDeployerConfigs, salt: salt});
     }
 
+    /// @notice Builds a sucker config carrying BOTH the standard native (OP/Base/Arb) suckers AND the
+    /// route-specific CCIP suckers, so a canonical project bridges over both paths (max user flexibility).
+    function _buildNativeAndCcipSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
+        JBSuckerDeployerConfig[] memory nativeConfigs = _buildSuckerConfig(salt).deployerConfigurations;
+        JBSuckerDeployerConfig[] memory ccipConfigs = _buildCcipSuckerConfig(salt).deployerConfigurations;
+
+        JBSuckerDeployerConfig[] memory combined =
+            new JBSuckerDeployerConfig[](nativeConfigs.length + ccipConfigs.length);
+        for (uint256 i; i < nativeConfigs.length; i++) {
+            combined[i] = nativeConfigs[i];
+        }
+        for (uint256 i; i < ccipConfigs.length; i++) {
+            combined[nativeConfigs.length + i] = ccipConfigs[i];
+        }
+
+        return REVSuckerDeploymentConfig({deployerConfigurations: combined, salt: salt});
+    }
+
     /// @notice Builds a native-token CCIP sucker config using the per-route CCIP sucker deployers.
     function _buildCcipSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
         JBSuckerDeployerConfig[] memory suckerDeployerConfigs;
@@ -4275,7 +4301,7 @@ contract Deploy is Script, Sphinx {
                 projectId: _BAN_PROJECT_ID,
                 expectedSymbol: "BAN",
                 expectedConfigurationHash: expectedConfigurationHash,
-                expectedUri: "ipfs://QmZU9P4xriSMyXkK96sCQiNcUUyJQzMFkGUpPxgWf6hBhq",
+                expectedUri: "ipfs://QmNZ9qRrZMAxM16PwkbaJYc9LuwfipbcZyEg33oPpzWPco",
                 expectedReservedSplitBeneficiary: expectedReservedSplitBeneficiary,
                 expectedReservedSplitHook: expectedReservedSplitHook
             })) return false;
@@ -4391,12 +4417,13 @@ contract Deploy is Script, Sphinx {
         // Reject anything still parked on the deployer or any other address — that's an in-flight or attacker shape.
         if (_projects.ownerOf(projectId) != address(_revOwner)) return false;
         if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
+        if (_revDeployer.FEE_REVNET_ID() != _REV_PROJECT_ID) return false;
         if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
         if (!_revOwner.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
         if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "JBP6"})) return false;
         if (
             keccak256(bytes(_controller.uriOf(projectId)))
-                != keccak256(bytes("ipfs://QmXX6RkeSNQG3XTj5QsfCe7wqoZ8zowsqi3wRxQSrCW1xA"))
+                != keccak256(bytes("ipfs://QmdKVuiSj9Au1b5TfpiyS5xVPFDpHRTP8bqSC3sN8MVRNk"))
         ) return false;
         if (!_reservedSplitIsCanonical({projectId: projectId, expectedBeneficiary: payable(expectedOperator)})) {
             return false;

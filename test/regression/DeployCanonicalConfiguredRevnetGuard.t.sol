@@ -46,13 +46,13 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             deployFunctionSource: revSource,
             projectIdName: "_revProjectId",
             expectedSymbol: "REV",
-            expectedUri: '"ipfs://QmUc7QgAvSNK8ZKrsQYAW15zdH2YbuUCgPNnqLp48EVYro"'
+            expectedUri: '"ipfs://QmS4bAGss85An49HmoYKKdD16YJyoz5JDPQQEgwbzuBBdz"'
         });
         _assertStrictConfiguredRevnetGuard({
             deployFunctionSource: cpnSource,
             projectIdName: "_cpnProjectId",
             expectedSymbol: "CPN",
-            expectedUri: '"ipfs://QmZv3wyCxNt6fzHE8RsrmL9kPvHm65kZR3S3LD2bPZQhJi"'
+            expectedUri: '"ipfs://QmPsD6FVrvAxsXYzNMyR6pHHa6wiJ9vrfe4YRU8ZhPcXHA"'
         });
         _assertStrictConfiguredRevnetGuard({
             deployFunctionSource: defifaSource,
