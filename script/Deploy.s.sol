@@ -4391,6 +4391,7 @@ contract Deploy is Script, Sphinx {
         // Reject anything still parked on the deployer or any other address — that's an in-flight or attacker shape.
         if (_projects.ownerOf(projectId) != address(_revOwner)) return false;
         if (address(_directory.controllerOf(projectId)) != address(_controller)) return false;
+        if (_revDeployer.FEE_REVNET_ID() != _REV_PROJECT_ID) return false;
         if (_revDeployer.hashedEncodedConfigurationOf(projectId) != expectedConfigurationHash) return false;
         if (!_revOwner.isOperatorOf({revnetId: projectId, addr: expectedOperator})) return false;
         if (!_projectTokenSymbolIs({projectId: projectId, expectedSymbol: "JBP6"})) return false;
