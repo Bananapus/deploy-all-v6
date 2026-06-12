@@ -313,31 +313,47 @@ contract Deploy is Script, Sphinx {
 
     // ── REV constants ──
     uint48 private constant REV_START_TIME = 1_740_089_444;
-    uint104 private constant REV_MAINNET_AUTO_ISSUANCE = 1_050_482_341_387_116_262_330_122;
-    uint104 private constant REV_BASE_AUTO_ISSUANCE = 38_544_322_230_437_559_731_228;
-    uint104 private constant REV_OP_AUTO_ISSUANCE = 32_069_388_242_375_817_844;
-    uint104 private constant REV_ARB_AUTO_ISSUANCE = 3_479_431_776_906_850_000_000;
+    // 1,130,130.258069698905346873 REV — V5 holder supply on Ethereum
+    uint104 private constant REV_MAINNET_AUTO_ISSUANCE = 1_130_130_258_069_698_905_346_873;
+    // 57,949.523300210591834022 REV — V5 holder supply on Base
+    uint104 private constant REV_BASE_AUTO_ISSUANCE = 57_949_523_300_210_591_834_022;
+    // 32.730790032350196432 REV — V5 holder supply on Optimism
+    uint104 private constant REV_OP_AUTO_ISSUANCE = 32_730_790_032_350_196_432;
+    // 3,822.208381748216452553 REV — V5 holder supply on Arbitrum
+    uint104 private constant REV_ARB_AUTO_ISSUANCE = 3_822_208_381_748_216_452_553;
 
     // ── NANA constants ──
     uint48 private constant NANA_START_TIME = 1_740_089_444;
-    uint104 private constant NANA_MAINNET_AUTO_ISSUANCE = 34_614_774_622_547_324_824_200;
-    uint104 private constant NANA_BASE_AUTO_ISSUANCE = 1_604_412_323_715_200_204_800;
-    uint104 private constant NANA_OP_AUTO_ISSUANCE = 6_266_215_368_602_910_600;
-    uint104 private constant NANA_ARB_AUTO_ISSUANCE = 105_160_496_145_000_000;
+    // 58,319.001320068307005622 NANA — V5 holder supply on Ethereum
+    uint104 private constant NANA_MAINNET_AUTO_ISSUANCE = 58_319_001_320_068_307_005_622;
+    // 15,370.721139636075131382 NANA — V5 holder supply on Base
+    uint104 private constant NANA_BASE_AUTO_ISSUANCE = 15_370_721_139_636_075_131_382;
+    // 115.201339370605988222 NANA — V5 holder supply on Optimism
+    uint104 private constant NANA_OP_AUTO_ISSUANCE = 115_201_339_370_605_988_222;
+    // 202.522639664560017664 NANA — V5 holder supply on Arbitrum
+    uint104 private constant NANA_ARB_AUTO_ISSUANCE = 202_522_639_664_560_017_664;
 
     // ── CPN constants ──
     uint48 private constant CPN_START_TIME = 1_740_089_444;
-    uint104 private constant CPN_MAINNET_AUTO_ISSUANCE = 250_003_875_000_000_000_000_000;
-    uint104 private constant CPN_BASE_AUTO_ISSUANCE = 844_894_881_600_000_000_000;
-    uint104 private constant CPN_OP_AUTO_ISSUANCE = 844_894_881_600_000_000_000;
+    // 250,006.50814 CPN — V5 holder supply on Ethereum
+    uint104 private constant CPN_MAINNET_AUTO_ISSUANCE = 250_006_508_140_000_000_000_000;
+    // 1,109.071394605310101246 CPN — V5 holder supply on Base
+    uint104 private constant CPN_BASE_AUTO_ISSUANCE = 1_109_071_394_605_310_101_246;
+    // 0 — no V5 CPN holders on Optimism
+    uint104 private constant CPN_OP_AUTO_ISSUANCE = 0;
+    // 3.844 CPN — V5 holder supply on Arbitrum
     uint104 private constant CPN_ARB_AUTO_ISSUANCE = 3_844_000_000_000_000_000;
 
     // ── Banny constants ──
     uint48 private constant BAN_START_TIME = 1_740_435_044;
-    uint104 private constant BAN_MAINNET_AUTO_ISSUANCE = 545_296_034_092_246_678_345_976;
-    uint104 private constant BAN_BASE_AUTO_ISSUANCE = 10_097_684_379_816_492_953_872;
-    uint104 private constant BAN_OP_AUTO_ISSUANCE = 328_366_065_858_064_488_000;
-    uint104 private constant BAN_ARB_AUTO_ISSUANCE = 2_825_980_000_000_000_000_000;
+    // 552,038.897284722922131453 BAN — V5 holder supply on Ethereum
+    uint104 private constant BAN_MAINNET_AUTO_ISSUANCE = 552_038_897_284_722_922_131_453;
+    // 11,753.699837763004840324 BAN — V5 holder supply on Base
+    uint104 private constant BAN_BASE_AUTO_ISSUANCE = 11_753_699_837_763_004_840_324;
+    // 370.020744657354649182 BAN — V5 holder supply on Optimism
+    uint104 private constant BAN_OP_AUTO_ISSUANCE = 370_020_744_657_354_649_182;
+    // 2,920.093911848030840018 BAN — V5 holder supply on Arbitrum
+    uint104 private constant BAN_ARB_AUTO_ISSUANCE = 2_920_093_911_848_030_840_018;
 
     // ── Defifa Revnet constants ──
     uint48 private constant DEFIFA_REV_START_TIME = 0;
@@ -349,9 +365,13 @@ contract Deploy is Script, Sphinx {
     uint48 private constant MARKEE_STAGE_1_START_TIME = 1_797_886_116;
     uint48 private constant MARKEE_STAGE_2_START_TIME = 1_860_999_588;
     uint32 private constant MARKEE_RULESET_DURATION = 7_889_184;
+    // 99.171654737214001809 MARKEE — V5 holder supply on Ethereum
     uint104 private constant MARKEE_MAINNET_AUTO_ISSUANCE = 99_171_654_737_214_001_809;
-    uint104 private constant MARKEE_BASE_AUTO_ISSUANCE = 50_325_350_436_326_292_424_472_445;
+    // 50,327,317.742910074499563445 MARKEE — V5 holder supply on Base
+    uint104 private constant MARKEE_BASE_AUTO_ISSUANCE = 50_327_317_742_910_074_499_563_445;
+    // 0 — no V5 MARKEE holders on Optimism
     uint104 private constant MARKEE_OP_AUTO_ISSUANCE = 0;
+    // 0 — no V5 MARKEE holders on Arbitrum
     uint104 private constant MARKEE_ARB_AUTO_ISSUANCE = 0;
 
     // ── ART constants ──
@@ -359,7 +379,8 @@ contract Deploy is Script, Sphinx {
     uint48 private constant ART_START_TIME = 1_758_234_169;
     uint48 private constant ART_STAGE_1_START_TIME = 1_767_306_169;
     uint48 private constant ART_STAGE_2_START_TIME = 1_839_882_169;
-    uint104 private constant ART_BASE_AUTO_ISSUANCE = 957_902_762_145_312_613_270_859_503;
+    // 959,607,599.16774863670491643 ART — V5 holder supply on Base
+    uint104 private constant ART_BASE_AUTO_ISSUANCE = 959_607_599_167_748_636_704_916_430;
 
     // ── Common ──
     uint32 private constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
