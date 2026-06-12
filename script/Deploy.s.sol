@@ -349,8 +349,8 @@ contract Deploy is Script, Sphinx {
     uint48 private constant MARKEE_STAGE_1_START_TIME = 1_797_886_116;
     uint48 private constant MARKEE_STAGE_2_START_TIME = 1_860_999_588;
     uint32 private constant MARKEE_RULESET_DURATION = 7_889_184;
-    uint104 private constant MARKEE_MAINNET_AUTO_ISSUANCE = 99_171_654_737_214_001_809;
-    uint104 private constant MARKEE_BASE_AUTO_ISSUANCE = 50_325_350_436_326_292_424_472_445;
+    uint104 private constant MARKEE_MAINNET_AUTO_ISSUANCE = 99_170_000_000_000_000_000;
+    uint104 private constant MARKEE_BASE_AUTO_ISSUANCE = 50_345_431_000_000_000_000_000_000;
     uint104 private constant MARKEE_OP_AUTO_ISSUANCE = 0;
     uint104 private constant MARKEE_ARB_AUTO_ISSUANCE = 0;
 
@@ -359,7 +359,7 @@ contract Deploy is Script, Sphinx {
     uint48 private constant ART_START_TIME = 1_758_234_169;
     uint48 private constant ART_STAGE_1_START_TIME = 1_767_306_169;
     uint48 private constant ART_STAGE_2_START_TIME = 1_839_882_169;
-    uint104 private constant ART_BASE_AUTO_ISSUANCE = 957_902_762_145_312_613_270_859_503;
+    uint104 private constant ART_BASE_AUTO_ISSUANCE = 959_607_599_167_748_700_000_000_000;
 
     // ── Common ──
     uint32 private constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
