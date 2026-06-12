@@ -594,9 +594,14 @@ contract Deploy is Script, Sphinx {
 
         // Sphinx collects each chain in a separate Forge process. The package proposal scripts set this env var once
         // before Sphinx enters that per-chain collection loop so every chain gets the same not-yet-launched anchor.
+        // The anchor is encoded into the revnet configuration hash, which seeds the sucker CREATE2 salt
+        // (REVDeployer._deploySuckersFor); a per-chain block.timestamp would diverge the hash and split DEFIFA's
+        // sucker group across chains, so the value MUST be pinned identically on every chain. Fail closed rather than
+        // silently falling back to a per-chain timestamp.
         uint256 scriptedStartTime = vm.envOr({name: "DEFIFA_REV_START_TIME", defaultValue: uint256(0)});
-        _defifaRevStartTime =
-            scriptedStartTime == 0 ? _timestamp48(block.timestamp + 1 days) : _timestamp48(scriptedStartTime);
+        require(scriptedStartTime != 0, "DEFIFA_REV_START_TIME must be pinned (run via the deploy:propose:* scripts)");
+        require(scriptedStartTime > block.timestamp, "DEFIFA_REV_START_TIME must be a future timestamp");
+        _defifaRevStartTime = _timestamp48(scriptedStartTime);
     }
 
     function _requireExpectedSafe() internal {
