@@ -194,13 +194,14 @@ contract Deploy is Script, Sphinx {
     /// chain that already holds a prior deployment. The Uniswap V4 hook is mined over the folded salt too.
     uint256 private constant DEPLOYMENT_NONCE = 12;
 
-    /// @dev Sphinx Safe used only to execute the deployment proposal. Derived from the V6 Jango
-    /// Safe's owners + threshold + saltNonce 10 (see sphinx.lock). Long-term protocol ownership is
+    /// @dev Sphinx Safe used only to execute the deployment proposal. Derived from the "V6 Deployment"
+    /// Safe's 8 owners + threshold 4 + saltNonce 420 (see sphinx.lock). Long-term protocol ownership is
     /// handed to `_CRITICAL_INFRA_OWNER` at the end of the proposal.
-    address private constant _EXPECTED_SAFE = 0xd5136c794ee43BEf1eD4cF1eB6DEe45b7F803437;
+    address private constant _EXPECTED_SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
 
-    /// @dev Canonical NANA operator Safe. This address owns critical infrastructure after deployment.
-    address private constant _CRITICAL_INFRA_OWNER = 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5;
+    /// @dev The "V6 Deployment" 4-of-8 Safe (same address as `_EXPECTED_SAFE` above) owns critical
+    /// infrastructure after deployment AND is the NANA revnet's operator (project 1, see `_deployNanaRevnet`).
+    address private constant _CRITICAL_INFRA_OWNER = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
 
     // ── Tempo chain constants (until CCIPHelper is published with these) ──
     uint256 private constant TEMPO_CHAIN_ID = 4217;
@@ -499,7 +500,7 @@ contract Deploy is Script, Sphinx {
     // ════════════════════════════════════════════════════════════════════
 
     function configureSphinx() public override {
-        sphinxConfig.projectName = "V6";
+        sphinxConfig.projectName = "V6 Deployment";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
         sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }

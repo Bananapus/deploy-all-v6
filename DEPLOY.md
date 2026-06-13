@@ -56,7 +56,7 @@ Before running a deployment:
    ```bash
    forge script script/Deploy.s.sol \
      --rpc-url <RPC_URL> \
-     --sender 0xd5136C794ee43bEf1eD4cf1eB6deE45b7f803437 \
+     --sender 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18 \
      -vvvv
    ```
    No `--broadcast` flag = simulation only. `--sender` must be the V6 deployment Sphinx safe (also `_EXPECTED_SAFE` in `Deploy.s.sol`); without it, `REVOwner.setDeployer` reverts with `REVOwner_Unauthorized` because the binder cached at REVOwner construction differs from `msg.sender` at the wire-up call. Production runs via `npx sphinx propose` set this automatically — the override is only for raw `forge script`.
@@ -106,7 +106,7 @@ The bundle is `.gitignore`d — re-run the script anytime to refresh.
 ```bash
 forge script script/Deploy.s.sol \
   --rpc-url <RPC_URL> \
-  --sender 0xd5136C794ee43bEf1eD4cf1eB6deE45b7f803437 \
+  --sender 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18 \
   -vvvv
 ```
 
