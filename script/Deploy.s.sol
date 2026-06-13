@@ -199,8 +199,9 @@ contract Deploy is Script, Sphinx {
     /// handed to `_CRITICAL_INFRA_OWNER` at the end of the proposal.
     address private constant _EXPECTED_SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
 
-    /// @dev Canonical NANA operator Safe. This address owns critical infrastructure after deployment.
-    address private constant _CRITICAL_INFRA_OWNER = 0x80a8F7a4bD75b539CE26937016Df607fdC9ABeb5;
+    /// @dev The "V6 Deployment" 4-of-8 Safe (same address as `_EXPECTED_SAFE` above) owns critical
+    /// infrastructure after deployment AND is the NANA revnet's operator (project 1, see `_deployNanaRevnet`).
+    address private constant _CRITICAL_INFRA_OWNER = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
 
     // ── Tempo chain constants (until CCIPHelper is published with these) ──
     uint256 private constant TEMPO_CHAIN_ID = 4217;
