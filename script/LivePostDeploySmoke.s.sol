@@ -40,7 +40,7 @@ contract LivePostDeploySmoke is Script, Sphinx {
     error LivePostDeploySmoke_UnexpectedValue(string label, uint256 expected, uint256 actual);
 
     /// @dev Sphinx Safe used to execute the deployment and live smoke proposals.
-    address private constant _EXPECTED_SAFE = 0xd5136c794ee43BEf1eD4cF1eB6DEe45b7F803437;
+    address private constant _EXPECTED_SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
 
     uint256 private constant _NANA_PROJECT_ID = 1;
     uint256 private constant _CPN_PROJECT_ID = 2;

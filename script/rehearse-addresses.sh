@@ -32,7 +32,7 @@ DEPLOY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ARTIFACTS_DIR="$DEPLOY_ROOT/artifacts"
 CACHE_DIR="$DEPLOY_ROOT/script/post-deploy/.cache"
 OUT_DIR="$DEPLOY_ROOT/rehearsal-output"
-SAFE_SENDER="0xd5136C794ee43bEf1eD4cf1eB6deE45b7f803437" # V6 deployment Sphinx Safe
+SAFE_SENDER="0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18" # V6 Deployment Sphinx Safe
 
 # Map chainId → RPC env var name.
 declare -A RPC_VAR=(
