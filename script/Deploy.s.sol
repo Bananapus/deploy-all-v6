@@ -1812,6 +1812,7 @@ contract Deploy is Script, Sphinx {
                     _revProjectId,
                     _suckerRegistry,
                     _revLoans,
+                    _trustedForwarder,
                     safeAddress()
                 )
             })
