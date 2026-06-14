@@ -11,8 +11,8 @@ import "../helpers/SuckerConservationBase.sol";
 ///   - **Round-trip conservation**: a real `prepare` (burn n project tokens + cash out `reclaimed` terminal tokens to
 ///     the outbox) relayed back through `fromRemote`/`ccipReceive` + `claim` (mint n + deposit `reclaimed`) returns
 ///     supply and terminal balance EXACTLY to their starting values — no value created or destroyed in conveyance.
-///   - **totalSupply conveyance + staleness**: the conveyed `sourceTotalSupply` lands in `peerChainTotalSupply`, and a
-///     stale snapshot never overwrites a fresher one.
+///   - **totalSupply conveyance + staleness**: the conveyed source supply lands in `peerChainTotalSupplyOf(remote)`,
+/// and a stale snapshot never overwrites a fresher one.
 ///   - **Stress edges**: duplicate-claim reverts, zero-project-token prepare reverts, claim front-run mints to the
 ///     leaf's beneficiary (not the caller).
 abstract contract SuckerConservationMatrixTest is SuckerConservationBase {
@@ -76,24 +76,28 @@ abstract contract SuckerConservationMatrixTest is SuckerConservationBase {
         assertEq(jbTokens().totalSupplyOf(revnetId), supplyBefore, "round trip conserves supply (burn n == mint n)");
         assertEq(_terminalBalance(revnetId, token), balBefore, "round trip conserves terminal balance");
         // Conveyance of the cross-chain effective supply used for remote cash-out pricing.
-        assertEq(IJBSucker(sucker).peerChainTotalSupply(), sourceSupply, "sourceTotalSupply conveyed to peer");
-        assertEq(IJBSucker(sucker).snapshotTimestamp(), 1000, "snapshot timestamp recorded");
+        assertEq(
+            IJBSucker(sucker).peerChainTotalSupplyOf(REMOTE_CHAIN_ID),
+            sourceSupply,
+            "sourceTotalSupply conveyed to peer"
+        );
+        assertEq(IJBSucker(sucker).snapshotTimestampOf(REMOTE_CHAIN_ID), 1000, "snapshot timestamp recorded");
     }
 
     function test_totalSupplyConveyanceAndStaleness() public {
-        assertEq(IJBSucker(sucker).peerChainTotalSupply(), 0, "no conveyed supply at start");
+        assertEq(IJBSucker(sucker).peerChainTotalSupplyOf(REMOTE_CHAIN_ID), 0, "no conveyed supply at start");
 
         _relay(sucker, token, 1, 0, _b32(HOLDER), 7000e18, 100);
-        assertEq(IJBSucker(sucker).peerChainTotalSupply(), 7000e18, "fresh snapshot conveyed");
-        assertEq(IJBSucker(sucker).snapshotTimestamp(), 100, "timestamp advanced");
+        assertEq(IJBSucker(sucker).peerChainTotalSupplyOf(REMOTE_CHAIN_ID), 7000e18, "fresh snapshot conveyed");
+        assertEq(IJBSucker(sucker).snapshotTimestampOf(REMOTE_CHAIN_ID), 100, "timestamp advanced");
 
         _relay(sucker, token, 1, 0, _b32(HOLDER), 1, 50);
-        assertEq(IJBSucker(sucker).peerChainTotalSupply(), 7000e18, "stale snapshot ignored");
-        assertEq(IJBSucker(sucker).snapshotTimestamp(), 100, "timestamp not rolled back");
+        assertEq(IJBSucker(sucker).peerChainTotalSupplyOf(REMOTE_CHAIN_ID), 7000e18, "stale snapshot ignored");
+        assertEq(IJBSucker(sucker).snapshotTimestampOf(REMOTE_CHAIN_ID), 100, "timestamp not rolled back");
 
         _relay(sucker, token, 1, 0, _b32(HOLDER), 9999e18, 200);
-        assertEq(IJBSucker(sucker).peerChainTotalSupply(), 9999e18, "fresher snapshot conveyed");
-        assertEq(IJBSucker(sucker).snapshotTimestamp(), 200, "timestamp advanced again");
+        assertEq(IJBSucker(sucker).peerChainTotalSupplyOf(REMOTE_CHAIN_ID), 9999e18, "fresher snapshot conveyed");
+        assertEq(IJBSucker(sucker).snapshotTimestampOf(REMOTE_CHAIN_ID), 200, "timestamp advanced again");
     }
 
     function test_duplicateClaimReverts() public {
