@@ -42,14 +42,16 @@ contract SuckerSecurityGatesForkTest is SuckerConservationBase {
     }
 
     function _root(uint256 nonce) internal pure returns (JBMessageRoot memory) {
+        JBChainAccounting[] memory accounts = new JBChainAccounting[](1);
+        accounts[0] = JBChainAccounting({
+            chainId: REMOTE_CHAIN_ID, totalSupply: 7000e18, contexts: new JBSourceContext[](0), timestamp: 100
+        });
         return JBMessageRoot({
             version: 1,
             token: bytes32(uint256(uint160(NATIVE))),
             amount: 0,
             remoteRoot: JBInboxTreeRoot({nonce: uint64(nonce), root: bytes32(uint256(1))}),
-            sourceTotalSupply: 7000e18,
-            sourceContexts: new JBSourceContext[](0),
-            sourceTimestamp: 100
+            accounts: accounts
         });
     }
 

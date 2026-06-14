@@ -17,6 +17,7 @@ import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.s
 import {JBClaim} from "@bananapus/suckers-v6/src/structs/JBClaim.sol";
 import {JBLeaf} from "@bananapus/suckers-v6/src/structs/JBLeaf.sol";
 import {JBMessageRoot} from "@bananapus/suckers-v6/src/structs/JBMessageRoot.sol";
+import {JBChainAccounting} from "@bananapus/suckers-v6/src/structs/JBChainAccounting.sol";
 import {JBSourceContext} from "@bananapus/suckers-v6/src/structs/JBSourceContext.sol";
 import {JBInboxTreeRoot} from "@bananapus/suckers-v6/src/structs/JBInboxTreeRoot.sol";
 import {JBOptimismSucker} from "@bananapus/suckers-v6/src/JBOptimismSucker.sol";
@@ -523,6 +524,12 @@ contract CrossChainArbInvariant is RevnetForkBase {
         bytes32[32] memory proof = _emptyBranchProof();
         bytes32 root = _computeBranchRoot(leafHash, proof, index);
 
+        // Gossip bundle carrying the remote OP peer's record (origin chain == 10).
+        JBChainAccounting[] memory accounts = new JBChainAccounting[](1);
+        accounts[0] = JBChainAccounting({
+            chainId: 10, totalSupply: 0, contexts: new JBSourceContext[](0), timestamp: uint64(block.timestamp)
+        });
+
         mockMessenger.setXDomainMessageSender(address(sucker));
         vm.prank(address(mockMessenger));
         JBSucker(payable(address(sucker)))
@@ -532,9 +539,7 @@ contract CrossChainArbInvariant is RevnetForkBase {
                 token: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
                 amount: terminalTokenAmount,
                 remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
-                sourceTotalSupply: 0,
-                sourceContexts: new JBSourceContext[](0),
-                sourceTimestamp: uint64(block.timestamp)
+                accounts: accounts
             })
             );
 

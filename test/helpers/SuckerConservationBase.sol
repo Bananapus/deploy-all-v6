@@ -22,6 +22,7 @@ import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
 import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSuckerDeployerConfig.sol";
 import {JBTokenMapping} from "@bananapus/suckers-v6/src/structs/JBTokenMapping.sol";
 import {JBMessageRoot} from "@bananapus/suckers-v6/src/structs/JBMessageRoot.sol";
+import {JBChainAccounting} from "@bananapus/suckers-v6/src/structs/JBChainAccounting.sol";
 import {JBInboxTreeRoot} from "@bananapus/suckers-v6/src/structs/JBInboxTreeRoot.sol";
 import {JBSourceContext} from "@bananapus/suckers-v6/src/structs/JBSourceContext.sol";
 import {JBClaim} from "@bananapus/suckers-v6/src/structs/JBClaim.sol";
@@ -363,6 +364,15 @@ abstract contract SuckerConservationBase is RevnetForkBase {
         index = _relayLeafIndex[sucker][token];
         bytes32 root = _leafRoot(projectTokenCount, terminalTokenAmount, beneficiary, index);
 
+        // Gossip bundle carrying the remote peer's own record (origin chain == REMOTE_CHAIN_ID).
+        JBChainAccounting[] memory accounts = new JBChainAccounting[](1);
+        accounts[0] = JBChainAccounting({
+            chainId: REMOTE_CHAIN_ID,
+            totalSupply: sourceTotalSupply,
+            contexts: new JBSourceContext[](0),
+            timestamp: sourceTimestamp
+        });
+
         opMessenger.setXDomainMessageSender(sucker);
         vm.prank(address(opMessenger));
         JBSucker(payable(sucker))
@@ -372,9 +382,7 @@ abstract contract SuckerConservationBase is RevnetForkBase {
                 token: bytes32(uint256(uint160(token))),
                 amount: terminalTokenAmount,
                 remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
-                sourceTotalSupply: sourceTotalSupply,
-                sourceContexts: new JBSourceContext[](0),
-                sourceTimestamp: sourceTimestamp
+                accounts: accounts
             })
             );
         _creditSuckerBridged(sucker, token, terminalTokenAmount, false);
@@ -406,6 +414,15 @@ abstract contract SuckerConservationBase is RevnetForkBase {
         Client.EVMTokenAmount[] memory dta = new Client.EVMTokenAmount[](terminalTokenAmount == 0 ? 0 : 1);
         if (terminalTokenAmount != 0) dta[0] = Client.EVMTokenAmount({token: bridged, amount: terminalTokenAmount});
 
+        // Gossip bundle carrying the remote peer's own record (origin chain == REMOTE_CHAIN_ID).
+        JBChainAccounting[] memory accounts = new JBChainAccounting[](1);
+        accounts[0] = JBChainAccounting({
+            chainId: REMOTE_CHAIN_ID,
+            totalSupply: sourceTotalSupply,
+            contexts: new JBSourceContext[](0),
+            timestamp: sourceTimestamp
+        });
+
         Client.Any2EVMMessage memory inbound = Client.Any2EVMMessage({
             messageId: bytes32("mockCcipMsgId"),
             sourceChainSelector: CCIPHelper.OP_SEL,
@@ -418,9 +435,7 @@ abstract contract SuckerConservationBase is RevnetForkBase {
                         token: bytes32(uint256(uint160(token))),
                         amount: terminalTokenAmount,
                         remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
-                        sourceTotalSupply: sourceTotalSupply,
-                        sourceContexts: new JBSourceContext[](0),
-                        sourceTimestamp: sourceTimestamp
+                        accounts: accounts
                     })
                 )
             ),
