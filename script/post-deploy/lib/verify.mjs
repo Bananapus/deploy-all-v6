@@ -232,6 +232,9 @@ async function verifyOne({ target, entry, baseName }) {
     creation,
     artifact
   });
+  if (ctorArgsHex.length === 0 && constructorInputCount(artifact.abi) > 0) {
+    throw nonTransient(`Constructor args missing for ${baseName}: internal factory call or exact creation bytecode required`);
+  }
 
   const repoDir = resolveSourceRoot(entry);
   if (!fs.existsSync(repoDir)) throw nonTransient(`Source root not found: ${repoDir}`);
@@ -313,6 +316,11 @@ function encodeAddressArgs(values) {
     if (!/^0x[0-9a-f]{40}$/.test(addr)) throw nonTransient(`Invalid constructor address: ${value}`);
     return addr.slice(2).padStart(64, '0');
   }).join('');
+}
+
+function constructorInputCount(abi) {
+  const ctor = (abi || []).find((f) => f?.type === 'constructor');
+  return ctor?.inputs?.length || 0;
 }
 
 function sliceConstructorArgsFromCreationBytecode(creationBytecodeHex, artifactCreationCodeHex) {
@@ -583,17 +591,15 @@ function sliceConstructorArgs(txInput, creationCodeHex) {
   if (input.length >= 64 + creation.length && input.slice(64, 64 + creation.length).toLowerCase() === creation.toLowerCase()) {
     return input.slice(64 + creation.length);
   }
-  // Try direct CREATE2 pattern: input is just initcode.
+  // Try direct CREATE/CREATE2 pattern: input is just initcode.
   if (input.toLowerCase().startsWith(creation.toLowerCase())) {
     return input.slice(creation.length);
   }
-  // Fallback: locate creation bytecode within input (handles small prefix wrappers).
-  const idx = input.toLowerCase().indexOf(creation.toLowerCase());
-  if (idx >= 0) return input.slice(idx + creation.length);
 
-  // Last-ditch: assume the deployment used a different bytecode (linked libraries, immutables in
-  // creation code, etc.). Return empty and let Etherscan complain if constructor args were
-  // actually required.
+  // Do not scan arbitrary wrapper calldata. Safe/Sphinx wrappers can contain the exact factory
+  // calldata as an ABI-encoded bytes tail; slicing from that embedded creation code includes the
+  // wrapper tail as fake constructor args. Exact creationBytecode or txlistinternal recovery above
+  // must supply the clean initcode for wrapped deployments.
   return '';
 }
 

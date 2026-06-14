@@ -6,7 +6,7 @@ import {Test} from "forge-std/Test.sol";
 /// @notice Regression: artifact emission must prune its per-chain output directory before
 /// writing the current run's targets, distribution must derive its target list from the current
 /// addresses-<chainId>.json dump (not readdirSync on the cache), and post-deploy.sh must skip
-/// distribution when artifact emission failed.
+/// distribution when artifact emission failed or artifact emission was explicitly skipped.
 contract PostDeployStaleArtifactDistributionGapTest is Test {
     function test_distributionDerivesFromCurrentAddressDumpAndCachePrunedBeforeEmit() public view {
         string memory artifactSource = vm.readFile("script/post-deploy/lib/artifacts.mjs");
@@ -63,6 +63,12 @@ contract PostDeployStaleArtifactDistributionGapTest is Test {
         assertTrue(
             _contains(postDeploySource, "artifact emission failed"),
             "post-deploy reports the skipped distribution clearly"
+        );
+        assertTrue(
+            _contains(postDeploySource, "\"$SKIP_ARTIFACTS\" -eq 1"), "distribution is skipped for verify-only runs"
+        );
+        assertTrue(
+            _contains(postDeploySource, "skip-artifacts"), "post-deploy reports skip-artifacts distribution clearly"
         );
     }
 

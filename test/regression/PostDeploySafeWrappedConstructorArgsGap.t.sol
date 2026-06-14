@@ -21,7 +21,7 @@ contract PostDeploySafeWrappedConstructorArgsGapTest is Test {
         );
         assertTrue(
             _contains(artifactsSource, "factoryInput || await getTxInput"),
-            "artifact emitter falls back to outer tx input when the internal call is missing"
+            "artifact emitter falls back to outer tx input for exact direct initcode recovery"
         );
         assertTrue(
             _contains(artifactsSource, "0x4e59b44847b379578588920ca78fbf26c0b4956c"),
@@ -37,6 +37,14 @@ contract PostDeploySafeWrappedConstructorArgsGapTest is Test {
             ),
             "slicer is still used (now against the clean factory-call input)"
         );
+        assertFalse(
+            _contains(artifactsSource, "const idx = input.toLowerCase().indexOf"),
+            "artifact emitter must not scan arbitrary wrapper calldata"
+        );
+        assertTrue(
+            _contains(artifactsSource, "constructorInputCount({abi: forgeArtifact.abi}) > 0"),
+            "artifact emitter fails closed when non-empty constructor args cannot be recovered"
+        );
 
         // verify.mjs MUST use the same factory-call recovery — otherwise Etherscan verification
         // still resolves constructor args from the Safe wrapper and mismatches the artifact.
@@ -47,7 +55,7 @@ contract PostDeploySafeWrappedConstructorArgsGapTest is Test {
         );
         assertTrue(
             _contains(verifySource, "factoryInput || await getTxInput"),
-            "verifier falls back to outer tx input when the internal call is missing"
+            "verifier falls back to outer tx input for exact direct initcode recovery"
         );
         assertTrue(
             _contains(verifySource, "0x4e59b44847b379578588920ca78fbf26c0b4956c"),
@@ -57,9 +65,17 @@ contract PostDeploySafeWrappedConstructorArgsGapTest is Test {
             _contains(verifySource, "action=txlistinternal"),
             "verifier factory-call helper queries Etherscan's internal-tx API"
         );
+        assertFalse(
+            _contains(verifySource, "const idx = input.toLowerCase().indexOf"),
+            "verifier must not scan arbitrary wrapper calldata"
+        );
+        assertTrue(
+            _contains(verifySource, "constructorInputCount(artifact.abi) > 0"),
+            "verifier fails closed when non-empty constructor args cannot be recovered"
+        );
     }
 
-    function test_slicerOverSlicesSafeWrappedFactoryCalldata() public pure {
+    function test_slicerRefusesSafeWrappedFactoryCalldata() public pure {
         bytes32 salt = keccak256("_ExampleV6_");
         bytes memory creationCode = hex"6080604052348015600f57600080fd5b5060aa80601d6000396000f3fe";
         bytes memory constructorArgs = abi.encode(address(0x1234567890123456789012345678901234567890), uint256(42));
@@ -80,11 +96,7 @@ contract PostDeploySafeWrappedConstructorArgsGapTest is Test {
         bytes memory wrappedSlice =
             _sliceConstructorArgsLikePostDeployScripts({txInput: safeModuleInput, creationCode: creationCode});
 
-        assertTrue(_startsWith(wrappedSlice, constructorArgs), "fallback finds creation code inside wrapped calldata");
-        assertGt(wrappedSlice.length, constructorArgs.length, "wrapper ABI tail is included as fake constructor args");
-        assertNotEq(
-            keccak256(wrappedSlice), keccak256(constructorArgs), "Safe-wrapped calldata does not recover exact args"
-        );
+        assertEq(wrappedSlice.length, 0, "Safe-wrapped calldata is refused without factory internal-call recovery");
     }
 
     function _sliceConstructorArgsLikePostDeployScripts(
@@ -103,20 +115,7 @@ contract PostDeploySafeWrappedConstructorArgsGapTest is Test {
             return _slice(txInput, creationCode.length, txInput.length);
         }
 
-        (bool found, uint256 idx) = _indexOf(txInput, creationCode);
-        if (found) return _slice(txInput, idx + creationCode.length, txInput.length);
-
         return "";
-    }
-
-    function _indexOf(bytes memory haystack, bytes memory needle) internal pure returns (bool found, uint256 idx) {
-        if (needle.length == 0 || needle.length > haystack.length) return (false, 0);
-
-        for (uint256 i; i <= haystack.length - needle.length; i++) {
-            if (_matchesAt(haystack, i, needle)) return (true, i);
-        }
-
-        return (false, 0);
     }
 
     function _matchesAt(bytes memory haystack, uint256 offset, bytes memory needle) internal pure returns (bool) {
@@ -127,10 +126,6 @@ contract PostDeploySafeWrappedConstructorArgsGapTest is Test {
         }
 
         return true;
-    }
-
-    function _startsWith(bytes memory data, bytes memory prefix) internal pure returns (bool) {
-        return _matchesAt(data, 0, prefix);
     }
 
     function _slice(bytes memory data, uint256 start, uint256 end) internal pure returns (bytes memory) {

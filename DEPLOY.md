@@ -116,33 +116,61 @@ No `--broadcast` flag = simulation only. The `--sender` override impersonates th
 
 ```bash
 pnpm artifacts                                # pre-compile every contract from its installed package
-pnpm deploy:propose:testnets                  # → npx sphinx propose script/Deploy.s.sol --networks testnets
+pnpm deploy:propose:testnets                  # pins DEFIFA_REV_START_TIME, then proposes testnets
 # (or:)
-pnpm deploy:propose:mainnets                  # → npx sphinx propose script/Deploy.s.sol --networks mainnets
+pnpm deploy:propose:mainnets                  # pins DEFIFA_REV_START_TIME, then proposes mainnets
 
 # After safe signers approve + Sphinx executes on-chain:
 ETHERSCAN_API_KEY=... pnpm deploy:post:testnets   # verify + emit + distribute
 ```
 
-> **Always route propose through the `pnpm deploy:propose:*` scripts.** They prepend the required
-> `DEFIFA_REV_START_TIME` env var and pass the correct CLI shape. If you must invoke the CLI
+> **Always route propose through the `pnpm deploy:propose:*` scripts.** They pin the required
+> `DEFIFA_REV_START_TIME`, cache it under `script/post-deploy/.cache/`, and pass the correct CLI shape.
+> `post-deploy.sh` needs that exact timestamp to recompute the DEFIFA revnet configuration hash during
+> address dumping. The helper defaults the start to seven days in the future and refuses values inside a
+> three-day lead window, because Sphinx collection-time script checks do not execute inside the later Safe
+> transaction. If Safe execution slips past the pinned timestamp, cancel/re-propose with a fresh timestamp
+> rather than executing the stale proposal. If you must invoke the CLI
 > directly, replicate both: the script positional and the `--networks <name>` flag (the CLI has no
-> `--testnets` / `--mainnets` switches), and export `DEFIFA_REV_START_TIME` first (see below):
+> `--testnets` / `--mainnets` switches), and export plus persist `DEFIFA_REV_START_TIME` first (see below):
 >
 > ```bash
-> # Defifa/REV game start time (seconds since epoch). Default: now + 1 day.
-> DEFIFA_REV_START_TIME=$(($(date +%s) + 86400)) \
->   npx sphinx propose script/Deploy.s.sol --networks testnets   # or --networks mainnets
+> # Defifa/REV game start time (seconds since epoch). Default helper behavior: now + 7 days.
+> # Raw CLI usage must still leave at least 3 days of lead time at proposal collection.
+> NETWORKS=testnets # or mainnets
+> DEFIFA_REV_START_TIME=$(($(date +%s) + 604800))
+> export DEFIFA_REV_START_TIME
+> mkdir -p script/post-deploy/.cache
+> printf 'DEFIFA_REV_START_TIME=%s\n' "$DEFIFA_REV_START_TIME" \
+>   > "script/post-deploy/.cache/defifa-rev-start-time-${NETWORKS}.env"
+> npx sphinx propose script/Deploy.s.sol --networks "$NETWORKS"
 > ```
 >
 > A raw `npx sphinx propose` without `DEFIFA_REV_START_TIME` set deploys the Defifa/REV game with a
-> different (un-pinned) start time than the canonical scripts intend.
+> different (un-pinned) start time than the canonical scripts intend. A raw proposal that does not persist
+> the timestamp can also make the post-deploy address dump unverifiable unless the operator later re-exports
+> the exact accepted value.
 
 Sphinx compiles the deploy script, simulates it, and proposes the resulting transactions to the multi-sig safe. Safe signers must approve the proposal before execution. Verification and artifact emission are then handled locally by `post-deploy.sh` (see [Post-Deploy: Verification + Artifact Emission](#post-deploy-verification--artifact-emission) below).
 
 > **Note:** Sphinx replays `new Contract{salt: ...}(...)` through the canonical CREATE2 deployer (`0x4e59b44847b379578588920cA78FbF26c0B4956C`). The `_isDeployed` helper must compute addresses using this factory as the deployer (not `safeAddress()`) for Uniswap V4 hook deployments where address flags matter.
 
 Monitor execution in the Sphinx dashboard or on-chain via the safe's transaction history.
+
+### Banny drop follow-up
+
+Banny retail Drop 1 and Drop 2 are registered by `script/DeployBannyDrops.s.sol` after the core deployment:
+
+```bash
+pnpm deploy:propose:banny-drops:testnets
+pnpm deploy:propose:banny-drops:mainnets
+```
+
+Prefer the combined drops script. The single-drop scripts exist only for an intentional two-step recovery sequence:
+Drop 1 leaves the deployment Safe with Banny operator/resolver authority so Drop 2 can finish; Drop 2 performs the
+final handoff to `_BAN_OPS_OPERATOR`. Rerunning the drop scripts after a partial Sphinx execution repairs missing
+resolver metadata for already-added tiers, but a stale or incomplete proposal should still be inspected before the
+final handoff.
 
 ### Sphinx and CREATE2
 
@@ -280,8 +308,9 @@ pnpm deploy:propose:testnets    # for testnets
 pnpm deploy:propose:mainnets    # for production
 ```
 
-These aliases prepend the required `DEFIFA_REV_START_TIME` env var and pass the correct CLI shape
-(`npx sphinx propose script/Deploy.s.sol --networks <name>`). See [Production deploy (via Sphinx)](#production-deploy-via-sphinx) for the raw-CLI equivalent.
+These aliases pin the required `DEFIFA_REV_START_TIME`, cache it for post-deploy address dumping,
+and pass the correct CLI shape (`npx sphinx propose script/Deploy.s.sol --networks <name>`).
+See [Production deploy (via Sphinx)](#production-deploy-via-sphinx) for the raw-CLI equivalent.
 
 Sphinx batches the full deployment into a single multi-sig proposal at the new address namespace.
 
@@ -342,7 +371,7 @@ export VERIFY_REV_LOANS=0x...
 export VERIFY_DEFIFA_DEPLOYER=0x...
 export VERIFY_TRUSTED_FORWARDER=0x...
 export VERIFY_SAFE=0x...                    # DEPLOYMENT Safe — sucker-deployer LAYER_SPECIFIC_CONFIGURATOR / admin-gate checks
-export VERIFY_INFRA_OWNER=0x...             # Post-handoff owner of the Ownable singletons + fee project + creation-fee payer (distinct from VERIFY_SAFE)
+export VERIFY_INFRA_OWNER=0x...             # Post-handoff owner of the Ownable singletons + fee project + creation-fee payer (currently the V6 Deployment Safe)
 export VERIFY_PROJECT_HANDLES=0x...
 export VERIFY_PROJECT_PAYER_DEPLOYER=0x...
 export VERIFY_LP_SPLIT_HOOK_DEPLOYER=0x...  # Canonical Uniswap V4 LP-split hook deployer.
@@ -507,7 +536,8 @@ This is a read-only script — no `--broadcast` needed.
 After `Verify.s.sol` is green and the V6 deployment Safe is funded, run the live smoke proposal. It uses `safeAddress()` as the holder, beneficiary, and loan owner, so the Safe must have enough native token on each target chain for the configured smoke budgets plus gas.
 
 ```bash
-# Defaults spend at most 0.05 ETH-equivalent on buyback payment checks and 0.05 ETH-equivalent on loan checks per chain.
+# Defaults spend at most 0.05 ETH-equivalent on buyback payment checks per chain.
+# Loan smoke is disabled by default.
 npm run deploy:propose:live-smoke:mainnets
 ```
 
@@ -516,15 +546,18 @@ Optional budget and behavior overrides:
 ```bash
 export SMOKE_BUYBACK_BUDGET=50000000000000000
 export SMOKE_BUYBACK_PAYMENT_AMOUNT=5000000000000000
-export SMOKE_LOAN_BUDGET=50000000000000000
+export SMOKE_LOAN_BUDGET=50000000000000000      # opt in; default 0
 export SMOKE_LOAN_PAYMENT_AMOUNT=25000000000000000
 export SMOKE_LOAN_PROJECT_ID=3
+export SMOKE_ALLOW_PERMISSION_MUTATION=true      # required if REVLoans lacks BURN_TOKENS permission
 export SMOKE_BUYBACK_CASH_OUT_DIVISOR=4      # set 0 to skip the cash-out leg
 ```
 
 The script reuses the core `VERIFY_*` addresses from `Verify.s.sol`. Set `VERIFY_BUYBACK_HOOK` to pin the expected hook implementation. If a buyback or loan budget is set to `0`, that section is skipped.
 
-Optimism Sepolia skips the buyback, cash-out, and router-terminal smoke sections because that deployment intentionally has no PositionManager-backed Uniswap surfaces. Loan smoke is still budget-gated by REVLoans; set `SMOKE_LOAN_BUDGET=0` on Optimism Sepolia unless the no-buyback topology is explicitly being tested.
+Loan smoke may need to grant REVLoans temporary `BURN_TOKENS` permission for the Safe's project tokens before opening and repaying the test loan. Because Sphinx proposals can leave earlier successful state changes behind if later execution is interrupted, this permission mutation is opt-in through `SMOKE_ALLOW_PERMISSION_MUTATION=true`. Leave `SMOKE_LOAN_BUDGET=0` unless the loan path is intentionally being tested and the proposal is monitored through repayment and permission restoration.
+
+Optimism Sepolia skips the buyback, cash-out, and router-terminal smoke sections because that deployment intentionally has no PositionManager-backed Uniswap surfaces. Loan smoke remains opt-in; leave `SMOKE_LOAN_BUDGET=0` on Optimism Sepolia unless the no-buyback topology is explicitly being tested.
 
 ### Verification categories
 
@@ -544,7 +577,7 @@ Verify checks 20 categories in order:
 | 10 | Routes | All canonical projects include the router terminal registry in their terminal lists |
 | 11 | Periphery Extensions | Project handles and project payer deployer code and constructor wiring |
 | 12 | Token Implementation | JBERC20 clone template PROJECTS and PERMISSIONS wiring |
-| 13 | Ownership | Safe ownership of all ownable contracts (feeless, buyback registry, router terminal registry, REVLoans) |
+| 13 | Ownership | `VERIFY_INFRA_OWNER` ownership of all ownable contracts (feeless, buyback registry, router terminal registry, REVLoans) |
 | 14 | Permissions & Forwarder | PERMISSIONS immutable on all permissioned contracts, trusted forwarder consistency |
 | 15 | Croptop | CTPublisher, CTDeployer, CTProjectOwner immutables and project 2 wiring |
 | 16 | Hook Deployer Immutables | Base hook DIRECTORY, STORE wiring, clone surface verification |
@@ -589,7 +622,7 @@ This is the complete sequence for deploying to a new chain:
 
 ### 3. Deploy (via Sphinx)
 
-- [ ] `pnpm deploy:propose:testnets` (or `pnpm deploy:propose:mainnets` for production) — these aliases set `DEFIFA_REV_START_TIME` and pass `script/Deploy.s.sol --networks <name>`
+- [ ] `pnpm deploy:propose:testnets` (or `pnpm deploy:propose:mainnets` for production) — these aliases pin and cache `DEFIFA_REV_START_TIME` and pass `script/Deploy.s.sol --networks <name>`
 - [ ] Safe signers approve the proposal in the Sphinx dashboard
 - [ ] Record all deployed contract addresses from the Sphinx execution log
 - [ ] If interrupted: proceed to step 4

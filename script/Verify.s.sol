@@ -198,8 +198,8 @@ contract Verify is Script {
     // Optional canonical Safe owner to assert during verification.
     // `expectedSafe` is the DEPLOYMENT Safe — it stays as the sucker-deployer LAYER_SPECIFIC_CONFIGURATOR
     // (admin gate) after deploy. `infraOwner` is the POST-HANDOFF owner of the Ownable singletons, fee
-    // project, and creation-fee payer (Deploy `_finalizeCriticalOwnership`), which is intentionally a
-    // different address. Checking both against a single value can never pass on a correctly-finalized deploy.
+    // project, and creation-fee payer (Deploy `_finalizeCriticalOwnership`). It may equal `expectedSafe`
+    // when the deployment Safe is intentionally retained as the post-deploy infrastructure owner.
     address public expectedSafe;
     // Optional post-deploy infrastructure owner (the ownership-handoff target). Used for Ownable owner checks.
     address public infraOwner;
@@ -368,9 +368,8 @@ contract Verify is Script {
         revLoans = REVLoans(payable(vm.envOr({name: "VERIFY_REV_LOANS", defaultValue: address(0)})));
         // Read the canonical DEPLOYMENT Safe if provided (sucker-deployer configurator / admin-gate checks).
         expectedSafe = vm.envOr({name: "VERIFY_SAFE", defaultValue: address(0)});
-        // Read the post-deploy infrastructure owner if provided. `_finalizeCriticalOwnership` transfers the
-        // Ownable singletons + fee project + creation-fee payer to this address, which is intentionally
-        // distinct from the deployment Safe — so Ownable owner checks compare against it, not `expectedSafe`.
+        // Read the post-deploy infrastructure owner if provided. `_finalizeCriticalOwnership` converges the
+        // Ownable singletons + fee project + creation-fee payer to this address. It may equal `expectedSafe`.
         infraOwner = vm.envOr({name: "VERIFY_INFRA_OWNER", defaultValue: address(0)});
 
         // Read the address registry address from env (address(0) if not deployed on this chain).
@@ -429,6 +428,10 @@ contract Verify is Script {
             require(
                 address(projectPayerDeployer) != address(0),
                 "Verify: VERIFY_PROJECT_PAYER_DEPLOYER required on production chain"
+            );
+            require(
+                address(checkpointsDeployer) != address(0),
+                "Verify: VERIFY_CHECKPOINTS_DEPLOYER required on production chain"
             );
             require(uniswapV4Hook != address(0), "Verify: VERIFY_UNISWAP_V4_HOOK required on production chain");
             require(expectedSafe != address(0), "Verify: VERIFY_SAFE required on production chain");
@@ -568,6 +571,12 @@ contract Verify is Script {
                     _check({
                         condition: projects.ownerOf(_ART_PROJECT_ID) == expectedOperator,
                         label: "ART(6) off-Base placeholder owner == VERIFY_ART_OPS_OPERATOR",
+                        critical: true
+                    });
+                } else if (_isProductionChain()) {
+                    _check({
+                        condition: false,
+                        label: "VERIFY_ART_OPS_OPERATOR MUST be set on production for ART(6) off-Base placeholder owner",
                         critical: true
                     });
                 } else {
@@ -2117,7 +2126,8 @@ contract Verify is Script {
         }
 
         // Ownership of these singletons (plus the fee project and creation-fee payer) is handed to
-        // `infraOwner` by Deploy `_finalizeCriticalOwnership`, NOT retained by the deployment Safe.
+        // `infraOwner` by Deploy `_finalizeCriticalOwnership`. In the current deployment, this is
+        // intentionally the same V6 Deployment Safe as `expectedSafe`.
         _check({condition: projects.owner() == infraOwner, label: "JBProjects owner == infra owner", critical: true});
         _check({condition: directory.owner() == infraOwner, label: "JBDirectory owner == infra owner", critical: true});
         _check({condition: prices.owner() == infraOwner, label: "JBPrices owner == infra owner", critical: true});
@@ -4122,7 +4132,7 @@ contract Verify is Script {
         if (block.chainid == 1) return 0x1F98431c8aD98523631AE4a59f267346ea31F984;
         if (block.chainid == 11_155_111) return 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
         if (block.chainid == 10) return 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-        if (block.chainid == 11_155_420) return 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+        if (block.chainid == 11_155_420) return 0x8CE191193D15ea94e11d327b4c7ad8bbE520f6aF;
         if (block.chainid == 8453) return 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
         if (block.chainid == 84_532) return 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
         if (block.chainid == 42_161) return 0x1F98431c8aD98523631AE4a59f267346ea31F984;
@@ -4372,6 +4382,11 @@ contract Verify is Script {
             artifactName: "JB721TiersHookProjectDeployer",
             deployed: address(hookProjectDeployer),
             label: "JB721TiersHookProjectDeployer"
+        });
+        _requireArtifactIdentity({
+            artifactName: "JB721CheckpointsDeployer",
+            deployed: address(_checkpointsDeployer()),
+            label: "JB721CheckpointsDeployer"
         });
         _requireArtifactIdentity({
             artifactName: "JBBuybackHookRegistry", deployed: address(buybackRegistry), label: "JBBuybackHookRegistry"

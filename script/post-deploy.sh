@@ -138,6 +138,54 @@ CHAINS_LIST=$(resolve_chains "$CHAINS_ARG")
 echo "Processing chains: $CHAINS_LIST"
 [[ "$DRY_RUN" -eq 1 ]] && echo "(DRY RUN — no writes)"
 
+# `Deploy.s.sol` needs the same DEFIFA revnet start anchor that was used when
+# the Sphinx proposal was collected. The proposal helper persists it here so
+# post-deploy address dumping can recompute the canonical config hash later.
+load_defifa_rev_start_time() {
+  [[ "$SKIP_DUMP" -eq 1 ]] && return
+  [[ -n "${DEFIFA_REV_START_TIME:-}" ]] && return
+
+  local saw_prod=0
+  local saw_test=0
+  local alias chain_id production
+
+  for alias in $CHAINS_LIST; do
+    chain_id="$(alias_to_chain_id "$alias")"
+    [[ -z "$chain_id" ]] && continue
+    production="$(jq -r --arg cid "$chain_id" '.chains[$cid].production // false' "$CHAINS_JSON")"
+    if [[ "$production" == "true" ]]; then
+      saw_prod=1
+    else
+      saw_test=1
+    fi
+  done
+
+  local cache_file=""
+  if [[ "$saw_prod" -eq 1 && "$saw_test" -eq 0 ]]; then
+    cache_file="$CACHE_DIR/defifa-rev-start-time-mainnets.env"
+  elif [[ "$saw_prod" -eq 0 && "$saw_test" -eq 1 ]]; then
+    cache_file="$CACHE_DIR/defifa-rev-start-time-testnets.env"
+  else
+    cache_file="$CACHE_DIR/defifa-rev-start-time.env"
+  fi
+
+  if [[ -f "$cache_file" ]]; then
+    # shellcheck disable=SC1090
+    source "$cache_file"
+    export DEFIFA_REV_START_TIME
+    echo "Using cached DEFIFA_REV_START_TIME=$DEFIFA_REV_START_TIME from ${cache_file#$DEPLOY_ROOT/}"
+    return
+  fi
+
+  echo "ERROR: DEFIFA_REV_START_TIME is required for address dumping." >&2
+  echo "       Run the deploy proposal through pnpm deploy:propose:* so it is cached," >&2
+  echo "       or export the exact timestamp used by the accepted Sphinx proposal." >&2
+  echo "       For legacy testnet artifacts with already-confirmed address dumps, rerun with --skip-dump." >&2
+  exit 2
+}
+
+load_defifa_rev_start_time
+
 # ── Process each chain ────────────────────────────────────────────────────
 GLOBAL_FAIL=0
 SUMMARY=""
@@ -256,6 +304,8 @@ for alias in $CHAINS_LIST; do
   if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "  [4/4] Distributing artifacts..."
     echo "    (skipped — dry-run)"
+  elif [[ "$SKIP_ARTIFACTS" -eq 1 ]]; then
+    echo "  [4/4] (skipped — skip-artifacts)"
   elif [[ "$SKIP_DISTRIBUTE" -eq 0 && "$artifact_failed" -eq 0 ]]; then
     echo "  [4/4] Distributing artifacts..."
     node "$POST_DEPLOY_DIR/lib/distribute.mjs" --chain "$chain_id" || {

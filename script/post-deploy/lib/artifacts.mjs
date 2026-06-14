@@ -131,6 +131,9 @@ async function buildArtifact({target}) {
     creation,
     forgeArtifact
   });
+  if (ctorArgsHex.length === 0 && constructorInputCount({abi: forgeArtifact.abi}) > 0) {
+    throw new Error(`constructor args missing for ${baseName}: internal factory call or exact creation bytecode required`);
+  }
   const argsDecoded = decodeConstructorArgs({abi: forgeArtifact.abi, ctorArgsHex});
 
   // solcInputHash — v5 uses md5 of the full metadata string. Mirror that.
@@ -188,6 +191,11 @@ function encodeAddressArgs({values}) {
     if (!/^0x[0-9a-f]{40}$/.test(addr)) throw new Error(`Invalid constructor address: ${value}`);
     return addr.slice(2).padStart(64, '0');
   }).join('');
+}
+
+function constructorInputCount({abi}) {
+  const ctor = (abi || []).find((f) => f?.type === 'constructor');
+  return ctor?.inputs?.length || 0;
 }
 
 function sliceConstructorArgsFromCreationBytecode({creationBytecodeHex, artifactCreationCodeHex}) {
@@ -285,8 +293,11 @@ function sliceConstructorArgs({txInput, creationCodeHex}) {
     return input.slice(64 + creation.length);
   }
   if (input.toLowerCase().startsWith(creation.toLowerCase())) return input.slice(creation.length);
-  const idx = input.toLowerCase().indexOf(creation.toLowerCase());
-  if (idx >= 0) return input.slice(idx + creation.length);
+
+  // Do not scan arbitrary wrapper calldata. Safe/Sphinx wrappers can contain the exact factory
+  // calldata as an ABI-encoded bytes tail; slicing from that embedded creation code includes the
+  // wrapper tail as fake constructor args. Exact creationBytecode or txlistinternal recovery above
+  // must supply the clean initcode for wrapped deployments.
   return '';
 }
 

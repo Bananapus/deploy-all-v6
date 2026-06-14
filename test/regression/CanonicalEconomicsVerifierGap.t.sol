@@ -31,6 +31,25 @@ contract CanonicalEconomicsVerifierGapTest is Test {
         );
     }
 
+    function test_artOffBasePlaceholderOwnerFailsClosedOnProduction() public view {
+        string memory verifySource = vm.readFile("script/Verify.s.sol");
+
+        assertTrue(
+            _contains(verifySource, "VERIFY_ART_OPS_OPERATOR"),
+            "verifier reads the ART off-Base placeholder owner env var"
+        );
+        assertTrue(
+            _contains(
+                verifySource, "VERIFY_ART_OPS_OPERATOR MUST be set on production for ART(6) off-Base placeholder owner"
+            ),
+            "missing ART placeholder owner must fail closed on production"
+        );
+        assertTrue(
+            _contains(verifySource, "_skip(\"ART(6) off-Base placeholder owner (VERIFY_ART_OPS_OPERATOR not set)\""),
+            "testnets may still skip the ART placeholder owner env"
+        );
+    }
+
     function _contains(string memory haystack, string memory needle) internal pure returns (bool) {
         bytes memory h = bytes(haystack);
         bytes memory n = bytes(needle);

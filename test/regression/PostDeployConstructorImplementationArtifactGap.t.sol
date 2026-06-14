@@ -54,6 +54,14 @@ contract PostDeployConstructorImplementationArtifactGapTest is Test {
         assertTrue(
             _contains(verifySource, "ProjectPayer implementation has code"), "Verify.s.sol checks implementation code"
         );
+        assertTrue(
+            _contains(verifySource, "Verify: VERIFY_CHECKPOINTS_DEPLOYER required on production chain"),
+            "Verify.s.sol requires the checkpoints deployer on production"
+        );
+        assertTrue(
+            _contains(verifySource, 'artifactName: "JB721CheckpointsDeployer"'),
+            "Verify.s.sol checks checkpoints deployer artifact identity"
+        );
 
         // build-artifacts.sh now compiles + copies the implementation artifacts.
         assertTrue(

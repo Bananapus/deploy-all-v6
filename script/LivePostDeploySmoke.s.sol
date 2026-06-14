@@ -34,6 +34,7 @@ contract LivePostDeploySmoke is Script, Sphinx {
     error LivePostDeploySmoke_NoNativeTerminal(uint256 projectId);
     error LivePostDeploySmoke_NoSmokeProjects();
     error LivePostDeploySmoke_NoTokensMinted(uint256 projectId);
+    error LivePostDeploySmoke_PermissionMutationDisabled(uint256 projectId);
     error LivePostDeploySmoke_UnexpectedAddress(string label, address expected, address actual);
     error LivePostDeploySmoke_UnexpectedHook(uint256 projectId, address expectedHook, address actualHook);
     error LivePostDeploySmoke_UnexpectedSafe(address expected, address actual);
@@ -52,8 +53,8 @@ contract LivePostDeploySmoke is Script, Sphinx {
 
     uint256 private constant _DEFAULT_BUYBACK_BUDGET = 0.05 ether;
     uint256 private constant _DEFAULT_BUYBACK_PAYMENT = 0.005 ether;
-    uint256 private constant _DEFAULT_LOAN_BUDGET = 0.05 ether;
-    uint256 private constant _DEFAULT_LOAN_PAYMENT = 0.025 ether;
+    uint256 private constant _DEFAULT_LOAN_BUDGET = 0;
+    uint256 private constant _DEFAULT_LOAN_PAYMENT = 0;
     uint256 private constant _DEFAULT_CASH_OUT_DIVISOR = 4;
 
     JBProjects private _projects;
@@ -71,6 +72,7 @@ contract LivePostDeploySmoke is Script, Sphinx {
     uint256 private _loanPayment;
     uint256 private _loanProjectId;
     uint256 private _cashOutDivisor;
+    bool private _allowPermissionMutation;
 
     function configureSphinx() public override {
         sphinxConfig.projectName = "V6";
@@ -115,9 +117,16 @@ contract LivePostDeploySmoke is Script, Sphinx {
         _loanPayment = vm.envOr({name: "SMOKE_LOAN_PAYMENT_AMOUNT", defaultValue: _DEFAULT_LOAN_PAYMENT});
         _loanProjectId = vm.envOr({name: "SMOKE_LOAN_PROJECT_ID", defaultValue: _REV_PROJECT_ID});
         _cashOutDivisor = vm.envOr({name: "SMOKE_BUYBACK_CASH_OUT_DIVISOR", defaultValue: _DEFAULT_CASH_OUT_DIVISOR});
+        _allowPermissionMutation = vm.envOr({name: "SMOKE_ALLOW_PERMISSION_MUTATION", defaultValue: false});
 
+        if (_buybackBudget != 0 && _buybackPayment == 0) {
+            revert LivePostDeploySmoke_InvalidBudget("SMOKE_BUYBACK_PAYMENT_AMOUNT", _buybackPayment, _buybackBudget);
+        }
         if (_buybackPayment > _buybackBudget) {
             revert LivePostDeploySmoke_InvalidBudget("SMOKE_BUYBACK_PAYMENT_AMOUNT", _buybackPayment, _buybackBudget);
+        }
+        if (_loanBudget != 0 && _loanPayment == 0) {
+            revert LivePostDeploySmoke_InvalidBudget("SMOKE_LOAN_PAYMENT_AMOUNT", _loanPayment, _loanBudget);
         }
         if (_loanPayment > _loanBudget) {
             revert LivePostDeploySmoke_InvalidBudget("SMOKE_LOAN_PAYMENT_AMOUNT", _loanPayment, _loanBudget);
@@ -336,6 +345,7 @@ contract LivePostDeploySmoke is Script, Sphinx {
         packed =
             _permissions.permissionsOf({operator: address(_revLoans), account: _account, projectId: _loanProjectId});
         if (_hasPackedPermission({packed: packed, permissionId: JBPermissionIds.BURN_TOKENS})) return (packed, false);
+        if (!_allowPermissionMutation) revert LivePostDeploySmoke_PermissionMutationDisabled(_loanProjectId);
 
         uint8[] memory permissionIds = _permissionIdsFromPacked({packed: packed, extraCount: 1});
         uint256 index = permissionIds.length - 1;

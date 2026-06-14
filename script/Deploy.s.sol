@@ -170,6 +170,8 @@ contract Deploy is Script, Sphinx {
     error Deploy_ProjectNotCanonical(uint256 projectId);
     error Deploy_PriceFeedMismatch(uint256 projectId, uint256 pricingCurrency, uint256 unitCurrency);
     error Deploy_BannyProjectIdMismatch(uint256 actual, uint256 expected);
+    error Deploy_BannyDropMetadataMismatch(uint256 upc, bytes32 expected, bytes32 actual);
+    error Deploy_BannyOperatorHandoffIncomplete(address expectedOperator);
     error Deploy_BannyLpSplitHookNotCanonical(address hook);
     error Deploy_BannyLpSplitHookUnavailable();
     error Deploy_Create3DeploymentFailed(address expected);
@@ -178,6 +180,8 @@ contract Deploy is Script, Sphinx {
     error Deploy_TimestampOverflow(uint256 timestamp);
     error Deploy_UnexpectedSafe(address expected, address actual);
     error Deploy_OwnershipHandoffFailed(address target, address newOwner);
+    error Deploy_OwnershipHandoffUnexpectedOwner(address target, address expected, address actual);
+    error Deploy_ProjectOwnershipHandoffUnexpectedOwner(uint256 projectId, address expected, address actual);
     error Deploy_MissingDependency(string name, address expected);
 
     // ════════════════════════════════════════════════════════════════════
@@ -358,6 +362,7 @@ contract Deploy is Script, Sphinx {
 
     // ── Defifa Revnet constants ──
     uint48 private constant DEFIFA_REV_START_TIME = 0;
+    uint256 private constant DEFIFA_REV_MIN_START_LEAD = 3 days;
     string private constant DEFIFA_REV_URI = "ipfs://Qmb3Fo96jFFEj4jGJPXn5uNMTS6s21Kzq7cjbzpRdAoGCq";
 
     // ── MARKEE constants ──
@@ -602,7 +607,7 @@ contract Deploy is Script, Sphinx {
         _deployProjectPayerDeployer();
         _configureProjectCreationFee();
 
-        // Phase 12: Handoff critical ownership from the deployment Safe to the NANA operator Safe.
+        // Phase 12: Converge persistent critical ownership on `_CRITICAL_INFRA_OWNER`.
         _finalizeCriticalOwnership();
     }
 
@@ -622,7 +627,6 @@ contract Deploy is Script, Sphinx {
         // silently falling back to a per-chain timestamp.
         uint256 scriptedStartTime = vm.envOr({name: "DEFIFA_REV_START_TIME", defaultValue: uint256(0)});
         require(scriptedStartTime != 0, "DEFIFA_REV_START_TIME must be pinned (run via the deploy:propose:* scripts)");
-        require(scriptedStartTime > block.timestamp, "DEFIFA_REV_START_TIME must be a future timestamp");
         _defifaRevStartTime = _timestamp48(scriptedStartTime);
     }
 
@@ -671,7 +675,7 @@ contract Deploy is Script, Sphinx {
         else if (block.chainid == 11_155_420) {
             _wrappedNativeToken = 0x4200000000000000000000000000000000000006; // WETH
             _usdcToken = 0x5fd84259d66Cd46123540766Be93DFE6D43130D7; // USDC
-            _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+            _v3Factory = 0x8CE191193D15ea94e11d327b4c7ad8bbE520f6aF;
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = address(0);
             _typeface = 0xe160e47928907894F97a0DC025c61D64E862fEAa;
@@ -2623,13 +2627,8 @@ contract Deploy is Script, Sphinx {
         IJB721TiersHookStore store = hook.STORE();
         Banny721TokenUriResolver resolver = Banny721TokenUriResolver(address(store.tokenUriResolverOf(address(hook))));
 
-        // Idempotency: 4 baseline tiers + 47 drop tiers = 51. Skip if already populated.
+        // Idempotency: 4 baseline tiers + 47 drop tiers = 51. If tiers already exist, repair/check metadata.
         uint256 maxBefore = store.maxTierIdOf(address(hook));
-        if (maxBefore >= 51) return;
-
-        // Sanity gate: the baseline must be exactly 4 (no other drops have landed). If something else
-        // shifted the tier count, abort rather than mis-target the metadata writes.
-        if (maxBefore != 4) revert Deploy_BannyProjectIdMismatch(maxBefore, 4);
 
         uint256 decimals = DECIMALS;
         string[] memory names = new string[](47);
@@ -3207,6 +3206,22 @@ contract Deploy is Script, Sphinx {
             category: 16
         });
 
+        // If a prior Sphinx attempt added tiers but stopped before resolver writes, repair metadata instead of
+        // treating the tier count as complete.
+        if (maxBefore >= 51) {
+            _ensureBannyProductMetadata({
+                resolver: resolver,
+                productIds: _sequentialIds({firstId: 5, count: 47}),
+                svgHashes: svgHashes,
+                names: names
+            });
+            return;
+        }
+
+        // Sanity gate: the baseline must be exactly 4 (no other drops have landed). If something else
+        // shifted the tier count, abort rather than mis-target the metadata writes.
+        if (maxBefore != 4) revert Deploy_BannyProjectIdMismatch(maxBefore, 4);
+
         // Add the tiers. Capture the new maxTierId to derive the UPC range that received our writes.
         hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
         uint256 maxAfter = store.maxTierIdOf(address(hook));
@@ -3215,12 +3230,12 @@ contract Deploy is Script, Sphinx {
         // target the wrong UPC range.
         if (maxAfter != maxBefore + 47) revert Deploy_BannyProjectIdMismatch(maxAfter, maxBefore + 47);
 
-        uint256[] memory productIds = new uint256[](47);
-        for (uint256 i; i < 47; i++) {
-            productIds[i] = maxAfter - 46 + i;
-        }
-        resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
-        resolver.setProductNames({upcs: productIds, names: names});
+        _ensureBannyProductMetadata({
+            resolver: resolver,
+            productIds: _sequentialIds({firstId: maxAfter - 46, count: 47}),
+            svgHashes: svgHashes,
+            names: names
+        });
     }
 
     /// @dev Builds a JB721TierConfig with the fixed Drop-1 boilerplate (zero voting units, no discounts,
@@ -3262,6 +3277,62 @@ contract Deploy is Script, Sphinx {
         });
     }
 
+    function _ensureBannyProductMetadata(
+        Banny721TokenUriResolver resolver,
+        uint256[] memory productIds,
+        bytes32[] memory svgHashes,
+        string[] memory names
+    )
+        internal
+    {
+        uint256 missingHashCount;
+        for (uint256 i; i < productIds.length; i++) {
+            bytes32 existingHash = resolver.svgHashOf(productIds[i]);
+            if (existingHash == bytes32(0)) {
+                missingHashCount++;
+            } else if (existingHash != svgHashes[i]) {
+                revert Deploy_BannyDropMetadataMismatch({
+                    upc: productIds[i], expected: svgHashes[i], actual: existingHash
+                });
+            }
+        }
+
+        bool resolverOwnedBySafe = resolver.owner() == safeAddress();
+        if (!resolverOwnedBySafe) {
+            for (uint256 i; i < productIds.length; i++) {
+                if (resolver.svgHashOf(productIds[i]) == bytes32(0)) {
+                    revert Deploy_BannyDropMetadataMismatch({
+                        upc: productIds[i], expected: svgHashes[i], actual: bytes32(0)
+                    });
+                }
+            }
+            return;
+        }
+
+        if (missingHashCount != 0) {
+            uint256[] memory missingProductIds = new uint256[](missingHashCount);
+            bytes32[] memory missingSvgHashes = new bytes32[](missingHashCount);
+            uint256 cursor;
+            for (uint256 i; i < productIds.length; i++) {
+                if (resolver.svgHashOf(productIds[i]) != bytes32(0)) continue;
+
+                missingProductIds[cursor] = productIds[i];
+                missingSvgHashes[cursor] = svgHashes[i];
+                cursor++;
+            }
+            resolver.setSvgHashesOf({upcs: missingProductIds, svgHashes: missingSvgHashes});
+        }
+
+        resolver.setProductNames({upcs: productIds, names: names});
+    }
+
+    function _sequentialIds(uint256 firstId, uint256 count) internal pure returns (uint256[] memory ids) {
+        ids = new uint256[](count);
+        for (uint256 i; i < count; i++) {
+            ids[i] = firstId + i;
+        }
+    }
+
     // ════════════════════════════════════════════════════════════════════
     //  Phase 09c: Banny Drop 2 (17 outfit items)
     // ════════════════════════════════════════════════════════════════════
@@ -3270,8 +3341,8 @@ contract Deploy is Script, Sphinx {
     /// JB721TiersHook and registers their names + SVG hashes on the Banny URI resolver.
     /// @dev Runs after `_registerBannyDrop1` so the default reserve beneficiary set by the Block Chain
     /// tier in Drop 1 is already in place. Idempotent: if the hook already has the drop tiers
-    /// (maxTierId >= 51 + 17 = 68), skips. Reuses the `_drop1Tier` helper since the tier-config
-    /// boilerplate is shared across drops.
+    /// (maxTierId >= 51 + 17 = 68), it repairs/checks resolver metadata before returning. Reuses the `_drop1Tier`
+    /// helper since the tier-config boilerplate is shared across drops.
     ///
     /// Tiers are pre-sorted by Banny resolver category number (backside=2, eyes=5, mouth=7, suit=9,
     /// headTop=12, hand=13) so `recordAddTiers` does not revert with `InvalidCategorySortOrder`.
@@ -3281,13 +3352,8 @@ contract Deploy is Script, Sphinx {
         IJB721TiersHookStore store = hook.STORE();
         Banny721TokenUriResolver resolver = Banny721TokenUriResolver(address(store.tokenUriResolverOf(address(hook))));
 
-        // Idempotency: 4 baseline + 47 Drop 1 + 17 Drop 2 = 68. Skip if already populated.
+        // Idempotency: 4 baseline + 47 Drop 1 + 17 Drop 2 = 68. If tiers already exist, repair/check metadata.
         uint256 maxBefore = store.maxTierIdOf(address(hook));
-        if (maxBefore >= 68) return;
-
-        // Sanity gate: Drop 2 may only land directly on top of Drop 1 (maxTierId == 51). If something
-        // else shifted the tier count, abort rather than mis-target the metadata writes.
-        if (maxBefore != 51) revert Deploy_BannyProjectIdMismatch(maxBefore, 51);
 
         uint256 decimals = DECIMALS;
         string[] memory names = new string[](17);
@@ -3499,18 +3565,34 @@ contract Deploy is Script, Sphinx {
             category: 13
         });
 
+        // If a prior Sphinx attempt added tiers but stopped before resolver writes, repair metadata instead of
+        // treating the tier count as complete.
+        if (maxBefore >= 68) {
+            _ensureBannyProductMetadata({
+                resolver: resolver,
+                productIds: _sequentialIds({firstId: 52, count: 17}),
+                svgHashes: svgHashes,
+                names: names
+            });
+            return;
+        }
+
+        // Sanity gate: Drop 2 may only land directly on top of Drop 1 (maxTierId == 51). If something
+        // else shifted the tier count, abort rather than mis-target the metadata writes.
+        if (maxBefore != 51) revert Deploy_BannyProjectIdMismatch(maxBefore, 51);
+
         // Add the tiers. Capture the new maxTierId to derive the UPC range that received our writes.
         hook.adjustTiers({tiersToAdd: products, tierIdsToRemove: new uint256[](0)});
         uint256 maxAfter = store.maxTierIdOf(address(hook));
         // Drift guard: our 17 tiers must occupy exactly (maxBefore, maxAfter].
         if (maxAfter != maxBefore + 17) revert Deploy_BannyProjectIdMismatch(maxAfter, maxBefore + 17);
 
-        uint256[] memory productIds = new uint256[](17);
-        for (uint256 i; i < 17; i++) {
-            productIds[i] = maxAfter - 16 + i;
-        }
-        resolver.setSvgHashesOf({upcs: productIds, svgHashes: svgHashes});
-        resolver.setProductNames({upcs: productIds, names: names});
+        _ensureBannyProductMetadata({
+            resolver: resolver,
+            productIds: _sequentialIds({firstId: maxAfter - 16, count: 17}),
+            svgHashes: svgHashes,
+            names: names
+        });
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -3519,17 +3601,25 @@ contract Deploy is Script, Sphinx {
 
     /// @notice Hands the Banny URI resolver and the BAN operator role from the Sphinx Safe to
     /// `_BAN_OPS_OPERATOR`. Must run after every drop registration that needs owner-only writes.
-    /// @dev Idempotent: skipped when the resolver is already owned by `_BAN_OPS_OPERATOR`. Because both
-    /// transfers happen atomically in a single Sphinx proposal, the resolver owner serves as a witness
-    /// for the operator state too — if the resolver is no longer the safe's, both transfers
-    /// have already landed.
+    /// @dev Idempotent once both resolver ownership and the BAN operator role are already assigned to
+    /// `_BAN_OPS_OPERATOR`.
     function _finalizeBannyOwnership() internal {
         IJB721TiersHook hook = _revOwner.tiered721HookOf(_BAN_PROJECT_ID);
         IJB721TiersHookStore store = hook.STORE();
         Banny721TokenUriResolver resolver = Banny721TokenUriResolver(address(store.tokenUriResolverOf(address(hook))));
 
-        // Idempotency witness: if the safe no longer owns the resolver, both transfers have run.
-        if (resolver.owner() != safeAddress()) return;
+        address resolverOwner = resolver.owner();
+        if (resolverOwner == _BAN_OPS_OPERATOR) {
+            if (!_revOwner.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: _BAN_OPS_OPERATOR})) {
+                revert Deploy_BannyOperatorHandoffIncomplete({expectedOperator: _BAN_OPS_OPERATOR});
+            }
+            return;
+        }
+        if (resolverOwner != safeAddress()) {
+            revert Deploy_OwnershipHandoffUnexpectedOwner({
+                target: address(resolver), expected: safeAddress(), actual: resolverOwner
+            });
+        }
 
         // Hand the resolver off to the canonical Banny ops EOA. This deliberately happens AFTER all
         // drop registrations, which call owner-gated `setSvgHashesOf` + `setProductNames`. After this
@@ -3540,13 +3630,16 @@ contract Deploy is Script, Sphinx {
         // After this, the safe no longer has ADJUST_721_TIERS / MINT_721 etc. on project 4; the Banny
         // ops account does.
         _revOwner.setOperatorOf({revnetId: _BAN_PROJECT_ID, newOperator: _BAN_OPS_OPERATOR});
+        if (!_revOwner.isOperatorOf({revnetId: _BAN_PROJECT_ID, addr: _BAN_OPS_OPERATOR})) {
+            revert Deploy_BannyOperatorHandoffIncomplete({expectedOperator: _BAN_OPS_OPERATOR});
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
     //  Phase 12: Critical Ownership Handoff
     // ════════════════════════════════════════════════════════════════════
 
-    /// @notice Hands persistent protocol owner roles from the deployment Safe to the NANA operator Safe.
+    /// @notice Hands persistent protocol owner roles from the deployment Safe to `_CRITICAL_INFRA_OWNER`.
     /// @dev Deployment-only configurator immutables intentionally stay pointed at `safeAddress()`, because those
     /// permissions are consumed by one-shot initialization calls earlier in this proposal.
     function _finalizeCriticalOwnership() internal {
@@ -3565,17 +3658,36 @@ contract Deploy is Script, Sphinx {
     }
 
     function _transferProjectIfOwnedByDeploymentSafe(uint256 projectId, address newOwner) internal {
-        if (_projects.count() < projectId) return;
-        if (_projects.ownerOf(projectId) != safeAddress()) return;
+        if (_projects.count() < projectId) revert Deploy_ProjectNotOwned(projectId);
+
+        address currentOwner = _projects.ownerOf(projectId);
+        if (currentOwner == newOwner) return;
+        if (currentOwner != safeAddress()) {
+            revert Deploy_ProjectOwnershipHandoffUnexpectedOwner({
+                projectId: projectId, expected: safeAddress(), actual: currentOwner
+            });
+        }
 
         _projects.transferFrom({from: safeAddress(), to: newOwner, tokenId: projectId});
+        if (_projects.ownerOf(projectId) != newOwner) revert Deploy_ProjectNotOwned(projectId);
     }
 
     function _transferOwnableIfOwnedByDeploymentSafe(address target, address newOwner) internal {
-        if (_ownableOwnerOf(target) != safeAddress()) return;
+        if (target == address(0) || target.code.length == 0) return;
+
+        address currentOwner = _ownableOwnerOf(target);
+        if (currentOwner == newOwner) return;
+        if (currentOwner != safeAddress()) {
+            revert Deploy_OwnershipHandoffUnexpectedOwner({
+                target: target, expected: safeAddress(), actual: currentOwner
+            });
+        }
 
         (bool success,) = target.call(abi.encodeWithSignature("transferOwnership(address)", newOwner));
         if (!success) revert Deploy_OwnershipHandoffFailed({target: target, newOwner: newOwner});
+        if (_ownableOwnerOf(target) != newOwner) {
+            revert Deploy_OwnershipHandoffFailed({target: target, newOwner: newOwner});
+        }
     }
 
     function _ownableOwnerOf(address target) internal view returns (address owner) {
@@ -3795,6 +3907,10 @@ contract Deploy is Script, Sphinx {
             }
             return;
         }
+
+        require(
+            defifaStage0Start >= block.timestamp + DEFIFA_REV_MIN_START_LEAD, "DEFIFA_REV_START_TIME lead too short"
+        );
 
         if (_projects.ownerOf(_DEFIFA_REV_PROJECT_ID) != safeAddress()) {
             revert Deploy_ProjectNotOwned(_DEFIFA_REV_PROJECT_ID);
