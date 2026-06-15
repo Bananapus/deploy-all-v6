@@ -4109,12 +4109,15 @@ contract Deploy is Script, Sphinx {
             return;
         }
 
+        // Route the creation fee through `pay` (not `addToBalanceOf`) with no fixed beneficiary, so the fee
+        // mints fee-project tokens to the resolved fee payer (the account that paid the creation fee, threaded
+        // through `IJBPayerTracker` by the controller/deployers) rather than just topping up project 1's balance.
         IJBProjectPayer projectPayer = _projectPayerDeployer.deployProjectPayer({
             defaultProjectId: _FEE_PROJECT_ID,
             defaultBeneficiary: payable(address(0)),
             defaultMemo: "Project creation fee",
             defaultMetadata: "",
-            defaultAddToBalance: true,
+            defaultAddToBalance: false,
             owner: _CRITICAL_INFRA_OWNER
         });
 
@@ -4151,7 +4154,7 @@ contract Deploy is Script, Sphinx {
         }
 
         try projectPayer.defaultAddToBalance() returns (bool addToBalance) {
-            if (!addToBalance) return false;
+            if (addToBalance) return false;
         } catch {
             return false;
         }

@@ -318,7 +318,7 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         );
         assertTrue(_contains(defifaSource, "external\n        payable\n        override"), "Defifa launch is payable");
         assertTrue(
-            _contains(defifaSource, "CONTROLLER.PROJECTS().createFor{value: msg.value}(address(this))"),
+            _contains(defifaSource, "PROJECTS.createFor{value: msg.value}(address(this))"),
             "Defifa launch forwards creation fee"
         );
     }
@@ -347,10 +347,12 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
         assertTrue(_contains(deploySource, "PROJECT_CREATION_FEE = 0.0001 ether"), "fee constant is 0.0001 ETH");
         assertTrue(_contains(feeConfig, "deployProjectPayer"), "fee receiver is a project payer clone");
         assertTrue(_contains(feeConfig, "defaultProjectId: _FEE_PROJECT_ID"), "fee payer routes to NANA");
-        assertTrue(_contains(feeConfig, "defaultAddToBalance: true"), "fee payer adds balance without minting");
+        assertTrue(
+            _contains(feeConfig, "defaultAddToBalance: false"), "fee payer pays the fee, minting project-1 tokens"
+        );
         assertTrue(_contains(feeConfig, "_projects.setCreationFee"), "JBProjects fee is configured");
         assertTrue(_contains(canonicalCheck, "defaultProjectId()"), "canonical check pins payer project");
-        assertTrue(_contains(canonicalCheck, "defaultAddToBalance()"), "canonical check pins add-to-balance");
+        assertTrue(_contains(canonicalCheck, "defaultAddToBalance()"), "canonical check pins pay routing");
         assertTrue(
             _contains(deploySource, "JBProjectPayer__ProjectCreationFeeReceiver"), "fee payer is emitted in dump"
         );
