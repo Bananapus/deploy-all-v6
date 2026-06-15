@@ -2033,8 +2033,8 @@ contract Verify is Script {
                 critical: true
             });
             _check({
-                condition: projectPayer.defaultAddToBalance(),
-                label: "Creation fee payer adds fees to project balance",
+                condition: !projectPayer.defaultAddToBalance(),
+                label: "Creation fee payer pays the fee (mints project-1 tokens to the resolved payer)",
                 critical: true
             });
 
