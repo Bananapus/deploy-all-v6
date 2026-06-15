@@ -3697,7 +3697,7 @@ contract Deploy is Script, Sphinx {
 
     /// @notice Deploys the Defifa revnet — an ETH-based revnet on all chains.
     function _deployDefifaRevnet() internal {
-        address operator = 0x6b92c73682f0e1fac35A18ab17efa5e77DDE9fE1;
+        address operator = 0x84D03d64B4Dc2dA294FE11bb41154Af3BfdE8934;
 
         JBAccountingContext[] memory accountingContexts = new JBAccountingContext[](1);
         accountingContexts[0] =
