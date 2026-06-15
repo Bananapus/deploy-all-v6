@@ -59,7 +59,8 @@ contract DefifaGameForkTest is RevnetForkBase {
             ADDRESS_REGISTRY,
             defifaRevnetId,
             FEE_PROJECT_ID,
-            HOOK_STORE
+            HOOK_STORE,
+            address(0)
         );
         // Mirror Deploy.s.sol: governor ownership goes to the deployer so it can initialize games.
         governor.transferOwnership(address(defifaDeployer));

@@ -368,8 +368,8 @@ contract Deploy is Script, Sphinx {
     uint32 private constant MARKEE_RULESET_DURATION = 7_889_184;
     // 99.171654737214001809 MARKEE — V5 holder supply on Ethereum
     uint104 private constant MARKEE_MAINNET_AUTO_ISSUANCE = 99_171_654_737_214_001_809;
-    // 50,327,317.742910074499563445 MARKEE — V5 holder supply on Base
-    uint104 private constant MARKEE_BASE_AUTO_ISSUANCE = 50_327_317_742_910_074_499_563_445;
+    // 50,347,317.742910074499563445 MARKEE — V5 holder supply on Base + 20,000 interim Juicebox campaign
+    uint104 private constant MARKEE_BASE_AUTO_ISSUANCE = 50_347_317_742_910_074_499_563_445;
     // 0 — no V5 MARKEE holders on Optimism
     uint104 private constant MARKEE_OP_AUTO_ISSUANCE = 0;
     // 0 — no V5 MARKEE holders on Arbitrum
@@ -3647,7 +3647,8 @@ contract Deploy is Script, Sphinx {
             _addressRegistry,
             _DEFIFA_REV_PROJECT_ID,
             _FEE_PROJECT_ID,
-            _hookStore
+            _hookStore,
+            _trustedForwarder
         );
         _defifaDeployer = DefifaDeployer(
             _deployPrecompiledIfNeeded({artifactName: "DefifaDeployer", salt: DEFIFA_SALT, ctorArgs: deployerArgs})

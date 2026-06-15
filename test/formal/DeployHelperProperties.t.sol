@@ -54,7 +54,7 @@ contract DeployHelperProperties is Test {
     // Mirror of Deploy.s.sol constants (private there). Pinned to the shipped values; the fuzz layer
     // checks the replicas below against the real `Deploy` helpers, so any drift here surfaces as a fuzz
     // failure (testFuzz_replicasMatchShippedDeploy).
-    uint256 private constant DEPLOYMENT_NONCE = 12;
+    uint256 private constant DEPLOYMENT_NONCE = 13;
     // CREATE2_FACTORY (the Arachnid deterministic-deployment proxy, the same address Deploy.s.sol uses)
     // is already declared by forge-std's CommonBase, so we reuse the inherited constant.
 
