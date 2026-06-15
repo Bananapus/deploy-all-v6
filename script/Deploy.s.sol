@@ -192,7 +192,7 @@ contract Deploy is Script, Sphinx {
     /// nonce via `_saltOf` (and the core salt derives from it directly), so bumping this one value yields a fully
     /// fresh, non-colliding address namespace for every contract — the clean way to redeploy from scratch on a
     /// chain that already holds a prior deployment. The Uniswap V4 hook is mined over the folded salt too.
-    uint256 private constant DEPLOYMENT_NONCE = 12;
+    uint256 private constant DEPLOYMENT_NONCE = 13;
 
     /// @dev Sphinx Safe used only to execute the deployment proposal. Derived from the "v6-deployment"
     /// Safe's 8 owners + threshold 4 + saltNonce 420 (see sphinx.lock). Long-term protocol ownership is
