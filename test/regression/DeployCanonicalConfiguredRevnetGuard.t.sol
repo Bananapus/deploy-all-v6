@@ -260,7 +260,7 @@ contract DeployCanonicalConfiguredRevnetGuardTest is Test {
             "deploy must not fall back to a per-chain timestamp (it diverges the cross-chain sucker config hash)"
         );
         assertTrue(
-            _contains(packageJson, "DEFIFA_REV_START_TIME=$(($(date +%s) + 86400)) npx sphinx propose"),
+            _contains(packageJson, "DEFIFA_REV_START_TIME=$(($(date +%s) + 604800)) npx sphinx propose"),
             "proposal scripts pin one anchor before Sphinx loops chains"
         );
     }
