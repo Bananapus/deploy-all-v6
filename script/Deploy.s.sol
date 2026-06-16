@@ -1120,6 +1120,37 @@ contract Deploy is Script, Sphinx {
                 }
             }
         }
+
+        _allowDefaultSuckerTokenMappings();
+    }
+
+    function _allowDefaultSuckerTokenMappings() internal {
+        uint256[] memory remoteChainIds = _defaultSuckerRemoteChainIds();
+        bytes32 remoteNativeToken = bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)));
+
+        for (uint256 i; i < remoteChainIds.length; i++) {
+            uint256 remoteChainId = remoteChainIds[i];
+
+            if (!_suckerRegistry.tokenMappingIsAllowed({
+                    localToken: JBConstants.NATIVE_TOKEN, remoteChainId: remoteChainId, remoteToken: remoteNativeToken
+                })) {
+                _suckerRegistry.allowTokenMapping({
+                    localToken: JBConstants.NATIVE_TOKEN, remoteChainId: remoteChainId, remoteToken: remoteNativeToken
+                });
+            }
+
+            address remoteUsdcToken = _usdcTokenFor(remoteChainId);
+            if (_usdcToken == address(0) || remoteUsdcToken == address(0) || _usdcToken == remoteUsdcToken) continue;
+
+            bytes32 remoteUsdc = bytes32(uint256(uint160(remoteUsdcToken)));
+            if (!_suckerRegistry.tokenMappingIsAllowed({
+                    localToken: _usdcToken, remoteChainId: remoteChainId, remoteToken: remoteUsdc
+                })) {
+                _suckerRegistry.allowTokenMapping({
+                    localToken: _usdcToken, remoteChainId: remoteChainId, remoteToken: remoteUsdc
+                });
+            }
+        }
     }
 
     function _deploySuckersOptimism() internal {
@@ -4167,6 +4198,40 @@ contract Deploy is Script, Sphinx {
     //  Helpers
     // ════════════════════════════════════════════════════════════════════
 
+    function _defaultSuckerRemoteChainIds() internal view returns (uint256[] memory remoteChainIds) {
+        remoteChainIds = new uint256[](3);
+
+        if (block.chainid == 1 || block.chainid == 11_155_111) {
+            remoteChainIds[0] = _autoIssuanceChainId(10);
+            remoteChainIds[1] = _autoIssuanceChainId(8453);
+            remoteChainIds[2] = _autoIssuanceChainId(42_161);
+            return remoteChainIds;
+        }
+
+        if (block.chainid == 10 || block.chainid == 11_155_420) {
+            remoteChainIds[0] = _autoIssuanceChainId(1);
+            remoteChainIds[1] = _autoIssuanceChainId(42_161);
+            remoteChainIds[2] = _autoIssuanceChainId(8453);
+            return remoteChainIds;
+        }
+
+        if (block.chainid == 8453 || block.chainid == 84_532) {
+            remoteChainIds[0] = _autoIssuanceChainId(1);
+            remoteChainIds[1] = _autoIssuanceChainId(10);
+            remoteChainIds[2] = _autoIssuanceChainId(42_161);
+            return remoteChainIds;
+        }
+
+        if (block.chainid == 42_161 || block.chainid == 421_614) {
+            remoteChainIds[0] = _autoIssuanceChainId(1);
+            remoteChainIds[1] = _autoIssuanceChainId(10);
+            remoteChainIds[2] = _autoIssuanceChainId(8453);
+            return remoteChainIds;
+        }
+
+        return new uint256[](0);
+    }
+
     /// @notice Builds a standard sucker deployment config for L1→L2 bridging.
     function _buildSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
         JBTokenMapping[] memory tokenMappings = new JBTokenMapping[](1);
@@ -4277,6 +4342,18 @@ contract Deploy is Script, Sphinx {
         });
 
         return JBSuckerDeployerConfig({deployer: deployer, peer: bytes32(0), mappings: tokenMappings});
+    }
+
+    function _usdcTokenFor(uint256 chainId) internal pure returns (address) {
+        if (chainId == 1) return 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        if (chainId == 11_155_111) return 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
+        if (chainId == 10) return 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
+        if (chainId == 11_155_420) return 0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
+        if (chainId == 8453) return 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+        if (chainId == 84_532) return 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+        if (chainId == 42_161) return 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+        if (chainId == 421_614) return 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
+        return address(0);
     }
 
     function _autoIssuanceChainId(uint32 mainnetChainId) internal view returns (uint32) {

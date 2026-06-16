@@ -213,6 +213,12 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             deployer: IJBSuckerDeployer(address(opDeployer)), peer: bytes32(0), mappings: mappings
         });
 
+        // The registry owner must approve the native/native mapping (gated) before the sucker configures it. The OP
+        // sucker peers to chain 10.
+        suckerRegistry.allowTokenMapping(
+            JBConstants.NATIVE_TOKEN, 10, bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))
+        );
+
         vm.prank(PROJECT_OWNER);
         // forge-lint: disable-next-line(unsafe-typecast)
         address[] memory suckers = suckerRegistry.deploySuckersFor(projectId, bytes32("SALT"), configs);
