@@ -85,7 +85,7 @@ contract DefaultSuckerTokenMappingsTest is Test {
         assertEq(ids.length, 0);
     }
 
-    function test_deployCallsDefaultSuckerTokenMappingApprovals() external {
+    function test_deployCallsDefaultSuckerTokenMappingApprovals() external view {
         string memory source = vm.readFile("script/Deploy.s.sol");
 
         assertTrue(_contains(source, "_allowDefaultSuckerTokenMappings();"));
