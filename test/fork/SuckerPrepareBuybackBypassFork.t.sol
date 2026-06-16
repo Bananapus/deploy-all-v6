@@ -83,6 +83,13 @@ contract SuckerPrepareBuybackBypassForkTest is RevnetForkBase {
 
         vm.prank(multisig());
         SUCKER_REGISTRY.allowSuckerDeployer(address(opSuckerDeployer));
+
+        // The registry owner must approve the native/native mapping (gated) before the sucker configures it at deploy.
+        // The OP sucker peers to chain 10.
+        vm.prank(multisig());
+        SUCKER_REGISTRY.allowTokenMapping(
+            JBConstants.NATIVE_TOKEN, 10, bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))
+        );
     }
 
     function _suckerDeploymentConfig() internal view returns (REVSuckerDeploymentConfig memory config) {

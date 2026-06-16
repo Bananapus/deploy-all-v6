@@ -214,6 +214,13 @@ abstract contract SuckerConservationBase is RevnetForkBase {
         configs[0] =
             JBSuckerDeployerConfig({deployer: IJBSuckerDeployer(deployerAddr), peer: bytes32(0), mappings: mappings});
 
+        // The registry owner must approve a sucker's token mapping — gated for native/native and
+        // different-address pairs — before it is configured at deploy time. Every sucker in these tests peers to
+        // REMOTE_CHAIN_ID, so authorize the mapping on that route. Approving an ungated (non-native same-address) pair
+        // is a harmless no-op the gate never consults.
+        vm.prank(multisig());
+        SUCKER_REGISTRY.allowTokenMapping(localToken, REMOTE_CHAIN_ID, remoteToken);
+
         vm.prank(address(REV_DEPLOYER));
         address[] memory deployed = SUCKER_REGISTRY.deploySuckersFor(revnetId, salt, configs);
         sucker = deployed[0];

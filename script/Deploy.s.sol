@@ -640,7 +640,6 @@ contract Deploy is Script, Sphinx {
         // Ethereum Mainnet
         if (block.chainid == 1) {
             _wrappedNativeToken = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // WETH
-            _usdcToken = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; // USDC
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
@@ -651,7 +650,6 @@ contract Deploy is Script, Sphinx {
             // Sepolia has multiple WETH9 deployments. Use Uniswap's WETH so router/univ4 integrations match the
             // token used by Uniswap's Sepolia surfaces, not the older common WETH at 0x7b799...E7f9.
             _wrappedNativeToken = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14; // WETH
-            _usdcToken = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // USDC
             _v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
             _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
             _positionManager = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
@@ -660,7 +658,6 @@ contract Deploy is Script, Sphinx {
         // Optimism
         else if (block.chainid == 10) {
             _wrappedNativeToken = 0x4200000000000000000000000000000000000006; // WETH
-            _usdcToken = 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85; // USDC
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
             _positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
@@ -670,7 +667,6 @@ contract Deploy is Script, Sphinx {
         // Keep deploy-all supported here, but skip the Uniswap-dependent stack since no PositionManager is published.
         else if (block.chainid == 11_155_420) {
             _wrappedNativeToken = 0x4200000000000000000000000000000000000006; // WETH
-            _usdcToken = 0x5fd84259d66Cd46123540766Be93DFE6D43130D7; // USDC
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
             _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
             _positionManager = address(0);
@@ -679,7 +675,6 @@ contract Deploy is Script, Sphinx {
         // Base
         else if (block.chainid == 8453) {
             _wrappedNativeToken = 0x4200000000000000000000000000000000000006; // WETH
-            _usdcToken = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913; // USDC
             _v3Factory = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
             _poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
             _positionManager = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
@@ -688,7 +683,6 @@ contract Deploy is Script, Sphinx {
         // Base Sepolia
         else if (block.chainid == 84_532) {
             _wrappedNativeToken = 0x4200000000000000000000000000000000000006; // WETH
-            _usdcToken = 0x036CbD53842c5426634e7929541eC2318f3dCF7e; // USDC
             _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
             _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
             _positionManager = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
@@ -697,7 +691,6 @@ contract Deploy is Script, Sphinx {
         // Arbitrum
         else if (block.chainid == 42_161) {
             _wrappedNativeToken = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1; // WETH
-            _usdcToken = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831; // USDC
             _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             _poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
             _positionManager = 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
@@ -706,7 +699,6 @@ contract Deploy is Script, Sphinx {
         // Arbitrum Sepolia
         else if (block.chainid == 421_614) {
             _wrappedNativeToken = 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73; // WETH
-            _usdcToken = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d; // USDC
             _v3Factory = 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
             _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
             _positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
@@ -718,6 +710,10 @@ contract Deploy is Script, Sphinx {
         else {
             revert("Unsupported chain");
         }
+
+        // USDC for every supported chain comes from the single canonical `_usdcTokenFor` table (which also
+        // answers remote-chain lookups for sucker token-mapping approvals). Keep the address in one place.
+        _usdcToken = _usdcTokenFor(block.chainid);
     }
 
     function _shouldDeployUniswapStack() internal view returns (bool) {
@@ -1118,6 +1114,37 @@ contract Deploy is Script, Sphinx {
                 if (!_suckerRegistry.suckerDeployerIsAllowed(_preApprovedSuckerDeployers[i])) {
                     _suckerRegistry.allowSuckerDeployer(_preApprovedSuckerDeployers[i]);
                 }
+            }
+        }
+
+        _allowDefaultSuckerTokenMappings();
+    }
+
+    function _allowDefaultSuckerTokenMappings() internal {
+        uint256[] memory remoteChainIds = _defaultSuckerRemoteChainIds();
+        bytes32 remoteNativeToken = bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)));
+
+        for (uint256 i; i < remoteChainIds.length; i++) {
+            uint256 remoteChainId = remoteChainIds[i];
+
+            if (!_suckerRegistry.tokenMappingIsAllowed({
+                    localToken: JBConstants.NATIVE_TOKEN, remoteChainId: remoteChainId, remoteToken: remoteNativeToken
+                })) {
+                _suckerRegistry.allowTokenMapping({
+                    localToken: JBConstants.NATIVE_TOKEN, remoteChainId: remoteChainId, remoteToken: remoteNativeToken
+                });
+            }
+
+            address remoteUsdcToken = _usdcTokenFor(remoteChainId);
+            if (_usdcToken == address(0) || remoteUsdcToken == address(0) || _usdcToken == remoteUsdcToken) continue;
+
+            bytes32 remoteUsdc = bytes32(uint256(uint160(remoteUsdcToken)));
+            if (!_suckerRegistry.tokenMappingIsAllowed({
+                    localToken: _usdcToken, remoteChainId: remoteChainId, remoteToken: remoteUsdc
+                })) {
+                _suckerRegistry.allowTokenMapping({
+                    localToken: _usdcToken, remoteChainId: remoteChainId, remoteToken: remoteUsdc
+                });
             }
         }
     }
@@ -1663,24 +1690,22 @@ contract Deploy is Script, Sphinx {
     function _deployUsdcFeed() internal {
         uint256 l2GracePeriod = 3600 seconds;
         IJBPriceFeed usdcFeed;
-        address usdc;
+        // Single canonical per-chain USDC table; the branches below only select the price feed.
+        address usdc = _usdcTokenFor(block.chainid);
 
         if (block.chainid == 1) {
-            usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6),
                 threshold: 48 hours
             });
         } else if (block.chainid == 11_155_111) {
-            usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E),
                 threshold: 30 days
             });
         } else if (block.chainid == 10) {
-            usdc = 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
             usdcFeed = _deployChainlinkSequencerFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3),
@@ -1689,14 +1714,12 @@ contract Deploy is Script, Sphinx {
                 gracePeriod: l2GracePeriod
             });
         } else if (block.chainid == 11_155_420) {
-            usdc = 0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x6e44e50E3cc14DD16e01C590DC1d7020cb36eD4C),
                 threshold: 30 days
             });
         } else if (block.chainid == 8453) {
-            usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
             usdcFeed = _deployChainlinkSequencerFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B),
@@ -1705,7 +1728,6 @@ contract Deploy is Script, Sphinx {
                 gracePeriod: l2GracePeriod
             });
         } else if (block.chainid == 84_532) {
-            usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
             // Base Sepolia's USDC/USD feed is correct, but sparse testnet updates can exceed a 24h window.
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
@@ -1713,7 +1735,6 @@ contract Deploy is Script, Sphinx {
                 threshold: 30 days
             });
         } else if (block.chainid == 42_161) {
-            usdc = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
             usdcFeed = _deployChainlinkSequencerFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3),
@@ -1722,7 +1743,6 @@ contract Deploy is Script, Sphinx {
                 gracePeriod: l2GracePeriod
             });
         } else if (block.chainid == 421_614) {
-            usdc = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
             usdcFeed = _deployChainlinkFeed({
                 salt: USDC_FEED_SALT,
                 chainlinkFeed: AggregatorV3Interface(0x0153002d20B96532C639313c2d54c3dA09109309),
@@ -4167,6 +4187,40 @@ contract Deploy is Script, Sphinx {
     //  Helpers
     // ════════════════════════════════════════════════════════════════════
 
+    function _defaultSuckerRemoteChainIds() internal view returns (uint256[] memory remoteChainIds) {
+        remoteChainIds = new uint256[](3);
+
+        if (block.chainid == 1 || block.chainid == 11_155_111) {
+            remoteChainIds[0] = _autoIssuanceChainId(10);
+            remoteChainIds[1] = _autoIssuanceChainId(8453);
+            remoteChainIds[2] = _autoIssuanceChainId(42_161);
+            return remoteChainIds;
+        }
+
+        if (block.chainid == 10 || block.chainid == 11_155_420) {
+            remoteChainIds[0] = _autoIssuanceChainId(1);
+            remoteChainIds[1] = _autoIssuanceChainId(42_161);
+            remoteChainIds[2] = _autoIssuanceChainId(8453);
+            return remoteChainIds;
+        }
+
+        if (block.chainid == 8453 || block.chainid == 84_532) {
+            remoteChainIds[0] = _autoIssuanceChainId(1);
+            remoteChainIds[1] = _autoIssuanceChainId(10);
+            remoteChainIds[2] = _autoIssuanceChainId(42_161);
+            return remoteChainIds;
+        }
+
+        if (block.chainid == 42_161 || block.chainid == 421_614) {
+            remoteChainIds[0] = _autoIssuanceChainId(1);
+            remoteChainIds[1] = _autoIssuanceChainId(10);
+            remoteChainIds[2] = _autoIssuanceChainId(8453);
+            return remoteChainIds;
+        }
+
+        return new uint256[](0);
+    }
+
     /// @notice Builds a standard sucker deployment config for L1→L2 bridging.
     function _buildSuckerConfig(bytes32 salt) internal view returns (REVSuckerDeploymentConfig memory) {
         JBTokenMapping[] memory tokenMappings = new JBTokenMapping[](1);
@@ -4277,6 +4331,18 @@ contract Deploy is Script, Sphinx {
         });
 
         return JBSuckerDeployerConfig({deployer: deployer, peer: bytes32(0), mappings: tokenMappings});
+    }
+
+    function _usdcTokenFor(uint256 chainId) internal pure returns (address) {
+        if (chainId == 1) return 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        if (chainId == 11_155_111) return 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
+        if (chainId == 10) return 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
+        if (chainId == 11_155_420) return 0x5fd84259d66Cd46123540766Be93DFE6D43130D7;
+        if (chainId == 8453) return 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+        if (chainId == 84_532) return 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+        if (chainId == 42_161) return 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+        if (chainId == 421_614) return 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
+        return address(0);
     }
 
     function _autoIssuanceChainId(uint32 mainnetChainId) internal view returns (uint32) {
