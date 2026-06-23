@@ -481,6 +481,8 @@ contract Deploy is Script, Sphinx {
     uint256 private constant _DEFIFA_REV_PROJECT_ID = 5;
     uint256 private constant _ART_PROJECT_ID = 6;
     uint256 private constant _MARKEE_PROJECT_ID = 7;
+    /// @dev The LP fee share routed to project 1, out of 10_000.
+    uint256 private constant _LP_SPLIT_HOOK_FEE_PERCENT = 2000;
 
     /// @notice Canonical Banny ops EOA. Used as the auto-issuance beneficiary in all stages and inherits
     /// the BAN operator role + resolver ownership from the Sphinx Safe via `_finalizeBannyOwnership`
@@ -2572,8 +2574,8 @@ contract Deploy is Script, Sphinx {
             JBUniswapV4LPSplitHook deployedHook = JBUniswapV4LPSplitHook(
                 payable(address(
                         _lpSplitHookDeployer.deployHookFor({
-                            feeProjectId: 0,
-                            feePercent: 0,
+                            feeProjectId: _FEE_PROJECT_ID,
+                            feePercent: _LP_SPLIT_HOOK_FEE_PERCENT,
                             buybackHook: IJBBuybackHookRegistry(address(_buybackRegistry)),
                             salt: BAN_LP_SPLIT_HOOK_SALT
                         })
@@ -2597,8 +2599,8 @@ contract Deploy is Script, Sphinx {
         if (address(hook.poolManager()) != _poolManager) return false;
         if (address(hook.positionManager()) != _positionManager) return false;
         if (address(hook.oracleHook()) != address(_uniswapV4Hook)) return false;
-        if (hook.feeProjectId() != 0) return false;
-        if (hook.feePercent() != 0) return false;
+        if (hook.feeProjectId() != _FEE_PROJECT_ID) return false;
+        if (hook.feePercent() != _LP_SPLIT_HOOK_FEE_PERCENT) return false;
         return true;
     }
 

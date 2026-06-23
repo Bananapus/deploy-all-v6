@@ -12,23 +12,29 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import {LibClone} from "solady/src/utils/LibClone.sol";
 
 import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
 import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
+import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
 import {IJBController} from "@bananapus/core-v6/src/interfaces/IJBController.sol";
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
 import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
+import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 import {IJBTokens} from "@bananapus/core-v6/src/interfaces/IJBTokens.sol";
 import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {JBFeelessAddresses} from "@bananapus/core-v6/src/JBFeelessAddresses.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
+import {JBSplitGroupIds} from "@bananapus/core-v6/src/libraries/JBSplitGroupIds.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {JBRuleset} from "@bananapus/core-v6/src/structs/JBRuleset.sol";
 import {JBRulesetMetadata} from "@bananapus/core-v6/src/structs/JBRulesetMetadata.sol";
+import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
+import {JBSplitGroup} from "@bananapus/core-v6/src/structs/JBSplitGroup.sol";
 import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
 import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRouterTerminalRegistry.sol";
 import {IWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
@@ -55,22 +61,32 @@ abstract contract TwapOracleUpgradeBase is Script {
     uint256 internal constant TWAP_UPGRADE_NONCE = 1;
 
     uint256 internal constant ART_PROJECT_ID = 6;
+    uint256 internal constant BANNY_PROJECT_ID = 4;
     uint24 internal constant DEFAULT_BUYBACK_POOL_FEE = 10_000;
     int24 internal constant DEFAULT_BUYBACK_TICK_SPACING = 200;
     uint256 internal constant DEFAULT_BUYBACK_TWAP_WINDOW = 2 days;
+    uint256 internal constant LP_SPLIT_HOOK_FEE_PERCENT = 2000;
+    uint256 internal constant LP_SPLIT_HOOK_FEE_PROJECT_ID = 1;
 
+    address internal constant BANNY_OPERATOR = 0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450;
+
+    bytes32 internal constant BANNY_LP_SPLIT_HOOK_SALT = "_BAN_LP_SPLIT_HOOK_V6_";
     bytes32 internal constant BUYBACK_HOOK_SALT = keccak256("JBBuybackHookV6_TwapOracleUpgrade");
     bytes32 internal constant ROUTER_TERMINAL_SALT = keccak256("JBRouterTerminalV6_TwapOracleUpgrade");
     bytes32 internal constant LP_SPLIT_HOOK_SALT = keccak256("JBUniswapV4LPSplitHookV6_TwapOracleUpgrade");
     bytes32 internal constant LP_SPLIT_HOOK_DEPLOYER_SALT =
         keccak256("JBUniswapV4LPSplitHookDeployerV6_TwapOracleUpgrade");
 
-    string internal constant SET_HOOK_ABI =
-        "[{\"type\":\"function\",\"name\":\"setHookFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"hook\",\"type\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
-    string internal constant SET_TERMINAL_ABI =
-        "[{\"type\":\"function\",\"name\":\"setTerminalFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"terminal\",\"type\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
+    string internal constant DEPLOY_LP_SPLIT_HOOK_ABI =
+        "[{\"type\":\"function\",\"name\":\"deployHookFor\",\"inputs\":[{\"name\":\"feeProjectId\",\"type\":\"uint256\"},{\"name\":\"feePercent\",\"type\":\"uint256\"},{\"name\":\"buybackHook\",\"type\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\"}],\"outputs\":[{\"name\":\"hook\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\"}]";
     string internal constant INITIALIZE_POOL_ABI =
         "[{\"type\":\"function\",\"name\":\"initializePoolFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"fee\",\"type\":\"uint24\"},{\"name\":\"tickSpacing\",\"type\":\"int24\"},{\"name\":\"twapWindow\",\"type\":\"uint256\"},{\"name\":\"terminalToken\",\"type\":\"address\"},{\"name\":\"sqrtPriceX96\",\"type\":\"uint160\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
+    string internal constant SET_HOOK_ABI =
+        "[{\"type\":\"function\",\"name\":\"setHookFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"hook\",\"type\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
+    string internal constant SET_SPLIT_GROUPS_ABI =
+        "[{\"type\":\"function\",\"name\":\"setSplitGroupsOf\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"rulesetId\",\"type\":\"uint256\"},{\"name\":\"splitGroups\",\"type\":\"tuple[]\",\"components\":[{\"name\":\"groupId\",\"type\":\"uint256\"},{\"name\":\"splits\",\"type\":\"tuple[]\",\"components\":[{\"name\":\"percent\",\"type\":\"uint32\"},{\"name\":\"projectId\",\"type\":\"uint64\"},{\"name\":\"beneficiary\",\"type\":\"address\"},{\"name\":\"preferAddToBalance\",\"type\":\"bool\"},{\"name\":\"lockedUntil\",\"type\":\"uint48\"},{\"name\":\"hook\",\"type\":\"address\"}]}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
+    string internal constant SET_TERMINAL_ABI =
+        "[{\"type\":\"function\",\"name\":\"setTerminalFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"terminal\",\"type\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
 
     address internal trustedForwarder;
     address internal wrappedNativeToken;
@@ -664,17 +680,90 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
         _writeOperatorSafeRows(_defaultProjectIds());
     }
 
-    function _writeOperatorSafeRowsSkipped() internal {
-        string memory path = string.concat(
-            "script/post-deploy/.cache/twap-oracle-upgrade-operator-safe-txs-", vm.toString(block.chainid), ".md"
+    function _bannyLpSplitHookForOperator() internal view returns (JBUniswapV4LPSplitHook) {
+        return JBUniswapV4LPSplitHook(
+            payable(LibClone.predictDeterministicAddress({
+                    implementation: address(upgradeLpSplitHook),
+                    salt: keccak256(abi.encode(BANNY_OPERATOR, BANNY_LP_SPLIT_HOOK_SALT)),
+                    deployer: address(upgradeLpSplitHookDeployer)
+                }))
         );
-        vm.createDir({path: "script/post-deploy/.cache", recursive: true});
-        vm.writeFile({
+    }
+
+    function _bannyLpSplitHookSplitGroups(JBUniswapV4LPSplitHook lpSplitHook)
+        internal
+        pure
+        returns (JBSplitGroup[] memory splitGroups)
+    {
+        JBSplit[] memory splits = new JBSplit[](1);
+        splits[0] = JBSplit({
+            percent: JBConstants.SPLITS_TOTAL_PERCENT,
+            projectId: 0,
+            beneficiary: payable(address(0)),
+            preferAddToBalance: false,
+            lockedUntil: 0,
+            hook: IJBSplitHook(address(lpSplitHook))
+        });
+
+        splitGroups = new JBSplitGroup[](1);
+        splitGroups[0] = JBSplitGroup({groupId: JBSplitGroupIds.RESERVED_TOKENS, splits: splits});
+    }
+
+    function _writeBannyLpSplitHookRows(string memory path, address controller) internal {
+        JBUniswapV4LPSplitHook lpSplitHook = _bannyLpSplitHookForOperator();
+
+        _writeSafeRow({
+            path: path,
+            title: "4. Deploy Banny LP split hook",
+            target: address(upgradeLpSplitHookDeployer),
+            abiJson: DEPLOY_LP_SPLIT_HOOK_ABI,
+            data: abi.encodeCall(
+                JBUniswapV4LPSplitHookDeployer.deployHookFor,
+                (
+                    LP_SPLIT_HOOK_FEE_PROJECT_ID,
+                    LP_SPLIT_HOOK_FEE_PERCENT,
+                    IJBBuybackHookRegistry(address(buybackRegistry)),
+                    BANNY_LP_SPLIT_HOOK_SALT
+                )
+            )
+        });
+
+        vm.writeLine({
             path: path,
             data: string.concat(
-                "# TWAP Oracle Upgrade Operator Safe Transactions - ",
-                _chainFolder(),
-                "\n\nSkipped: this chain has no Uniswap V4 PositionManager configured in deploy-all-v6.\n"
+                "Expected Banny LP split hook: `",
+                vm.toString(address(lpSplitHook)),
+                "`\n\n",
+                "LP fee args: `feeProjectId=",
+                vm.toString(LP_SPLIT_HOOK_FEE_PROJECT_ID),
+                "`, `feePercent=",
+                vm.toString(LP_SPLIT_HOOK_FEE_PERCENT),
+                "`\n"
+            )
+        });
+
+        (JBRuleset memory ruleset,) = IJBController(controller).currentRulesetOf(BANNY_PROJECT_ID);
+        _writeSafeRow({
+            path: path,
+            title: "5. Route Banny reserved split to LP split hook",
+            target: controller,
+            abiJson: SET_SPLIT_GROUPS_ABI,
+            data: abi.encodeCall(
+                IJBController.setSplitGroupsOf,
+                (BANNY_PROJECT_ID, ruleset.id, _bannyLpSplitHookSplitGroups(lpSplitHook))
+            )
+        });
+
+        vm.writeLine({
+            path: path,
+            data: string.concat(
+                "Split args: `rulesetId=",
+                vm.toString(ruleset.id),
+                "`, `groupId=1`, `splitPercent=",
+                vm.toString(JBConstants.SPLITS_TOTAL_PERCENT),
+                "`, `hook=",
+                vm.toString(address(lpSplitHook)),
+                "`\n"
             )
         });
     }
@@ -696,6 +785,9 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
                 "`\n\n",
                 "New router terminal: `",
                 vm.toString(address(upgradeRouterTerminal)),
+                "`\n\n",
+                "New LP split hook deployer: `",
+                vm.toString(address(upgradeLpSplitHookDeployer)),
                 "`\n\n"
             )
         });
@@ -703,6 +795,21 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
         for (uint256 i; i < projectIds.length; i++) {
             _writeProjectRows({path: path, projectId: projectIds[i]});
         }
+    }
+
+    function _writeOperatorSafeRowsSkipped() internal {
+        string memory path = string.concat(
+            "script/post-deploy/.cache/twap-oracle-upgrade-operator-safe-txs-", vm.toString(block.chainid), ".md"
+        );
+        vm.createDir({path: "script/post-deploy/.cache", recursive: true});
+        vm.writeFile({
+            path: path,
+            data: string.concat(
+                "# TWAP Oracle Upgrade Operator Safe Transactions - ",
+                _chainFolder(),
+                "\n\nSkipped: this chain has no Uniswap V4 PositionManager configured in deploy-all-v6.\n"
+            )
+        });
     }
 
     function _writeProjectRows(string memory path, uint256 projectId) internal {
@@ -750,37 +857,38 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
                     "`. Check accounting context and price feeds.\n"
                 )
             });
-            return;
+        } else {
+            _writeSafeRow({
+                path: path,
+                title: "3. Initialize buyback pool",
+                target: address(buybackRegistry),
+                abiJson: INITIALIZE_POOL_ABI,
+                data: abi.encodeCall(
+                    JBBuybackHookRegistry.initializePoolFor,
+                    (
+                        projectId,
+                        DEFAULT_BUYBACK_POOL_FEE,
+                        DEFAULT_BUYBACK_TICK_SPACING,
+                        DEFAULT_BUYBACK_TWAP_WINDOW,
+                        terminalToken,
+                        sqrtPriceX96
+                    )
+                )
+            });
+
+            vm.writeLine({
+                path: path,
+                data: string.concat(
+                    "Pool args: `fee=10000`, `tickSpacing=200`, `twapWindow=172800`, `terminalToken=",
+                    vm.toString(terminalToken),
+                    "`, `sqrtPriceX96=",
+                    vm.toString(uint256(sqrtPriceX96)),
+                    "`\n"
+                )
+            });
         }
 
-        _writeSafeRow({
-            path: path,
-            title: "3. Initialize buyback pool",
-            target: address(buybackRegistry),
-            abiJson: INITIALIZE_POOL_ABI,
-            data: abi.encodeCall(
-                JBBuybackHookRegistry.initializePoolFor,
-                (
-                    projectId,
-                    DEFAULT_BUYBACK_POOL_FEE,
-                    DEFAULT_BUYBACK_TICK_SPACING,
-                    DEFAULT_BUYBACK_TWAP_WINDOW,
-                    terminalToken,
-                    sqrtPriceX96
-                )
-            )
-        });
-
-        vm.writeLine({
-            path: path,
-            data: string.concat(
-                "Pool args: `fee=10000`, `tickSpacing=200`, `twapWindow=172800`, `terminalToken=",
-                vm.toString(terminalToken),
-                "`, `sqrtPriceX96=",
-                vm.toString(uint256(sqrtPriceX96)),
-                "`\n"
-            )
-        });
+        if (projectId == BANNY_PROJECT_ID) _writeBannyLpSplitHookRows({path: path, controller: controller});
     }
 
     function _writeSafeRow(
