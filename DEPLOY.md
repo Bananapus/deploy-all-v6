@@ -470,8 +470,8 @@ export VERIFY_ARB_SUCKER_DEPLOYER=0x...               # L1 + Arbitrum deployer
 # matches the canonical per-chain manifest.
 export VERIFY_CCIP_SUCKER_DEPLOYERS_BY_REMOTE=10:0x...,8453:0x...,42161:0x...
 
-# Optional extra feeless addresses — CSV of addresses that should be present in the
-# feeless registry alongside the router terminal (which is checked separately).
+# Optional extra feeless addresses — CSV of non-router-terminal addresses that should be present in the
+# feeless registry. The router terminal is checked separately and must not be globally feeless.
 # export VERIFY_FEELESS_ADDRESSES=0x...,0x...
 ```
 
@@ -647,7 +647,7 @@ These manual checks complement the automated verification:
 - [ ] `projects.count()` returns 4 (or expected total if other projects were created)
 - [ ] `directory.controllerOf(1)` returns the controller address
 - [ ] `prices.pricePerUnitOf(0, 2, 0x000000000000000000000000000000000000EEEe, 18)` returns a non-zero ETH/USD price
-- [ ] `feelessAddresses.isFeeless(<routerTerminal>)` returns true
+- [ ] `feelessAddresses.isFeelessFor(<routerTerminal>, 0, address(0))` returns false
 - [ ] `suckerRegistry.suckerDeployerIsAllowed(<deployer>)` returns true for each expected deployer
 - [ ] Make a small test payment to project 1 via the terminal
 - [ ] Verify the payment appears in the project's balance via `terminalStore.balanceOf()`
