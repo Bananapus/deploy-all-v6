@@ -157,6 +157,13 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
         vm.prank(multisig());
         SUCKER_REGISTRY.allowSuckerDeployer(address(opSuckerDeployer));
 
+        // The registry owner must approve native/native mappings before a project deploys a sucker with one. The OP
+        // sucker peers to chain 10 in this single-fork characterization.
+        vm.prank(multisig());
+        SUCKER_REGISTRY.allowTokenMapping(
+            JBConstants.NATIVE_TOKEN, L_CHAIN_ID, bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN)))
+        );
+
         // 10% cashOutTaxRate keeps the borrow primitive interesting (low tax → high borrow per collateral).
         revnetId = _deployRevnet(1000);
 
