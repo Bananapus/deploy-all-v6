@@ -144,6 +144,31 @@ Sphinx compiles the deploy script, simulates it, and proposes the resulting tran
 
 Monitor execution in the Sphinx dashboard or on-chain via the safe's transaction history.
 
+### Post-launch TWAP oracle upgrade
+
+`script/DeployTwapOracleUpgrade.s.sol` is a post-launch migration script for replacing the Uniswap V4 oracle-dependent contracts without redeploying the full protocol. Before proposing it, rebuild `artifacts/` from package versions that include the matching TWAP/coverage changes in `univ4-router-v6`, `nana-buyback-hook-v6`, and `nana-router-terminal-v6`.
+
+Infra Safe proposal:
+
+```bash
+pnpm artifacts
+pnpm deploy:propose:twap-oracle-upgrade:testnets
+# or:
+pnpm deploy:propose:twap-oracle-upgrade:mainnets
+```
+
+The infra proposal deploys the new `JBUniswapV4Hook`, `JBBuybackHook`, `JBRouterTerminal`, `JBUniswapV4LPSplitHook`, and `JBUniswapV4LPSplitHookDeployer`; sets the buyback and router-terminal registries to the new defaults for newly created projects; disallows the old buyback hook and old router terminal where possible; and removes the old router terminal from `JBFeelessAddresses` if it was still marked feeless.
+
+Existing revnets need project-operator transactions after the infra proposal executes:
+
+```bash
+npm run deploy:operator-safe-txs:twap-oracle-upgrade -- --rpc-url <RPC_URL>
+```
+
+This writes `script/post-deploy/.cache/twap-oracle-upgrade-operator-safe-txs-<chainId>.md` with Safe-ready ABI and custom data for projects 1-7. Each project row sets the explicit buyback hook, sets the explicit router terminal, and initializes that project's new buyback pool when the script can compute the start price. Project 4 (BAN) also gets rows to deploy its deterministic LP split hook clone and route BAN's reserved split group to that clone.
+
+The BAN LP split hook clone uses project `1` as the LP fee project and `2000` out of `10_000` as the LP fee share. The clone address is deterministic over the LP split hook deployer, implementation, salt, and the operator transaction sender. The generated BAN row assumes the canonical BAN operator `0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450` is the Safe transaction sender; if a different Safe or module executes the deploy-hook call, regenerate the expected clone address for that sender before submitting the split-routing row.
+
 ### Sphinx and CREATE2
 
 Sphinx 0.23.x routes Solidity `new {salt}` deployments through the deterministic deployment proxy (`0x4e59b44847b379578588920cA78FbF26c0B4956C`). This is handled automatically by the Sphinx TypeScript decoder (`isCreate2AccountAccess()`), which detects `CREATE2` opcodes in the simulation trace and replays them through the canonical factory.
