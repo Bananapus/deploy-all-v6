@@ -4,30 +4,37 @@ pragma solidity 0.8.28;
 import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
 import {Script, stdJson} from "forge-std/Script.sol";
 
+// ── Uniswap ──
 import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {LibClone} from "solady/src/utils/LibClone.sol";
 
+// ── Address Registry ──
 import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
+
+// ── Buyback Hook ──
 import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
+
+// ── Core ──
+import {JBFeelessAddresses} from "@bananapus/core-v6/src/JBFeelessAddresses.sol";
 import {IJBController} from "@bananapus/core-v6/src/interfaces/IJBController.sol";
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
 import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
+import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
+import {IJBSplits} from "@bananapus/core-v6/src/interfaces/IJBSplits.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 import {IJBTokens} from "@bananapus/core-v6/src/interfaces/IJBTokens.sol";
-import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
-import {JBFeelessAddresses} from "@bananapus/core-v6/src/JBFeelessAddresses.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBSplitGroupIds} from "@bananapus/core-v6/src/libraries/JBSplitGroupIds.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
@@ -35,13 +42,21 @@ import {JBRuleset} from "@bananapus/core-v6/src/structs/JBRuleset.sol";
 import {JBRulesetMetadata} from "@bananapus/core-v6/src/structs/JBRulesetMetadata.sol";
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 import {JBSplitGroup} from "@bananapus/core-v6/src/structs/JBSplitGroup.sol";
+
+// ── Router Terminal ──
 import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
 import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRouterTerminalRegistry.sol";
 import {IWETH9} from "@bananapus/router-terminal-v6/src/interfaces/IWETH9.sol";
+
+// ── Suckers ──
 import {IJBSuckerRegistry} from "@bananapus/suckers-v6/src/interfaces/IJBSuckerRegistry.sol";
+
+// ── Uniswap V4 Hooks ──
 import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
 import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHookDeployer.sol";
 import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
+
+// ── Math ──
 import {mulDiv, sqrt} from "@prb/math/src/Common.sol";
 
 /// @notice Shared helpers for the post-launch TWAP oracle upgrade.
@@ -50,136 +65,156 @@ abstract contract TwapOracleUpgradeBase is Script {
 
     error TwapOracleUpgrade_MissingDeployment(string name);
     error TwapOracleUpgrade_MissingPoolPrice(uint256 projectId, address terminalToken);
+    error TwapOracleUpgrade_UnexpectedPoolWindow(uint256 projectId, address terminalToken, uint256 window);
     error TwapOracleUpgrade_UnsupportedChain(uint256 chainId);
     error TwapOracleUpgrade_UnexpectedSafe(address expected, address actual);
 
-    IPermit2 internal constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
-    address internal constant DETERMINISTIC_CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
-    address internal constant EXPECTED_SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
+    // ════════════════════════════════════════════════════════════════════
+    //  Constants
+    // ════════════════════════════════════════════════════════════════════
+
+    IPermit2 internal constant _PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    address internal constant _CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
+    address internal constant _EXPECTED_SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
 
     uint256 internal constant DEPLOYMENT_NONCE = 13;
-    uint256 internal constant TWAP_UPGRADE_NONCE = 1;
+    uint256 internal constant _TWAP_UPGRADE_NONCE = 1;
 
-    uint256 internal constant ART_PROJECT_ID = 6;
-    uint256 internal constant BANNY_PROJECT_ID = 4;
-    uint24 internal constant DEFAULT_BUYBACK_POOL_FEE = 10_000;
-    int24 internal constant DEFAULT_BUYBACK_TICK_SPACING = 200;
-    uint256 internal constant DEFAULT_BUYBACK_TWAP_WINDOW = 2 days;
-    uint256 internal constant LP_SPLIT_HOOK_FEE_PERCENT = 2000;
-    uint256 internal constant LP_SPLIT_HOOK_FEE_PROJECT_ID = 1;
+    uint256 internal constant _ART_PROJECT_ID = 6;
+    uint256 internal constant _BAN_PROJECT_ID = 4;
+    uint24 internal constant _DEFAULT_BUYBACK_POOL_FEE = 10_000;
+    int24 internal constant _DEFAULT_BUYBACK_TICK_SPACING = 200;
+    uint256 internal constant _DEFAULT_BUYBACK_TWAP_WINDOW = 2 days;
+    uint256 internal constant _FEE_PROJECT_ID = 1;
+    uint256 internal constant _LP_SPLIT_HOOK_FEE_PERCENT = 2000;
+    uint256 internal constant _LP_SPLIT_HOOK_FEE_PROJECT_ID = 1;
 
-    address internal constant BANNY_OPERATOR = 0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450;
+    address internal constant _BAN_OPS_OPERATOR = 0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450;
 
-    bytes32 internal constant BANNY_LP_SPLIT_HOOK_SALT = "_BAN_LP_SPLIT_HOOK_V6_";
-    bytes32 internal constant BUYBACK_HOOK_SALT = keccak256("JBBuybackHookV6_TwapOracleUpgrade");
-    bytes32 internal constant ROUTER_TERMINAL_SALT = keccak256("JBRouterTerminalV6_TwapOracleUpgrade");
-    bytes32 internal constant LP_SPLIT_HOOK_SALT = keccak256("JBUniswapV4LPSplitHookV6_TwapOracleUpgrade");
-    bytes32 internal constant LP_SPLIT_HOOK_DEPLOYER_SALT =
+    bytes32 internal constant _BAN_LP_SPLIT_HOOK_SALT = "_BAN_LP_SPLIT_HOOK_V6_";
+    bytes32 internal constant _BUYBACK_HOOK_SALT = keccak256("JBBuybackHookV6_TwapOracleUpgrade");
+    bytes32 internal constant _ROUTER_TERMINAL_SALT = keccak256("JBRouterTerminalV6_TwapOracleUpgrade");
+    bytes32 internal constant _LP_SPLIT_HOOK_SALT = keccak256("JBUniswapV4LPSplitHookV6_TwapOracleUpgrade");
+    bytes32 internal constant _LP_SPLIT_HOOK_DEPLOYER_SALT =
         keccak256("JBUniswapV4LPSplitHookDeployerV6_TwapOracleUpgrade");
 
-    string internal constant DEPLOY_LP_SPLIT_HOOK_ABI =
+    string internal constant _DEPLOY_LP_SPLIT_HOOK_ABI =
         "[{\"type\":\"function\",\"name\":\"deployHookFor\",\"inputs\":[{\"name\":\"feeProjectId\",\"type\":\"uint256\"},{\"name\":\"feePercent\",\"type\":\"uint256\"},{\"name\":\"buybackHook\",\"type\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\"}],\"outputs\":[{\"name\":\"hook\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\"}]";
-    string internal constant INITIALIZE_POOL_ABI =
+    string internal constant _INITIALIZE_POOL_ABI =
         "[{\"type\":\"function\",\"name\":\"initializePoolFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"fee\",\"type\":\"uint24\"},{\"name\":\"tickSpacing\",\"type\":\"int24\"},{\"name\":\"twapWindow\",\"type\":\"uint256\"},{\"name\":\"terminalToken\",\"type\":\"address\"},{\"name\":\"sqrtPriceX96\",\"type\":\"uint160\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
-    string internal constant SET_HOOK_ABI =
+    string internal constant _SET_HOOK_ABI =
         "[{\"type\":\"function\",\"name\":\"setHookFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"hook\",\"type\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
-    string internal constant SET_SPLIT_GROUPS_ABI =
+    string internal constant _SET_SPLIT_GROUPS_ABI =
         "[{\"type\":\"function\",\"name\":\"setSplitGroupsOf\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"rulesetId\",\"type\":\"uint256\"},{\"name\":\"splitGroups\",\"type\":\"tuple[]\",\"components\":[{\"name\":\"groupId\",\"type\":\"uint256\"},{\"name\":\"splits\",\"type\":\"tuple[]\",\"components\":[{\"name\":\"percent\",\"type\":\"uint32\"},{\"name\":\"projectId\",\"type\":\"uint64\"},{\"name\":\"beneficiary\",\"type\":\"address\"},{\"name\":\"preferAddToBalance\",\"type\":\"bool\"},{\"name\":\"lockedUntil\",\"type\":\"uint48\"},{\"name\":\"hook\",\"type\":\"address\"}]}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
-    string internal constant SET_TERMINAL_ABI =
+    string internal constant _SET_TERMINAL_ABI =
         "[{\"type\":\"function\",\"name\":\"setTerminalFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"terminal\",\"type\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
 
-    address internal trustedForwarder;
-    address internal wrappedNativeToken;
-    address internal v3Factory;
-    address internal poolManager;
-    address internal positionManager;
-    address internal usdcToken;
+    // ════════════════════════════════════════════════════════════════════
+    //  Deployment State
+    // ════════════════════════════════════════════════════════════════════
 
-    IJBAddressRegistry internal addressRegistry;
-    IJBDirectory internal directory;
-    IJBPermissions internal permissions;
-    IJBPrices internal prices;
-    IJBProjects internal projects;
-    IJBTerminal internal multiTerminal;
-    IJBTokens internal tokens;
-    IJBSuckerRegistry internal suckerRegistry;
-    JBFeelessAddresses internal feeless;
-    JBBuybackHookRegistry internal buybackRegistry;
-    JBRouterTerminalRegistry internal routerTerminalRegistry;
-    JBBuybackHook internal oldBuybackHook;
-    JBRouterTerminal internal oldRouterTerminal;
+    address internal _trustedForwarder;
+    address internal _wrappedNativeToken;
+    address internal _v3Factory;
+    address internal _poolManager;
+    address internal _positionManager;
+    address internal _usdcToken;
 
-    JBUniswapV4Hook internal upgradeUniv4Hook;
-    JBBuybackHook internal upgradeBuybackHook;
-    JBRouterTerminal internal upgradeRouterTerminal;
-    JBUniswapV4LPSplitHook internal upgradeLpSplitHook;
-    JBUniswapV4LPSplitHookDeployer internal upgradeLpSplitHookDeployer;
+    IJBAddressRegistry internal _addressRegistry;
+    IJBDirectory internal _directory;
+    IJBPermissions internal _permissions;
+    IJBPrices internal _prices;
+    IJBProjects internal _projects;
+    IJBSplits internal _splits;
+    IJBTerminal internal _terminal;
+    IJBTokens internal _tokens;
+    IJBSuckerRegistry internal _suckerRegistry;
+    JBFeelessAddresses internal _feeless;
+    JBBuybackHookRegistry internal _buybackRegistry;
+    JBRouterTerminalRegistry internal _routerTerminalRegistry;
+    JBBuybackHook internal _oldBuybackHook;
+    JBRouterTerminal internal _oldRouterTerminal;
+
+    JBUniswapV4Hook internal _upgradeUniv4Hook;
+    JBBuybackHook internal _upgradeBuybackHook;
+    JBRouterTerminal internal _upgradeRouterTerminal;
+    JBUniswapV4LPSplitHook internal _upgradeLpSplitHook;
+    JBUniswapV4LPSplitHookDeployer internal _upgradeLpSplitHookDeployer;
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Chain-Specific Address Setup
+    // ════════════════════════════════════════════════════════════════════
 
     function _setupChainAddresses() internal {
         if (block.chainid == 1) {
-            wrappedNativeToken = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-            v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-            poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-            positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
+            _wrappedNativeToken = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+            _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+            _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+            _positionManager = 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e;
         } else if (block.chainid == 11_155_111) {
-            wrappedNativeToken = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
-            v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
-            poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
-            positionManager = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
+            _wrappedNativeToken = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
+            _v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
+            _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
+            _positionManager = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
         } else if (block.chainid == 10) {
-            wrappedNativeToken = 0x4200000000000000000000000000000000000006;
-            v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-            poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
-            positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
+            _wrappedNativeToken = 0x4200000000000000000000000000000000000006;
+            _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+            _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
+            _positionManager = 0x3C3Ea4B57a46241e54610e5f022E5c45859A1017;
         } else if (block.chainid == 11_155_420) {
-            wrappedNativeToken = 0x4200000000000000000000000000000000000006;
-            v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
-            poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-            positionManager = address(0);
+            _wrappedNativeToken = 0x4200000000000000000000000000000000000006;
+            _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+            _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+            _positionManager = address(0);
         } else if (block.chainid == 8453) {
-            wrappedNativeToken = 0x4200000000000000000000000000000000000006;
-            v3Factory = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
-            poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
-            positionManager = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
+            _wrappedNativeToken = 0x4200000000000000000000000000000000000006;
+            _v3Factory = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
+            _poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
+            _positionManager = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
         } else if (block.chainid == 84_532) {
-            wrappedNativeToken = 0x4200000000000000000000000000000000000006;
-            v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
-            poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
-            positionManager = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
+            _wrappedNativeToken = 0x4200000000000000000000000000000000000006;
+            _v3Factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+            _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
+            _positionManager = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
         } else if (block.chainid == 42_161) {
-            wrappedNativeToken = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
-            v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-            poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
-            positionManager = 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
+            _wrappedNativeToken = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
+            _v3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+            _poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
+            _positionManager = 0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869;
         } else if (block.chainid == 421_614) {
-            wrappedNativeToken = 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73;
-            v3Factory = 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
-            poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
-            positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
+            _wrappedNativeToken = 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73;
+            _v3Factory = 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
+            _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
+            _positionManager = 0xAc631556d3d4019C95769033B5E719dD77124BAc;
         } else {
             revert TwapOracleUpgrade_UnsupportedChain(block.chainid);
         }
 
-        usdcToken = _usdcTokenFor(block.chainid);
+        _usdcToken = _usdcTokenFor(block.chainid);
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  Existing Deployment Address Loading
+    // ════════════════════════════════════════════════════════════════════
+
     function _loadExistingDeploymentAddresses() internal {
-        trustedForwarder = _deploymentAddressOf("ERC2771Forwarder");
-        permissions = IJBPermissions(_deploymentAddressOf("JBPermissions"));
-        projects = IJBProjects(_deploymentAddressOf("JBProjects"));
-        directory = IJBDirectory(_deploymentAddressOf("JBDirectory"));
-        prices = IJBPrices(_deploymentAddressOf("JBPrices"));
-        tokens = IJBTokens(_deploymentAddressOf("JBTokens"));
-        feeless = JBFeelessAddresses(_deploymentAddressOf("JBFeelessAddresses"));
-        multiTerminal = IJBTerminal(_deploymentAddressOf("JBMultiTerminal"));
-        addressRegistry = IJBAddressRegistry(_deploymentAddressOf("JBAddressRegistry"));
-        buybackRegistry = JBBuybackHookRegistry(_deploymentAddressOf("JBBuybackHookRegistry"));
-        routerTerminalRegistry = JBRouterTerminalRegistry(payable(_deploymentAddressOf("JBRouterTerminalRegistry")));
-        suckerRegistry = IJBSuckerRegistry(_deploymentAddressOf("JBSuckerRegistry"));
+        _trustedForwarder = _deploymentAddressOf("ERC2771Forwarder");
+        _permissions = IJBPermissions(_deploymentAddressOf("JBPermissions"));
+        _projects = IJBProjects(_deploymentAddressOf("JBProjects"));
+        _directory = IJBDirectory(_deploymentAddressOf("JBDirectory"));
+        _prices = IJBPrices(_deploymentAddressOf("JBPrices"));
+        _splits = IJBSplits(_deploymentAddressOf("JBSplits"));
+        _tokens = IJBTokens(_deploymentAddressOf("JBTokens"));
+        _feeless = JBFeelessAddresses(_deploymentAddressOf("JBFeelessAddresses"));
+        _terminal = IJBTerminal(_deploymentAddressOf("JBMultiTerminal"));
+        _addressRegistry = IJBAddressRegistry(_deploymentAddressOf("JBAddressRegistry"));
+        _buybackRegistry = JBBuybackHookRegistry(_deploymentAddressOf("JBBuybackHookRegistry"));
+        _routerTerminalRegistry = JBRouterTerminalRegistry(payable(_deploymentAddressOf("JBRouterTerminalRegistry")));
+        _suckerRegistry = IJBSuckerRegistry(_deploymentAddressOf("JBSuckerRegistry"));
 
         if (_shouldDeployUniswapStack()) {
-            oldBuybackHook = JBBuybackHook(payable(_deploymentAddressOf("JBBuybackHook")));
-            oldRouterTerminal = JBRouterTerminal(payable(_deploymentAddressOf("JBRouterTerminal")));
+            _oldBuybackHook = JBBuybackHook(payable(_deploymentAddressOf("JBBuybackHook")));
+            _oldRouterTerminal = JBRouterTerminal(payable(_deploymentAddressOf("JBRouterTerminal")));
         }
     }
 
@@ -218,8 +253,12 @@ abstract contract TwapOracleUpgradeBase is Script {
         return address(0);
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  CREATE2 Helpers
+    // ════════════════════════════════════════════════════════════════════
+
     function _saltOf(bytes32 base) internal pure returns (bytes32) {
-        return keccak256(abi.encode(DEPLOYMENT_NONCE, TWAP_UPGRADE_NONCE, base));
+        return keccak256(abi.encode(DEPLOYMENT_NONCE, _TWAP_UPGRADE_NONCE, base));
     }
 
     function _loadArtifact(string memory artifactName) internal view returns (bytes memory) {
@@ -238,9 +277,7 @@ abstract contract TwapOracleUpgradeBase is Script {
     {
         salt = _saltOf(salt);
         deployedTo = vm.computeCreate2Address({
-            salt: salt,
-            initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)),
-            deployer: DETERMINISTIC_CREATE2_FACTORY
+            salt: salt, initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)), deployer: _CREATE2_FACTORY
         });
         isDeployed = deployedTo.code.length != 0;
     }
@@ -255,11 +292,10 @@ abstract contract TwapOracleUpgradeBase is Script {
     {
         bytes32 foldedSalt = _saltOf(salt);
         bytes memory initCode = abi.encodePacked(creationCode, constructorArgs);
-        (bool success,) = DETERMINISTIC_CREATE2_FACTORY.call(abi.encodePacked(foldedSalt, initCode));
+        (bool success,) = _CREATE2_FACTORY.call(abi.encodePacked(foldedSalt, initCode));
         require(success, "Factory CREATE2 failed");
-        addr = vm.computeCreate2Address({
-            salt: foldedSalt, initCodeHash: keccak256(initCode), deployer: DETERMINISTIC_CREATE2_FACTORY
-        });
+        addr =
+            vm.computeCreate2Address({salt: foldedSalt, initCodeHash: keccak256(initCode), deployer: _CREATE2_FACTORY});
         require(addr.code.length != 0, "Factory CREATE2 produced no code");
     }
 
@@ -303,7 +339,7 @@ abstract contract TwapOracleUpgradeBase is Script {
 
         for (uint256 i; i < HookMiner.MAX_LOOP; i++) {
             address hookAddress = HookMiner.computeAddress({
-                deployer: DETERMINISTIC_CREATE2_FACTORY,
+                deployer: _CREATE2_FACTORY,
                 salt: uint256(_saltOf(bytes32(i))),
                 creationCodeWithArgs: creationCodeWithArgs
             });
@@ -312,6 +348,10 @@ abstract contract TwapOracleUpgradeBase is Script {
 
         revert("HookMiner: could not find salt");
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Constructor Arguments
+    // ════════════════════════════════════════════════════════════════════
 
     function _univ4HookFlags() internal pure returns (uint160) {
         return uint160(
@@ -322,30 +362,35 @@ abstract contract TwapOracleUpgradeBase is Script {
     }
 
     function _univ4HookCtorArgs() internal view returns (bytes memory) {
-        return abi.encode(IPoolManager(poolManager), tokens, directory, prices);
+        return abi.encode(IPoolManager(_poolManager), _tokens, _directory, _prices);
     }
 
     function _buybackHookCtorArgs() internal view returns (bytes memory) {
-        return abi.encode(directory, permissions, prices, projects, tokens, EXPECTED_SAFE, trustedForwarder);
+        return abi.encode(_directory, _permissions, _prices, _projects, _tokens, _EXPECTED_SAFE, _trustedForwarder);
     }
 
     function _routerTerminalCtorArgs() internal view returns (bytes memory) {
-        return abi.encode(directory, tokens, PERMIT2, address(upgradeBuybackHook), trustedForwarder, EXPECTED_SAFE);
+        return
+            abi.encode(_directory, _tokens, _PERMIT2, address(_upgradeBuybackHook), _trustedForwarder, _EXPECTED_SAFE);
     }
 
     function _lpSplitHookCtorArgs() internal view returns (bytes memory) {
         return abi.encode(
-            address(directory),
-            permissions,
-            address(tokens),
-            IAllowanceTransfer(address(PERMIT2)),
-            IJBSuckerRegistry(address(suckerRegistry))
+            address(_directory),
+            _permissions,
+            address(_tokens),
+            IAllowanceTransfer(address(_PERMIT2)),
+            IJBSuckerRegistry(address(_suckerRegistry))
         );
     }
 
     function _lpSplitHookDeployerCtorArgs() internal view returns (bytes memory) {
-        return abi.encode(IJBAddressRegistry(address(addressRegistry)), upgradeLpSplitHook, EXPECTED_SAFE);
+        return abi.encode(IJBAddressRegistry(address(_addressRegistry)), _upgradeLpSplitHook, _EXPECTED_SAFE);
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Upgrade Address Prediction
+    // ════════════════════════════════════════════════════════════════════
 
     function _predictOrLoadUpgradeContracts() internal {
         address buybackOverride = vm.envOr({name: "TWAP_UPGRADE_BUYBACK_HOOK", defaultValue: address(0)});
@@ -356,38 +401,42 @@ abstract contract TwapOracleUpgradeBase is Script {
         bytes32 hookSalt =
             _findHookSalt({flags: _univ4HookFlags(), creationCode: univ4HookCode, constructorArgs: univ4CtorArgs});
         (address univ4Hook,) = _isDeployed({salt: hookSalt, creationCode: univ4HookCode, arguments: univ4CtorArgs});
-        upgradeUniv4Hook = JBUniswapV4Hook(payable(univ4Hook));
+        _upgradeUniv4Hook = JBUniswapV4Hook(payable(univ4Hook));
 
         if (buybackOverride != address(0)) {
-            upgradeBuybackHook = JBBuybackHook(payable(buybackOverride));
+            _upgradeBuybackHook = JBBuybackHook(payable(buybackOverride));
         } else {
             (address buybackHook,) = _predictPrecompiled({
-                artifactName: "JBBuybackHook", salt: BUYBACK_HOOK_SALT, ctorArgs: _buybackHookCtorArgs()
+                artifactName: "JBBuybackHook", salt: _BUYBACK_HOOK_SALT, ctorArgs: _buybackHookCtorArgs()
             });
-            upgradeBuybackHook = JBBuybackHook(payable(buybackHook));
+            _upgradeBuybackHook = JBBuybackHook(payable(buybackHook));
         }
 
         if (routerOverride != address(0)) {
-            upgradeRouterTerminal = JBRouterTerminal(payable(routerOverride));
+            _upgradeRouterTerminal = JBRouterTerminal(payable(routerOverride));
         } else {
             (address routerTerminal,) = _predictPrecompiled({
-                artifactName: "JBRouterTerminal", salt: ROUTER_TERMINAL_SALT, ctorArgs: _routerTerminalCtorArgs()
+                artifactName: "JBRouterTerminal", salt: _ROUTER_TERMINAL_SALT, ctorArgs: _routerTerminalCtorArgs()
             });
-            upgradeRouterTerminal = JBRouterTerminal(payable(routerTerminal));
+            _upgradeRouterTerminal = JBRouterTerminal(payable(routerTerminal));
         }
 
         (address lpSplitHook,) = _predictPrecompiled({
-            artifactName: "JBUniswapV4LPSplitHook", salt: LP_SPLIT_HOOK_SALT, ctorArgs: _lpSplitHookCtorArgs()
+            artifactName: "JBUniswapV4LPSplitHook", salt: _LP_SPLIT_HOOK_SALT, ctorArgs: _lpSplitHookCtorArgs()
         });
-        upgradeLpSplitHook = JBUniswapV4LPSplitHook(payable(lpSplitHook));
+        _upgradeLpSplitHook = JBUniswapV4LPSplitHook(payable(lpSplitHook));
 
         (address lpSplitHookDeployer,) = _predictPrecompiled({
             artifactName: "JBUniswapV4LPSplitHookDeployer",
-            salt: LP_SPLIT_HOOK_DEPLOYER_SALT,
+            salt: _LP_SPLIT_HOOK_DEPLOYER_SALT,
             ctorArgs: _lpSplitHookDeployerCtorArgs()
         });
-        upgradeLpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(lpSplitHookDeployer);
+        _upgradeLpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(lpSplitHookDeployer);
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Pool Price Helpers
+    // ════════════════════════════════════════════════════════════════════
 
     function _sqrtPriceX96From(uint256 numerator, uint256 denominator) internal pure returns (uint160 sqrtPriceX96) {
         uint256 q192 = 1 << 192;
@@ -405,11 +454,11 @@ abstract contract TwapOracleUpgradeBase is Script {
         view
         returns (bool ok, uint160 sqrtPriceX96)
     {
-        address controllerAddress = address(directory.controllerOf(projectId));
+        address controllerAddress = address(_directory.controllerOf(projectId));
         if (controllerAddress == address(0)) return (false, 0);
 
         JBAccountingContext memory context =
-            multiTerminal.accountingContextForTokenOf({projectId: projectId, token: terminalToken});
+            _terminal.accountingContextForTokenOf({projectId: projectId, token: terminalToken});
         if (context.token != terminalToken || context.decimals == 0 || context.currency == 0) return (false, 0);
 
         (JBRuleset memory ruleset, JBRulesetMetadata memory metadata) =
@@ -423,7 +472,7 @@ abstract contract TwapOracleUpgradeBase is Script {
         } else if (context.currency == metadata.baseCurrency) {
             adjustedIssuance = uint256(ruleset.weight);
         } else {
-            try prices.pricePerUnitOf({
+            try _prices.pricePerUnitOf({
                 projectId: projectId,
                 pricingCurrency: context.currency,
                 unitCurrency: metadata.baseCurrency,
@@ -441,7 +490,7 @@ abstract contract TwapOracleUpgradeBase is Script {
         if (adjustedIssuance == 0) return (true, uint160(1 << 96));
 
         address normalizedTerminalToken = _normalizeTerminalToken(terminalToken);
-        address projectToken = address(tokens.tokenOf(projectId));
+        address projectToken = address(_tokens.tokenOf(projectId));
         if (projectToken == address(0) || projectToken == normalizedTerminalToken) return (true, uint160(1 << 96));
 
         if (normalizedTerminalToken < projectToken) {
@@ -459,7 +508,7 @@ abstract contract TwapOracleUpgradeBase is Script {
             defaultValue: address(0)
         });
         if (overrideToken != address(0)) return overrideToken;
-        if (projectId == ART_PROJECT_ID && usdcToken != address(0)) return usdcToken;
+        if (projectId == _ART_PROJECT_ID && _usdcToken != address(0)) return _usdcToken;
         return JBConstants.NATIVE_TOKEN;
     }
 
@@ -477,20 +526,48 @@ abstract contract TwapOracleUpgradeBase is Script {
         projectIds[5] = 6;
         projectIds[6] = 7;
     }
+
+    function _operatorProjectIds() internal pure returns (uint256[] memory projectIds) {
+        projectIds = new uint256[](6);
+        projectIds[0] = 2;
+        projectIds[1] = 3;
+        projectIds[2] = 4;
+        projectIds[3] = 5;
+        projectIds[4] = 6;
+        projectIds[5] = 7;
+    }
+
+    function _banLpSplitHookForOperator() internal view returns (JBUniswapV4LPSplitHook) {
+        return JBUniswapV4LPSplitHook(
+            payable(LibClone.predictDeterministicAddress({
+                    implementation: address(_upgradeLpSplitHook),
+                    salt: keccak256(abi.encode(_BAN_OPS_OPERATOR, _BAN_LP_SPLIT_HOOK_SALT)),
+                    deployer: address(_upgradeLpSplitHookDeployer)
+                }))
+        );
+    }
 }
 
 /// @notice Infra Safe proposal: deploy the new TWAP-aware contracts and set future defaults.
 /// @dev Rebuild `artifacts/` from package versions containing the TWAP oracle PRs before proposing.
 contract DeployTwapOracleUpgrade is TwapOracleUpgradeBase, Sphinx {
+    // ════════════════════════════════════════════════════════════════════
+    //  Sphinx Configuration
+    // ════════════════════════════════════════════════════════════════════
+
     function configureSphinx() public override {
         sphinxConfig.projectName = "v6-deployment";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
         sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  Entry Point
+    // ════════════════════════════════════════════════════════════════════
+
     function run() public {
-        if (safeAddress() != EXPECTED_SAFE) {
-            revert TwapOracleUpgrade_UnexpectedSafe({expected: EXPECTED_SAFE, actual: safeAddress()});
+        if (safeAddress() != _EXPECTED_SAFE) {
+            revert TwapOracleUpgrade_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
         }
 
         _setupChainAddresses();
@@ -498,6 +575,10 @@ contract DeployTwapOracleUpgrade is TwapOracleUpgradeBase, Sphinx {
         deploy();
         _dumpUpgradeAddresses();
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Deployment
+    // ════════════════════════════════════════════════════════════════════
 
     function deploy() public sphinx {
         if (!_shouldDeployUniswapStack()) return;
@@ -507,8 +588,13 @@ contract DeployTwapOracleUpgrade is TwapOracleUpgradeBase, Sphinx {
         _deployRouterTerminal();
         _deployLpSplitHook();
         _setNewDefaults();
+        _configureFeeProject();
         _retireOldImplementations();
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Contract Deployment
+    // ════════════════════════════════════════════════════════════════════
 
     function _deployUniv4Hook() internal {
         bytes memory v4HookCode = _loadArtifact("JBUniswapV4Hook");
@@ -517,96 +603,146 @@ contract DeployTwapOracleUpgrade is TwapOracleUpgradeBase, Sphinx {
 
         (address hook, bool already) = _isDeployed({salt: salt, creationCode: v4HookCode, arguments: ctorArgs});
         if (!already) hook = _deployViaFactory({salt: salt, creationCode: v4HookCode, constructorArgs: ctorArgs});
-        upgradeUniv4Hook = JBUniswapV4Hook(payable(hook));
+        _upgradeUniv4Hook = JBUniswapV4Hook(payable(hook));
     }
 
     function _deployBuybackHook() internal {
-        upgradeBuybackHook = JBBuybackHook(
+        _upgradeBuybackHook = JBBuybackHook(
             payable(_deployPrecompiledIfNeeded({
-                    artifactName: "JBBuybackHook", salt: BUYBACK_HOOK_SALT, ctorArgs: _buybackHookCtorArgs()
+                    artifactName: "JBBuybackHook", salt: _BUYBACK_HOOK_SALT, ctorArgs: _buybackHookCtorArgs()
                 }))
         );
 
-        if (address(upgradeBuybackHook.poolManager()) == address(0)) {
-            upgradeBuybackHook.setChainSpecificConstants({
-                newPoolManager: IPoolManager(poolManager), newOracleHook: IHooks(address(upgradeUniv4Hook))
+        if (address(_upgradeBuybackHook.poolManager()) == address(0)) {
+            _upgradeBuybackHook.setChainSpecificConstants({
+                newPoolManager: IPoolManager(_poolManager), newOracleHook: IHooks(address(_upgradeUniv4Hook))
             });
         }
     }
 
     function _deployRouterTerminal() internal {
-        upgradeRouterTerminal = JBRouterTerminal(
+        _upgradeRouterTerminal = JBRouterTerminal(
             payable(_deployPrecompiledIfNeeded({
-                    artifactName: "JBRouterTerminal", salt: ROUTER_TERMINAL_SALT, ctorArgs: _routerTerminalCtorArgs()
+                    artifactName: "JBRouterTerminal", salt: _ROUTER_TERMINAL_SALT, ctorArgs: _routerTerminalCtorArgs()
                 }))
         );
 
-        if (address(upgradeRouterTerminal.wrappedNativeToken()) == address(0)) {
-            upgradeRouterTerminal.setChainSpecificConstants({
-                newWrappedNativeToken: IWETH9(wrappedNativeToken),
-                newFactory: IUniswapV3Factory(v3Factory),
-                newPoolManager: IPoolManager(poolManager),
-                newUniv4Hook: address(upgradeUniv4Hook)
+        if (address(_upgradeRouterTerminal.wrappedNativeToken()) == address(0)) {
+            _upgradeRouterTerminal.setChainSpecificConstants({
+                newWrappedNativeToken: IWETH9(_wrappedNativeToken),
+                newFactory: IUniswapV3Factory(_v3Factory),
+                newPoolManager: IPoolManager(_poolManager),
+                newUniv4Hook: address(_upgradeUniv4Hook)
             });
         }
     }
 
     function _deployLpSplitHook() internal {
-        upgradeLpSplitHook = JBUniswapV4LPSplitHook(
+        _upgradeLpSplitHook = JBUniswapV4LPSplitHook(
             payable(_deployPrecompiledIfNeeded({
-                    artifactName: "JBUniswapV4LPSplitHook", salt: LP_SPLIT_HOOK_SALT, ctorArgs: _lpSplitHookCtorArgs()
+                    artifactName: "JBUniswapV4LPSplitHook", salt: _LP_SPLIT_HOOK_SALT, ctorArgs: _lpSplitHookCtorArgs()
                 }))
         );
 
-        upgradeLpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(
+        _upgradeLpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(
             _deployPrecompiledIfNeeded({
                 artifactName: "JBUniswapV4LPSplitHookDeployer",
-                salt: LP_SPLIT_HOOK_DEPLOYER_SALT,
+                salt: _LP_SPLIT_HOOK_DEPLOYER_SALT,
                 ctorArgs: _lpSplitHookDeployerCtorArgs()
             })
         );
 
-        if (address(upgradeLpSplitHookDeployer.poolManager()) == address(0)) {
-            upgradeLpSplitHookDeployer.setChainSpecificConstants({
-                newPoolManager: IPoolManager(poolManager),
-                newPositionManager: IPositionManager(positionManager),
-                newOracleHook: IHooks(address(upgradeUniv4Hook))
+        if (address(_upgradeLpSplitHookDeployer.poolManager()) == address(0)) {
+            _upgradeLpSplitHookDeployer.setChainSpecificConstants({
+                newPoolManager: IPoolManager(_poolManager),
+                newPositionManager: IPositionManager(_positionManager),
+                newOracleHook: IHooks(address(_upgradeUniv4Hook))
             });
         }
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  Registry Updates
+    // ════════════════════════════════════════════════════════════════════
+
     function _setNewDefaults() internal {
-        if (address(buybackRegistry.defaultHook()) != address(upgradeBuybackHook)) {
-            buybackRegistry.setDefaultHook({hook: IJBRulesetDataHook(address(upgradeBuybackHook))});
+        if (address(_buybackRegistry.defaultHook()) != address(_upgradeBuybackHook)) {
+            _buybackRegistry.setDefaultHook({hook: IJBRulesetDataHook(address(_upgradeBuybackHook))});
         }
 
-        if (address(routerTerminalRegistry.defaultTerminal()) != address(upgradeRouterTerminal)) {
-            routerTerminalRegistry.setDefaultTerminal({terminal: IJBTerminal(address(upgradeRouterTerminal))});
+        if (address(_routerTerminalRegistry.defaultTerminal()) != address(_upgradeRouterTerminal)) {
+            _routerTerminalRegistry.setDefaultTerminal({terminal: IJBTerminal(address(_upgradeRouterTerminal))});
         }
+    }
+
+    function _configureFeeProject() internal {
+        if (address(_buybackRegistry.hookOf(_FEE_PROJECT_ID)) != address(_upgradeBuybackHook)) {
+            _buybackRegistry.setHookFor({
+                projectId: _FEE_PROJECT_ID, hook: IJBRulesetDataHook(address(_upgradeBuybackHook))
+            });
+        }
+
+        if (address(_routerTerminalRegistry.terminalOf(_FEE_PROJECT_ID)) != address(_upgradeRouterTerminal)) {
+            _routerTerminalRegistry.setTerminalFor({
+                projectId: _FEE_PROJECT_ID, terminal: IJBTerminal(address(_upgradeRouterTerminal))
+            });
+        }
+
+        _initializeBuybackPoolFor(_FEE_PROJECT_ID);
+    }
+
+    function _initializeBuybackPoolFor(uint256 projectId) internal {
+        address terminalToken = _terminalTokenFor(projectId);
+        address normalizedTerminalToken = _normalizeTerminalToken(terminalToken);
+        uint256 twapWindow =
+            _upgradeBuybackHook.twapWindowOf({projectId: projectId, terminalToken: normalizedTerminalToken});
+
+        if (twapWindow == _DEFAULT_BUYBACK_TWAP_WINDOW) return;
+        if (twapWindow != 0) {
+            revert TwapOracleUpgrade_UnexpectedPoolWindow({
+                projectId: projectId, terminalToken: terminalToken, window: twapWindow
+            });
+        }
+
+        (bool ok, uint160 sqrtPriceX96) = _poolInitSqrtPriceX96For({projectId: projectId, terminalToken: terminalToken});
+        if (!ok) revert TwapOracleUpgrade_MissingPoolPrice({projectId: projectId, terminalToken: terminalToken});
+
+        _buybackRegistry.initializePoolFor({
+            projectId: projectId,
+            fee: _DEFAULT_BUYBACK_POOL_FEE,
+            tickSpacing: _DEFAULT_BUYBACK_TICK_SPACING,
+            twapWindow: _DEFAULT_BUYBACK_TWAP_WINDOW,
+            terminalToken: terminalToken,
+            sqrtPriceX96: sqrtPriceX96
+        });
     }
 
     function _retireOldImplementations() internal {
         if (
-            address(oldBuybackHook) != address(0) && address(oldBuybackHook) != address(upgradeBuybackHook)
-                && buybackRegistry.isHookAllowed(IJBRulesetDataHook(address(oldBuybackHook)))
+            address(_oldBuybackHook) != address(0) && address(_oldBuybackHook) != address(_upgradeBuybackHook)
+                && _buybackRegistry.isHookAllowed(IJBRulesetDataHook(address(_oldBuybackHook)))
         ) {
-            buybackRegistry.disallowHook({hook: IJBRulesetDataHook(address(oldBuybackHook))});
+            _buybackRegistry.disallowHook({hook: IJBRulesetDataHook(address(_oldBuybackHook))});
         }
 
         if (
-            address(oldRouterTerminal) != address(0) && address(oldRouterTerminal) != address(upgradeRouterTerminal)
-                && routerTerminalRegistry.isTerminalAllowed(IJBTerminal(address(oldRouterTerminal)))
+            address(_oldRouterTerminal) != address(0) && address(_oldRouterTerminal) != address(_upgradeRouterTerminal)
+                && _routerTerminalRegistry.isTerminalAllowed(IJBTerminal(address(_oldRouterTerminal)))
         ) {
-            routerTerminalRegistry.disallowTerminal({terminal: IJBTerminal(address(oldRouterTerminal))});
+            _routerTerminalRegistry.disallowTerminal({terminal: IJBTerminal(address(_oldRouterTerminal))});
         }
 
         if (
-            address(oldRouterTerminal) != address(0) && address(oldRouterTerminal) != address(upgradeRouterTerminal)
-                && feeless.isFeelessFor({addr: address(oldRouterTerminal), projectId: 0, caller: address(0)})
+            address(_oldRouterTerminal) != address(0) && address(_oldRouterTerminal) != address(_upgradeRouterTerminal)
+                && _feeless.isFeelessFor({addr: address(_oldRouterTerminal), projectId: 0, caller: address(0)})
         ) {
-            feeless.setFeelessAddress({addr: address(oldRouterTerminal), flag: false});
+            _feeless.setFeelessAddress({addr: address(_oldRouterTerminal), flag: false});
         }
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  Address Dump
+    // ════════════════════════════════════════════════════════════════════
 
     function _dumpUpgradeAddresses() internal {
         string memory key = "_jbV6TwapOracleUpgrade";
@@ -615,45 +751,45 @@ contract DeployTwapOracleUpgrade is TwapOracleUpgradeBase, Sphinx {
         string memory out =
             vm.serializeBool({objectKey: key, valueKey: "uniswapStackSkipped", value: !_shouldDeployUniswapStack()});
 
-        if (address(upgradeUniv4Hook) != address(0)) {
+        if (address(_upgradeUniv4Hook) != address(0)) {
             out = vm.serializeAddress({
-                objectKey: key, valueKey: "JBUniswapV4Hook__TwapOracleUpgrade", value: address(upgradeUniv4Hook)
+                objectKey: key, valueKey: "JBUniswapV4Hook__TwapOracleUpgrade", value: address(_upgradeUniv4Hook)
             });
         }
-        if (address(upgradeBuybackHook) != address(0)) {
+        if (address(_upgradeBuybackHook) != address(0)) {
             out = vm.serializeAddress({
-                objectKey: key, valueKey: "JBBuybackHook__TwapOracleUpgrade", value: address(upgradeBuybackHook)
+                objectKey: key, valueKey: "JBBuybackHook__TwapOracleUpgrade", value: address(_upgradeBuybackHook)
             });
         }
-        if (address(upgradeRouterTerminal) != address(0)) {
+        if (address(_upgradeRouterTerminal) != address(0)) {
             out = vm.serializeAddress({
-                objectKey: key, valueKey: "JBRouterTerminal__TwapOracleUpgrade", value: address(upgradeRouterTerminal)
+                objectKey: key, valueKey: "JBRouterTerminal__TwapOracleUpgrade", value: address(_upgradeRouterTerminal)
             });
         }
-        if (address(upgradeLpSplitHook) != address(0)) {
+        if (address(_upgradeLpSplitHook) != address(0)) {
             out = vm.serializeAddress({
                 objectKey: key,
                 valueKey: "JBUniswapV4LPSplitHook__TwapOracleUpgrade",
-                value: address(upgradeLpSplitHook)
+                value: address(_upgradeLpSplitHook)
             });
         }
-        if (address(upgradeLpSplitHookDeployer) != address(0)) {
+        if (address(_upgradeLpSplitHookDeployer) != address(0)) {
             out = vm.serializeAddress({
                 objectKey: key,
                 valueKey: "JBUniswapV4LPSplitHookDeployer__TwapOracleUpgrade",
-                value: address(upgradeLpSplitHookDeployer)
+                value: address(_upgradeLpSplitHookDeployer)
             });
         }
-        if (address(oldBuybackHook) != address(0)) {
+        if (address(_oldBuybackHook) != address(0)) {
             out = vm.serializeAddress({
-                objectKey: key, valueKey: "JBBuybackHook__RetiredTwapOracleUpgrade", value: address(oldBuybackHook)
+                objectKey: key, valueKey: "JBBuybackHook__RetiredTwapOracleUpgrade", value: address(_oldBuybackHook)
             });
         }
-        if (address(oldRouterTerminal) != address(0)) {
+        if (address(_oldRouterTerminal) != address(0)) {
             out = vm.serializeAddress({
                 objectKey: key,
                 valueKey: "JBRouterTerminal__RetiredTwapOracleUpgrade",
-                value: address(oldRouterTerminal)
+                value: address(_oldRouterTerminal)
             });
         }
 
@@ -667,8 +803,12 @@ contract DeployTwapOracleUpgrade is TwapOracleUpgradeBase, Sphinx {
     }
 }
 
-/// @notice Offline helper for revnet operators. It writes Safe-ready rows for projects 1-7 on the active chain.
+/// @notice Offline helper for revnet operators. It writes Safe-ready rows for projects 2-7 on the active chain.
 contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
+    // ════════════════════════════════════════════════════════════════════
+    //  Entry Point
+    // ════════════════════════════════════════════════════════════════════
+
     function run() external {
         _setupChainAddresses();
         _loadExistingDeploymentAddresses();
@@ -677,18 +817,12 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
             return;
         }
         _predictOrLoadUpgradeContracts();
-        _writeOperatorSafeRows(_defaultProjectIds());
+        _writeOperatorSafeRows(_operatorProjectIds());
     }
 
-    function _bannyLpSplitHookForOperator() internal view returns (JBUniswapV4LPSplitHook) {
-        return JBUniswapV4LPSplitHook(
-            payable(LibClone.predictDeterministicAddress({
-                    implementation: address(upgradeLpSplitHook),
-                    salt: keccak256(abi.encode(BANNY_OPERATOR, BANNY_LP_SPLIT_HOOK_SALT)),
-                    deployer: address(upgradeLpSplitHookDeployer)
-                }))
-        );
-    }
+    // ════════════════════════════════════════════════════════════════════
+    //  Banny LP Split Hook Helpers
+    // ════════════════════════════════════════════════════════════════════
 
     function _bannyLpSplitHookSplitGroups(JBUniswapV4LPSplitHook lpSplitHook)
         internal
@@ -710,20 +844,20 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
     }
 
     function _writeBannyLpSplitHookRows(string memory path, address controller) internal {
-        JBUniswapV4LPSplitHook lpSplitHook = _bannyLpSplitHookForOperator();
+        JBUniswapV4LPSplitHook lpSplitHook = _banLpSplitHookForOperator();
 
         _writeSafeRow({
             path: path,
             title: "4. Deploy Banny LP split hook",
-            target: address(upgradeLpSplitHookDeployer),
-            abiJson: DEPLOY_LP_SPLIT_HOOK_ABI,
+            target: address(_upgradeLpSplitHookDeployer),
+            abiJson: _DEPLOY_LP_SPLIT_HOOK_ABI,
             data: abi.encodeCall(
                 JBUniswapV4LPSplitHookDeployer.deployHookFor,
                 (
-                    LP_SPLIT_HOOK_FEE_PROJECT_ID,
-                    LP_SPLIT_HOOK_FEE_PERCENT,
-                    IJBBuybackHookRegistry(address(buybackRegistry)),
-                    BANNY_LP_SPLIT_HOOK_SALT
+                    _LP_SPLIT_HOOK_FEE_PROJECT_ID,
+                    _LP_SPLIT_HOOK_FEE_PERCENT,
+                    IJBBuybackHookRegistry(address(_buybackRegistry)),
+                    _BAN_LP_SPLIT_HOOK_SALT
                 )
             )
         });
@@ -735,22 +869,21 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
                 vm.toString(address(lpSplitHook)),
                 "`\n\n",
                 "LP fee args: `feeProjectId=",
-                vm.toString(LP_SPLIT_HOOK_FEE_PROJECT_ID),
+                vm.toString(_LP_SPLIT_HOOK_FEE_PROJECT_ID),
                 "`, `feePercent=",
-                vm.toString(LP_SPLIT_HOOK_FEE_PERCENT),
+                vm.toString(_LP_SPLIT_HOOK_FEE_PERCENT),
                 "`\n"
             )
         });
 
-        (JBRuleset memory ruleset,) = IJBController(controller).currentRulesetOf(BANNY_PROJECT_ID);
+        (JBRuleset memory ruleset,) = IJBController(controller).currentRulesetOf(_BAN_PROJECT_ID);
         _writeSafeRow({
             path: path,
             title: "5. Route Banny reserved split to LP split hook",
             target: controller,
-            abiJson: SET_SPLIT_GROUPS_ABI,
+            abiJson: _SET_SPLIT_GROUPS_ABI,
             data: abi.encodeCall(
-                IJBController.setSplitGroupsOf,
-                (BANNY_PROJECT_ID, ruleset.id, _bannyLpSplitHookSplitGroups(lpSplitHook))
+                IJBController.setSplitGroupsOf, (_BAN_PROJECT_ID, ruleset.id, _bannyLpSplitHookSplitGroups(lpSplitHook))
             )
         });
 
@@ -768,6 +901,10 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
         });
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    //  Safe Transaction Output
+    // ════════════════════════════════════════════════════════════════════
+
     function _writeOperatorSafeRows(uint256[] memory projectIds) internal {
         string memory path = string.concat(
             "script/post-deploy/.cache/twap-oracle-upgrade-operator-safe-txs-", vm.toString(block.chainid), ".md"
@@ -779,15 +916,15 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
                 "# TWAP Oracle Upgrade Operator Safe Transactions - ",
                 _chainFolder(),
                 "\n\n",
-                "Submit these from each revnet's operator Safe, after the infra Safe upgrade has executed.\n\n",
+                "Submit these from each revnet's operator Safe, after the infra Safe upgrade has executed. Project 1 is handled in the infra Safe proposal.\n\n",
                 "New buyback hook: `",
-                vm.toString(address(upgradeBuybackHook)),
+                vm.toString(address(_upgradeBuybackHook)),
                 "`\n\n",
                 "New router terminal: `",
-                vm.toString(address(upgradeRouterTerminal)),
+                vm.toString(address(_upgradeRouterTerminal)),
                 "`\n\n",
                 "New LP split hook deployer: `",
-                vm.toString(address(upgradeLpSplitHookDeployer)),
+                vm.toString(address(_upgradeLpSplitHookDeployer)),
                 "`\n\n"
             )
         });
@@ -814,7 +951,7 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
 
     function _writeProjectRows(string memory path, uint256 projectId) internal {
         address terminalToken = _terminalTokenFor(projectId);
-        address controller = address(directory.controllerOf(projectId));
+        address controller = address(_directory.controllerOf(projectId));
         if (controller == address(0)) {
             vm.writeLine({
                 path: path,
@@ -829,20 +966,20 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
         _writeSafeRow({
             path: path,
             title: "1. Set buyback hook",
-            target: address(buybackRegistry),
-            abiJson: SET_HOOK_ABI,
+            target: address(_buybackRegistry),
+            abiJson: _SET_HOOK_ABI,
             data: abi.encodeCall(
-                JBBuybackHookRegistry.setHookFor, (projectId, IJBRulesetDataHook(address(upgradeBuybackHook)))
+                JBBuybackHookRegistry.setHookFor, (projectId, IJBRulesetDataHook(address(_upgradeBuybackHook)))
             )
         });
 
         _writeSafeRow({
             path: path,
             title: "2. Set router terminal",
-            target: address(routerTerminalRegistry),
-            abiJson: SET_TERMINAL_ABI,
+            target: address(_routerTerminalRegistry),
+            abiJson: _SET_TERMINAL_ABI,
             data: abi.encodeCall(
-                JBRouterTerminalRegistry.setTerminalFor, (projectId, IJBTerminal(address(upgradeRouterTerminal)))
+                JBRouterTerminalRegistry.setTerminalFor, (projectId, IJBTerminal(address(_upgradeRouterTerminal)))
             )
         });
 
@@ -861,15 +998,15 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
             _writeSafeRow({
                 path: path,
                 title: "3. Initialize buyback pool",
-                target: address(buybackRegistry),
-                abiJson: INITIALIZE_POOL_ABI,
+                target: address(_buybackRegistry),
+                abiJson: _INITIALIZE_POOL_ABI,
                 data: abi.encodeCall(
                     JBBuybackHookRegistry.initializePoolFor,
                     (
                         projectId,
-                        DEFAULT_BUYBACK_POOL_FEE,
-                        DEFAULT_BUYBACK_TICK_SPACING,
-                        DEFAULT_BUYBACK_TWAP_WINDOW,
+                        _DEFAULT_BUYBACK_POOL_FEE,
+                        _DEFAULT_BUYBACK_TICK_SPACING,
+                        _DEFAULT_BUYBACK_TWAP_WINDOW,
                         terminalToken,
                         sqrtPriceX96
                     )
@@ -888,7 +1025,7 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
             });
         }
 
-        if (projectId == BANNY_PROJECT_ID) _writeBannyLpSplitHookRows({path: path, controller: controller});
+        if (projectId == _BAN_PROJECT_ID) _writeBannyLpSplitHookRows({path: path, controller: controller});
     }
 
     function _writeSafeRow(

@@ -157,7 +157,15 @@ pnpm deploy:propose:twap-oracle-upgrade:testnets
 pnpm deploy:propose:twap-oracle-upgrade:mainnets
 ```
 
-The infra proposal deploys the new `JBUniswapV4Hook`, `JBBuybackHook`, `JBRouterTerminal`, `JBUniswapV4LPSplitHook`, and `JBUniswapV4LPSplitHookDeployer`; sets the buyback and router-terminal registries to the new defaults for newly created projects; disallows the old buyback hook and old router terminal where possible; and removes the old router terminal from `JBFeelessAddresses` if it was still marked feeless.
+The infra proposal deploys the new `JBUniswapV4Hook`, `JBBuybackHook`, `JBRouterTerminal`, `JBUniswapV4LPSplitHook`, and `JBUniswapV4LPSplitHookDeployer`; sets the buyback and router-terminal registries to the new defaults for newly created projects; explicitly migrates project 1 to the new buyback hook and router terminal; initializes project 1's new buyback pool; disallows the old buyback hook and old router terminal where possible; and removes the old router terminal from `JBFeelessAddresses` if it was still marked feeless.
+
+After the infra proposal executes on a chain, run the read-only verifier:
+
+```bash
+npm run deploy:verify:twap-oracle-upgrade -- --rpc-url <RPC_URL> -vvv
+```
+
+This confirms the new contracts are deployed, wired to the chain's canonical Uniswap addresses, registered as the new defaults, that project 1 has been migrated and initialized, and that the old router terminal is not globally feeless.
 
 Existing revnets need project-operator transactions after the infra proposal executes:
 
@@ -165,7 +173,15 @@ Existing revnets need project-operator transactions after the infra proposal exe
 npm run deploy:operator-safe-txs:twap-oracle-upgrade -- --rpc-url <RPC_URL>
 ```
 
-This writes `script/post-deploy/.cache/twap-oracle-upgrade-operator-safe-txs-<chainId>.md` with Safe-ready ABI and custom data for projects 1-7. Each project row sets the explicit buyback hook, sets the explicit router terminal, and initializes that project's new buyback pool when the script can compute the start price. Project 4 (BAN) also gets rows to deploy its deterministic LP split hook clone and route BAN's reserved split group to that clone.
+This writes `script/post-deploy/.cache/twap-oracle-upgrade-operator-safe-txs-<chainId>.md` with Safe-ready ABI and custom data for projects 2-7. Project 1 is handled by the infra proposal because its operator is the deployment/admin Safe. Each generated project row sets the explicit buyback hook, sets the explicit router terminal, and initializes that project's new buyback pool when the script can compute the start price. Project 4 (BAN) also gets rows to deploy its deterministic LP split hook clone and route BAN's reserved split group to that clone.
+
+After the operator Safe transactions execute, rerun the verifier in operator-state mode:
+
+```bash
+VERIFY_TWAP_UPGRADE_OPERATORS=true npm run deploy:verify:twap-oracle-upgrade -- --rpc-url <RPC_URL> -vvv
+```
+
+This additionally confirms projects 2-7 resolve to the new buyback hook and router terminal, each configured buyback pool uses the new V4 oracle hook with the expected 2-day TWAP window, and BAN's reserved split routes through the newly deployed LP split hook clone.
 
 The BAN LP split hook clone uses project `1` as the LP fee project and `2000` out of `10_000` as the LP fee share. The clone address is deterministic over the LP split hook deployer, implementation, salt, and the operator transaction sender. The generated BAN row assumes the canonical BAN operator `0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450` is the Safe transaction sender; if a different Safe or module executes the deploy-hook call, regenerate the expected clone address for that sender before submitting the split-routing row.
 

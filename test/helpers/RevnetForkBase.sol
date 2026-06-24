@@ -120,8 +120,18 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         return "RevnetForkBase";
     }
 
+    function _forkBlock() internal pure virtual returns (uint256) {
+        return 21_700_000;
+    }
+
     function setUp() public virtual override {
-        vm.createSelectFork("ethereum", 21_700_000);
+        uint256 forkBlock = _forkBlock();
+        if (forkBlock == 0) {
+            vm.createSelectFork("ethereum");
+        } else {
+            vm.createSelectFork("ethereum", forkBlock);
+        }
+
         require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed at expected address");
 
         super.setUp();
