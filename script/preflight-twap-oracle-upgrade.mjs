@@ -45,10 +45,19 @@ const REQUIRED_UNISWAP_ARTIFACTS = [
   'JBUniswapV4LPSplitHookDeployer',
 ];
 
+const REQUIRED_ARTIFACT_PACKAGES = {
+  JBBuybackHook: '@bananapus/buyback-hook-v6',
+  JBRouterTerminal: '@bananapus/router-terminal-v6',
+  JBUniswapV4Hook: '@bananapus/univ4-router-v6',
+  JBUniswapV4LPSplitHook: '@bananapus/univ4-lp-split-hook-v6',
+  JBUniswapV4LPSplitHookDeployer: '@bananapus/univ4-lp-split-hook-v6',
+};
+
 const root = process.cwd();
 const scope = process.argv[2] ?? 'testnets';
 const networks = NETWORKS[scope];
 const errors = [];
+const artifactManifest = readJson(path.join(root, 'artifacts', 'artifacts.manifest.json'));
 
 if (!networks) {
   console.error(`Usage: node script/preflight-twap-oracle-upgrade.mjs <${Object.keys(NETWORKS).join('|')}>`);
@@ -98,9 +107,33 @@ function expectArtifact(name) {
   if (typeof bytecode !== 'string' || !bytecode.startsWith('0x') || bytecode.length <= 2) {
     errors.push(`artifacts/${name}.json has no bytecode.object`);
   }
+
+  const expectedPackage = REQUIRED_ARTIFACT_PACKAGES[name];
+  const entry = artifactManifest?.contracts?.[name];
+  if (!expectedPackage || !entry) {
+    errors.push(`artifacts manifest missing ${name}; run npm run artifacts`);
+    return;
+  }
+
+  const packageJson = readJson(path.join(root, 'node_modules', expectedPackage, 'package.json'));
+  if (!packageJson?.version) return;
+
+  if (entry.sourcePackage !== expectedPackage) {
+    errors.push(`artifacts manifest ${name}.sourcePackage ${entry.sourcePackage} != ${expectedPackage}`);
+  }
+
+  if (entry.sourceVersion !== packageJson.version) {
+    errors.push(
+      `artifacts manifest ${name}.sourceVersion ${entry.sourceVersion} != installed ${expectedPackage}@${packageJson.version}; run npm run artifacts`,
+    );
+  }
 }
 
 console.log(`TWAP oracle upgrade preflight: ${scope}`);
+
+if (artifactManifest?.gitDirty || artifactManifest?.rehearsal) {
+  errors.push('artifacts manifest is dirty/rehearsal; run npm run artifacts from a clean tree');
+}
 
 for (const chain of networks) {
   for (const name of REQUIRED_DEPLOYMENTS) expectDeployment(chain, name);
