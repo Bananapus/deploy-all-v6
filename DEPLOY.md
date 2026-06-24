@@ -144,6 +144,47 @@ Sphinx compiles the deploy script, simulates it, and proposes the resulting tran
 
 Monitor execution in the Sphinx dashboard or on-chain via the safe's transaction history.
 
+### Post-launch TWAP oracle upgrade
+
+`script/DeployTwapOracleUpgrade.s.sol` is a post-launch migration script for replacing the Uniswap V4 oracle-dependent contracts without redeploying the full protocol. Before proposing it, rebuild `artifacts/` from package versions that include the matching TWAP/coverage changes in `univ4-router-v6`, `nana-buyback-hook-v6`, and `nana-router-terminal-v6`.
+
+Infra Safe proposal:
+
+```bash
+pnpm artifacts
+pnpm deploy:propose:twap-oracle-upgrade:testnets
+# or:
+pnpm deploy:propose:twap-oracle-upgrade:mainnets
+```
+
+The infra proposal deploys the new `JBUniswapV4Hook`, `JBBuybackHook`, `JBRouterTerminal`, `JBUniswapV4LPSplitHook`, and `JBUniswapV4LPSplitHookDeployer`; sets the buyback and router-terminal registries to the new defaults for newly created projects; explicitly migrates project 1 to the new buyback hook and router terminal; initializes project 1's new buyback pool; disallows the old buyback hook and old router terminal where possible; and removes the old router terminal from `JBFeelessAddresses` if it was still marked feeless.
+
+After the infra proposal executes on a chain, run the read-only verifier:
+
+```bash
+npm run deploy:verify:twap-oracle-upgrade -- --rpc-url <RPC_URL> -vvv
+```
+
+This confirms the new contracts are deployed, wired to the chain's canonical Uniswap addresses, registered as the new defaults, that project 1 has been migrated and initialized, and that the old router terminal is not globally feeless.
+
+Existing revnets need project-operator transactions after the infra proposal executes:
+
+```bash
+npm run deploy:operator-safe-txs:twap-oracle-upgrade -- --rpc-url <RPC_URL>
+```
+
+This writes `script/post-deploy/.cache/twap-oracle-upgrade-operator-safe-txs-<chainId>.md` with Safe-ready ABI and custom data for projects 2-7. Project 1 is handled by the infra proposal because its operator is the deployment/admin Safe. Each generated project row sets the explicit buyback hook, sets the explicit router terminal, and initializes that project's new buyback pool when the script can compute the start price. Project 4 (BAN) also gets rows to deploy its deterministic LP split hook clone and route BAN's reserved split group to that clone.
+
+After the operator Safe transactions execute, rerun the verifier in operator-state mode:
+
+```bash
+VERIFY_TWAP_UPGRADE_OPERATORS=true npm run deploy:verify:twap-oracle-upgrade -- --rpc-url <RPC_URL> -vvv
+```
+
+This additionally confirms projects 2-7 resolve to the new buyback hook and router terminal, each configured buyback pool uses the new V4 oracle hook with the expected 2-day TWAP window, and BAN's reserved split routes through the newly deployed LP split hook clone.
+
+The BAN LP split hook clone uses project `1` as the LP fee project and `2000` out of `10_000` as the LP fee share. The clone address is deterministic over the LP split hook deployer, implementation, salt, and the operator transaction sender. The generated BAN row assumes the canonical BAN operator `0x9E2a10aB3BD22831f19d02C648Bc2Cb49B127450` is the Safe transaction sender; if a different Safe or module executes the deploy-hook call, regenerate the expected clone address for that sender before submitting the split-routing row.
+
 ### Sphinx and CREATE2
 
 Sphinx 0.23.x routes Solidity `new {salt}` deployments through the deterministic deployment proxy (`0x4e59b44847b379578588920cA78FbF26c0B4956C`). This is handled automatically by the Sphinx TypeScript decoder (`isCreate2AccountAccess()`), which detects `CREATE2` opcodes in the simulation trace and replays them through the canonical factory.
@@ -445,8 +486,8 @@ export VERIFY_ARB_SUCKER_DEPLOYER=0x...               # L1 + Arbitrum deployer
 # matches the canonical per-chain manifest.
 export VERIFY_CCIP_SUCKER_DEPLOYERS_BY_REMOTE=10:0x...,8453:0x...,42161:0x...
 
-# Optional extra feeless addresses — CSV of addresses that should be present in the
-# feeless registry alongside the router terminal (which is checked separately).
+# Optional extra feeless addresses — CSV of non-router-terminal addresses that should be present in the
+# feeless registry. The router terminal is checked separately and must not be globally feeless.
 # export VERIFY_FEELESS_ADDRESSES=0x...,0x...
 ```
 
@@ -622,7 +663,7 @@ These manual checks complement the automated verification:
 - [ ] `projects.count()` returns 4 (or expected total if other projects were created)
 - [ ] `directory.controllerOf(1)` returns the controller address
 - [ ] `prices.pricePerUnitOf(0, 2, 0x000000000000000000000000000000000000EEEe, 18)` returns a non-zero ETH/USD price
-- [ ] `feelessAddresses.isFeeless(<routerTerminal>)` returns true
+- [ ] `feelessAddresses.isFeelessFor(<routerTerminal>, 0, address(0))` returns false
 - [ ] `suckerRegistry.suckerDeployerIsAllowed(<deployer>)` returns true for each expected deployer
 - [ ] Make a small test payment to project 1 via the terminal
 - [ ] Verify the payment appears in the project's balance via `terminalStore.balanceOf()`

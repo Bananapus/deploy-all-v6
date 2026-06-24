@@ -413,6 +413,7 @@ contract CrossChainArbHandler is Test {
 /// forge-config: default.invariant.fail-on-revert = false
 contract CrossChainArbInvariant is RevnetForkBase {
     uint32 constant NATIVE_CURRENCY = uint32(uint160(JBConstants.NATIVE_TOKEN));
+    uint256 constant REMOTE_CHAIN_ID = 10;
 
     InvariantMockOPMessenger internal mockMessenger;
     InvariantMockOPBridge internal mockBridge;
@@ -672,6 +673,9 @@ contract CrossChainArbInvariant is RevnetForkBase {
         configs[0] = JBSuckerDeployerConfig({
             deployer: IJBSuckerDeployer(address(opSuckerDeployer)), peer: bytes32(0), mappings: mappings
         });
+
+        vm.prank(multisig());
+        SUCKER_REGISTRY.allowTokenMapping(JBConstants.NATIVE_TOKEN, REMOTE_CHAIN_ID, mappings[0].remoteToken);
 
         vm.prank(address(REV_DEPLOYER));
         address[] memory deployed = SUCKER_REGISTRY.deploySuckersFor(_revnetId, bytes32("INV_SALT"), configs);

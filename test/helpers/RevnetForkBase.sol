@@ -34,7 +34,7 @@ import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
 import {IJBBuybackHook} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHook.sol";
-import {IGeomeanOracle} from "@bananapus/buyback-hook-v6/src/interfaces/IGeomeanOracle.sol";
+import {IGeomeanOracle} from "@bananapus/univ4-router-v6/src/interfaces/IGeomeanOracle.sol";
 
 // Suckers
 import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
@@ -120,8 +120,18 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         return "RevnetForkBase";
     }
 
+    function _forkBlock() internal pure virtual returns (uint256) {
+        return 21_700_000;
+    }
+
     function setUp() public virtual override {
-        vm.createSelectFork("ethereum", 21_700_000);
+        uint256 forkBlock = _forkBlock();
+        if (forkBlock == 0) {
+            vm.createSelectFork("ethereum");
+        } else {
+            vm.createSelectFork("ethereum", forkBlock);
+        }
+
         require(POOL_MANAGER_ADDR.code.length > 0, "PoolManager not deployed at expected address");
 
         super.setUp();
@@ -213,12 +223,20 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
         // forge-lint: disable-next-line(unsafe-typecast)
         tickCumulatives[1] = int56(tick) * int56(int32(twapWindow));
 
-        uint136[] memory secondsPerLiquidityCumulativeX128s = new uint136[](2);
+        uint160[] memory secondsPerLiquidityCumulativeX128s = new uint160[](2);
         secondsPerLiquidityCumulativeX128s[0] = 0;
         uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
         if (liq == 0) liq = 1;
         // forge-lint: disable-next-line(unsafe-typecast)
-        secondsPerLiquidityCumulativeX128s[1] = uint136((uint256(twapWindow) << 128) / liq);
+        secondsPerLiquidityCumulativeX128s[1] = uint160((uint256(twapWindow) << 128) / liq);
+
+        vm.mockCall(
+            address(0), abi.encodeWithSelector(IGeomeanOracle.hasObservationCoverage.selector), abi.encode(true)
+        );
+
+        vm.mockCall(
+            address(0), abi.encodeWithSelector(IGeomeanOracle.observationCoverageOf.selector), abi.encode(twapWindow)
+        );
 
         vm.mockCall(
             address(0),
