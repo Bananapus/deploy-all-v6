@@ -63,6 +63,7 @@ import {mulDiv, sqrt} from "@prb/math/src/Common.sol";
 abstract contract TwapOracleUpgradeBase is Script {
     using stdJson for string;
 
+    error TwapOracleUpgrade_MissingArtifactAbi(string artifactName);
     error TwapOracleUpgrade_MissingDeployment(string name);
     error TwapOracleUpgrade_MissingPoolPrice(uint256 projectId, address terminalToken);
     error TwapOracleUpgrade_UnexpectedPoolWindow(uint256 projectId, address terminalToken, uint256 window);
@@ -97,17 +98,6 @@ abstract contract TwapOracleUpgradeBase is Script {
     bytes32 internal constant _LP_SPLIT_HOOK_SALT = keccak256("JBUniswapV4LPSplitHookV6_TwapOracleUpgrade");
     bytes32 internal constant _LP_SPLIT_HOOK_DEPLOYER_SALT =
         keccak256("JBUniswapV4LPSplitHookDeployerV6_TwapOracleUpgrade");
-
-    string internal constant _DEPLOY_LP_SPLIT_HOOK_ABI =
-        "[{\"type\":\"function\",\"name\":\"deployHookFor\",\"inputs\":[{\"name\":\"feeProjectId\",\"type\":\"uint256\"},{\"name\":\"feePercent\",\"type\":\"uint256\"},{\"name\":\"buybackHook\",\"type\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\"}],\"outputs\":[{\"name\":\"hook\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\"}]";
-    string internal constant _INITIALIZE_POOL_ABI =
-        "[{\"type\":\"function\",\"name\":\"initializePoolFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"fee\",\"type\":\"uint24\"},{\"name\":\"tickSpacing\",\"type\":\"int24\"},{\"name\":\"twapWindow\",\"type\":\"uint256\"},{\"name\":\"terminalToken\",\"type\":\"address\"},{\"name\":\"sqrtPriceX96\",\"type\":\"uint160\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
-    string internal constant _SET_HOOK_ABI =
-        "[{\"type\":\"function\",\"name\":\"setHookFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"hook\",\"type\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
-    string internal constant _SET_SPLIT_GROUPS_ABI =
-        "[{\"type\":\"function\",\"name\":\"setSplitGroupsOf\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"rulesetId\",\"type\":\"uint256\"},{\"name\":\"splitGroups\",\"type\":\"tuple[]\",\"components\":[{\"name\":\"groupId\",\"type\":\"uint256\"},{\"name\":\"splits\",\"type\":\"tuple[]\",\"components\":[{\"name\":\"percent\",\"type\":\"uint32\"},{\"name\":\"projectId\",\"type\":\"uint64\"},{\"name\":\"beneficiary\",\"type\":\"address\"},{\"name\":\"preferAddToBalance\",\"type\":\"bool\"},{\"name\":\"lockedUntil\",\"type\":\"uint48\"},{\"name\":\"hook\",\"type\":\"address\"}]}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
-    string internal constant _SET_TERMINAL_ABI =
-        "[{\"type\":\"function\",\"name\":\"setTerminalFor\",\"inputs\":[{\"name\":\"projectId\",\"type\":\"uint256\"},{\"name\":\"terminal\",\"type\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]";
 
     // ════════════════════════════════════════════════════════════════════
     //  Deployment State
@@ -266,6 +256,25 @@ abstract contract TwapOracleUpgradeBase is Script {
         return vm.parseJsonBytes({json: json, key: ".bytecode.object"});
     }
 
+    function _loadArtifactAbi(string memory artifactName) internal view returns (string memory) {
+        string memory json = vm.readFile(string.concat("artifacts/", artifactName, ".json"));
+        bytes memory artifact = bytes(json);
+        bytes memory marker = bytes("\"abi\":");
+
+        (bool found, uint256 start) = _indexOf({haystack: artifact, needle: marker, from: 0});
+        if (!found) revert TwapOracleUpgrade_MissingArtifactAbi(artifactName);
+
+        start += marker.length;
+        while (start < artifact.length && _isJsonWhitespace(artifact[start])) start++;
+        uint256 end = _jsonArrayEnd({json: artifact, start: start, artifactName: artifactName});
+
+        bytes memory abiJson = new bytes(end - start);
+        for (uint256 i; i < abiJson.length; i++) {
+            abiJson[i] = artifact[start + i];
+        }
+        return string(abiJson);
+    }
+
     function _isDeployed(
         bytes32 salt,
         bytes memory creationCode,
@@ -347,6 +356,75 @@ abstract contract TwapOracleUpgradeBase is Script {
         }
 
         revert("HookMiner: could not find salt");
+    }
+
+    function _indexOf(
+        bytes memory haystack,
+        bytes memory needle,
+        uint256 from
+    )
+        internal
+        pure
+        returns (bool found, uint256 index)
+    {
+        if (needle.length == 0 || haystack.length < needle.length || from > haystack.length - needle.length) {
+            return (false, 0);
+        }
+
+        for (uint256 i = from; i <= haystack.length - needle.length; i++) {
+            bool matchFound = true;
+            for (uint256 j; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) {
+                    matchFound = false;
+                    break;
+                }
+            }
+            if (matchFound) return (true, i);
+        }
+    }
+
+    function _isJsonWhitespace(bytes1 char) internal pure returns (bool) {
+        return char == 0x20 || char == 0x09 || char == 0x0a || char == 0x0d;
+    }
+
+    function _jsonArrayEnd(
+        bytes memory json,
+        uint256 start,
+        string memory artifactName
+    )
+        internal
+        pure
+        returns (uint256 end)
+    {
+        if (start >= json.length || json[start] != 0x5b) revert TwapOracleUpgrade_MissingArtifactAbi(artifactName);
+
+        uint256 depth;
+        bool escaped;
+        bool inString;
+        for (uint256 i = start; i < json.length; i++) {
+            bytes1 char = json[i];
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (char == 0x5c) {
+                    escaped = true;
+                } else if (char == 0x22) {
+                    inString = false;
+                }
+                continue;
+            }
+
+            if (char == 0x22) {
+                inString = true;
+            } else if (char == 0x5b) {
+                depth++;
+            } else if (char == 0x5d) {
+                depth--;
+                if (depth == 0) return i + 1;
+            }
+        }
+
+        revert TwapOracleUpgrade_MissingArtifactAbi(artifactName);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -850,7 +928,7 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
             path: path,
             title: "4. Deploy Banny LP split hook",
             target: address(_upgradeLpSplitHookDeployer),
-            abiJson: _DEPLOY_LP_SPLIT_HOOK_ABI,
+            artifactName: "JBUniswapV4LPSplitHookDeployer",
             data: abi.encodeCall(
                 JBUniswapV4LPSplitHookDeployer.deployHookFor,
                 (
@@ -881,7 +959,7 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
             path: path,
             title: "5. Route Banny reserved split to LP split hook",
             target: controller,
-            abiJson: _SET_SPLIT_GROUPS_ABI,
+            artifactName: "JBController",
             data: abi.encodeCall(
                 IJBController.setSplitGroupsOf, (_BAN_PROJECT_ID, ruleset.id, _bannyLpSplitHookSplitGroups(lpSplitHook))
             )
@@ -967,7 +1045,7 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
             path: path,
             title: "1. Set buyback hook",
             target: address(_buybackRegistry),
-            abiJson: _SET_HOOK_ABI,
+            artifactName: "JBBuybackHookRegistry",
             data: abi.encodeCall(
                 JBBuybackHookRegistry.setHookFor, (projectId, IJBRulesetDataHook(address(_upgradeBuybackHook)))
             )
@@ -977,7 +1055,7 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
             path: path,
             title: "2. Set router terminal",
             target: address(_routerTerminalRegistry),
-            abiJson: _SET_TERMINAL_ABI,
+            artifactName: "JBRouterTerminalRegistry",
             data: abi.encodeCall(
                 JBRouterTerminalRegistry.setTerminalFor, (projectId, IJBTerminal(address(_upgradeRouterTerminal)))
             )
@@ -999,7 +1077,7 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
                 path: path,
                 title: "3. Initialize buyback pool",
                 target: address(_buybackRegistry),
-                abiJson: _INITIALIZE_POOL_ABI,
+                artifactName: "JBBuybackHookRegistry",
                 data: abi.encodeCall(
                     JBBuybackHookRegistry.initializePoolFor,
                     (
@@ -1032,7 +1110,7 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
         string memory path,
         string memory title,
         address target,
-        string memory abiJson,
+        string memory artifactName,
         bytes memory data
     )
         internal
@@ -1040,7 +1118,7 @@ contract GenerateTwapOracleUpgradeOperatorSafeTxs is TwapOracleUpgradeBase {
         vm.writeLine({path: path, data: string.concat("### ", title, "\n")});
         vm.writeLine({path: path, data: string.concat("Address: `", vm.toString(target), "`\n")});
         vm.writeLine({path: path, data: "ABI:\n```json"});
-        vm.writeLine({path: path, data: abiJson});
+        vm.writeLine({path: path, data: _loadArtifactAbi(artifactName)});
         vm.writeLine({path: path, data: "```\n"});
         vm.writeLine({path: path, data: "Custom data:\n```text"});
         vm.writeLine({path: path, data: vm.toString(data)});
