@@ -217,7 +217,7 @@ abstract contract TwapOracleUpgradeBase is Script {
 
     function _chainFolder() internal view returns (string memory) {
         if (block.chainid == 1) return "ethereum";
-        if (block.chainid == 11_155_111) return "ethereum_sepolia";
+        if (block.chainid == 11_155_111) return "sepolia";
         if (block.chainid == 10) return "optimism";
         if (block.chainid == 11_155_420) return "optimism_sepolia";
         if (block.chainid == 8453) return "base";
