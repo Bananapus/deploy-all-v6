@@ -12,6 +12,7 @@
 //
 // Inputs:
 //   --chain <chainId>                  required
+//   --addresses-file <path>            optional; default: post-deploy/.cache/addresses-<chain>.json
 //   --contract <Name>                  optional; default: all in addresses-<chain>.json
 //   --out-dir <path>                   optional; default: post-deploy/.cache/artifacts-<chain>/
 //
@@ -57,7 +58,9 @@ if (manifest.gitDirty && chain.production && !args.rehearsal) {
   );
 }
 
-const addressesPath = path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
+const addressesPath = args['addresses-file']
+  ? path.resolve(args['addresses-file'])
+  : path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
 if (!fs.existsSync(addressesPath)) die(`Missing addresses file: ${addressesPath}`);
 const addresses = readJson({path: addressesPath});
 
@@ -171,15 +174,23 @@ function constructorArgsOverride({baseName}) {
   if (baseName === 'JBUniswapV4LPSplitHook') {
     return encodeAddressArgs({
       values: [
-        addresses.JBDirectory,
-        addresses.JBPermissions,
-        addresses.JBTokens,
+        addressOf('JBDirectory'),
+        addressOf('JBPermissions'),
+        addressOf('JBTokens'),
         '0x000000000022D473030F116dDEE9F6B43aC78BA3',
-        addresses.JBSuckerRegistry
+        addressOf('JBSuckerRegistry')
       ]
     });
   }
   return null;
+}
+
+function addressOf(name) {
+  if (addresses[name]) return addresses[name];
+
+  const file = path.join(DEPLOY_ROOT, 'deployments', chain.alias, `${name}.json`);
+  if (!fs.existsSync(file)) throw new Error(`Missing ${name} in address dump and ${path.relative(DEPLOY_ROOT, file)}`);
+  return readJson({path: file}).address;
 }
 
 function encodeAddressArgs({values}) {

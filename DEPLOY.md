@@ -152,10 +152,16 @@ Infra Safe proposal:
 
 ```bash
 pnpm artifacts
+pnpm deploy:rehearse:twap-oracle-upgrade:testnets
 pnpm deploy:propose:twap-oracle-upgrade:testnets
 # or:
+pnpm deploy:rehearse:twap-oracle-upgrade:mainnets
 pnpm deploy:propose:twap-oracle-upgrade:mainnets
 ```
+
+The rehearsal command is a fast local preflight. It validates that the expected `deployments/<chain_alias>/` JSONs
+and precompiled `artifacts/` exist before Sphinx spends time compiling and simulating the proposal. The propose
+commands run the same preflight automatically.
 
 The infra proposal deploys the new `JBUniswapV4Hook`, `JBBuybackHook`, `JBRouterTerminal`, `JBUniswapV4LPSplitHook`, and `JBUniswapV4LPSplitHookDeployer`; sets the buyback and router-terminal registries to the new defaults for newly created projects; explicitly migrates project 1 to the new buyback hook and router terminal; initializes project 1's new buyback pool; disallows the old buyback hook and old router terminal where possible; and removes the old router terminal from `JBFeelessAddresses` if it was still marked feeless.
 
