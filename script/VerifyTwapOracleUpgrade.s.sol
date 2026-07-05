@@ -75,6 +75,7 @@ contract VerifyTwapOracleUpgrade is TwapOracleUpgradeBase {
             "new JBUniswapV4LPSplitHookDeployer is deployed",
             true
         );
+        _check(address(_banLpSplitHook()).code.length != 0, "BAN LP split hook clone is deployed", true);
         _check(
             _upgradeUniv4Hook.MAX_TWAP_CARDINALITY() == 1801,
             "new JBUniswapV4Hook has 1801 observation cardinality cap",
@@ -141,6 +142,24 @@ contract VerifyTwapOracleUpgrade is TwapOracleUpgradeBase {
             address(_upgradeLpSplitHookDeployer.oracleHook()) == address(_upgradeUniv4Hook),
             "LP split hook deployer uses the new oracle hook",
             true
+        );
+
+        JBUniswapV4LPSplitHook hook = _banLpSplitHook();
+        _check(hook.feeProjectId() == _LP_SPLIT_HOOK_FEE_PROJECT_ID, "BAN LP split hook fee project is 1", true);
+        _check(hook.feePercent() == _LP_SPLIT_HOOK_FEE_PERCENT, "BAN LP split hook fee percent is 2000", true);
+        _check(
+            address(hook.buybackHook()) == address(_buybackRegistry),
+            "BAN LP split hook force-directs cash-outs through the buyback registry",
+            true
+        );
+        _check(address(hook.poolManager()) == _poolManager, "BAN LP split hook uses the canonical PoolManager", true);
+        _check(
+            address(hook.positionManager()) == _positionManager,
+            "BAN LP split hook uses the canonical PositionManager",
+            true
+        );
+        _check(
+            address(hook.oracleHook()) == address(_upgradeUniv4Hook), "BAN LP split hook uses the new oracle hook", true
         );
 
         console.log("");
@@ -223,7 +242,7 @@ contract VerifyTwapOracleUpgrade is TwapOracleUpgradeBase {
             _verifyProjectOperatorStateOf(projectIds[i]);
         }
 
-        _verifyBanLpSplitHookState();
+        _verifyBanLpSplitHookRouting();
         console.log("");
     }
 
@@ -275,26 +294,8 @@ contract VerifyTwapOracleUpgrade is TwapOracleUpgradeBase {
         );
     }
 
-    function _verifyBanLpSplitHookState() internal {
-        JBUniswapV4LPSplitHook hook = _banLpSplitHookForOperator();
-        _check(address(hook).code.length != 0, "BAN LP split hook clone is deployed", true);
-        _check(hook.feeProjectId() == _LP_SPLIT_HOOK_FEE_PROJECT_ID, "BAN LP split hook fee project is 1", true);
-        _check(hook.feePercent() == _LP_SPLIT_HOOK_FEE_PERCENT, "BAN LP split hook fee percent is 2000", true);
-        _check(
-            address(hook.buybackHook()) == address(_buybackRegistry),
-            "BAN LP split hook force-directs cash-outs through the buyback registry",
-            true
-        );
-        _check(address(hook.poolManager()) == _poolManager, "BAN LP split hook uses the canonical PoolManager", true);
-        _check(
-            address(hook.positionManager()) == _positionManager,
-            "BAN LP split hook uses the canonical PositionManager",
-            true
-        );
-        _check(
-            address(hook.oracleHook()) == address(_upgradeUniv4Hook), "BAN LP split hook uses the new oracle hook", true
-        );
-
+    function _verifyBanLpSplitHookRouting() internal {
+        JBUniswapV4LPSplitHook hook = _banLpSplitHook();
         address controller = address(_directory.controllerOf(_BAN_PROJECT_ID));
         (JBRuleset memory ruleset,) = IJBController(controller).currentRulesetOf(_BAN_PROJECT_ID);
         JBSplit[] memory splits = _splits.splitsOf({

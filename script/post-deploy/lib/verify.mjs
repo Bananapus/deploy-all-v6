@@ -340,13 +340,15 @@ function artifactNameFor(name) {
 
 function cloneImplementationFor(name) {
   let implementationName = null;
-  if (name === 'BannyLPSplitHook') implementationName = 'JBUniswapV4LPSplitHook';
+  const baseName = name.split('__')[0];
+  const suffix = name.includes('__') ? name.slice(name.indexOf('__')) : '';
+  if (baseName === 'BannyLPSplitHook') implementationName = 'JBUniswapV4LPSplitHook';
   else if (name.startsWith('JBERC20__')) implementationName = 'JBERC20';
   else if (name.startsWith('JB721TiersHook__')) implementationName = 'JB721TiersHook';
   else if (name.startsWith('JBProjectPayer__')) implementationName = 'JBProjectPayer';
   if (!implementationName) return null;
 
-  const implementationAddress = addresses[implementationName];
+  const implementationAddress = addresses[implementationName] || addresses[`${implementationName}${suffix}`];
   if (!implementationAddress) return null;
   return { name: implementationName, address: String(implementationAddress).toLowerCase() };
 }
