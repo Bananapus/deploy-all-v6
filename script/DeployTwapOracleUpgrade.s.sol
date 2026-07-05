@@ -880,50 +880,28 @@ contract DeployTwapOracleUpgrade is TwapOracleUpgradeBase, Sphinx {
             vm.serializeBool({objectKey: key, valueKey: "uniswapStackSkipped", value: !_shouldDeployUniswapStack()});
 
         if (address(_upgradeUniv4Hook) != address(0)) {
-            out = vm.serializeAddress({
-                objectKey: key, valueKey: "JBUniswapV4Hook__TwapOracleUpgrade", value: address(_upgradeUniv4Hook)
-            });
+            out = vm.serializeAddress({objectKey: key, valueKey: "JBUniswapV4Hook", value: address(_upgradeUniv4Hook)});
         }
         if (address(_upgradeBuybackHook) != address(0)) {
-            out = vm.serializeAddress({
-                objectKey: key, valueKey: "JBBuybackHook__TwapOracleUpgrade", value: address(_upgradeBuybackHook)
-            });
+            out = vm.serializeAddress({objectKey: key, valueKey: "JBBuybackHook", value: address(_upgradeBuybackHook)});
         }
         if (address(_upgradeRouterTerminal) != address(0)) {
             out = vm.serializeAddress({
-                objectKey: key, valueKey: "JBRouterTerminal__TwapOracleUpgrade", value: address(_upgradeRouterTerminal)
+                objectKey: key, valueKey: "JBRouterTerminal", value: address(_upgradeRouterTerminal)
             });
         }
         if (address(_upgradeLpSplitHook) != address(0)) {
             out = vm.serializeAddress({
-                objectKey: key,
-                valueKey: "JBUniswapV4LPSplitHook__TwapOracleUpgrade",
-                value: address(_upgradeLpSplitHook)
+                objectKey: key, valueKey: "JBUniswapV4LPSplitHook", value: address(_upgradeLpSplitHook)
             });
         }
         if (address(_upgradeLpSplitHookDeployer) != address(0)) {
             out = vm.serializeAddress({
-                objectKey: key,
-                valueKey: "JBUniswapV4LPSplitHookDeployer__TwapOracleUpgrade",
-                value: address(_upgradeLpSplitHookDeployer)
+                objectKey: key, valueKey: "JBUniswapV4LPSplitHookDeployer", value: address(_upgradeLpSplitHookDeployer)
             });
         }
         if (address(_upgradeLpSplitHook) != address(0) && address(_upgradeLpSplitHookDeployer) != address(0)) {
-            out = vm.serializeAddress({
-                objectKey: key, valueKey: "BannyLPSplitHook__TwapOracleUpgrade", value: address(_banLpSplitHook())
-            });
-        }
-        if (address(_oldBuybackHook) != address(0)) {
-            out = vm.serializeAddress({
-                objectKey: key, valueKey: "JBBuybackHook__RetiredTwapOracleUpgrade", value: address(_oldBuybackHook)
-            });
-        }
-        if (address(_oldRouterTerminal) != address(0)) {
-            out = vm.serializeAddress({
-                objectKey: key,
-                valueKey: "JBRouterTerminal__RetiredTwapOracleUpgrade",
-                value: address(_oldRouterTerminal)
-            });
+            out = vm.serializeAddress({objectKey: key, valueKey: "BannyLPSplitHook", value: address(_banLpSplitHook())});
         }
 
         vm.createDir({path: "script/post-deploy/.cache", recursive: true});
