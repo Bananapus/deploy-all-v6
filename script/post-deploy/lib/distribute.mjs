@@ -12,7 +12,7 @@
 //   post-deploy/.cache/artifacts-<chainId>/<Contract>.json
 //
 // Usage:
-//   node distribute.mjs --chain <chainId> [--in-dir <path>]
+//   node distribute.mjs --chain <chainId> [--addresses-file <path>] [--in-dir <path>]
 //   node distribute.mjs --chain <chainId> --dry-run   # print, no writes
 
 import fs from 'node:fs';
@@ -47,7 +47,9 @@ if (!fs.existsSync(inDir)) die(`No input artifacts dir: ${inDir} (run artifacts.
 // this dump and therefore not be distributed. Distribution is keyed off the
 // current deployment, not whatever happens to be on disk.
 const expectedChainIdHex = `0x${Number(CHAIN_ID).toString(16)}`;
-const addressesPath = path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
+const addressesPath = args['addresses-file']
+  ? path.resolve(args['addresses-file'])
+  : path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
 if (!fs.existsSync(addressesPath)) {
   die(`No address dump for chain ${CHAIN_ID}: ${addressesPath} (run forge script Deploy.s.sol first)`);
 }

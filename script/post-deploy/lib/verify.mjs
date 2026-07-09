@@ -15,7 +15,7 @@
 //      already-verified contracts.
 //
 // Usage:
-//   node verify.mjs --chain <chainId> [--contract <Name>] [--all]
+//   node verify.mjs --chain <chainId> [--addresses-file <path>] [--contract <Name>] [--all]
 // Env:
 //   ETHERSCAN_API_KEY  — required (single key for the v2 unified API).
 //   RPC_<UPPERCASE>    — optional; if present, used for direct eth_getTransactionByHash.
@@ -65,7 +65,9 @@ if (manifest.gitDirty && chain.production && !args.rehearsal) {
   );
 }
 
-const addressesPath = path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
+const addressesPath = args['addresses-file']
+  ? path.resolve(args['addresses-file'])
+  : path.join(CACHE_DIR, `addresses-${CHAIN_ID}.json`);
 if (!fs.existsSync(addressesPath)) {
   die(`Missing addresses file: ${addressesPath}\nRun the address dump first (forge script Deploy.s.sol --rpc-url ...).`);
 }
@@ -297,14 +299,22 @@ async function constructorArgsFromCreation({creation, artifact}) {
 function constructorArgsOverride(baseName) {
   if (baseName === 'JBUniswapV4LPSplitHook') {
     return encodeAddressArgs([
-      addresses.JBDirectory,
-      addresses.JBPermissions,
-      addresses.JBTokens,
+      addressOf('JBDirectory'),
+      addressOf('JBPermissions'),
+      addressOf('JBTokens'),
       '0x000000000022D473030F116dDEE9F6B43aC78BA3',
-      addresses.JBSuckerRegistry
+      addressOf('JBSuckerRegistry')
     ]);
   }
   return null;
+}
+
+function addressOf(name) {
+  if (addresses[name]) return addresses[name];
+
+  const file = path.join(DEPLOY_ROOT, 'deployments', chain.alias, `${name}.json`);
+  if (!fs.existsSync(file)) throw nonTransient(`Missing ${name} in address dump and ${path.relative(DEPLOY_ROOT, file)}`);
+  return readJson(file).address;
 }
 
 function encodeAddressArgs(values) {
@@ -330,13 +340,15 @@ function artifactNameFor(name) {
 
 function cloneImplementationFor(name) {
   let implementationName = null;
-  if (name === 'BannyLPSplitHook') implementationName = 'JBUniswapV4LPSplitHook';
+  const baseName = name.split('__')[0];
+  const suffix = name.includes('__') ? name.slice(name.indexOf('__')) : '';
+  if (baseName === 'BannyLPSplitHook') implementationName = 'JBUniswapV4LPSplitHook';
   else if (name.startsWith('JBERC20__')) implementationName = 'JBERC20';
   else if (name.startsWith('JB721TiersHook__')) implementationName = 'JB721TiersHook';
   else if (name.startsWith('JBProjectPayer__')) implementationName = 'JBProjectPayer';
   if (!implementationName) return null;
 
-  const implementationAddress = addresses[implementationName];
+  const implementationAddress = addresses[implementationName] || addresses[`${implementationName}${suffix}`];
   if (!implementationAddress) return null;
   return { name: implementationName, address: String(implementationAddress).toLowerCase() };
 }
