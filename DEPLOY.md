@@ -144,6 +144,17 @@ Sphinx compiles the deploy script, simulates it, and proposes the resulting tran
 
 Monitor execution in the Sphinx dashboard or on-chain via the safe's transaction history.
 
+### Post-launch LP split hook fix
+
+`script/DeployLpSplitHookFix.s.sol` redeploys only the Uniswap V4 LP split hook stack for the fix in `@bananapus/univ4-lp-split-hook-v6@1.3.0` (`findHighestValueTerminalTokenOf` now skips terminals without a `STORE()` — e.g. `JBRouterTerminalRegistry` — instead of reverting, which had permanently DoSed `deployPool`/`addLiquidity` for any project with such a terminal registered). The fix is in the linked `JBUniswapV4LPSplitHookMath` library, so the library, the relinked hook, and the deployer all redeploy at fresh CREATE2 addresses. It reuses existing core + the live `JBUniswapV4Hook` oracle from the deployment records and uses the same salts as `Deploy.s.sol`. Nothing on-chain stores the deployer address, so no re-wiring is required.
+
+```bash
+pnpm artifacts                                       # rebuild artifacts from the 1.3.0 package
+pnpm deploy:propose:lp-split-hook-fix:testnets
+# or:
+pnpm deploy:propose:lp-split-hook-fix:mainnets
+```
+
 ### Post-launch TWAP oracle upgrade
 
 `script/DeployTwapOracleUpgrade.s.sol` is a post-launch migration script for replacing the Uniswap V4 oracle-dependent contracts without redeploying the full protocol. Before proposing it, rebuild `artifacts/` from package versions that include the matching TWAP/coverage changes in `univ4-router-v6`, `nana-buyback-hook-v6`, and `nana-router-terminal-v6`.
