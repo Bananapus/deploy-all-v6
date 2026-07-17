@@ -901,7 +901,7 @@ contract DeployTwapOracleUpgrade is TwapOracleUpgradeBase, Sphinx {
             });
         }
         if (address(_upgradeLpSplitHook) != address(0) && address(_upgradeLpSplitHookDeployer) != address(0)) {
-            out = vm.serializeAddress({objectKey: key, valueKey: "BannyLPSplitHook", value: address(_banLpSplitHook())});
+            out = vm.serializeAddress({objectKey: key, valueKey: "JBP6FeeLPSplitHook", value: address(_banLpSplitHook())});
         }
 
         vm.createDir({path: "script/post-deploy/.cache", recursive: true});

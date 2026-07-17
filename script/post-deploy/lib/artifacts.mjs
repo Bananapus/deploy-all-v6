@@ -83,7 +83,7 @@ const targets = Object.entries(addresses)
 console.log(`Generating ${targets.length} artifact(s) for chain ${CHAIN_ID} (${chain.alias}) → ${path.relative(DEPLOY_ROOT, outDir)}/`);
 
 const ARTIFACT_ALIASES = new Map([
-  ['BannyLPSplitHook', 'JBUniswapV4LPSplitHook']
+  ['JBP6FeeLPSplitHook', 'JBUniswapV4LPSplitHook']
 ]);
 
 let okCount = 0;

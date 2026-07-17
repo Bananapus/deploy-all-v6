@@ -5042,7 +5042,7 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "REVOwner", addr: address(_revOwner)});
         _serializeIfSet({key: j, name: "REVDeployer", addr: address(_revDeployer)});
         _serializeIfSet({key: j, name: "Banny721TokenUriResolver", addr: address(_bannyResolver)});
-        _serializeIfSet({key: j, name: "BannyLPSplitHook", addr: address(_banLpSplitHook)});
+        _serializeIfSet({key: j, name: "JBP6FeeLPSplitHook", addr: address(_banLpSplitHook)});
         _serializeIfSet({key: j, name: "DefifaHook", addr: address(_defifaHook)});
         _serializeIfSet({key: j, name: "DefifaTokenUriResolver", addr: address(_defifaTokenUriResolver)});
         _serializeIfSet({key: j, name: "DefifaGovernor", addr: address(_defifaGovernor)});

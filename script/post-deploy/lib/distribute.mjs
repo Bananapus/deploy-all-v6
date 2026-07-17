@@ -61,7 +61,7 @@ const targets = Object.entries(addresses)
 console.log(`Distributing ${targets.length} artifact(s) for chain ${CHAIN_ID} (${chain.alias})${DRY_RUN ? ' [DRY RUN]' : ''}`);
 
 const ARTIFACT_ALIASES = new Map([
-  ['BannyLPSplitHook', 'JBUniswapV4LPSplitHook']
+  ['JBP6FeeLPSplitHook', 'JBUniswapV4LPSplitHook']
 ]);
 
 let writeCount = 0;
