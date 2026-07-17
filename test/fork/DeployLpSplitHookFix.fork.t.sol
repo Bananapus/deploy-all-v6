@@ -105,19 +105,25 @@ contract DeployLpSplitHookFixForkTest is Test {
         address posm = harness.positionManagerAddr();
         address oh = harness.oracleHookAddr();
 
-        // The deployer's ctor pins its admin to _SAFE; the one-shot wiring call must come directly from it.
-        vm.prank(_SAFE);
-        dep.setChainSpecificConstants({
-            newPoolManager: IPoolManager(pm), newPositionManager: IPositionManager(posm), newOracleHook: IHooks(oh)
-        });
+        // Wire the deployer to this chain's V4 stack — but only if not already configured. The wiring is one-shot
+        // (reverts with AlreadyConfigured on a second call), so once the fix stack is live on mainnet the fork already
+        // has it set; mirror the script's own `if (poolManager == 0)` guard so the test is idempotency-aware.
+        IDeployerState d = IDeployerState(address(dep));
+        if (d.poolManager() == address(0)) {
+            // The deployer's ctor pins its admin to _SAFE; the one-shot wiring call must come directly from it.
+            vm.prank(_SAFE);
+            dep.setChainSpecificConstants({
+                newPoolManager: IPoolManager(pm), newPositionManager: IPositionManager(posm), newOracleHook: IHooks(oh)
+            });
+        }
 
         // The linked math library lands at its deterministic (chain-independent) CREATE2 address — the same one the
         // build linker bakes into the rebuilt hook artifact. A mismatch means the hook would call an empty address.
         assertEq(mathLib, 0x734bfC66606DfE7943BCF541Cf5dcBC5312e695b, "math lib must match the link target");
 
-        // Hook + deployer deployed, and the deployer wired to this chain's V4 stack + the live oracle hook.
+        // Hook + deployer deployed, and the deployer wired to this chain's V4 stack + the live oracle hook (end state,
+        // whether we just set it above or it was already configured by the live deploy).
         assertTrue(address(harness.hook()).code.length != 0, "hook implementation deployed");
-        IDeployerState d = IDeployerState(address(dep));
         assertEq(d.poolManager(), pm, "poolManager wired");
         assertEq(d.positionManager(), posm, "positionManager wired");
         assertEq(d.oracleHook(), oh, "oracleHook = live JBUniswapV4Hook (reused, not redeployed)");
