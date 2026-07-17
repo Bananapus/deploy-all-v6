@@ -5020,7 +5020,7 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "JBUniswapV4Hook", addr: address(_uniswapV4Hook)});
         _serializeIfSet({key: j, name: "JBBuybackHookRegistry", addr: address(_buybackRegistry)});
         _serializeIfSet({key: j, name: "JBBuybackHook", addr: address(_buybackHook)});
-        _serializeIfSet({key: j, name: "JBP6FeeLPSplitHook", addr: address(_lpSplitHook)});
+        _serializeIfSet({key: j, name: "JBUniswapV4LPSplitHook", addr: address(_lpSplitHook)});
         _serializeIfSet({key: j, name: "JBUniswapV4LPSplitHookDeployer", addr: address(_lpSplitHookDeployer)});
         _serializeIfSet({key: j, name: "JBRouterTerminalRegistry", addr: address(_routerTerminalRegistry)});
         _serializeIfSet({key: j, name: "JBRouterTerminal", addr: address(_routerTerminal)});
@@ -5042,6 +5042,7 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "REVOwner", addr: address(_revOwner)});
         _serializeIfSet({key: j, name: "REVDeployer", addr: address(_revDeployer)});
         _serializeIfSet({key: j, name: "Banny721TokenUriResolver", addr: address(_bannyResolver)});
+        _serializeIfSet({key: j, name: "JBP6FeeLPSplitHook", addr: address(_banLpSplitHook)});
         _serializeIfSet({key: j, name: "DefifaHook", addr: address(_defifaHook)});
         _serializeIfSet({key: j, name: "DefifaTokenUriResolver", addr: address(_defifaTokenUriResolver)});
         _serializeIfSet({key: j, name: "DefifaGovernor", addr: address(_defifaGovernor)});
