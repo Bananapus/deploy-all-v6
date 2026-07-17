@@ -10,9 +10,13 @@ import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {LibClone} from "solady/src/utils/LibClone.sol";
 
 // ── Address Registry ──
 import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
+
+// ── Buyback Hook ──
+import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
 
 // ── Core ──
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
@@ -31,12 +35,14 @@ import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/
 /// instead of reverting, which had permanently DoSed deployPool/addLiquidity for any project with such a terminal
 /// registered.
 ///
-/// The fix lives in the linked `JBUniswapV4LPSplitHookMath` library, so all three artifacts change: the library
-/// bytecode, the hook (relinked against the new library address at build time), and the deployer (ctor references
-/// the new hook). Each therefore deploys at a fresh CREATE2 address. Nothing on-chain stores the deployer address,
-/// so no re-wiring is required — new LP-split configurations resolve the new deployer/hook from the deployment
-/// records. Re-pointing an existing project's reserved split at a clone of the new hook is a separate, project-level
-/// operator migration and is intentionally NOT performed here.
+/// The fix lives in the linked `JBUniswapV4LPSplitHookMath` library, so all three implementation artifacts change:
+/// the library bytecode, the hook (relinked against the new library address at build time), and the deployer (ctor
+/// references the new hook). Each therefore deploys at a fresh CREATE2 address. On top of those, this script also
+/// deploys the shared LP split hook INSTANCE projects use (dumped as `JBP6FeeLPSplitHook`) — a minimal-proxy clone of
+/// the new fixed implementation, with the same params + salt as the live instance (`0xae6705c3`). That live instance
+/// delegates to the OLD implementation and so never received the fix; the fresh clone (new impl + new deployer → new
+/// address) is the fixed one new projects should use. Re-pointing an EXISTING project's reserved split at the fresh
+/// instance is a separate, project-level operator migration and is intentionally NOT performed here.
 ///
 /// Salts and the 2-arg `_saltOf` fold match `Deploy.s.sol` exactly, so the library lands at the address the build
 /// linker (`build-artifacts.sh`) baked into the rebuilt hook artifact. Idempotent: `_deployPrecompiledIfNeeded`
@@ -47,6 +53,7 @@ abstract contract LpSplitHookFixBase is Script {
     error LpSplitHookFix_MissingDeployment(string name);
     error LpSplitHookFix_UnexpectedSafe(address expected, address actual);
     error LpSplitHookFix_UnsupportedChain(uint256 chainId);
+    error LpSplitHookFix_InstanceAddressMismatch(address expected, address actual);
 
     // ── Constants (mirror Deploy.s.sol) ──
     IPermit2 internal constant _PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
@@ -58,6 +65,14 @@ abstract contract LpSplitHookFixBase is Script {
     bytes32 internal constant _LP_SPLIT_HOOK_SALT = "JBUniswapV4LPSplitHookV6";
     bytes32 internal constant _LP_SPLIT_HOOK_DEPLOYER_SALT = "JBUniswapV4LPSplitHookDeployerV6";
 
+    // Shared LP split hook instance projects use (dumped as JBP6FeeLPSplitHook). Same params + salt as the live
+    // instance (0xae6705c3, deployed by the TWAP upgrade), so the only thing that moves is the implementation the
+    // clone delegates to — the new fixed one. deployHookFor folds the salt as keccak256(abi.encode(msg.sender, salt))
+    // and msg.sender is the Safe under `sphinx`, so the clone salt is keccak256(abi.encode(_EXPECTED_SAFE, salt)).
+    bytes32 internal constant _LP_SPLIT_HOOK_INSTANCE_SALT = "_BAN_LP_SPLIT_HOOK_V6_";
+    uint256 internal constant _LP_SPLIT_HOOK_INSTANCE_FEE_PROJECT_ID = 1;
+    uint256 internal constant _LP_SPLIT_HOOK_INSTANCE_FEE_PERCENT = 2000;
+
     // ── State ──
     address internal _poolManager;
     address internal _positionManager;
@@ -67,10 +82,12 @@ abstract contract LpSplitHookFixBase is Script {
     IJBPermissions internal _permissions;
     IJBTokens internal _tokens;
     IJBSuckerRegistry internal _suckerRegistry;
+    IJBBuybackHookRegistry internal _buybackRegistry;
     address internal _oracleHook; // the live JBUniswapV4Hook the buyback pools already trade against
 
     JBUniswapV4LPSplitHook internal _lpSplitHook;
     JBUniswapV4LPSplitHookDeployer internal _lpSplitHookDeployer;
+    JBUniswapV4LPSplitHook internal _lpSplitHookInstance;
 
     // ── Chain wiring ──
     function _setupChainAddresses() internal {
@@ -109,6 +126,7 @@ abstract contract LpSplitHookFixBase is Script {
         _tokens = IJBTokens(_deploymentAddressOf("JBTokens"));
         _addressRegistry = IJBAddressRegistry(_deploymentAddressOf("JBAddressRegistry"));
         _suckerRegistry = IJBSuckerRegistry(_deploymentAddressOf("JBSuckerRegistry"));
+        _buybackRegistry = IJBBuybackHookRegistry(_deploymentAddressOf("JBBuybackHookRegistry"));
         _oracleHook = _deploymentAddressOf("JBUniswapV4Hook");
     }
 
@@ -207,6 +225,40 @@ abstract contract LpSplitHookFixBase is Script {
     function _lpSplitHookDeployerCtorArgs() internal view returns (bytes memory) {
         return abi.encode(IJBAddressRegistry(address(_addressRegistry)), _lpSplitHook, _EXPECTED_SAFE);
     }
+
+    // ── Shared instance (JBP6FeeLPSplitHook) ──
+    /// @notice Deterministic address of the shared instance: a minimal-proxy clone of the new hook implementation,
+    /// via the new deployer, at the same salt the live instance used. Requires `_lpSplitHook`/`_lpSplitHookDeployer`.
+    function _predictLpSplitHookInstance() internal view returns (JBUniswapV4LPSplitHook hook) {
+        if (address(_lpSplitHookDeployer) == address(0) || address(_lpSplitHook) == address(0)) return hook;
+        hook = JBUniswapV4LPSplitHook(
+            payable(LibClone.predictDeterministicAddress({
+                    implementation: address(_lpSplitHook),
+                    salt: keccak256(abi.encode(_EXPECTED_SAFE, _LP_SPLIT_HOOK_INSTANCE_SALT)),
+                    deployer: address(_lpSplitHookDeployer)
+                }))
+        );
+    }
+
+    /// @notice Deploy the shared instance if not already present (idempotent). Params mirror the live instance.
+    function _deployLpSplitHookInstanceIfNeeded() internal returns (JBUniswapV4LPSplitHook hook) {
+        hook = _predictLpSplitHookInstance();
+        if (address(hook).code.length != 0) return hook;
+
+        JBUniswapV4LPSplitHook deployed = JBUniswapV4LPSplitHook(
+            payable(address(
+                    _lpSplitHookDeployer.deployHookFor({
+                        feeProjectId: _LP_SPLIT_HOOK_INSTANCE_FEE_PROJECT_ID,
+                        feePercent: _LP_SPLIT_HOOK_INSTANCE_FEE_PERCENT,
+                        buybackHook: _buybackRegistry,
+                        salt: _LP_SPLIT_HOOK_INSTANCE_SALT
+                    })
+                ))
+        );
+        if (address(deployed) != address(hook)) {
+            revert LpSplitHookFix_InstanceAddressMismatch(address(hook), address(deployed));
+        }
+    }
 }
 
 /// @notice Sphinx deploy for the LP split hook fix. Propose per `deploy:propose:lp-split-hook-fix:*`.
@@ -257,6 +309,11 @@ contract DeployLpSplitHookFix is LpSplitHookFixBase, Sphinx {
                 newOracleHook: IHooks(_oracleHook)
             });
         }
+
+        // 4. Shared instance projects use (dumped as JBP6FeeLPSplitHook): a clone of the new fixed implementation
+        //    with the same params + salt as the live instance (0xae6705c3), which still delegates to the OLD, buggy
+        //    implementation. New impl + new deployer → fresh clone address carrying the fix.
+        _lpSplitHookInstance = _deployLpSplitHookInstanceIfNeeded();
     }
 
     /// @notice Post-deploy address dump (no broadcast) for the focused verify/emit/distribute pipeline. Writes only
@@ -283,11 +340,14 @@ contract DeployLpSplitHookFix is LpSplitHookFixBase, Sphinx {
             creationCode: _loadArtifact("JBUniswapV4LPSplitHookDeployer"),
             arguments: _lpSplitHookDeployerCtorArgs()
         });
+        _lpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(deployer); // so the instance prediction resolves
+        address instance = address(_predictLpSplitHookInstance());
 
         string memory j = "_lpSplitHookFixAddresses";
         vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHookMath", value: mathLib});
         vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHook", value: hook});
         vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHookDeployer", value: deployer});
+        vm.serializeAddress({objectKey: j, valueKey: "JBP6FeeLPSplitHook", value: instance});
         vm.serializeString({objectKey: j, valueKey: "format", value: "jb-v6-addresses-1"});
         string memory out = vm.serializeUint({objectKey: j, valueKey: "chainId", value: block.chainid});
 

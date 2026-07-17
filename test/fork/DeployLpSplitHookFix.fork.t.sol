@@ -55,6 +55,22 @@ contract LpSplitHookFixHarness is LpSplitHookFixBase {
     function hook() external view returns (JBUniswapV4LPSplitHook) {
         return _lpSplitHook;
     }
+
+    /// @notice Deploy the shared instance directly off the (already-configured) deployer, mirroring the script's
+    /// params. Called via the harness (not the Safe), so it exercises deployHookFor's mechanics + init params rather
+    /// than the Safe-folded deterministic address (which the production `sphinx` run and the mismatch guard cover).
+    function deployInstanceDirect() external returns (JBUniswapV4LPSplitHook h) {
+        h = JBUniswapV4LPSplitHook(
+            payable(address(
+                    _lpSplitHookDeployer.deployHookFor({
+                        feeProjectId: _LP_SPLIT_HOOK_INSTANCE_FEE_PROJECT_ID,
+                        feePercent: _LP_SPLIT_HOOK_INSTANCE_FEE_PERCENT,
+                        buybackHook: _buybackRegistry,
+                        salt: _LP_SPLIT_HOOK_INSTANCE_SALT
+                    })
+                ))
+        );
+    }
 }
 
 interface IDeployerState {
@@ -105,5 +121,17 @@ contract DeployLpSplitHookFixForkTest is Test {
         assertEq(d.poolManager(), pm, "poolManager wired");
         assertEq(d.positionManager(), posm, "positionManager wired");
         assertEq(d.oracleHook(), oh, "oracleHook = live JBUniswapV4Hook (reused, not redeployed)");
+
+        // The shared instance projects use (JBP6FeeLPSplitHook): a clone of the freshly-deployed fixed implementation,
+        // with the live instance's params. Must be a NEW address (not the old 0xae6705c3, which delegates to the buggy
+        // implementation) and carry feeProjectId=1 / feePercent=2000.
+        JBUniswapV4LPSplitHook instance = harness.deployInstanceDirect();
+        assertTrue(address(instance).code.length != 0, "shared instance deployed");
+        assertEq(instance.feeProjectId(), 1, "instance feeProjectId matches live");
+        assertEq(instance.feePercent(), 2000, "instance feePercent matches live");
+        assertTrue(
+            address(instance) != 0xAe6705c33C8B46f56878a1D4f1cE4d75fcFb6F62,
+            "fresh instance, not the old implementation-bound one"
+        );
     }
 }
