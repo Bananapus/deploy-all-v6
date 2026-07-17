@@ -342,8 +342,7 @@ function cloneImplementationFor(name) {
   let implementationName = null;
   const baseName = name.split('__')[0];
   const suffix = name.includes('__') ? name.slice(name.indexOf('__')) : '';
-  if (baseName === 'JBP6FeeLPSplitHook') implementationName = 'JBUniswapV4LPSplitHook';
-  else if (name.startsWith('JBERC20__')) implementationName = 'JBERC20';
+  if (name.startsWith('JBERC20__')) implementationName = 'JBERC20';
   else if (name.startsWith('JB721TiersHook__')) implementationName = 'JB721TiersHook';
   else if (name.startsWith('JBProjectPayer__')) implementationName = 'JBProjectPayer';
   if (!implementationName) return null;
