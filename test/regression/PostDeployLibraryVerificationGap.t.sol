@@ -112,8 +112,8 @@ contract PostDeployLibraryVerificationGapTest is Test {
             "artifact emitter hashes metadata"
         );
         assertTrue(
-            _contains(distributeSource, "['BannyLPSplitHook', 'JBUniswapV4LPSplitHook']"),
-            "artifact distributor resolves Banny LP hook through the LP split hook manifest entry"
+            _contains(distributeSource, "['JBP6FeeLPSplitHook', 'JBUniswapV4LPSplitHook']"),
+            "artifact distributor resolves the JBP6Fee LP hook instance through the LP split hook manifest entry"
         );
         assertTrue(
             _contains(distributeSource, "const baseName = artifactNameFor({name: target.name});"),
