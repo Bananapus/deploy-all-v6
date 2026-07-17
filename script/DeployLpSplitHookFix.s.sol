@@ -258,4 +258,42 @@ contract DeployLpSplitHookFix is LpSplitHookFixBase, Sphinx {
             });
         }
     }
+
+    /// @notice Post-deploy address dump (no broadcast) for the focused verify/emit/distribute pipeline. Writes only
+    /// the three LP-split contracts to `script/post-deploy/.cache/addresses-<chainId>.json` in the same
+    /// `jb-v6-addresses-1` format as `Deploy.s.sol._dumpAddresses`, so `post-deploy.sh --skip-dump` verifies and
+    /// emits exactly these (and no other contract). Addresses are the deterministic CREATE2 predictions off the
+    /// current artifacts — the contracts already exist on-chain, so `_isDeployed` returns true.
+    function dumpAddresses() external {
+        _setupChainAddresses();
+        if (!_shouldDeployLpStack()) return; // no LP stack on this chain → nothing to dump
+        _loadExistingDeploymentAddresses();
+
+        (address mathLib,) = _isDeployed({
+            salt: _MATH_LIB_SALT, creationCode: _loadArtifact("JBUniswapV4LPSplitHookMath"), arguments: ""
+        });
+        (address hook,) = _isDeployed({
+            salt: _LP_SPLIT_HOOK_SALT,
+            creationCode: _loadArtifact("JBUniswapV4LPSplitHook"),
+            arguments: _lpSplitHookCtorArgs()
+        });
+        _lpSplitHook = JBUniswapV4LPSplitHook(payable(hook)); // so the deployer ctor args reference the right hook
+        (address deployer,) = _isDeployed({
+            salt: _LP_SPLIT_HOOK_DEPLOYER_SALT,
+            creationCode: _loadArtifact("JBUniswapV4LPSplitHookDeployer"),
+            arguments: _lpSplitHookDeployerCtorArgs()
+        });
+
+        string memory j = "_lpSplitHookFixAddresses";
+        vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHookMath", value: mathLib});
+        vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHook", value: hook});
+        vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHookDeployer", value: deployer});
+        vm.serializeString({objectKey: j, valueKey: "format", value: "jb-v6-addresses-1"});
+        string memory out = vm.serializeUint({objectKey: j, valueKey: "chainId", value: block.chainid});
+
+        vm.createDir({path: "script/post-deploy/.cache", recursive: true});
+        vm.writeJson({
+            json: out, path: string.concat("script/post-deploy/.cache/addresses-", vm.toString(block.chainid), ".json")
+        });
+    }
 }
