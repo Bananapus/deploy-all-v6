@@ -141,7 +141,7 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         assertGt(_newLpSplitHook.accumulatedProjectTokens(revnetId), 0, "new LP split should accumulate");
 
         _grantDeployPoolPermission({operator: address(this), projectId: revnetId});
-        _newLpSplitHook.deployPool({projectId: revnetId, minCashOutReturn: 0});
+        _newLpSplitHook.deployPool(revnetId);
 
         PoolKey memory buybackKey = _newBuybackHook.poolKeyOf({projectId: revnetId, terminalToken: address(0)});
         PoolKey memory lpKey = _newLpSplitHook.poolKeyOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN});
@@ -187,9 +187,7 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         assertGt(accumulatedBeforeAdd, 0, "new LP split should have post-deploy accumulation");
 
         _grantDeployPoolPermission({operator: address(this), projectId: revnetId});
-        _newLpSplitHook.addLiquidity({
-            projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN, minCashOutReturn: 0
-        });
+        _newLpSplitHook.addLiquidity({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN});
         assertLt(
             _newLpSplitHook.accumulatedProjectTokens(revnetId),
             accumulatedBeforeAdd,
