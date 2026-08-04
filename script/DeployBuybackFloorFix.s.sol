@@ -34,7 +34,8 @@ import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 ///      chain-specific PoolManager + the LIVE JBUniswapV4Hook oracle (reused, not redeployed — same pools).
 ///   2. Set it as the registry's default hook (auto-allows it; only affects projects created after this call).
 ///   3. Pin project 1 to the new hook and re-register its existing warm pool on the new hook via `setPoolFor`
-///      (pool state lives per-hook; the V4 pool itself is untouched, so TWAP history and liquidity carry over).
+///      (pool state lives per-hook; the V4 pool itself is untouched, so TWAP history and liquidity carry over),
+///      with a fresh 30-minute TWAP window in place of the outgoing hook's 2-day one.
 ///   4. Disallow the outgoing default so no new project can select it.
 ///
 /// Projects 2-7 keep resolving to the outgoing hook (their pins/history are sovereign by registry design);
@@ -57,6 +58,13 @@ abstract contract BuybackFloorFixBase is Script {
     uint256 internal constant DEPLOYMENT_NONCE = 13;
 
     uint256 internal constant _FEE_PROJECT_ID = 1;
+
+    /// @notice The TWAP window project 1 gets on the new hook. Deliberately NOT the 2-day window carried by the
+    /// outgoing hook: with the 1.3.0 mint fallback, a long window no longer buys liveness — it only makes the
+    /// derived floor lag a trending pool so no-quote pays systematically miss the AMM route. Same-block sandwiches
+    /// never enter a TWAP at any window; 30 minutes still forces a sustained, arb-exposed displacement to bend the
+    /// floor, and the operator can retune per pool via `setTwapWindowOf` at any time.
+    uint256 internal constant _FEE_PROJECT_TWAP_WINDOW = 30 minutes;
 
     bytes32 internal constant _BUYBACK_HOOK_SALT = keccak256("JBBuybackHookV6_DerivedFloorFix");
 
@@ -262,9 +270,10 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
         }
 
         // Pool state lives per-hook, so the fresh hook starts with none. Re-register project 1's existing pool
-        // on the new hook with the exact key and window the outgoing hook used — the V4 pool itself (liquidity,
-        // oracle history) is untouched, so `setPoolFor` (which requires an already-initialized pool) is the
-        // right call, NOT `initializePoolFor` (which would reject the drifted live price).
+        // on the new hook with the exact key the outgoing hook used — the V4 pool itself (liquidity, oracle
+        // history) is untouched, so `setPoolFor` (which requires an already-initialized pool) is the right call,
+        // NOT `initializePoolFor` (which would reject the drifted live price). The fee/tickSpacing MUST match the
+        // live pool key; only the window is per-hook state and free to improve here.
         if (address(_oldBuybackHook) == address(0)) return;
 
         uint256 oldWindow = _oldBuybackHook.twapWindowOf({projectId: _FEE_PROJECT_ID, terminalToken: address(0)});
@@ -276,7 +285,7 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
             projectId: _FEE_PROJECT_ID,
             fee: key.fee,
             tickSpacing: key.tickSpacing,
-            twapWindow: oldWindow,
+            twapWindow: _FEE_PROJECT_TWAP_WINDOW,
             terminalToken: JBConstants.NATIVE_TOKEN
         });
     }
