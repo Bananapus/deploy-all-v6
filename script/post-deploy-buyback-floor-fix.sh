@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Focused post-deploy for the buyback derived-floor fix (buyback-hook-v6 1.3.0).
 #
-# Dumps ONLY the new buyback hook address per chain (JBBuybackHook)
-# via DeployBuybackFloorFix.dumpAddresses(), then verifies + emits + distributes
+# Dumps ONLY what that script deploys per chain — the new buyback hook (JBBuybackHook) and the NATIVE-per-USDC
+# price feed (JBRatioPriceFeed) — via DeployBuybackFloorFix.dumpAddresses(), then verifies + emits + distributes
 # just those through the shared post-deploy pipeline (post-deploy.sh --skip-dump reuses our focused dump). This
 # avoids re-running the full Deploy.s.sol dump / re-touching every other contract's artifacts.
+#
+# OP Sepolia has no Uniswap stack, so it dumps the price feed alone.
 #
 # Usage:
 #   ./script/post-deploy-buyback-floor-fix.sh --chains=all-testnets
@@ -68,12 +70,12 @@ for alias in $(resolve_chains "$CHAINS_ARG"); do
 
   # Fresh focused dump — remove any stale full-deploy dump so post-deploy processes ONLY the new buyback hook.
   rm -f "$CACHE_DIR/addresses-${cid}.json"
-  echo "  [dump] buyback hook address…"
+  echo "  [dump] buyback hook + price feed addresses…"
   (cd "$DEPLOY_ROOT" && forge script script/DeployBuybackFloorFix.s.sol --sig "dumpAddresses()" --rpc-url "$rpc" --silent) \
     || { echo "  dump failed on $alias"; FAIL=1; continue; }
 
   if [[ ! -f "$CACHE_DIR/addresses-${cid}.json" ]]; then
-    echo "  $alias has no Uniswap stack — nothing to verify/emit."
+    echo "  $alias has nothing this script deploys — nothing to verify/emit."
     continue
   fi
 

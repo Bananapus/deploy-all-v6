@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
-import {Script, stdJson} from "forge-std/Script.sol";
+import {console, Script, stdJson} from "forge-std/Script.sol";
 
 // ── Uniswap ──
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
@@ -16,11 +16,16 @@ import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHoo
 // ── Core ──
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
+import {IJBPriceFeed} from "@bananapus/core-v6/src/interfaces/IJBPriceFeed.sol";
 import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBTokens} from "@bananapus/core-v6/src/interfaces/IJBTokens.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
+import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
+
+// ── Deploy script helpers ──
+import {JBChainTokens} from "./libraries/JBChainTokens.sol";
 
 /// @notice Focused redeploy of the buyback hook for the derived-floor fix in buyback-hook-v6 1.3.0
 /// (nana-buyback-hook-v6 PR #173): a buy-side swap that fills below the oracle-derived TWAP floor now unwinds
@@ -29,26 +34,41 @@ import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 /// trending pools and closes the fee-evasion vector where a payer with a forgiven fee could nudge the pool to
 /// make their own fee pay revert. Explicit caller minima still hard-revert.
 ///
-/// Run by the infra Safe, which owns the buyback hook registry and is the operator of project 1. Steps:
-///   1. Deploy the 1.3.0 JBBuybackHook (same ctor args as the live one, fresh CREATE2 salt) and wire the
+/// It also closes an unrelated JBPrices gap, because this Safe is the only address that can: `pricePerUnitOf` looks a
+/// pair up directly and then inverted, but never COMPOSES two feeds. The project-0 defaults registered at launch are
+/// {USD←NATIVE}, {USD←ETH}, {ETH←NATIVE} and {USD←uint32(usdc)}, which leaves {NATIVE←uint32(usdc)} and
+/// {ETH←uint32(usdc)} unresolvable — so a project holding BOTH an ETH and a USDC accounting context reverts on USDC
+/// pays under an ETH base currency, and on mixed-balance cash outs under any base. For a revnet, whose accounting
+/// contexts are immutable, that is permanent; one such project is already live on four chains.
+///
+/// Run by the infra Safe, which owns JBPrices and the buyback hook registry and is the operator of project 1. Steps:
+///   1. Deploy a `JBRatioPriceFeed(usdcUsdFeed, ethUsdFeed)` — USD-per-USDC over USD-per-NATIVE, i.e. NATIVE per USDC
+///      — over the LIVE project-0 feeds read back from JBPrices, and register it as the project-0 default for both
+///      {NATIVE←uint32(usdc)} and {ETH←uint32(usdc)}. A direct Chainlink USDC/ETH feed exists only on Ethereum
+///      mainnet, so the ratio feed is used uniformly everywhere and the ETH-base and USD-base paths on a chain stay
+///      consistent with each other. Price feeds have nothing to do with Uniswap, so this step runs on EVERY chain —
+///      including OP Sepolia, which has no Uniswap stack and skips every step below.
+///   2. Deploy the 1.3.0 JBBuybackHook (same ctor args as the live one, fresh CREATE2 salt) and wire the
 ///      chain-specific PoolManager + the LIVE JBUniswapV4Hook oracle (reused, not redeployed — same pools).
-///   2. Set it as the registry's default hook (auto-allows it; only affects projects created after this call).
-///   3. Pin project 1 to the new hook and re-register its existing warm pool on the new hook via `setPoolFor`
+///   3. Set it as the registry's default hook (auto-allows it; only affects projects created after this call).
+///   4. Pin project 1 to the new hook and re-register its existing warm pool on the new hook via `setPoolFor`
 ///      (pool state lives per-hook; the V4 pool itself is untouched, so TWAP history and liquidity carry over),
 ///      with a fresh 30-minute TWAP window in place of the outgoing hook's 2-day one.
-///   4. Disallow the outgoing default so no new project can select it.
+///   5. Disallow the outgoing default so no new project can select it.
 ///
 /// Projects 2-7 keep resolving to the outgoing hook (their pins/history are sovereign by registry design);
 /// their operators migrate with their own `setHookFor` + `setPoolFor` Safe transactions when ready.
 ///
-/// Idempotent: the deploy skips if the hook already exists at its predicted address, and every registry step is
-/// guarded by a current-state check. Rebuild `artifacts/` (`npm run artifacts`) from buyback-hook-v6 1.3.0
-/// before proposing.
+/// Idempotent: both deploys skip if the contract already exists at its predicted address, every registry step is
+/// guarded by a current-state check, and a price-feed pair is only written when it is currently empty (a pair already
+/// pointing somewhere else reverts rather than being silently overwritten). Rebuild `artifacts/` (`npm run artifacts`)
+/// from buyback-hook-v6 1.3.0 and a core-v6 release containing `JBRatioPriceFeed` before proposing.
 abstract contract BuybackFloorFixBase is Script {
     using stdJson for string;
 
     error BuybackFloorFix_FeeProjectHookLocked(uint256 projectId);
     error BuybackFloorFix_MissingDeployment(string name);
+    error BuybackFloorFix_PriceFeedMismatch(uint256 pricingCurrency, uint256 unitCurrency);
     error BuybackFloorFix_UnexpectedSafe(address expected, address actual);
     error BuybackFloorFix_UnsupportedChain(uint256 chainId);
 
@@ -56,6 +76,9 @@ abstract contract BuybackFloorFixBase is Script {
     address internal constant _CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
     address internal constant _EXPECTED_SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
     uint256 internal constant DEPLOYMENT_NONCE = 13;
+
+    /// @notice The project ID JBPrices stores protocol default feeds under.
+    uint256 internal constant _DEFAULT_PROJECT_ID = 0;
 
     uint256 internal constant _FEE_PROJECT_ID = 1;
 
@@ -67,6 +90,10 @@ abstract contract BuybackFloorFixBase is Script {
     uint256 internal constant _FEE_PROJECT_TWAP_WINDOW = 30 minutes;
 
     bytes32 internal constant _BUYBACK_HOOK_SALT = keccak256("JBBuybackHookV6_DerivedFloorFix");
+
+    /// @notice Salt for the NATIVE-per-USDC ratio feed. The feed's constructor arguments are the chain's own two
+    /// live feeds, so the CREATE2 address differs per chain — that is expected and correct.
+    bytes32 internal constant _NATIVE_PER_USDC_FEED_SALT = keccak256("JBRatioPriceFeedV6_NativePerUsdc");
 
     // ── State ──
     address internal _poolManager;
@@ -111,12 +138,18 @@ abstract contract BuybackFloorFixBase is Script {
         return block.chainid != 11_155_420;
     }
 
-    function _loadExistingDeploymentAddresses() internal {
+    /// @notice Addresses every supported chain has, OP Sepolia included. The price-feed step needs only these.
+    function _loadCoreDeploymentAddresses() internal {
+        _prices = IJBPrices(_deploymentAddressOf("JBPrices"));
+    }
+
+    /// @notice Addresses that only exist on chains carrying the Uniswap/buyback stack. Kept out of the core loader
+    /// so OP Sepolia — which has no `JBUniswapV4Hook` deployment file — can still run the price-feed step.
+    function _loadBuybackDeploymentAddresses() internal {
         _trustedForwarder = _deploymentAddressOf("ERC2771Forwarder");
         _permissions = IJBPermissions(_deploymentAddressOf("JBPermissions"));
         _projects = IJBProjects(_deploymentAddressOf("JBProjects"));
         _directory = IJBDirectory(_deploymentAddressOf("JBDirectory"));
-        _prices = IJBPrices(_deploymentAddressOf("JBPrices"));
         _tokens = IJBTokens(_deploymentAddressOf("JBTokens"));
         _buybackRegistry = JBBuybackHookRegistry(_deploymentAddressOf("JBBuybackHookRegistry"));
         _oracleHook = _deploymentAddressOf("JBUniswapV4Hook");
@@ -205,6 +238,82 @@ abstract contract BuybackFloorFixBase is Script {
     function _buybackHookCtorArgs() internal view returns (bytes memory) {
         return abi.encode(_directory, _permissions, _prices, _projects, _tokens, _EXPECTED_SAFE, _trustedForwarder);
     }
+
+    // ── JBPrices: the missing NATIVE↔USDC defaults ──
+
+    /// @notice The `JBRatioPriceFeed(numerator, denominator)` arguments for this chain. The numerator is the chain's
+    /// live USDC/USD feed and the denominator its live ETH/USD feed, so the quotient is NATIVE per USDC. Both are read
+    /// back out of JBPrices at the exact pairs `Deploy.s.sol` registered them under: the live registry, not a
+    /// re-derived address, is the source of truth.
+    /// @return ctorArgs The abi-encoded constructor arguments.
+    /// @return available False when this chain has no canonical USDC or either leg is unregistered, in which case the
+    /// chain is skipped rather than reverting the whole deploy.
+    function _nativePerUsdcFeedCtorArgs() internal view returns (bytes memory ctorArgs, bool available) {
+        address usdc = JBChainTokens.usdcTokenFor(block.chainid);
+        if (usdc == address(0)) return ("", false);
+
+        IJBPriceFeed usdcUsdFeed = _prices.priceFeedFor({
+            projectId: _DEFAULT_PROJECT_ID,
+            pricingCurrency: JBCurrencyIds.USD,
+            unitCurrency: JBChainTokens.currencyIdOf(usdc)
+        });
+        IJBPriceFeed ethUsdFeed = _prices.priceFeedFor({
+            projectId: _DEFAULT_PROJECT_ID,
+            pricingCurrency: JBCurrencyIds.USD,
+            unitCurrency: JBChainTokens.currencyIdOf(JBConstants.NATIVE_TOKEN)
+        });
+        if (address(usdcUsdFeed) == address(0) || address(ethUsdFeed) == address(0)) return ("", false);
+
+        return (abi.encode(usdcUsdFeed, ethUsdFeed), true);
+    }
+
+    /// @notice Deploy the NATIVE-per-USDC ratio feed and register it as the project-0 default for the two pairs
+    /// `pricePerUnitOf` cannot otherwise resolve.
+    /// @return feed The ratio feed, or the zero address when this chain was skipped.
+    function _ensureNativePerUsdcDefaultFeeds() internal returns (address feed) {
+        (bytes memory ctorArgs, bool available) = _nativePerUsdcFeedCtorArgs();
+        if (!available) return address(0);
+
+        feed = _deployPrecompiledIfNeeded({
+            artifactName: "JBRatioPriceFeed", salt: _NATIVE_PER_USDC_FEED_SALT, ctorArgs: ctorArgs
+        });
+
+        uint32 usdcCurrency = JBChainTokens.currencyIdOf(JBChainTokens.usdcTokenFor(block.chainid));
+        _ensureDefaultPriceFeed({
+            pricingCurrency: JBChainTokens.currencyIdOf(JBConstants.NATIVE_TOKEN),
+            unitCurrency: usdcCurrency,
+            expectedFeed: IJBPriceFeed(feed)
+        });
+        _ensureDefaultPriceFeed({
+            pricingCurrency: JBCurrencyIds.ETH, unitCurrency: usdcCurrency, expectedFeed: IJBPriceFeed(feed)
+        });
+    }
+
+    /// @notice Mirror of `Deploy.s.sol._ensureDefaultPriceFeed`, scoped to project 0: write only into an empty pair,
+    /// and refuse to run at all if a pair already points at a different feed. Price feeds are a money path, so a
+    /// surprise there is a stop condition, not something to silently overwrite (`addPriceFeedFor` is append-only, so
+    /// an extra registration would sit behind the incumbent and be invisible in the common lookup).
+    function _ensureDefaultPriceFeed(
+        uint256 pricingCurrency,
+        uint256 unitCurrency,
+        IJBPriceFeed expectedFeed
+    )
+        internal
+    {
+        IJBPriceFeed existing = _prices.priceFeedFor({
+            projectId: _DEFAULT_PROJECT_ID, pricingCurrency: pricingCurrency, unitCurrency: unitCurrency
+        });
+        if (address(existing) == address(0)) {
+            _prices.addPriceFeedFor({
+                projectId: _DEFAULT_PROJECT_ID,
+                pricingCurrency: pricingCurrency,
+                unitCurrency: unitCurrency,
+                feed: expectedFeed
+            });
+        } else if (address(existing) != address(expectedFeed)) {
+            revert BuybackFloorFix_PriceFeedMismatch({pricingCurrency: pricingCurrency, unitCurrency: unitCurrency});
+        }
+    }
 }
 
 /// @notice Sphinx deploy for the buyback derived-floor fix. Propose per `deploy:propose:buyback-floor-fix:*`.
@@ -220,13 +329,27 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
             revert BuybackFloorFix_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
         }
         _setupChainAddresses();
-        if (!_shouldDeployUniswapStack()) return;
-        _loadExistingDeploymentAddresses();
+        _loadCoreDeploymentAddresses();
+        if (_shouldDeployUniswapStack()) _loadBuybackDeploymentAddresses();
+
+        // Surface a skipped price-feed chain here rather than inside the broadcast body, which stays free of
+        // non-broadcast calls.
+        (, bool feedAvailable) = _nativePerUsdcFeedCtorArgs();
+        if (!feedAvailable) {
+            console.log("SKIP NATIVE-per-USDC price feed: no canonical USDC or leg feed on chain", block.chainid);
+        }
+
         deploy();
     }
 
     function deploy() public sphinx {
-        // 1. New hook implementation from the rebuilt 1.3.0 artifact, wired to the LIVE oracle hook so the new
+        // 1. The two missing project-0 price feed defaults. Nothing here involves Uniswap, so it runs on every
+        //    supported chain; the buyback steps below are the ones OP Sepolia has no stack for.
+        _ensureNativePerUsdcDefaultFeeds();
+
+        if (!_shouldDeployUniswapStack()) return;
+
+        // 2. New hook implementation from the rebuilt 1.3.0 artifact, wired to the LIVE oracle hook so the new
         //    hook quotes and swaps against the exact pools (and TWAP history) the outgoing hook already uses.
         _newBuybackHook = JBBuybackHook(
             payable(_deployPrecompiledIfNeeded({
@@ -239,17 +362,17 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
             });
         }
 
-        // 2. Registry default for projects created from here on. Auto-allows the new hook, which `setHookFor`
+        // 3. Registry default for projects created from here on. Auto-allows the new hook, which `setHookFor`
         //    below requires. Must precede the disallow: the registry refuses to disallow its current default.
         if (address(_buybackRegistry.defaultHook()) != address(_newBuybackHook)) {
             _buybackRegistry.setDefaultHook({hook: IJBRulesetDataHook(address(_newBuybackHook))});
         }
 
-        // 3. Pin project 1 to the new hook and carry its pool registration over. The Safe holds project 1's
+        // 4. Pin project 1 to the new hook and carry its pool registration over. The Safe holds project 1's
         //    SET_BUYBACK_HOOK / SET_BUYBACK_POOL permissions as its operator.
         _migrateFeeProject();
 
-        // 4. Retire the outgoing hook: no new project can select it. Existing pins and default-history cohorts
+        // 5. Retire the outgoing hook: no new project can select it. Existing pins and default-history cohorts
         //    keep resolving to it by design — each project's operator migrates on their own schedule.
         if (
             address(_oldBuybackHook) != address(0) && address(_oldBuybackHook) != address(_newBuybackHook)
@@ -291,20 +414,42 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
     }
 
     /// @notice Post-deploy address dump (no broadcast) for the focused verify/emit/distribute pipeline. Writes only
-    /// the new buyback hook to `script/post-deploy/.cache/addresses-<chainId>.json` in the same `jb-v6-addresses-1`
-    /// format as `Deploy.s.sol._dumpAddresses`, so `post-deploy.sh --skip-dump` verifies and emits exactly this
-    /// contract. The address is the deterministic CREATE2 prediction off the current artifacts.
+    /// the contracts this script deploys — the new buyback hook, and the NATIVE-per-USDC ratio feed where the chain
+    /// can compose one — to `script/post-deploy/.cache/addresses-<chainId>.json` in the same `jb-v6-addresses-1`
+    /// format as `Deploy.s.sol._dumpAddresses`, so `post-deploy.sh --skip-dump` verifies and emits exactly these
+    /// contracts. The addresses are the deterministic CREATE2 predictions off the current artifacts. No file is
+    /// written when a chain gets neither, which the focused post-deploy script reads as "nothing to do here".
     function dumpAddresses() external {
         _setupChainAddresses();
-        if (!_shouldDeployUniswapStack()) return; // no buyback hook on this chain → nothing to dump
-        _loadExistingDeploymentAddresses();
-
-        (address hook,) = _isDeployed({
-            salt: _BUYBACK_HOOK_SALT, creationCode: _loadArtifact("JBBuybackHook"), arguments: _buybackHookCtorArgs()
-        });
+        _loadCoreDeploymentAddresses();
 
         string memory j = "_buybackFloorFixAddresses";
-        vm.serializeAddress({objectKey: j, valueKey: "JBBuybackHook", value: hook});
+        bool anyDeployed;
+
+        if (_shouldDeployUniswapStack()) {
+            _loadBuybackDeploymentAddresses();
+            (address hook,) = _isDeployed({
+                salt: _BUYBACK_HOOK_SALT,
+                creationCode: _loadArtifact("JBBuybackHook"),
+                arguments: _buybackHookCtorArgs()
+            });
+            vm.serializeAddress({objectKey: j, valueKey: "JBBuybackHook", value: hook});
+            anyDeployed = true;
+        }
+
+        (bytes memory feedCtorArgs, bool feedAvailable) = _nativePerUsdcFeedCtorArgs();
+        if (feedAvailable) {
+            (address feed,) = _isDeployed({
+                salt: _NATIVE_PER_USDC_FEED_SALT,
+                creationCode: _loadArtifact("JBRatioPriceFeed"),
+                arguments: feedCtorArgs
+            });
+            vm.serializeAddress({objectKey: j, valueKey: "JBRatioPriceFeed", value: feed});
+            anyDeployed = true;
+        }
+
+        if (!anyDeployed) return;
+
         vm.serializeString({objectKey: j, valueKey: "format", value: "jb-v6-addresses-1"});
         string memory out = vm.serializeUint({objectKey: j, valueKey: "chainId", value: block.chainid});
 

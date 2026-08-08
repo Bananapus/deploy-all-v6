@@ -120,6 +120,7 @@ CONTRACTS=(
   "nana-core-v6:JBChainlinkV3PriceFeed:src/JBChainlinkV3PriceFeed.sol"
   "nana-core-v6:JBChainlinkV3SequencerPriceFeed:src/JBChainlinkV3SequencerPriceFeed.sol"
   "nana-core-v6:JBMatchingPriceFeed:src/periphery/JBMatchingPriceFeed.sol"
+  "nana-core-v6:JBRatioPriceFeed:src/periphery/JBRatioPriceFeed.sol"
   "nana-core-v6:JBDeadline3Hours:src/periphery/JBDeadline3Hours.sol"
   "nana-core-v6:JBDeadline1Day:src/periphery/JBDeadline1Day.sol"
   "nana-core-v6:JBDeadline3Days:src/periphery/JBDeadline3Days.sol"
