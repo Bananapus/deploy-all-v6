@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Focused post-deploy for the buyback derived-floor fix (buyback-hook-v6 1.3.0).
 #
-# Dumps ONLY what that script deploys per chain — the new buyback hook (JBBuybackHook) and the NATIVE-per-USDC
+# Dumps ONLY what that script deploys per chain — the new buyback hook (JBBuybackHook) and the USDC-per-NATIVE
 # price feed (JBRatioPriceFeed) — via DeployBuybackFloorFix.dumpAddresses(), then verifies + emits + distributes
 # just those through the shared post-deploy pipeline (post-deploy.sh --skip-dump reuses our focused dump). This
 # avoids re-running the full Deploy.s.sol dump / re-touching every other contract's artifacts.

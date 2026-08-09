@@ -36,15 +36,24 @@ import {JBChainTokens} from "./libraries/JBChainTokens.sol";
 ///
 /// It also closes an unrelated JBPrices gap, because this Safe is the only address that can: `pricePerUnitOf` looks a
 /// pair up directly and then inverted, but never COMPOSES two feeds. The project-0 defaults registered at launch are
-/// {USD←NATIVE}, {USD←ETH}, {ETH←NATIVE} and {USD←uint32(usdc)}, which leaves {NATIVE←uint32(usdc)} and
-/// {ETH←uint32(usdc)} unresolvable — so a project holding BOTH an ETH and a USDC accounting context reverts on USDC
-/// pays under an ETH base currency, and on mixed-balance cash outs under any base. For a revnet, whose accounting
-/// contexts are immutable, that is permanent; one such project is already live on four chains.
+/// {USD←NATIVE}, {USD←ETH}, {ETH←NATIVE} and {USD←uint32(usdc)}, which leaves NATIVE and ETH against
+/// uint32(usdc) unresolvable in EITHER direction — so a project holding BOTH an ETH and a USDC accounting context
+/// reverts on USDC pays under an ETH base currency, and on mixed-balance cash outs under any base. For a revnet,
+/// whose accounting contexts are immutable, that is permanent; one such project is already live on four chains.
 ///
 /// Run by the infra Safe, which owns JBPrices and the buyback hook registry and is the operator of project 1. Steps:
-///   1. Deploy a `JBRatioPriceFeed(usdcUsdFeed, ethUsdFeed)` — USD-per-USDC over USD-per-NATIVE, i.e. NATIVE per USDC
+///   1. Deploy a `JBRatioPriceFeed(ethUsdFeed, usdcUsdFeed)` — USD-per-NATIVE over USD-per-USDC, i.e. USDC per NATIVE
 ///      — over the LIVE project-0 feeds read back from JBPrices, and register it as the project-0 default for both
-///      {NATIVE←uint32(usdc)} and {ETH←uint32(usdc)}. A direct Chainlink USDC/ETH feed exists only on Ethereum
+///      {uint32(usdc)←NATIVE} and {uint32(usdc)←ETH}. That is the direction both consumers ask for: a pay quotes
+///      `pricePerUnitOf(pricing: amount.currency, unit: baseCurrency)` and a cash out quotes
+///      `pricePerUnitOf(pricing: accountingContext.currency, unit: targetCurrency)`, so whenever USDC is the token
+///      being paid or held, the USDC currency is the PRICING side. Registering the pairs the other way round still
+///      resolves, through `_priceFromInverse` — but that path quotes the feed at the CALLER's decimals and only
+///      then inverts, and a USDC pay passes 6. A sub-unit NATIVE-per-USDC price floors to three significant figures
+///      there (0.000464724… becomes 464), and inverting 464 yields 2155.172413 USDC per NATIVE against a true
+///      2151.814187: a 0.156% permanent shortfall in every USDC payer's token count. Quoting the large number
+///      directly keeps the feed's full precision, and the inverse path is then only ever taken at the cash-out
+///      call's 18 decimals, where it costs ~1e-13%. A direct Chainlink USDC/ETH feed exists only on Ethereum
 ///      mainnet, so the ratio feed is used uniformly everywhere and the ETH-base and USD-base paths on a chain stay
 ///      consistent with each other. Price feeds have nothing to do with Uniswap, so this step runs on EVERY chain —
 ///      including OP Sepolia, which has no Uniswap stack and skips every step below.
@@ -91,9 +100,9 @@ abstract contract BuybackFloorFixBase is Script {
 
     bytes32 internal constant _BUYBACK_HOOK_SALT = keccak256("JBBuybackHookV6_DerivedFloorFix");
 
-    /// @notice Salt for the NATIVE-per-USDC ratio feed. The feed's constructor arguments are the chain's own two
+    /// @notice Salt for the USDC-per-NATIVE ratio feed. The feed's constructor arguments are the chain's own two
     /// live feeds, so the CREATE2 address differs per chain — that is expected and correct.
-    bytes32 internal constant _NATIVE_PER_USDC_FEED_SALT = keccak256("JBRatioPriceFeedV6_NativePerUsdc");
+    bytes32 internal constant _USDC_PER_NATIVE_FEED_SALT = keccak256("JBRatioPriceFeedV6_UsdcPerNative");
 
     // ── State ──
     address internal _poolManager;
@@ -242,13 +251,13 @@ abstract contract BuybackFloorFixBase is Script {
     // ── JBPrices: the missing NATIVE↔USDC defaults ──
 
     /// @notice The `JBRatioPriceFeed(numerator, denominator)` arguments for this chain. The numerator is the chain's
-    /// live USDC/USD feed and the denominator its live ETH/USD feed, so the quotient is NATIVE per USDC. Both are read
+    /// live ETH/USD feed and the denominator its live USDC/USD feed, so the quotient is USDC per NATIVE. Both are read
     /// back out of JBPrices at the exact pairs `Deploy.s.sol` registered them under: the live registry, not a
     /// re-derived address, is the source of truth.
     /// @return ctorArgs The abi-encoded constructor arguments.
     /// @return available False when this chain has no canonical USDC or either leg is unregistered, in which case the
     /// chain is skipped rather than reverting the whole deploy.
-    function _nativePerUsdcFeedCtorArgs() internal view returns (bytes memory ctorArgs, bool available) {
+    function _usdcPerNativeFeedCtorArgs() internal view returns (bytes memory ctorArgs, bool available) {
         address usdc = JBChainTokens.usdcTokenFor(block.chainid);
         if (usdc == address(0)) return ("", false);
 
@@ -264,28 +273,30 @@ abstract contract BuybackFloorFixBase is Script {
         });
         if (address(usdcUsdFeed) == address(0) || address(ethUsdFeed) == address(0)) return ("", false);
 
-        return (abi.encode(usdcUsdFeed, ethUsdFeed), true);
+        return (abi.encode(ethUsdFeed, usdcUsdFeed), true);
     }
 
-    /// @notice Deploy the NATIVE-per-USDC ratio feed and register it as the project-0 default for the two pairs
-    /// `pricePerUnitOf` cannot otherwise resolve.
+    /// @notice Deploy the USDC-per-NATIVE ratio feed and register it as the project-0 default for the two pairs
+    /// `pricePerUnitOf` cannot otherwise resolve, with the USDC currency on the PRICING side — the direction its
+    /// callers actually query, so the direct lookup hits and the inverse path never quantizes the price at a USDC
+    /// payer's 6 decimals.
     /// @return feed The ratio feed, or the zero address when this chain was skipped.
-    function _ensureNativePerUsdcDefaultFeeds() internal returns (address feed) {
-        (bytes memory ctorArgs, bool available) = _nativePerUsdcFeedCtorArgs();
+    function _ensureUsdcPerNativeDefaultFeeds() internal returns (address feed) {
+        (bytes memory ctorArgs, bool available) = _usdcPerNativeFeedCtorArgs();
         if (!available) return address(0);
 
         feed = _deployPrecompiledIfNeeded({
-            artifactName: "JBRatioPriceFeed", salt: _NATIVE_PER_USDC_FEED_SALT, ctorArgs: ctorArgs
+            artifactName: "JBRatioPriceFeed", salt: _USDC_PER_NATIVE_FEED_SALT, ctorArgs: ctorArgs
         });
 
         uint32 usdcCurrency = JBChainTokens.currencyIdOf(JBChainTokens.usdcTokenFor(block.chainid));
         _ensureDefaultPriceFeed({
-            pricingCurrency: JBChainTokens.currencyIdOf(JBConstants.NATIVE_TOKEN),
-            unitCurrency: usdcCurrency,
+            pricingCurrency: usdcCurrency,
+            unitCurrency: JBChainTokens.currencyIdOf(JBConstants.NATIVE_TOKEN),
             expectedFeed: IJBPriceFeed(feed)
         });
         _ensureDefaultPriceFeed({
-            pricingCurrency: JBCurrencyIds.ETH, unitCurrency: usdcCurrency, expectedFeed: IJBPriceFeed(feed)
+            pricingCurrency: usdcCurrency, unitCurrency: JBCurrencyIds.ETH, expectedFeed: IJBPriceFeed(feed)
         });
     }
 
@@ -334,9 +345,9 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
 
         // Surface a skipped price-feed chain here rather than inside the broadcast body, which stays free of
         // non-broadcast calls.
-        (, bool feedAvailable) = _nativePerUsdcFeedCtorArgs();
+        (, bool feedAvailable) = _usdcPerNativeFeedCtorArgs();
         if (!feedAvailable) {
-            console.log("SKIP NATIVE-per-USDC price feed: no canonical USDC or leg feed on chain", block.chainid);
+            console.log("SKIP USDC-per-NATIVE price feed: no canonical USDC or leg feed on chain", block.chainid);
         }
 
         deploy();
@@ -345,7 +356,7 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
     function deploy() public sphinx {
         // 1. The two missing project-0 price feed defaults. Nothing here involves Uniswap, so it runs on every
         //    supported chain; the buyback steps below are the ones OP Sepolia has no stack for.
-        _ensureNativePerUsdcDefaultFeeds();
+        _ensureUsdcPerNativeDefaultFeeds();
 
         if (!_shouldDeployUniswapStack()) return;
 
@@ -414,7 +425,7 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
     }
 
     /// @notice Post-deploy address dump (no broadcast) for the focused verify/emit/distribute pipeline. Writes only
-    /// the contracts this script deploys — the new buyback hook, and the NATIVE-per-USDC ratio feed where the chain
+    /// the contracts this script deploys — the new buyback hook, and the USDC-per-NATIVE ratio feed where the chain
     /// can compose one — to `script/post-deploy/.cache/addresses-<chainId>.json` in the same `jb-v6-addresses-1`
     /// format as `Deploy.s.sol._dumpAddresses`, so `post-deploy.sh --skip-dump` verifies and emits exactly these
     /// contracts. The addresses are the deterministic CREATE2 predictions off the current artifacts. No file is
@@ -437,10 +448,10 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
             anyDeployed = true;
         }
 
-        (bytes memory feedCtorArgs, bool feedAvailable) = _nativePerUsdcFeedCtorArgs();
+        (bytes memory feedCtorArgs, bool feedAvailable) = _usdcPerNativeFeedCtorArgs();
         if (feedAvailable) {
             (address feed,) = _isDeployed({
-                salt: _NATIVE_PER_USDC_FEED_SALT,
+                salt: _USDC_PER_NATIVE_FEED_SALT,
                 creationCode: _loadArtifact("JBRatioPriceFeed"),
                 arguments: feedCtorArgs
             });
