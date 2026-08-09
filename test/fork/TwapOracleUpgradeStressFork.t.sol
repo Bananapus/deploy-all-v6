@@ -10,7 +10,6 @@ import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
 
 // Core
-import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
 import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
@@ -93,10 +92,6 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         return "REVDeployer_TwapUpgradeStress";
     }
 
-    function _forkBlock() internal pure override returns (uint256) {
-        return 0;
-    }
-
     function setUp() public override {
         super.setUp();
 
@@ -140,7 +135,12 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         jbController().sendReservedTokensToSplitsOf({projectId: revnetId});
         assertGt(_newLpSplitHook.accumulatedProjectTokens(revnetId), 0, "new LP split should accumulate");
 
-        _grantDeployPoolPermission({operator: address(this), projectId: revnetId});
+        // Deploying into an ALREADY-initialized pool makes the LP split hook validate spot against the oracle's
+        // TWAP, and the migration initialized the hooked pool moments ago — its oracle holds a single observation,
+        // so a lookback of a full window still predates it. Let the window elapse the way an operator would have to
+        // wait after a migration; the oracle then reports the (untraded) initialization tick for real.
+        vm.warp(block.timestamp + _newOracleHook.TWAP_PERIOD());
+
         _newLpSplitHook.deployPool(revnetId);
 
         PoolKey memory buybackKey = _newBuybackHook.poolKeyOf({projectId: revnetId, terminalToken: address(0)});
@@ -186,7 +186,6 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         uint256 accumulatedBeforeAdd = _newLpSplitHook.accumulatedProjectTokens(revnetId);
         assertGt(accumulatedBeforeAdd, 0, "new LP split should have post-deploy accumulation");
 
-        _grantDeployPoolPermission({operator: address(this), projectId: revnetId});
         _newLpSplitHook.addLiquidity({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN});
         assertLt(
             _newLpSplitHook.accumulatedProjectTokens(revnetId),
@@ -410,15 +409,6 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
     // ═══════════════════════════════════════════════════════════════════
     //  Interaction Helpers
     // ═══════════════════════════════════════════════════════════════════
-
-    function _grantDeployPoolPermission(address operator, uint256 projectId) internal {
-        address projectOwner = jbProjects().ownerOf(projectId);
-        mockExpect(
-            address(jbPermissions()),
-            abi.encodeCall(IJBPermissions.hasPermission, (operator, projectOwner, projectId, 29, true, true)),
-            abi.encode(true)
-        );
-    }
 
     function _mockDefaultOracle() internal {
         _mockOracle(1, 0, REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW());

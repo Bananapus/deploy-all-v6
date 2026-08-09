@@ -34,7 +34,6 @@ import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 import {IJBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHookRegistry.sol";
 import {IJBBuybackHook} from "@bananapus/buyback-hook-v6/src/interfaces/IJBBuybackHook.sol";
-import {IGeomeanOracle} from "@bananapus/univ4-router-v6/src/interfaces/IGeomeanOracle.sol";
 
 // Suckers
 import {JBSuckerRegistry} from "@bananapus/suckers-v6/src/JBSuckerRegistry.sol";
@@ -70,6 +69,7 @@ import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+import {MockGeomeanOracle} from "./MockGeomeanOracle.sol";
 import {V4LiquidityHelper} from "./V4LiquidityHelper.sol";
 
 /// @notice Base class for all deploy-all-v6 fork tests using native ETH.
@@ -215,34 +215,17 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
     //  Oracle Mock
     // ═══════════════════════════════════════════════════════════════════
 
+    /// @notice Put a flat-tick oracle behind the `address(0)` hook slot the fork pools are keyed on.
+    /// @param liquidity The in-range liquidity every window averages to. Sign is ignored.
+    /// @param tick The tick every window averages to.
+    /// @param twapWindow How far back the oracle claims to retain observations.
     function _mockOracle(int256 liquidity, int24 tick, uint32 twapWindow) internal {
-        vm.etch(address(0), hex"00");
+        vm.etch(address(0), type(MockGeomeanOracle).runtimeCode);
 
-        int56[] memory tickCumulatives = new int56[](2);
-        tickCumulatives[0] = 0;
-        // forge-lint: disable-next-line(unsafe-typecast)
-        tickCumulatives[1] = int56(tick) * int56(int32(twapWindow));
-
-        uint160[] memory secondsPerLiquidityCumulativeX128s = new uint160[](2);
-        secondsPerLiquidityCumulativeX128s[0] = 0;
-        uint256 liq = uint256(liquidity > 0 ? liquidity : -liquidity);
-        if (liq == 0) liq = 1;
-        // forge-lint: disable-next-line(unsafe-typecast)
-        secondsPerLiquidityCumulativeX128s[1] = uint160((uint256(twapWindow) << 128) / liq);
-
-        vm.mockCall(
-            address(0), abi.encodeWithSelector(IGeomeanOracle.hasObservationCoverage.selector), abi.encode(true)
-        );
-
-        vm.mockCall(
-            address(0), abi.encodeWithSelector(IGeomeanOracle.observationCoverageOf.selector), abi.encode(twapWindow)
-        );
-
-        vm.mockCall(
-            address(0),
-            abi.encodeWithSelector(IGeomeanOracle.observe.selector),
-            abi.encode(tickCumulatives, secondsPerLiquidityCumulativeX128s)
-        );
+        MockGeomeanOracle oracle = MockGeomeanOracle(payable(address(0)));
+        oracle.setObservations({
+            newTick: tick, newLiquidity: uint256(liquidity > 0 ? liquidity : -liquidity), newCoverage: twapWindow
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════

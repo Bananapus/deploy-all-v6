@@ -35,22 +35,26 @@ contract VerifyHelperHarness is Verify {
     }
 }
 
-contract DeployCurrencyHarness is Deploy {
+contract DeployHelperHarness is Deploy {
     function currencyIdOf(address token) external pure returns (uint32) {
         return _currencyIdOf(token);
+    }
+
+    function usdcTokenFor(uint256 chainId) external pure returns (address) {
+        return _usdcTokenFor(chainId);
     }
 }
 
 contract VerifyHelperProperties is Test {
     VerifyHelperHarness internal vh;
-    DeployCurrencyHarness internal dh;
+    DeployHelperHarness internal dh;
 
     // The supported chain ids the deployment targets (mainnets + sepolia testnets).
     uint256[8] internal SUPPORTED_CHAINS = [uint256(1), 11_155_111, 10, 11_155_420, 8453, 84_532, 42_161, 421_614];
 
     function setUp() public {
         vh = new VerifyHelperHarness();
-        dh = new DeployCurrencyHarness();
+        dh = new DeployHelperHarness();
     }
 
     // Internal pure replica of Deploy.s.sol's `_currencyIdOf` body. Used by `check_*` because a `Deploy`
@@ -179,6 +183,30 @@ contract VerifyHelperProperties is Test {
                     "distinct supported chains must have distinct USDC tokens"
                 );
             }
+        }
+    }
+
+    // =========================================================================
+    // Property (CROSS-CHECK): Verify USDC table == Deploy USDC table
+    // =========================================================================
+    // Deploy resolves USDC through `JBChainTokens.usdcTokenFor`; Verify keeps its own hard-coded copy, and that
+    // independence is the point — a shared table would make the verifier agree with the deployer by construction.
+    // Independence only buys a cross-check if something asserts the two AGREE on values, though: non-zero and
+    // injective (above) still hold if Verify's copy drifts to a wrong-but-unique address, which would have the
+    // verifier demand a USD accounting context on a token the deployment never touched. Comparing over every
+    // chain id, not just the supported set, also pins the shared `address(0)` answer for unsupported chains.
+    function testFuzz_usdcToken_deployVerifyAgree(uint256 chainId) public view {
+        assertEq(vh.usdcTokenFor(chainId), dh.usdcTokenFor(chainId), "Verify USDC table must match Deploy's");
+    }
+
+    // Enumerated (no fuzz) version so the cross-check is exhaustive over the supported set.
+    function test_usdcToken_deployVerifyAgree_allChains() public view {
+        for (uint256 i; i < SUPPORTED_CHAINS.length; i++) {
+            assertEq(
+                vh.usdcTokenFor(SUPPORTED_CHAINS[i]),
+                dh.usdcTokenFor(SUPPORTED_CHAINS[i]),
+                "Verify USDC token must match Deploy's for every supported chain"
+            );
         }
     }
 }

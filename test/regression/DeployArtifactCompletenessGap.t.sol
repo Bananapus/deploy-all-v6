@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 
 /// @notice Proves that every precompiled artifact the deploy loads at runtime is produced by the artifact build.
 /// @dev The deploy resolves each contract's creation code from `artifacts/<name>.json` through `vm.readFile`
@@ -45,6 +45,80 @@ contract DeployArtifactCompletenessGapTest is Test {
                 )
             );
         }
+    }
+
+    /// @notice Same guarantee, extended to every script in `script/` rather than only the full deploy.
+    /// @dev The full deploy is not the only script that loads precompiled artifacts. Each focused script carries its
+    /// own `_loadArtifact` and names the subset of contracts it redeploys, and `Verify` reads the same files to
+    /// compare bytecode. An artifact only a focused script references — `JBRatioPriceFeed` is the case that motivated
+    /// this — is invisible to the deploy-only scan above, so the build could drop it and the whole suite would stay
+    /// green until the focused proposal reverted on chain. The script list comes from `vm.readDir` rather than a
+    /// literal so a script added later is covered the day it lands.
+    function test_everyScriptLoadsOnlyBuiltArtifacts() public {
+        // Same rationale as above: with no prior `npm run artifacts` there is nothing to verify.
+        if (!vm.exists("artifacts/artifacts.manifest.json")) {
+            vm.skip(true);
+            return;
+        }
+
+        string[] memory paths = _scriptPaths();
+
+        // The full deploy plus the focused scripts. Finding one file means the directory scan broke, not that the
+        // repo shrank to a single script.
+        assertGt(paths.length, 1, "expected script/ to hold the full deploy and the focused scripts");
+
+        uint256 checked;
+        for (uint256 i; i < paths.length; i++) {
+            string[] memory names = _loadedArtifactNames(vm.readFile(paths[i]));
+            for (uint256 j; j < names.length; j++) {
+                assertTrue(
+                    vm.exists(string.concat("artifacts/", names[j], ".json")),
+                    string.concat(
+                        paths[i],
+                        " loads '",
+                        names[j],
+                        "' but artifacts/",
+                        names[j],
+                        ".json was not built. Add it to script/build-artifacts.sh."
+                    )
+                );
+                checked++;
+            }
+        }
+
+        // No script loading anything means the markers changed and this guard silently stopped covering the scripts.
+        assertGt(checked, 0, "expected the scripts to load at least one precompiled artifact");
+    }
+
+    /// @notice Every `*.s.sol` file directly under `script/`, as absolute paths.
+    /// @dev Two passes over the directory listing for the same reason as `_loadedArtifactNames`: memory arrays are
+    /// fixed-length, so the matches have to be counted before they can be collected.
+    function _scriptPaths() internal view returns (string[] memory paths) {
+        Vm.DirEntry[] memory entries = vm.readDir("script");
+
+        uint256 total;
+        for (uint256 i; i < entries.length; i++) {
+            if (_isScript(entries[i])) total++;
+        }
+
+        paths = new string[](total);
+        uint256 next;
+        for (uint256 i; i < entries.length; i++) {
+            if (_isScript(entries[i])) paths[next++] = entries[i].path;
+        }
+    }
+
+    /// @notice Whether a directory entry is a Foundry script file rather than a subdirectory or a shell helper.
+    function _isScript(Vm.DirEntry memory entry) internal pure returns (bool) {
+        if (entry.isDir) return false;
+        bytes memory path = bytes(entry.path);
+        bytes memory suffix = bytes(".s.sol");
+        if (path.length < suffix.length) return false;
+        uint256 offset = path.length - suffix.length;
+        for (uint256 i; i < suffix.length; i++) {
+            if (path[offset + i] != suffix[i]) return false;
+        }
+        return true;
     }
 
     /// @notice Collects every artifact name referenced through either marker in `source`.
