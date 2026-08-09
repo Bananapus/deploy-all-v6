@@ -92,10 +92,6 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         return "REVDeployer_TwapUpgradeStress";
     }
 
-    function _forkBlock() internal pure override returns (uint256) {
-        return 0;
-    }
-
     function setUp() public override {
         super.setUp();
 
