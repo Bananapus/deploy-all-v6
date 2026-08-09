@@ -22,6 +22,8 @@ import {JBSuckerDeployerConfig} from "@bananapus/suckers-v6/src/structs/JBSucker
 // Uniswap V4
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
@@ -37,6 +39,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 ///
 /// Run with: forge test --match-contract LPBuybackInteropForkTest -vvv
 contract LPBuybackInteropForkTest is RevnetEcosystemBase {
+    using StateLibrary for IPoolManager;
+
     address internal constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
     // ── Extra actor not in base
@@ -64,9 +68,26 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
     //  Config Helpers
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Mock the oracle at address(0) with defaults (tick 0 = 1:1, mint path wins).
-    function _mockDefaultOracle() internal {
-        _mockOracle(1, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
+    /// @notice The native ETH hookless pool both hooks target. Native ETH is address(0), which always sorts before
+    /// any ERC-20.
+    function _nativePoolKey(uint256 projectId) internal view returns (PoolKey memory) {
+        return PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(address(jbTokens().tokenOf(projectId))),
+            fee: REV_DEPLOYER.DEFAULT_BUYBACK_POOL_FEE(),
+            tickSpacing: REV_DEPLOYER.DEFAULT_BUYBACK_TICK_SPACING(),
+            hooks: IHooks(address(0))
+        });
+    }
+
+    /// @notice Point the mocked oracle at the tick the project's native pool is actually sitting at, with negligible
+    /// depth.
+    /// @dev The pool is initialized at the issuance price (tick ~69_081 for `INITIAL_ISSUANCE`), so a flat 1:1 TWAP
+    /// would read to the LP split hook's deviation guard as the whole pool having just been manipulated. Deriving the
+    /// tick from the pool keeps the mocked market and the real one the same market.
+    function _mockOracleAtPoolTick(uint256 projectId, int256 liquidity) internal {
+        (, int24 tick,,) = poolManager.getSlot0(_nativePoolKey(projectId).toId());
+        _mockOracle(liquidity, tick, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
     }
 
     /// @notice Build revnet config with LP-split hook as 50% reserved split recipient.
@@ -142,15 +163,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         returns (PoolKey memory key)
     {
         address projectToken = address(jbTokens().tokenOf(revnetId));
-
-        // Native ETH is address(0) -- always sorts before any ERC-20.
-        key = PoolKey({
-            currency0: Currency.wrap(address(0)),
-            currency1: Currency.wrap(projectToken),
-            fee: REV_DEPLOYER.DEFAULT_BUYBACK_POOL_FEE(),
-            tickSpacing: REV_DEPLOYER.DEFAULT_BUYBACK_TICK_SPACING(),
-            hooks: IHooks(address(0))
-        });
+        key = _nativePoolKey(revnetId);
 
         // Mint extra project tokens to account for pool tick being far from 0.
         // At high ticks (e.g., ~68800 where 1 ETH ~ 1000 tokens), full-range positions
@@ -168,17 +181,8 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         vm.prank(address(liqHelper));
         liqHelper.addLiquidity{value: liquidityTokenAmount}(key, TICK_LOWER, TICK_UPPER, liquidityDelta);
 
-        _mockOracle(liquidityDelta, 0, uint32(REV_DEPLOYER.DEFAULT_BUYBACK_TWAP_WINDOW()));
-    }
-
-    /// @notice Grant SET_BUYBACK_POOL permission to an address for a project.
-    function _grantDeployPoolPermission(address operator, uint256 projectId) internal {
-        address projectOwner = jbProjects().ownerOf(projectId);
-        mockExpect(
-            address(jbPermissions()),
-            abi.encodeCall(IJBPermissions.hasPermission, (operator, projectOwner, projectId, 29, true, true)),
-            abi.encode(true)
-        );
+        // Full-range liquidity does not move the price, so the pool's tick is still the market the oracle reports.
+        _mockOracleAtPoolTick(revnetId, liquidityDelta);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -201,7 +205,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         });
 
         // Mock oracle before any payments (buyback hook queries TWAP on every pay).
-        _mockDefaultOracle();
+        _mockOracleAtPoolTick(revnetId, 1);
 
         // Verify buyback pool was initialized by REVDeployer (pool exists in PoolManager).
         address projectToken = address(jbTokens().tokenOf(revnetId));
@@ -228,7 +232,6 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         assertGt(multisigTokens, 0, "multisig should receive 50% of reserved tokens");
 
         // 3. Deploy pool via LP split hook (uses accumulated tokens as liquidity).
-        _grantDeployPoolPermission(address(this), revnetId);
         LP_SPLIT_HOOK.deployPool(revnetId);
 
         // deployPool consumes the accumulation into the LP position; only unpaired dust carries forward
@@ -270,7 +273,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
             revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
-        _mockDefaultOracle();
+        _mockOracleAtPoolTick(revnetId, 1);
 
         // Multiple payments to generate significant reserved tokens.
         _payRevnet(revnetId, PAYER, 10 ether);
@@ -302,7 +305,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
             revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
-        _mockDefaultOracle();
+        _mockOracleAtPoolTick(revnetId, 1);
 
         // Pay and distribute -> accumulate.
         _payRevnet(revnetId, PAYER, 10 ether);
@@ -310,7 +313,6 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         jbController().sendReservedTokensToSplitsOf(revnetId);
 
         // Deploy pool.
-        _grantDeployPoolPermission(address(this), revnetId);
         LP_SPLIT_HOOK.deployPool(revnetId);
 
         // More payments -> more reserved tokens.
@@ -359,7 +361,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
             revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
-        _mockDefaultOracle();
+        _mockOracleAtPoolTick(revnetId, 1);
 
         // Pay heavily to build surplus and generate reserved tokens.
         _payRevnet(revnetId, PAYER, 20 ether);
@@ -367,7 +369,6 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
 
         // Distribute and deploy pool.
         jbController().sendReservedTokensToSplitsOf(revnetId);
-        _grantDeployPoolPermission(address(this), revnetId);
         LP_SPLIT_HOOK.deployPool(revnetId);
 
         // Also add manual liquidity to the same native ETH pool to ensure swap path is competitive with mint.
@@ -396,7 +397,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
             revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
-        _mockDefaultOracle();
+        _mockOracleAtPoolTick(revnetId, 1);
 
         // Build pending reserved tokens so the LP split hook has project tokens to pair with terminal surplus.
         _payRevnet({revnetId: revnetId, payer: PAYER, amount: 20 ether});
@@ -404,7 +405,6 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         jbController().sendReservedTokensToSplitsOf({projectId: revnetId});
 
         // Deploying through the split hook exercises the LP package, PositionManager, PoolManager, and Permit2 path.
-        _grantDeployPoolPermission({operator: address(this), projectId: revnetId});
         LP_SPLIT_HOOK.deployPool(revnetId);
 
         uint256 lpTokenId = LP_SPLIT_HOOK.tokenIdOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN});
@@ -468,7 +468,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
             revnetId: 0, configuration: cfg, accountingContextsToAccept: tc, suckerDeploymentConfiguration: sdc
         });
 
-        _mockDefaultOracle();
+        _mockOracleAtPoolTick(revnetId, 1);
 
         // Build surplus.
         _payRevnet(revnetId, PAYER, 10 ether);
@@ -476,7 +476,6 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
 
         // Distribute and deploy pool.
         jbController().sendReservedTokensToSplitsOf(revnetId);
-        _grantDeployPoolPermission(address(this), revnetId);
         LP_SPLIT_HOOK.deployPool(revnetId);
 
         // Cash out tokens -- bonding curve should work with pool deployed.

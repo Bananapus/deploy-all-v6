@@ -52,6 +52,10 @@ contract LpSplitHookFixHarness is LpSplitHookFixBase {
         return _lpSplitHookDeployer;
     }
 
+    function loadArtifact(string memory artifactName) external view returns (bytes memory) {
+        return _loadArtifact(artifactName);
+    }
+
     function hook() external view returns (JBUniswapV4LPSplitHook) {
         return _lpSplitHook;
     }
@@ -77,6 +81,13 @@ interface IDeployerState {
     function poolManager() external view returns (address);
     function positionManager() external view returns (address);
     function oracleHook() external view returns (address);
+}
+
+/// @notice One `bytecode.linkReferences` entry: where in the creation code a library address was substituted.
+/// @dev Fields are alphabetical because that is the order Foundry's JSON decoder expects.
+struct LinkReference {
+    uint256 length;
+    uint256 start;
 }
 
 /// @notice Fork-simulates the LP-split-hook-fix deploy on a Base mainnet fork to guard the deploy MECHANICS:
@@ -119,7 +130,7 @@ contract DeployLpSplitHookFixForkTest is Test {
 
         // The linked math library lands at its deterministic (chain-independent) CREATE2 address — the same one the
         // build linker bakes into the rebuilt hook artifact. A mismatch means the hook would call an empty address.
-        assertEq(mathLib, 0x734bfC66606DfE7943BCF541Cf5dcBC5312e695b, "math lib must match the link target");
+        assertEq(mathLib, _linkTargetInHookArtifact(), "math lib must match the link target");
 
         // Hook + deployer deployed, and the deployer wired to this chain's V4 stack + the live oracle hook (end state,
         // whether we just set it above or it was already configured by the live deploy).
@@ -139,5 +150,40 @@ contract DeployLpSplitHookFixForkTest is Test {
             address(instance) != 0xAe6705c33C8B46f56878a1D4f1cE4d75fcFb6F62,
             "fresh instance, not the old implementation-bound one"
         );
+    }
+
+    /// @notice The math-library address the build linker substituted into the hook artifact's creation code, read
+    /// back out of the artifact at the offsets the artifact itself records. Derived rather than snapshotted, so it
+    /// tracks a rebuild of the hook instead of rotting into a second source of truth.
+    function _linkTargetInHookArtifact() internal view returns (address target) {
+        string memory json = vm.readFile("artifacts/JBUniswapV4LPSplitHook.json");
+
+        // The hook links exactly one library, keyed by its source path and then by its name.
+        string[] memory sourcePaths = vm.parseJsonKeys(json, ".bytecode.linkReferences");
+        assertEq(sourcePaths.length, 1, "hook links exactly one library source");
+        string memory sourceKey = string.concat(".bytecode.linkReferences.['", sourcePaths[0], "']");
+        string[] memory libraryNames = vm.parseJsonKeys(json, sourceKey);
+        assertEq(libraryNames.length, 1, "hook links exactly one library");
+        assertEq(libraryNames[0], "JBUniswapV4LPSplitHookMath", "the linked library is the math library");
+
+        LinkReference[] memory references =
+            abi.decode(vm.parseJson(json, string.concat(sourceKey, ".", libraryNames[0])), (LinkReference[]));
+        assertGt(references.length, 0, "the math library is linked at least once");
+
+        bytes memory creationCode = harness.loadArtifact("JBUniswapV4LPSplitHook");
+        for (uint256 i; i < references.length; i++) {
+            LinkReference memory site = references[i];
+            assertEq(site.length, 20, "a link site is one address wide");
+
+            uint256 packed;
+            for (uint256 j; j < site.length; j++) {
+                packed = (packed << 8) | uint8(creationCode[site.start + j]);
+            }
+            address linked = address(uint160(packed));
+
+            // Every site must agree, otherwise "the" link target is not well-defined.
+            if (i == 0) target = linked;
+            assertEq(linked, target, "every link site holds the same library address");
+        }
     }
 }
