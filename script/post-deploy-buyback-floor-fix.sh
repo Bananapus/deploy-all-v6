@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Focused post-deploy for the buyback derived-floor fix (buyback-hook-v6 1.3.0).
+# Focused post-deploy for the buyback hook 1.4.0 redeploy (derived-floor fix + payer skipSplits).
 #
 # Dumps ONLY what that script deploys per chain — the new buyback hook (JBBuybackHook) and the USDC-per-NATIVE
 # price feed (JBRatioPriceFeed) — via DeployBuybackFloorFix.dumpAddresses(), then verifies + emits + distributes

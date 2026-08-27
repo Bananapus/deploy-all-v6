@@ -27,12 +27,18 @@ import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol"
 // ── Deploy script helpers ──
 import {JBChainTokens} from "./libraries/JBChainTokens.sol";
 
-/// @notice Focused redeploy of the buyback hook for the derived-floor fix in buyback-hook-v6 1.3.0
-/// (nana-buyback-hook-v6 PR #173): a buy-side swap that fills below the oracle-derived TWAP floor now unwinds
-/// inside the unlock and the full payment falls back to minting at the issuance rate, instead of hard-reverting
-/// the pay. This keeps no-quote programmatic payments (REVLoans fees, split pays, project payers) alive on thin
-/// trending pools and closes the fee-evasion vector where a payer with a forgiven fee could nudge the pool to
-/// make their own fee pay revert. Explicit caller minima still hard-revert.
+/// @notice Focused redeploy of the buyback hook for buyback-hook-v6 1.4.0, which carries two changes over the live
+/// hook:
+///   - the derived-floor fix (nana-buyback-hook-v6 PR #173): a buy-side swap that fills below the oracle-derived
+///     TWAP floor now unwinds inside the unlock and the full payment falls back to minting at the issuance rate,
+///     instead of hard-reverting the pay. This keeps no-quote programmatic payments (REVLoans fees, split pays,
+///     project payers) alive on thin trending pools and closes the fee-evasion vector where a payer with a forgiven
+///     fee could nudge the pool to make their own fee pay revert. Explicit caller minima still hard-revert.
+///   - the payer `skipSplits` directive (nana-buyback-hook-v6 PR #175): the `pay` metadata entry is now three words,
+///     `(amountToSwapWith, minimumSwapAmountOut, skipSplits)`. A payer who sets `skipSplits` takes the swap output
+///     directly instead of having it burned and re-minted through the reserved split, so frontends no longer have
+///     to route around `pay` to give a user the AMM rate. Programmatic pays leave it false and keep honoring
+///     splits. Two-word quotes no longer decode, so every client encoder must switch with this deploy.
 ///
 /// It also closes an unrelated JBPrices gap, because this Safe is the only address that can: `pricePerUnitOf` looks a
 /// pair up directly and then inverted, but never COMPOSES two feeds. The project-0 defaults registered at launch are
@@ -57,7 +63,7 @@ import {JBChainTokens} from "./libraries/JBChainTokens.sol";
 ///      mainnet, so the ratio feed is used uniformly everywhere and the ETH-base and USD-base paths on a chain stay
 ///      consistent with each other. Price feeds have nothing to do with Uniswap, so this step runs on EVERY chain —
 ///      including OP Sepolia, which has no Uniswap stack and skips every step below.
-///   2. Deploy the 1.3.0 JBBuybackHook (same ctor args as the live one, fresh CREATE2 salt) and wire the
+///   2. Deploy the 1.4.0 JBBuybackHook (same ctor args as the live one, fresh CREATE2 salt) and wire the
 ///      chain-specific PoolManager + the LIVE JBUniswapV4Hook oracle (reused, not redeployed — same pools).
 ///   3. Set it as the registry's default hook (auto-allows it; only affects projects created after this call).
 ///   4. Pin project 1 to the new hook and re-register its existing warm pool on the new hook via `setPoolFor`
@@ -71,7 +77,7 @@ import {JBChainTokens} from "./libraries/JBChainTokens.sol";
 /// Idempotent: both deploys skip if the contract already exists at its predicted address, every registry step is
 /// guarded by a current-state check, and a price-feed pair is only written when it is currently empty (a pair already
 /// pointing somewhere else reverts rather than being silently overwritten). Rebuild `artifacts/` (`npm run artifacts`)
-/// from buyback-hook-v6 1.3.0 and a core-v6 release containing `JBRatioPriceFeed` before proposing.
+/// from buyback-hook-v6 1.4.0 and a core-v6 release containing `JBRatioPriceFeed` before proposing.
 abstract contract BuybackFloorFixBase is Script {
     using stdJson for string;
 
@@ -92,7 +98,7 @@ abstract contract BuybackFloorFixBase is Script {
     uint256 internal constant _FEE_PROJECT_ID = 1;
 
     /// @notice The TWAP window project 1 gets on the new hook. Deliberately NOT the 2-day window carried by the
-    /// outgoing hook: with the 1.3.0 mint fallback, a long window no longer buys liveness — it only makes the
+    /// outgoing hook: with the 1.4.0 mint fallback, a long window no longer buys liveness — it only makes the
     /// derived floor lag a trending pool so no-quote pays systematically miss the AMM route. Same-block sandwiches
     /// never enter a TWAP at any window; 30 minutes still forces a sustained, arb-exposed displacement to bend the
     /// floor, and the operator can retune per pool via `setTwapWindowOf` at any time.
@@ -360,7 +366,7 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
 
         if (!_shouldDeployUniswapStack()) return;
 
-        // 2. New hook implementation from the rebuilt 1.3.0 artifact, wired to the LIVE oracle hook so the new
+        // 2. New hook implementation from the rebuilt 1.4.0 artifact, wired to the LIVE oracle hook so the new
         //    hook quotes and swaps against the exact pools (and TWAP history) the outgoing hook already uses.
         _newBuybackHook = JBBuybackHook(
             payable(_deployPrecompiledIfNeeded({
