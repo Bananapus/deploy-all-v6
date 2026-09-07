@@ -41,6 +41,7 @@
     "deploy:propose:twap-oracle-upgrade:mainnets": "npm run -s deploy:preflight:twap-oracle-upgrade:mainnets && npx sphinx propose script/DeployTwapOracleUpgrade.s.sol --target-contract DeployTwapOracleUpgrade --networks mainnets",
     "deploy:operator-safe-txs:twap-oracle-upgrade": "forge script script/DeployTwapOracleUpgrade.s.sol --target-contract GenerateTwapOracleUpgradeOperatorSafeTxs",
     "deploy:verify:twap-oracle-upgrade": "forge script script/VerifyTwapOracleUpgrade.s.sol --target-contract VerifyTwapOracleUpgrade",
+    "deploy:verify:buyback-floor-fix": "forge script script/VerifyBuybackFloorFix.s.sol --target-contract VerifyBuybackFloorFix",
     "deploy:propose:live-smoke:testnets": "npx sphinx propose script/LivePostDeploySmoke.s.sol --networks testnets",
     "deploy:propose:live-smoke:mainnets": "npx sphinx propose script/LivePostDeploySmoke.s.sol --networks mainnets",
     "deploy:post": "./script/post-deploy.sh",

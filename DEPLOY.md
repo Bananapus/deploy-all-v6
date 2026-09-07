@@ -182,6 +182,14 @@ npm run deploy:post:buyback-floor-fix:testnets
 npm run deploy:post:buyback-floor-fix:mainnets
 ```
 
+Then run the read-only state verifier per chain. It resolves every address the way the proposal did, so it needs only the RPC:
+
+```bash
+npm run deploy:verify:buyback-floor-fix -- --rpc-url <RPC_URL> -vvv
+```
+
+It confirms the project-0 feeds, the new hook and router and gateway deployed and wired, the registry defaults and project 1 moved, the old hook and router disallowed, and the raw router unselectable. On OP Sepolia it checks the feeds and that the registry still has no router. After the operators of projects 2-7 execute their `setHookFor` + `setPoolFor` + `setTerminalFor` transactions, rerun it with `VERIFY_FLOOR_FIX_OPERATORS=true` to confirm those projects resolve to the new hook and the gateway.
+
 Distribution keeps the outgoing `JBBuybackHook.json` and `JBRouterTerminal.json` as `<Name>_deprecated.json` next to the new canonical files. `script/Verify.s.sol` then expects the registry default and project 1 on the gateway (`VERIFY_ROUTER_TERMINAL_GATEWAY`), the gateway bound to the router and the router to the canonical hook, and the raw and previous routers unselectable. Until operators migrate projects 2-7, set `VERIFY_ROUTER_TERMINAL_PREVIOUS` to the retired router so their unchanged pins verify; it is never accepted for project 1.
 
 The proposal is rehearsed end to end on a Base fork by `test/fork/DeployBuybackFloorFix.fork.t.sol`.

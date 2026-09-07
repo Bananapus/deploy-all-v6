@@ -14,6 +14,7 @@ import {JBRouterTerminalGateway} from "@bananapus/router-terminal-v6/src/JBRoute
 import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRouterTerminalRegistry.sol";
 
 import {BuybackFloorFixBase} from "../../script/DeployBuybackFloorFix.s.sol";
+import {VerifyBuybackFloorFix} from "../../script/VerifyBuybackFloorFix.s.sol";
 
 /// @notice Runs the whole proposal body, Sphinx-free. Its code is etched over the infra Safe so every call it makes
 /// comes from the Safe: the registry owner, the router's one-shot deployer, and project 1's operator.
@@ -55,6 +56,14 @@ contract BuybackFloorFixRehearsalHarness is BuybackFloorFixBase {
 
     function poolManager() external view returns (address) {
         return _poolManager;
+    }
+}
+
+/// @notice Operator-mode verification without `vm.setEnv`, which is process-global and would leak into sibling tests.
+contract VerifyBuybackFloorFixOperatorsHarness is VerifyBuybackFloorFix {
+    function runAsOperators() external {
+        _verifyOperators = true;
+        _run();
     }
 }
 
@@ -212,6 +221,39 @@ contract DeployBuybackFloorFixForkTest is Test {
             assertTrue(vm.revertToState(snapshot));
         }
         assertTrue(sawRetained, "the sweep should include a budget that reaches custody but not settlement");
+    }
+
+    /// @notice The post-proposal verifier must reject the chain before the proposal and accept it after, off the same
+    /// records and artifacts the proposal used, so a signer can trust a green run.
+    function test_verifierRejectsBeforeAndAcceptsAfterTheProposal() public {
+        VerifyBuybackFloorFix verifier = new VerifyBuybackFloorFix();
+        vm.allowCheatcodes(address(verifier));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VerifyBuybackFloorFix.VerifyBuybackFloorFix_CriticalCheckFailed.selector,
+                "USDC-per-NATIVE ratio feed is deployed"
+            )
+        );
+        verifier.run();
+
+        harness.rehearse();
+        verifier.run();
+    }
+
+    /// @notice Operator mode must stay red until projects 2-7 are actually migrated by their operators.
+    function test_verifierOperatorModeRejectsUnmigratedProjects() public {
+        harness.rehearse();
+        VerifyBuybackFloorFixOperatorsHarness verifier = new VerifyBuybackFloorFixOperatorsHarness();
+        vm.allowCheatcodes(address(verifier));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VerifyBuybackFloorFix.VerifyBuybackFloorFix_CriticalCheckFailed.selector,
+                "project 2 uses the new buyback hook"
+            )
+        );
+        verifier.runAsOperators();
     }
 
     function _fundPayer(uint256 amount) internal {
