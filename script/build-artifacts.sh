@@ -147,6 +147,7 @@ CONTRACTS=(
 
   # ── nana-router-terminal-v6 ──
   "nana-router-terminal-v6:JBRouterTerminal:src/JBRouterTerminal.sol"
+  "nana-router-terminal-v6:JBRouterTerminalGateway:src/JBRouterTerminalGateway.sol"
   "nana-router-terminal-v6:JBRouterTerminalRegistry:src/JBRouterTerminalRegistry.sol"
 
   # ── univ4-lp-split-hook-v6 ──

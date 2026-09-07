@@ -125,10 +125,16 @@ for (const target of targets) {
 
   let written = 0;
   for (const dest of new Set([aggregatorPath, perRepoPath])) {
+    // A canonical artifact that already records a different address is the outgoing deployment. Keep it as
+    // `<Name>_deprecated.json` so the retired contract stays resolvable (its ABI, args, and receipt) after the
+    // canonical name moves on to the replacement. A previous `_deprecated` file is superseded in turn.
+    const outgoing = deprecatedPathFor({dest, target});
     if (DRY_RUN) {
+      if (outgoing) console.log(`  would keep   ${path.relative(MONOREPO_ROOT, outgoing)}`);
       console.log(`  would write  ${path.relative(MONOREPO_ROOT, dest)}`);
     } else {
       fs.mkdirSync(path.dirname(dest), { recursive: true });
+      if (outgoing) fs.renameSync(dest, outgoing);
       fs.copyFileSync(sourcePath, dest);
     }
     writeCount += 1;
@@ -141,6 +147,16 @@ console.log(`Done. ${writeCount} write(s), ${skipCount} skip(s).`);
 process.exit(skipCount > 0 ? 1 : 0);
 
 // ── helpers ──
+// The `_deprecated` destination for an existing canonical artifact whose address is about to change, or null when
+// there is nothing to keep: no file yet, a suffixed (non-canonical) name, or the same address being rewritten.
+function deprecatedPathFor({dest, target}) {
+  if (target.name.includes('__') || !fs.existsSync(dest)) return null;
+  let existing;
+  try { existing = readJson({path: dest}); } catch { return null; }
+  if (String(existing.address || '').toLowerCase() === target.address) return null;
+  return path.join(path.dirname(dest), `${target.name}_deprecated.json`);
+}
+
 function artifactNameFor({name}) {
   const baseName = name.split('__')[0];
   return ARTIFACT_ALIASES.get(baseName) || baseName;
