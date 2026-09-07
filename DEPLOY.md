@@ -155,6 +155,45 @@ pnpm deploy:propose:lp-split-hook-fix:testnets
 pnpm deploy:propose:lp-split-hook-fix:mainnets
 ```
 
+### Post-launch buyback floor fix + router gateway
+
+`script/DeployBuybackFloorFix.s.sol` is the second post-launch migration of the Uniswap-facing stack. One infra Safe proposal per chain:
+
+- registers the missing project-0 USDC-per-NATIVE price feeds (every chain, OP Sepolia included);
+- deploys `JBBuybackHook` 1.4.0 (derived-floor fix + payer `skipSplits`), makes it the buyback registry default, pins project 1 to it, and disallows the outgoing hook;
+- deploys `JBRouterTerminal` 1.3.0 bound to that hook, copying the live router's WETH and V3 factory wiring and reusing the live `JBUniswapV4Hook`;
+- deploys `JBRouterTerminalGateway` in front of it, which takes custody of a routed payment before the atomic router call and retains the input when a fee or protocol-payer route fails instead of letting core forgive it;
+- on the existing `JBRouterTerminalRegistry` (never redeployed: `REVDeployer` pins it), makes the gateway the default, pins project 1 to it, and disallows the outgoing router. The raw router is never selectable.
+
+Every step is guarded by current on-chain state, so re-proposing is a no-op. Projects 2-7 keep resolving to the outgoing hook and router until their operators migrate them (`setHookFor` + `setPoolFor` + `setTerminalFor`).
+
+```bash
+npm run artifacts            # buyback-hook-v6 1.4.0, router-terminal-v6 1.3.0, core-v6 with JBRatioPriceFeed
+npm run deploy:propose:buyback-floor-fix:testnets
+# or:
+npm run deploy:propose:buyback-floor-fix:mainnets
+```
+
+After execution, emit and distribute the four new artifacts per chain:
+
+```bash
+npm run deploy:post:buyback-floor-fix:testnets
+# or:
+npm run deploy:post:buyback-floor-fix:mainnets
+```
+
+Then run the read-only state verifier per chain. It resolves every address the way the proposal did, so it needs only the RPC:
+
+```bash
+npm run deploy:verify:buyback-floor-fix -- --rpc-url <RPC_URL> -vvv
+```
+
+It confirms the project-0 feeds, the new hook and router and gateway deployed and wired, the registry defaults and project 1 moved, the old hook and router disallowed, and the raw router unselectable. On OP Sepolia it checks the feeds and that the registry still has no router. After the operators of projects 2-7 execute their `setHookFor` + `setPoolFor` + `setTerminalFor` transactions, rerun it with `VERIFY_FLOOR_FIX_OPERATORS=true` to confirm those projects resolve to the new hook and the gateway.
+
+Distribution keeps the outgoing `JBBuybackHook.json` and `JBRouterTerminal.json` as `<Name>_deprecated.json` next to the new canonical files. `script/Verify.s.sol` then expects the registry default and project 1 on the gateway (`VERIFY_ROUTER_TERMINAL_GATEWAY`), the gateway bound to the router and the router to the canonical hook, and the raw and previous routers unselectable. Until operators migrate projects 2-7, set `VERIFY_ROUTER_TERMINAL_PREVIOUS` to the retired router so their unchanged pins verify; it is never accepted for project 1.
+
+The proposal is rehearsed end to end on a Base fork by `test/fork/DeployBuybackFloorFix.fork.t.sol`.
+
 ### Post-launch TWAP oracle upgrade
 
 `script/DeployTwapOracleUpgrade.s.sol` is a post-launch migration script for replacing the Uniswap V4 oracle-dependent contracts without redeploying the full protocol. Before proposing it, rebuild `artifacts/` from package versions that include the matching TWAP/coverage changes in `univ4-router-v6`, `nana-buyback-hook-v6`, and `nana-router-terminal-v6`.
