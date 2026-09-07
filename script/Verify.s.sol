@@ -48,6 +48,7 @@ import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHoo
 
 // ── Router Terminal ──
 import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
+import {JBRouterTerminalGateway} from "@bananapus/router-terminal-v6/src/JBRouterTerminalGateway.sol";
 import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRouterTerminalRegistry.sol";
 
 // ── Suckers ──
@@ -171,6 +172,11 @@ contract Verify is Script {
     JBRouterTerminalRegistry public routerTerminalRegistry;
     // The default router terminal instance.
     JBRouterTerminal public routerTerminal;
+    JBRouterTerminalGateway public routerTerminalGateway;
+    /// @notice The canonical buyback hook the router must be bound to (zero when unset off-production).
+    address public canonicalBuybackHook;
+    /// @notice The retired router that projects not yet migrated by their operators may still resolve to.
+    address public previousRouterTerminal;
 
     // -- Suckers --
     // The sucker registry for cross-chain bridging.
@@ -346,6 +352,13 @@ contract Verify is Script {
         );
         // Read the router terminal address from env (address(0) if not deployed on this chain).
         routerTerminal = JBRouterTerminal(payable(vm.envOr({name: "VERIFY_ROUTER_TERMINAL", defaultValue: address(0)})));
+        // The gateway the registry selects in front of the router (address(0) if not deployed on this chain).
+        routerTerminalGateway = JBRouterTerminalGateway(
+            payable(vm.envOr({name: "VERIFY_ROUTER_TERMINAL_GATEWAY", defaultValue: address(0)}))
+        );
+        // Optional: the retired router, accepted for projects whose operators have not migrated them yet.
+        previousRouterTerminal = vm.envOr({name: "VERIFY_ROUTER_TERMINAL_PREVIOUS", defaultValue: address(0)});
+        canonicalBuybackHook = vm.envOr({name: "VERIFY_BUYBACK_HOOK", defaultValue: address(0)});
 
         // Read the sucker registry address from env.
         suckerRegistry = JBSuckerRegistry(vm.envAddress("VERIFY_SUCKER_REGISTRY"));
@@ -408,6 +421,10 @@ contract Verify is Script {
         if (isProductionChain) {
             require(
                 address(routerTerminal) != address(0), "Verify: VERIFY_ROUTER_TERMINAL required on production chain"
+            );
+            require(
+                address(routerTerminalGateway) != address(0),
+                "Verify: VERIFY_ROUTER_TERMINAL_GATEWAY required on production chain"
             );
             require(
                 address(buybackRegistry) != address(0), "Verify: VERIFY_BUYBACK_REGISTRY required on production chain"
@@ -1017,20 +1034,56 @@ contract Verify is Script {
                     label: "RouterTerminalRegistry has default terminal set",
                     critical: true
                 });
+                // The registry serves the gateway, which takes custody and then calls the raw router atomically.
+                // Selecting the raw router directly would skip custody, so it must not be selectable at all.
                 _check({
-                    condition: address(routerTerminalRegistry.defaultTerminal()) == address(routerTerminal),
-                    label: "RouterTerminalRegistry.defaultTerminal == JBRouterTerminal",
+                    condition: address(routerTerminalRegistry.defaultTerminal()) == address(routerTerminalGateway),
+                    label: "RouterTerminalRegistry.defaultTerminal == JBRouterTerminalGateway",
                     critical: true
                 });
+                _check({
+                    condition: address(routerTerminalGateway.ROUTER()) == address(routerTerminal),
+                    label: "RouterTerminalGateway.ROUTER == JBRouterTerminal",
+                    critical: true
+                });
+                _check({
+                    condition: !routerTerminalRegistry.isTerminalAllowed(IJBTerminal(address(routerTerminal))),
+                    label: "raw JBRouterTerminal is NOT selectable in RouterTerminalRegistry",
+                    critical: true
+                });
+                if (previousRouterTerminal != address(0)) {
+                    _check({
+                        condition: !routerTerminalRegistry.isTerminalAllowed(IJBTerminal(previousRouterTerminal)),
+                        label: "previous JBRouterTerminal is NOT selectable in RouterTerminalRegistry",
+                        critical: true
+                    });
+                }
 
-                // Also verify the router terminal is NOT globally feeless. We dropped the global feeless
-                // grant: the router was forwarding fees from arbitrary projects on its own balance, which
-                // is too broad. Per-project feeless wiring (if needed) is the explicit path going forward.
+                // The router pins its buyback hook as an immutable, so a stale router silently routes buybacks
+                // through a retired hook.
+                if (canonicalBuybackHook != address(0)) {
+                    _check({
+                        condition: routerTerminal.BUYBACK_HOOK() == canonicalBuybackHook,
+                        label: "RouterTerminal.BUYBACK_HOOK == canonical buyback hook",
+                        critical: true
+                    });
+                }
+
+                // Also verify neither the router nor its gateway is globally feeless. We dropped the global
+                // feeless grant: the router was forwarding fees from arbitrary projects on its own balance,
+                // which is too broad. Per-project feeless wiring (if needed) is the explicit path going forward.
                 _check({
                     condition: !feelessAddresses.isFeelessFor({
                         addr: address(routerTerminal), projectId: 0, caller: address(0)
                     }),
                     label: "RouterTerminal is NOT globally feeless",
+                    critical: true
+                });
+                _check({
+                    condition: !feelessAddresses.isFeelessFor({
+                        addr: address(routerTerminalGateway), projectId: 0, caller: address(0)
+                    }),
+                    label: "RouterTerminalGateway is NOT globally feeless",
                     critical: true
                 });
             } else {
@@ -1836,7 +1889,9 @@ contract Verify is Script {
         console.log("--- Category 10: Routes ---");
 
         // Deploy.s.sol installs the router terminal registry as the project terminal. The registry then resolves to the
-        // raw router terminal.
+        // gateway, which takes custody before calling the raw router. Projects whose operators have not migrated
+        // them yet may still resolve to the previous router when `VERIFY_ROUTER_TERMINAL_PREVIOUS` names it; the fee
+        // project (1) is migrated by the infra proposal and must always be on the gateway.
         if (address(routerTerminalRegistry) != address(0)) {
             // Every canonical revnet present on this chain — see `_canonicalRevnetProjectIdsAndLabels`
             // for the 1-4 baseline plus DEFIFA(5) / ART(6) / MARKEE(7) extension. The router-terminal
@@ -1859,18 +1914,22 @@ contract Verify is Script {
                     critical: true
                 });
 
-                // Require the registry to resolve each canonical project to the canonical router
-                // terminal. Without this, the registry could route project N through a forked
-                // router (different fee handling, different beneficiary resolution) while still
-                // passing the "registry in terminal list" check.
+                // Require the registry to resolve each canonical project to the canonical gateway.
+                // Without this, the registry could route project N through a forked router
+                // (different fee handling, different beneficiary resolution) while still passing
+                // the "registry in terminal list" check.
                 if (address(routerTerminal) != address(0)) {
                     (bool ok, bytes memory data) = address(routerTerminalRegistry)
                         .staticcall(abi.encodeWithSignature("terminalOf(uint256)", projectIds[i]));
                     if (ok && data.length >= 32) {
+                        address resolved = abi.decode(data, (address));
+                        bool onGateway = resolved == address(routerTerminalGateway);
+                        bool onPrevious = previousRouterTerminal != address(0) && resolved == previousRouterTerminal
+                            && projectIds[i] != _FEE_PROJECT_ID;
                         _check({
-                            condition: abi.decode(data, (address)) == address(routerTerminal),
+                            condition: onGateway || onPrevious,
                             label: string.concat(
-                                labels[i], " RouterTerminalRegistry.terminalOf == canonical RouterTerminal"
+                                labels[i], " RouterTerminalRegistry.terminalOf == canonical RouterTerminalGateway"
                             ),
                             critical: true
                         });
@@ -2276,6 +2335,13 @@ contract Verify is Script {
                 _check({
                     condition: routerTerminal.trustedForwarder() == expectedTrustedForwarder,
                     label: "RouterTerminal.trustedForwarder == expected",
+                    critical: true
+                });
+            }
+            if (address(routerTerminalGateway) != address(0)) {
+                _check({
+                    condition: routerTerminalGateway.trustedForwarder() == expectedTrustedForwarder,
+                    label: "RouterTerminalGateway.trustedForwarder == expected",
                     critical: true
                 });
             }

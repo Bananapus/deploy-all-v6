@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Focused post-deploy for the buyback derived-floor fix (buyback-hook-v6 1.3.0).
+# Focused post-deploy for the buyback hook 1.4.0 redeploy (derived-floor fix + payer skipSplits) and the router
+# 1.3.0 + gateway rollout that rides with it.
 #
-# Dumps ONLY what that script deploys per chain — the new buyback hook (JBBuybackHook) and the USDC-per-NATIVE
-# price feed (JBRatioPriceFeed) — via DeployBuybackFloorFix.dumpAddresses(), then verifies + emits + distributes
+# Dumps ONLY what that script deploys per chain — the new buyback hook (JBBuybackHook), the router bound to it
+# (JBRouterTerminal), its gateway (JBRouterTerminalGateway), and the USDC-per-NATIVE price feed (JBRatioPriceFeed) —
+# via DeployBuybackFloorFix.dumpAddresses(), then verifies + emits + distributes
 # just those through the shared post-deploy pipeline (post-deploy.sh --skip-dump reuses our focused dump). This
 # avoids re-running the full Deploy.s.sol dump / re-touching every other contract's artifacts.
 #

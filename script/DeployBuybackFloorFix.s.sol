@@ -13,6 +13,12 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
 
+// ── Router Terminal ──
+import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
+import {JBRouterTerminalGateway} from "@bananapus/router-terminal-v6/src/JBRouterTerminalGateway.sol";
+import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRouterTerminalRegistry.sol";
+import {IJBRouterTerminal} from "@bananapus/router-terminal-v6/src/interfaces/IJBRouterTerminal.sol";
+
 // ── Core ──
 import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
 import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
@@ -20,6 +26,7 @@ import {IJBPriceFeed} from "@bananapus/core-v6/src/interfaces/IJBPriceFeed.sol";
 import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
+import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 import {IJBTokens} from "@bananapus/core-v6/src/interfaces/IJBTokens.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
@@ -27,12 +34,18 @@ import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol"
 // ── Deploy script helpers ──
 import {JBChainTokens} from "./libraries/JBChainTokens.sol";
 
-/// @notice Focused redeploy of the buyback hook for the derived-floor fix in buyback-hook-v6 1.3.0
-/// (nana-buyback-hook-v6 PR #173): a buy-side swap that fills below the oracle-derived TWAP floor now unwinds
-/// inside the unlock and the full payment falls back to minting at the issuance rate, instead of hard-reverting
-/// the pay. This keeps no-quote programmatic payments (REVLoans fees, split pays, project payers) alive on thin
-/// trending pools and closes the fee-evasion vector where a payer with a forgiven fee could nudge the pool to
-/// make their own fee pay revert. Explicit caller minima still hard-revert.
+/// @notice Focused redeploy of the buyback hook for buyback-hook-v6 1.4.0, which carries two changes over the live
+/// hook:
+///   - the derived-floor fix (nana-buyback-hook-v6 PR #173): a buy-side swap that fills below the oracle-derived
+///     TWAP floor now unwinds inside the unlock and the full payment falls back to minting at the issuance rate,
+///     instead of hard-reverting the pay. This keeps no-quote programmatic payments (REVLoans fees, split pays,
+///     project payers) alive on thin trending pools and closes the fee-evasion vector where a payer with a forgiven
+///     fee could nudge the pool to make their own fee pay revert. Explicit caller minima still hard-revert.
+///   - the payer `skipSplits` directive (nana-buyback-hook-v6 PR #175): the `pay` metadata entry is now three words,
+///     `(amountToSwapWith, minimumSwapAmountOut, skipSplits)`. A payer who sets `skipSplits` takes the swap output
+///     directly instead of having it burned and re-minted through the reserved split, so frontends no longer have
+///     to route around `pay` to give a user the AMM rate. Programmatic pays leave it false and keep honoring
+///     splits. Two-word quotes no longer decode, so every client encoder must switch with this deploy.
 ///
 /// It also closes an unrelated JBPrices gap, because this Safe is the only address that can: `pricePerUnitOf` looks a
 /// pair up directly and then inverted, but never COMPOSES two feeds. The project-0 defaults registered at launch are
@@ -57,7 +70,7 @@ import {JBChainTokens} from "./libraries/JBChainTokens.sol";
 ///      mainnet, so the ratio feed is used uniformly everywhere and the ETH-base and USD-base paths on a chain stay
 ///      consistent with each other. Price feeds have nothing to do with Uniswap, so this step runs on EVERY chain —
 ///      including OP Sepolia, which has no Uniswap stack and skips every step below.
-///   2. Deploy the 1.3.0 JBBuybackHook (same ctor args as the live one, fresh CREATE2 salt) and wire the
+///   2. Deploy the 1.4.0 JBBuybackHook (same ctor args as the live one, fresh CREATE2 salt) and wire the
 ///      chain-specific PoolManager + the LIVE JBUniswapV4Hook oracle (reused, not redeployed — same pools).
 ///   3. Set it as the registry's default hook (auto-allows it; only affects projects created after this call).
 ///   4. Pin project 1 to the new hook and re-register its existing warm pool on the new hook via `setPoolFor`
@@ -65,25 +78,41 @@ import {JBChainTokens} from "./libraries/JBChainTokens.sol";
 ///      with a fresh 30-minute TWAP window in place of the outgoing hook's 2-day one.
 ///   5. Disallow the outgoing default so no new project can select it.
 ///
-/// Projects 2-7 keep resolving to the outgoing hook (their pins/history are sovereign by registry design);
-/// their operators migrate with their own `setHookFor` + `setPoolFor` Safe transactions when ready.
+/// The router terminal pins its buyback hook as an immutable, so a new hook needs a new router. router-terminal-v6
+/// 1.3.0 also adds `JBRouterTerminalGateway`, which takes custody of a routed payment before calling the router and
+/// retains the input when a fee or protocol-payer route fails instead of letting core's fail-open catch forgive it
+/// (the Base incident this fixes is described in the router repo). So the same proposal continues:
+///   6. Deploy the 1.3.0 JBRouterTerminal bound to the NEW hook, and copy the live router's chain wiring (WETH, V3
+///      factory) plus this chain's PoolManager and the live oracle hook into it.
+///   7. Deploy the gateway in front of it.
+///   8. On the EXISTING registry (never redeployed: REVDeployer pins it as an immutable): make the gateway the default
+///      for new projects (auto-allows it), pin project 1 to it, and disallow the outgoing router so no new project can
+///      select it. The raw new router is never allowlisted, because selecting it would skip custody.
 ///
-/// Idempotent: both deploys skip if the contract already exists at its predicted address, every registry step is
+/// Projects 2-7 keep resolving to the outgoing hook and router (their pins/history are sovereign by registry
+/// design); their operators migrate with their own `setHookFor` + `setPoolFor` + `setTerminalFor` Safe
+/// transactions when ready.
+///
+/// Idempotent: every deploy skips if the contract already exists at its predicted address, every registry step is
 /// guarded by a current-state check, and a price-feed pair is only written when it is currently empty (a pair already
 /// pointing somewhere else reverts rather than being silently overwritten). Rebuild `artifacts/` (`npm run artifacts`)
-/// from buyback-hook-v6 1.3.0 and a core-v6 release containing `JBRatioPriceFeed` before proposing.
+/// from buyback-hook-v6 1.4.0, router-terminal-v6 1.3.0, and a core-v6 release containing `JBRatioPriceFeed` before
+/// proposing.
 abstract contract BuybackFloorFixBase is Script {
     using stdJson for string;
 
     error BuybackFloorFix_FeeProjectHookLocked(uint256 projectId);
+    error BuybackFloorFix_FeeProjectTerminalLocked(uint256 projectId);
     error BuybackFloorFix_MissingDeployment(string name);
     error BuybackFloorFix_PriceFeedMismatch(uint256 pricingCurrency, uint256 unitCurrency);
+    error BuybackFloorFix_RouterPoolManagerMismatch(address expected, address actual);
     error BuybackFloorFix_UnexpectedSafe(address expected, address actual);
     error BuybackFloorFix_UnsupportedChain(uint256 chainId);
 
     // ── Constants (mirror Deploy.s.sol) ──
     address internal constant _CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
     address internal constant _EXPECTED_SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
+    address internal constant _PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     uint256 internal constant DEPLOYMENT_NONCE = 13;
 
     /// @notice The project ID JBPrices stores protocol default feeds under.
@@ -92,13 +121,15 @@ abstract contract BuybackFloorFixBase is Script {
     uint256 internal constant _FEE_PROJECT_ID = 1;
 
     /// @notice The TWAP window project 1 gets on the new hook. Deliberately NOT the 2-day window carried by the
-    /// outgoing hook: with the 1.3.0 mint fallback, a long window no longer buys liveness — it only makes the
+    /// outgoing hook: with the 1.4.0 mint fallback, a long window no longer buys liveness — it only makes the
     /// derived floor lag a trending pool so no-quote pays systematically miss the AMM route. Same-block sandwiches
     /// never enter a TWAP at any window; 30 minutes still forces a sustained, arb-exposed displacement to bend the
     /// floor, and the operator can retune per pool via `setTwapWindowOf` at any time.
     uint256 internal constant _FEE_PROJECT_TWAP_WINDOW = 30 minutes;
 
     bytes32 internal constant _BUYBACK_HOOK_SALT = keccak256("JBBuybackHookV6_DerivedFloorFix");
+    bytes32 internal constant _ROUTER_TERMINAL_SALT = keccak256("JBRouterTerminalV6_DerivedFloorFix");
+    bytes32 internal constant _ROUTER_TERMINAL_GATEWAY_SALT = keccak256("JBRouterTerminalGatewayV6_DerivedFloorFix");
 
     /// @notice Salt for the USDC-per-NATIVE ratio feed. The feed's constructor arguments are the chain's own two
     /// live feeds, so the CREATE2 address differs per chain — that is expected and correct.
@@ -118,6 +149,11 @@ abstract contract BuybackFloorFixBase is Script {
 
     JBBuybackHook internal _oldBuybackHook;
     JBBuybackHook internal _newBuybackHook;
+
+    JBRouterTerminalRegistry internal _routerRegistry;
+    JBRouterTerminal internal _oldRouterTerminal;
+    JBRouterTerminal internal _newRouterTerminal;
+    JBRouterTerminalGateway internal _gateway;
 
     // ── Chain wiring ──
     function _setupChainAddresses() internal {
@@ -165,6 +201,11 @@ abstract contract BuybackFloorFixBase is Script {
 
         // The outgoing hook is whatever the registry currently serves as its default — the live source of truth.
         _oldBuybackHook = JBBuybackHook(payable(address(_buybackRegistry.defaultHook())));
+
+        // The outgoing router is the canonical deployment record, not the registry default: once this proposal has
+        // run, the default is the gateway, which carries none of the chain wiring the new router copies.
+        _routerRegistry = JBRouterTerminalRegistry(payable(_deploymentAddressOf("JBRouterTerminalRegistry")));
+        _oldRouterTerminal = JBRouterTerminal(payable(_deploymentAddressOf("JBRouterTerminal")));
     }
 
     function _deploymentAddressOf(string memory name) internal view returns (address addr) {
@@ -243,9 +284,18 @@ abstract contract BuybackFloorFixBase is Script {
         if (!already) addr = _deployViaFactory({salt: salt, creationCode: code, constructorArgs: ctorArgs});
     }
 
-    // ── Ctor args (mirror Deploy.s.sol / the live hook) ──
+    // ── Ctor args (mirror Deploy.s.sol / the live hook and router) ──
     function _buybackHookCtorArgs() internal view returns (bytes memory) {
         return abi.encode(_directory, _permissions, _prices, _projects, _tokens, _EXPECTED_SAFE, _trustedForwarder);
+    }
+
+    /// @notice The router pins its buyback hook as an immutable, so its identity follows the hook it is bound to.
+    function _routerTerminalCtorArgs(address buybackHook) internal view returns (bytes memory) {
+        return abi.encode(_directory, _tokens, _PERMIT2, buybackHook, _trustedForwarder, _EXPECTED_SAFE);
+    }
+
+    function _routerTerminalGatewayCtorArgs(address routerTerminal) internal view returns (bytes memory) {
+        return abi.encode(_directory, _PERMIT2, routerTerminal, _trustedForwarder);
     }
 
     // ── JBPrices: the missing NATIVE↔USDC defaults ──
@@ -325,42 +375,16 @@ abstract contract BuybackFloorFixBase is Script {
             revert BuybackFloorFix_PriceFeedMismatch({pricingCurrency: pricingCurrency, unitCurrency: unitCurrency});
         }
     }
-}
 
-/// @notice Sphinx deploy for the buyback derived-floor fix. Propose per `deploy:propose:buyback-floor-fix:*`.
-contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
-    function configureSphinx() public override {
-        sphinxConfig.projectName = "v6-deployment";
-        sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
-        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
-    }
-
-    function run() public {
-        if (safeAddress() != _EXPECTED_SAFE) {
-            revert BuybackFloorFix_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
-        }
-        _setupChainAddresses();
-        _loadCoreDeploymentAddresses();
-        if (_shouldDeployUniswapStack()) _loadBuybackDeploymentAddresses();
-
-        // Surface a skipped price-feed chain here rather than inside the broadcast body, which stays free of
-        // non-broadcast calls.
-        (, bool feedAvailable) = _usdcPerNativeFeedCtorArgs();
-        if (!feedAvailable) {
-            console.log("SKIP USDC-per-NATIVE price feed: no canonical USDC or leg feed on chain", block.chainid);
-        }
-
-        deploy();
-    }
-
-    function deploy() public sphinx {
+    /// @notice The whole proposal, Sphinx-free so a fork rehearsal can run it as the Safe.
+    function _deployFloorFix() internal {
         // 1. The two missing project-0 price feed defaults. Nothing here involves Uniswap, so it runs on every
         //    supported chain; the buyback steps below are the ones OP Sepolia has no stack for.
         _ensureUsdcPerNativeDefaultFeeds();
 
         if (!_shouldDeployUniswapStack()) return;
 
-        // 2. New hook implementation from the rebuilt 1.3.0 artifact, wired to the LIVE oracle hook so the new
+        // 2. New hook implementation from the rebuilt 1.4.0 artifact, wired to the LIVE oracle hook so the new
         //    hook quotes and swaps against the exact pools (and TWAP history) the outgoing hook already uses.
         _newBuybackHook = JBBuybackHook(
             payable(_deployPrecompiledIfNeeded({
@@ -390,6 +414,61 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
                 && _buybackRegistry.isHookAllowed(IJBRulesetDataHook(address(_oldBuybackHook)))
         ) {
             _buybackRegistry.disallowHook({hook: IJBRulesetDataHook(address(_oldBuybackHook))});
+        }
+
+        // 6. New router bound to the new hook. Its chain wiring is copied from the live router, which holds the
+        //    exact WETH and V3 factory this chain has been routing through; the PoolManager is cross-checked against
+        //    the table above so a stale deployment record cannot wire the new router to a different V4.
+        _newRouterTerminal = JBRouterTerminal(
+            payable(_deployPrecompiledIfNeeded({
+                    artifactName: "JBRouterTerminal",
+                    salt: _ROUTER_TERMINAL_SALT,
+                    ctorArgs: _routerTerminalCtorArgs(address(_newBuybackHook))
+                }))
+        );
+        if (address(_newRouterTerminal.wrappedNativeToken()) == address(0)) {
+            if (address(_oldRouterTerminal.poolManager()) != _poolManager) {
+                revert BuybackFloorFix_RouterPoolManagerMismatch({
+                    expected: _poolManager, actual: address(_oldRouterTerminal.poolManager())
+                });
+            }
+            _newRouterTerminal.setChainSpecificConstants({
+                newWrappedNativeToken: _oldRouterTerminal.wrappedNativeToken(),
+                newFactory: _oldRouterTerminal.factory(),
+                newPoolManager: IPoolManager(_poolManager),
+                newUniv4Hook: _oracleHook
+            });
+        }
+
+        // 7. The gateway in front of it: custody first, then the atomic router call.
+        _gateway = JBRouterTerminalGateway(
+            payable(_deployPrecompiledIfNeeded({
+                    artifactName: "JBRouterTerminalGateway",
+                    salt: _ROUTER_TERMINAL_GATEWAY_SALT,
+                    ctorArgs: _routerTerminalGatewayCtorArgs(address(_newRouterTerminal))
+                }))
+        );
+
+        // 8. Registry default for projects created from here on. Auto-allows the gateway, which `setTerminalFor`
+        //    below requires. Must precede the disallow: the registry refuses to disallow its current default.
+        if (address(_routerRegistry.defaultTerminal()) != address(_gateway)) {
+            _routerRegistry.setDefaultTerminal({terminal: IJBTerminal(address(_gateway))});
+        }
+
+        // Pin project 1 to the gateway. The Safe holds project 1's SET_ROUTER_TERMINAL permission as its operator.
+        if (address(_routerRegistry.terminalOf(_FEE_PROJECT_ID)) != address(_gateway)) {
+            if (_routerRegistry.hasLockedTerminal(_FEE_PROJECT_ID)) {
+                revert BuybackFloorFix_FeeProjectTerminalLocked(_FEE_PROJECT_ID);
+            }
+            _routerRegistry.setTerminalFor({projectId: _FEE_PROJECT_ID, terminal: IJBTerminal(address(_gateway))});
+        }
+
+        // Retire the outgoing router the same way as the hook: existing pins keep resolving, new selections cannot.
+        if (
+            address(_oldRouterTerminal) != address(0) && address(_oldRouterTerminal) != address(_newRouterTerminal)
+                && _routerRegistry.isTerminalAllowed(IJBTerminal(address(_oldRouterTerminal)))
+        ) {
+            _routerRegistry.disallowTerminal({terminal: IJBTerminal(address(_oldRouterTerminal))});
         }
     }
 
@@ -423,11 +502,43 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
             terminalToken: JBConstants.NATIVE_TOKEN
         });
     }
+}
+
+/// @notice Sphinx deploy for the buyback derived-floor fix. Propose per `deploy:propose:buyback-floor-fix:*`.
+contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
+    function configureSphinx() public override {
+        sphinxConfig.projectName = "v6-deployment";
+        sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
+        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
+    }
+
+    function run() public {
+        if (safeAddress() != _EXPECTED_SAFE) {
+            revert BuybackFloorFix_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
+        }
+        _setupChainAddresses();
+        _loadCoreDeploymentAddresses();
+        if (_shouldDeployUniswapStack()) _loadBuybackDeploymentAddresses();
+
+        // Surface a skipped price-feed chain here rather than inside the broadcast body, which stays free of
+        // non-broadcast calls.
+        (, bool feedAvailable) = _usdcPerNativeFeedCtorArgs();
+        if (!feedAvailable) {
+            console.log("SKIP USDC-per-NATIVE price feed: no canonical USDC or leg feed on chain", block.chainid);
+        }
+
+        deploy();
+    }
+
+    function deploy() public sphinx {
+        _deployFloorFix();
+    }
 
     /// @notice Post-deploy address dump (no broadcast) for the focused verify/emit/distribute pipeline. Writes only
-    /// the contracts this script deploys — the new buyback hook, and the USDC-per-NATIVE ratio feed where the chain
-    /// can compose one — to `script/post-deploy/.cache/addresses-<chainId>.json` in the same `jb-v6-addresses-1`
-    /// format as `Deploy.s.sol._dumpAddresses`, so `post-deploy.sh --skip-dump` verifies and emits exactly these
+    /// the contracts this script deploys — the new buyback hook, router, and gateway, and the USDC-per-NATIVE ratio
+    /// feed where the chain can compose one — to `script/post-deploy/.cache/addresses-<chainId>.json` in the same
+    /// `jb-v6-addresses-1` format as `Deploy.s.sol._dumpAddresses`, so `post-deploy.sh --skip-dump` verifies and emits
+    /// exactly these
     /// contracts. The addresses are the deterministic CREATE2 predictions off the current artifacts. No file is
     /// written when a chain gets neither, which the focused post-deploy script reads as "nothing to do here".
     function dumpAddresses() external {
@@ -445,6 +556,20 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
                 arguments: _buybackHookCtorArgs()
             });
             vm.serializeAddress({objectKey: j, valueKey: "JBBuybackHook", value: hook});
+
+            // The router's identity follows the hook, and the gateway's follows the router.
+            (address routerTerminal,) = _isDeployed({
+                salt: _ROUTER_TERMINAL_SALT,
+                creationCode: _loadArtifact("JBRouterTerminal"),
+                arguments: _routerTerminalCtorArgs(hook)
+            });
+            vm.serializeAddress({objectKey: j, valueKey: "JBRouterTerminal", value: routerTerminal});
+            (address gateway,) = _isDeployed({
+                salt: _ROUTER_TERMINAL_GATEWAY_SALT,
+                creationCode: _loadArtifact("JBRouterTerminalGateway"),
+                arguments: _routerTerminalGatewayCtorArgs(routerTerminal)
+            });
+            vm.serializeAddress({objectKey: j, valueKey: "JBRouterTerminalGateway", value: gateway});
             anyDeployed = true;
         }
 
