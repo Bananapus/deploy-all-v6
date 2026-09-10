@@ -26,12 +26,27 @@ contract PostDeployDistributeArtifactGapTest is Test {
             _contains(distributeSource, "if (manifestEntry.repo !== 'deploy-all-v6')"),
             "source-repo project segments are only used for non deploy-all repos"
         );
+        // Every V6 repo tracks the flat deployments/<chain>/ layout; only a repo that maps to a project name in
+        // chains.json keeps the nested segment. Both branches must exist, and the flat one must be the null case.
+        assertTrue(
+            _contains(
+                distributeSource, ": path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', chain.alias, file);"
+            ),
+            "per-repo path is the flat chain path for repos mapped to null"
+        );
         assertTrue(
             _contains(
                 distributeSource,
-                "perRepoPath = path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', sphinxProject, chain.alias, file);"
+                "? path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', sphinxProject, chain.alias, file)"
             ),
-            "per-repo path keeps source-repo project segments"
+            "per-repo path keeps the project segment only for repos mapped to a project name"
+        );
+        assertTrue(_contains(chainsConfig, '"nana-router-terminal-v6": null'), "router repo maps to the flat layout");
+        assertTrue(_contains(chainsConfig, '"nana-buyback-hook-v6": null'), "buyback repo maps to the flat layout");
+        assertTrue(_contains(chainsConfig, '"nana-core-v6": null'), "core repo maps to the flat layout");
+        assertTrue(
+            _contains(chainsConfig, '"nana-project-handles-v6": "nana-project-handles-v6"'),
+            "project-handles keeps its nested layout"
         );
         assertTrue(
             _contains(distributeSource, "for (const dest of new Set([aggregatorPath, perRepoPath]))"),
