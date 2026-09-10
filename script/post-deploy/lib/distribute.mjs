@@ -4,7 +4,8 @@
 //   1. deploy-all-v6/deployments/<chain_alias>/<Contract>.json
 //      (aggregator copy — every contract on this chain in one place)
 //
-//   2. <monorepo>/<repo>/deployments/<sphinxProject>/<chain_alias>/<Contract>.json
+//   2. <monorepo>/<repo>/deployments/<chain_alias>/<Contract>.json (or deployments/<sphinxProject>/<chain_alias>/ for
+//      repos that keep the nested layout; see chains.json sphinxProjectByRepo)
 //      (per-repo copy — mirrors v5 layout so downstream tooling consumes
 //      addresses from each source repo's deployments/ directly)
 //
@@ -114,13 +115,16 @@ for (const target of targets) {
   // Per-repo destination. deploy-all-owned artifacts are already covered by the aggregator path.
   let perRepoPath = aggregatorPath;
   if (manifestEntry.repo !== 'deploy-all-v6') {
-    const sphinxProject = sphinxProjectByRepo[manifestEntry.repo];
-    if (!sphinxProject) {
-      console.warn(`  SKIP    ${target.name}: no sphinxProject mapping for repo ${manifestEntry.repo}`);
+    if (!(manifestEntry.repo in sphinxProjectByRepo)) {
+      console.warn(`  SKIP    ${target.name}: no deployments layout mapping for repo ${manifestEntry.repo}`);
       skipCount += 1;
       continue;
     }
-    perRepoPath = path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', sphinxProject, chain.alias, file);
+    // null = the flat deployments/<chain>/ layout every V6 repo tracks; a string keeps the nested v5 layout.
+    const sphinxProject = sphinxProjectByRepo[manifestEntry.repo];
+    perRepoPath = sphinxProject
+      ? path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', sphinxProject, chain.alias, file)
+      : path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', chain.alias, file);
   }
 
   let written = 0;
