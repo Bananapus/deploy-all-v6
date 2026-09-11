@@ -8,6 +8,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {JBBuybackHook} from "@bananapus/buyback-hook-v6/src/JBBuybackHook.sol";
 import {JBBuybackHookRegistry} from "@bananapus/buyback-hook-v6/src/JBBuybackHookRegistry.sol";
+import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTerminal.sol";
 import {JBRouterTerminalGateway} from "@bananapus/router-terminal-v6/src/JBRouterTerminalGateway.sol";
@@ -272,6 +273,56 @@ contract DeployBuybackFloorFixForkTest is Test {
             )
         );
         verifier.runAsOperators();
+    }
+
+    /// @notice Retiring v1 must not mask a still-selectable immediately outgoing hook after artifact distribution.
+    function test_verifierRejectsSelectablePreviousHookWhenV1IsRetired() public {
+        harness.rehearse(outgoingRouter);
+        JBBuybackHookRegistry registry = harness.buybackRegistry();
+        IJBRulesetDataHook original = IJBRulesetDataHook(_liveAddressOf("JBBuybackHook_deprecated"));
+        IJBRulesetDataHook previous = IJBRulesetDataHook(_liveAddressOf("JBBuybackHook_deprecated1"));
+        assertTrue(address(original) != address(previous), "retired generations differ");
+        assertFalse(registry.isHookAllowed(original), "v1 hook is already retired");
+        assertFalse(registry.isHookAllowed(previous), "proposal retired the immediately outgoing hook");
+
+        vm.prank(_SAFE);
+        registry.allowHook(previous);
+        assertTrue(registry.isHookAllowed(previous), "previous hook is selectable again");
+
+        VerifyBuybackFloorFix verifier = new VerifyBuybackFloorFix();
+        vm.allowCheatcodes(address(verifier));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VerifyBuybackFloorFix.VerifyBuybackFloorFix_CriticalCheckFailed.selector,
+                "old buyback hook is disallowed"
+            )
+        );
+        verifier.run();
+    }
+
+    /// @notice Retiring v1 must not mask a still-selectable immediately outgoing router after artifact distribution.
+    function test_verifierRejectsSelectablePreviousRouterWhenV1IsRetired() public {
+        harness.rehearse(outgoingRouter);
+        JBRouterTerminalRegistry registry = harness.routerRegistry();
+        IJBTerminal original = IJBTerminal(_liveAddressOf("JBRouterTerminal_deprecated"));
+        IJBTerminal previous = IJBTerminal(_liveAddressOf("JBRouterTerminal_deprecated1"));
+        assertTrue(address(original) != address(previous), "retired generations differ");
+        assertFalse(registry.isTerminalAllowed(original), "v1 router is already retired");
+        assertFalse(registry.isTerminalAllowed(previous), "proposal retired the immediately outgoing router");
+
+        vm.prank(_SAFE);
+        registry.allowTerminal(previous);
+        assertTrue(registry.isTerminalAllowed(previous), "previous router is selectable again");
+
+        VerifyBuybackFloorFix verifier = new VerifyBuybackFloorFix();
+        vm.allowCheatcodes(address(verifier));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                VerifyBuybackFloorFix.VerifyBuybackFloorFix_CriticalCheckFailed.selector,
+                "old router terminal is disallowed"
+            )
+        );
+        verifier.run();
     }
 
     function _fundPayer(uint256 amount) internal {

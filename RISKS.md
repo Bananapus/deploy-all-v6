@@ -21,6 +21,8 @@ For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
 
 The floor-fix rollout uses a guarded migration script on existing registries; its replay rules differ from the full-stack fresh-salt deployment below. Verify the ratio feed's USD-per-NATIVE numerator and USD-per-USDC denominator, both project-0 USDC pricing pairs, and the gateway's immutable raw router. Selecting the raw router bypasses custody. Preserve every `_deprecated*.json` generation and distribute into the flat V6 sibling paths, or downstream address/ABI generation can silently retain stale data.
 
+The floor-fix verifier must check retirement of the immediately outgoing 1.1.1 hook and router. After canonical artifacts move to the new stack, resolve those previous implementations from `_deprecated1.json`, falling back to `_deprecated.json` only for the earlier single-history layout. Checking only the oldest v1 records could report success while the outgoing implementations remain selectable. Retiring an implementation blocks new selections; existing project pins and historical cohorts still require their own authorized migrations.
+
 ## 1. Trust assumptions
 
 1. **Sphinx Platform and deployment operator** -- Deployment is orchestrated via Sphinx proposals. Sphinx controls execution order, gas management, and atomicity per chain, and `Deploy.s.sol` assigns ownership to the Sphinx Safe (`safeAddress()`). If a proposal is interrupted, recovery is to bump the deployment nonce in `Deploy.s.sol` and redeploy from fresh salts via the same Safe identity, then verify. The main trust assumption is therefore that operators propose and re-propose from the correct Safe and do not replay stale salts against dirty on-chain state.
