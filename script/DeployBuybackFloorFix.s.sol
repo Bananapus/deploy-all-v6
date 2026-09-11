@@ -208,6 +208,18 @@ abstract contract BuybackFloorFixBase is Script {
         _oldRouterTerminal = JBRouterTerminal(payable(_deploymentAddressOf("JBRouterTerminal")));
     }
 
+    /// @notice The most recently retired record for `name`: the highest `_deprecatedN` file present, or zero when
+    /// nothing has been retired yet. Distribution keeps every retired generation (`_deprecated`, `_deprecated1`, ...)
+    /// so the immediately previous deployment is always the highest suffix.
+    function _latestRetiredDeploymentAddressOf(string memory name) internal view returns (address addr) {
+        for (uint256 i;; i++) {
+            string memory suffix = i == 0 ? "_deprecated" : string.concat("_deprecated", vm.toString(i));
+            string memory path = string.concat("deployments/", _chainFolder(), "/", name, suffix, ".json");
+            if (!vm.exists(path)) return addr;
+            addr = vm.readFile(path).readAddress(".address");
+        }
+    }
+
     function _deploymentAddressOf(string memory name) internal view returns (address addr) {
         string memory path = string.concat("deployments/", _chainFolder(), "/", name, ".json");
         string memory json = vm.readFile(path);

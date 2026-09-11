@@ -23,6 +23,12 @@ contract BuybackFloorFixRehearsalHarness is BuybackFloorFixBase {
         _setupChainAddresses();
         _loadCoreDeploymentAddresses();
         _loadBuybackDeploymentAddresses();
+        // Once the rollout's records are distributed, the canonical router record names the NEW router, which has
+        // no code at this pre-rollout fork block. The proposal being rehearsed ran against the previous router, so
+        // read that one from the newest retired record instead.
+        if (address(_oldRouterTerminal).code.length == 0) {
+            _oldRouterTerminal = JBRouterTerminal(payable(_latestRetiredDeploymentAddressOf("JBRouterTerminal")));
+        }
         _deployFloorFix();
     }
 
@@ -91,7 +97,8 @@ contract DeployBuybackFloorFixForkTest is Test {
 
     function test_deploysAndWiresTheGatewayGraphOnTheExistingRegistry() public {
         address registryBefore = _liveAddressOf("JBRouterTerminalRegistry");
-        address oldRouterBefore = _liveAddressOf("JBRouterTerminal");
+        // The router the registry served at this pre-rollout block is the one the proposal retires.
+        address oldRouterBefore = address(JBRouterTerminalRegistry(payable(registryBefore)).defaultTerminal());
 
         harness.rehearse();
 
@@ -103,7 +110,7 @@ contract DeployBuybackFloorFixForkTest is Test {
 
         // The registry is the one REVDeployer pins; nothing here may replace it.
         assertEq(address(registry), registryBefore, "registry must be reused, never redeployed");
-        assertEq(address(oldRouter), oldRouterBefore, "outgoing router is the canonical deployment record");
+        assertEq(address(oldRouter), oldRouterBefore, "outgoing router is the one the registry served before");
 
         // Fresh contracts, new addresses.
         assertTrue(address(newHook).code.length != 0, "new buyback hook deployed");

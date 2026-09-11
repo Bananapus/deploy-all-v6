@@ -85,7 +85,7 @@ contract VerifyBuybackFloorFix is BuybackFloorFixBase {
         });
         _newBuybackHook = JBBuybackHook(payable(hook));
         if (address(_oldBuybackHook) == address(_newBuybackHook)) {
-            _oldBuybackHook = JBBuybackHook(payable(_optionalDeploymentAddressOf("JBBuybackHook_deprecated")));
+            _oldBuybackHook = JBBuybackHook(payable(_latestRetiredDeploymentAddressOf("JBBuybackHook")));
         }
 
         (address routerTerminal,) = _isDeployed({
@@ -95,7 +95,7 @@ contract VerifyBuybackFloorFix is BuybackFloorFixBase {
         });
         _newRouterTerminal = JBRouterTerminal(payable(routerTerminal));
         if (address(_oldRouterTerminal) == address(_newRouterTerminal)) {
-            _oldRouterTerminal = JBRouterTerminal(payable(_optionalDeploymentAddressOf("JBRouterTerminal_deprecated")));
+            _oldRouterTerminal = JBRouterTerminal(payable(_latestRetiredDeploymentAddressOf("JBRouterTerminal")));
         }
 
         (address gateway,) = _isDeployed({
@@ -106,8 +106,7 @@ contract VerifyBuybackFloorFix is BuybackFloorFixBase {
         _gateway = JBRouterTerminalGateway(payable(gateway));
     }
 
-    /// @notice A deployment record that may legitimately be absent, such as a `_deprecated` copy before the first
-    /// artifact distribution.
+    /// @notice A deployment record that may legitimately be absent, such as the registry on a chain without it.
     function _optionalDeploymentAddressOf(string memory name) internal view returns (address) {
         string memory path = string.concat("deployments/", _chainFolder(), "/", name, ".json");
         if (!vm.exists(path)) return address(0);
