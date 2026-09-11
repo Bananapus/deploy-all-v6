@@ -88,7 +88,7 @@ The test suite is fork-heavy and exercises realistic multi-repo compositions rat
 
 ## Deployment notes
 
-The [floor-fix runbook](./DEPLOY.md#post-launch-buyback-floor-fix--router-gateway) covers the staged rollout. Canonical records contain the new hook, router, gateway, and ratio feed on Sepolia, Base Sepolia, and Arbitrum Sepolia; OP Sepolia has the feed only. Mainnet records retain the previous stack until each chain's proposal executes and its artifacts are distributed. A proposal or a new npm version must not activate an unexecuted mainnet route in a client.
+The [floor-fix runbook](./DEPLOY.md#post-launch-buyback-floor-fix--router-gateway) covers the executed rollout. Canonical records contain the new hook, router, gateway, and ratio feed on Ethereum, Optimism, Base, Arbitrum, Sepolia, Base Sepolia, and Arbitrum Sepolia; OP Sepolia has the feed only. The four mainnet executions are recorded with their receipts, and the outgoing stack remains in retired artifacts. Consumers activate each chain from those executed records and the project's live registry selection; a proposal or a new npm version alone does not establish a route.
 
 Consumers should read `deployments/<chain>/<Contract>.json`, including its ABI and receipt, or the matching flat records in each sibling package. Preserve `_deprecated.json`, `_deprecated1.json`, and later numbered retirements for existing project resolution and historical decoding. Check `hookOf(projectId)` and `terminalOf(projectId)` for the actual project configuration; the infra migration moves project 1, while projects 2–7 need their operators' migration transactions.
 

@@ -167,7 +167,7 @@ pnpm deploy:propose:lp-split-hook-fix:mainnets
 
 Every step is guarded by current on-chain state, so re-proposing is a no-op. Projects 2-7 keep resolving to the outgoing hook and router until their operators migrate them (`setHookFor` + `setPoolFor` + `setTerminalFor`).
 
-The checked-in deployment records contain this rollout on Sepolia, Base Sepolia, and Arbitrum Sepolia, plus the feed-only OP Sepolia deployment. Mainnet rollout remains pending until each proposal executes and its receipts are verified and distributed; the mainnet canonical files therefore still identify the previous stack. Keep any proposed addresses separate from deployed records and enable clients per chain from executed artifacts and registry resolution.
+The checked-in deployment records contain this rollout on Ethereum, Optimism, Base, Arbitrum, Sepolia, Base Sepolia, and Arbitrum Sepolia, plus the feed-only OP Sepolia deployment. All four mainnet executions have canonical receipts; their outgoing hook/router records are preserved as `_deprecated1`. Enable clients per chain from these executed artifacts and live registry resolution. A deployment/default change does not establish that every existing project has migrated.
 
 Project 1's existing V4 pool is registered on the new hook with its live fee/tick spacing and a 1,800-second TWAP window. Its pool liquidity and oracle history remain in V4. Operator migrations use `setPoolFor` for that already-initialized pool; they must not initialize it again. A default change or disallow action does not migrate historical cohorts or override project locks.
 
