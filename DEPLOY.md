@@ -159,13 +159,21 @@ pnpm deploy:propose:lp-split-hook-fix:mainnets
 
 `script/DeployBuybackFloorFix.s.sol` is the second post-launch migration of the Uniswap-facing stack. One infra Safe proposal per chain:
 
-- registers the missing project-0 USDC-per-NATIVE price feeds (every chain, OP Sepolia included);
+- registers a ratio feed for the missing project-0 USDC-per-NATIVE and USDC-per-ETH pairs (every chain, OP Sepolia included), dividing the live USD-per-NATIVE wrapper by the live USD-per-USDC wrapper;
 - deploys `JBBuybackHook` 1.4.0 (derived-floor fix + payer `skipSplits`), makes it the buyback registry default, pins project 1 to it, and disallows the outgoing hook;
 - deploys `JBRouterTerminal` 1.3.0 bound to that hook, copying the live router's WETH and V3 factory wiring and reusing the live `JBUniswapV4Hook`;
 - deploys `JBRouterTerminalGateway` in front of it, which takes custody of a routed payment before the atomic router call and retains the input when a fee or protocol-payer route fails instead of letting core forgive it;
 - on the existing `JBRouterTerminalRegistry` (never redeployed: `REVDeployer` pins it), makes the gateway the default, pins project 1 to it, and disallows the outgoing router. The raw router is never selectable.
 
 Every step is guarded by current on-chain state, so re-proposing is a no-op. Projects 2-7 keep resolving to the outgoing hook and router until their operators migrate them (`setHookFor` + `setPoolFor` + `setTerminalFor`).
+
+The checked-in deployment records contain this rollout on Sepolia, Base Sepolia, and Arbitrum Sepolia, plus the feed-only OP Sepolia deployment. Mainnet rollout remains pending until each proposal executes and its receipts are verified and distributed; the mainnet canonical files therefore still identify the previous stack. Keep any proposed addresses separate from deployed records and enable clients per chain from executed artifacts and registry resolution.
+
+Project 1's existing V4 pool is registered on the new hook with its live fee/tick spacing and a 1,800-second TWAP window. Its pool liquidity and oracle history remain in V4. Operator migrations use `setPoolFor` for that already-initialized pool; they must not initialize it again. A default change or disallow action does not migrate historical cohorts or override project locks.
+
+Integrators must encode a present buyback `"pay"` quote as three words `(amountToSwapWith, minimumSwapAmountOut, skipSplits)`; the old two-word entry reverts on the new hook. An omitted entry keeps programmatic payments honoring reserved splits. A swap below a derived floor unwinds and falls back to minting, while explicit minima remain hard settlement floors. The router's own `(tokenOut, minAmountOut)` swap quote is a separate metadata entry.
+
+Gateway custody applies only to eligible failed calls with exact raw source-project metadata and, for payments, a zero minimum; ordinary user payments still fail synchronously. Preserve the gateway ABI and queue-event payloads so clients can distinguish retained inputs, retries, settlement, and source-project refunds. A queued fee is not collected revenue or a core-forgiven fee. See the router package's `ARCHITECTURE.md` and `RISKS.md` for qualification and refund rules.
 
 ```bash
 npm run artifacts            # buyback-hook-v6 1.4.0, router-terminal-v6 1.3.0, core-v6 with JBRatioPriceFeed
@@ -190,11 +198,13 @@ npm run deploy:verify:buyback-floor-fix -- --rpc-url <RPC_URL> -vvv
 
 It confirms the project-0 feeds, the new hook and router and gateway deployed and wired, the registry defaults and project 1 moved, the old hook and router disallowed, and the raw router unselectable. On OP Sepolia it checks the feeds and that the registry still has no router. After the operators of projects 2-7 execute their `setHookFor` + `setPoolFor` + `setTerminalFor` transactions, rerun it with `VERIFY_FLOOR_FIX_OPERATORS=true` to confirm those projects resolve to the new hook and the gateway.
 
-Distribution keeps the outgoing `JBBuybackHook.json` and `JBRouterTerminal.json` as `<Name>_deprecated.json` next to the new canonical files. `script/Verify.s.sol` then expects the registry default and project 1 on the gateway (`VERIFY_ROUTER_TERMINAL_GATEWAY`), the gateway bound to the router and the router to the canonical hook, and the raw and previous routers unselectable. Until operators migrate projects 2-7, set `VERIFY_ROUTER_TERMINAL_PREVIOUS` to the retired router so their unchanged pins verify; it is never accepted for project 1.
+Distribution preserves each outgoing canonical file at the first available `<Name>_deprecated.json`, `<Name>_deprecated1.json`, `<Name>_deprecated2.json`, and so on. For this rollout, `_deprecated.json` remains the original 1.0.x generation and `_deprecated1.json` preserves the outgoing 1.1.1 hook/router on migrated chains. `script/Verify.s.sol` then expects the registry default and project 1 on the gateway (`VERIFY_ROUTER_TERMINAL_GATEWAY`), the gateway bound to the router and the router to the canonical hook, and the raw and previous routers unselectable. Until operators migrate projects 2-7, set `VERIFY_ROUTER_TERMINAL_PREVIOUS` to the retired router so their unchanged pins verify; it is never accepted for project 1.
 
 The proposal is rehearsed end to end on a Base fork by `test/fork/DeployBuybackFloorFix.fork.t.sol`.
 
 ### Post-launch TWAP oracle upgrade
+
+This is the earlier migration that introduced the outgoing hook/router generation. For the latest replacement and gateway rollout, use the buyback floor-fix section above. The two-day TWAP verification in this section describes that earlier hook's configuration; the floor-fix migration registers project 1's pool on the new hook with a 30-minute window.
 
 `script/DeployTwapOracleUpgrade.s.sol` is a post-launch migration script for replacing the Uniswap V4 oracle-dependent contracts without redeploying the full protocol. Before proposing it, rebuild `artifacts/` from package versions that include the matching TWAP/coverage changes in `univ4-router-v6`, `nana-buyback-hook-v6`, and `nana-router-terminal-v6`.
 
@@ -283,7 +293,7 @@ What it does, per chain:
 3. **Emit artifacts.** Produces v5-compatible `sphinx-sol-ct-artifact-1` JSON per contract (same schema as `nana-core-v5/deployments/...`, **minus** `merkleRoot` since we're not Sphinx-managed). Fields: `address`, `sourceName`, `contractName`, `chainId` (hex), `abi`, `args`, `solcInputHash`, `receipt`, `bytecode`, `deployedBytecode`, `metadata`, `gitCommit`, `gitDirty`, `history`. Tab-indented to match v5 byte-for-byte (gitDirty surfaces source-tree provenance per artifact, not just in the sidecar manifest).
 4. **Distribute.** Copies each artifact to:
    - `deploy-all-v6/deployments/<chain_alias>/<Contract>.json` (aggregator)
-   - `<repo>/deployments/<sphinxProject>/<chain_alias>/<Contract>.json` (per-repo, mirrors v5)
+   - `<repo>/deployments/<chain_alias>/<Contract>.json` (flat per-repo V6 layout; `sphinxProjectByRepo` in `script/post-deploy/chains.json` is `null` for these repos)
 
 All four steps are idempotent. Reruns skip already-verified contracts via `.cache/status-<chainId>.json`. The compile-settings manifest is at `artifacts/artifacts.manifest.json` (regenerated by `./script/build-artifacts.sh`).
 
@@ -291,9 +301,9 @@ All four steps are idempotent. Reruns skip already-verified contracts via `.cach
 
 - **Runtime address dump (per chain):** `script/post-deploy/.cache/addresses-<chainId>.json` — every deployed contract's CREATE2 address, emitted by the dump step (and by a no-broadcast `Deploy.s.sol` run). This is the working cache the verifier and distribute step read from.
 - **Canonical published tree (aggregator):** `deployments/<chain_alias>/<Contract>.json` in this repo — one artifact JSON per contract, copied here by the distribute step.
-- **Per-repo mirrors:** `<sibling-repo>/deployments/<sphinxProject>/<chain_alias>/<Contract>.json` (e.g. `nana-core-v6/deployments/<chain_alias>/...`), mirroring the v5 layout.
+- **Per-repo mirrors:** `<sibling-repo>/deployments/<chain_alias>/<Contract>.json` (e.g. `nana-core-v6/deployments/<chain_alias>/...`). A non-null `sphinxProjectByRepo` entry supports a legacy nested layout; current V6 mappings use the flat tree consumed by clients and SDK generators.
 
-V6 is currently **testnet-only** — the published `deployments/` tree contains only the Sepolia aliases (`sepolia`, `optimism_sepolia`, `base_sepolia`, `arbitrum_sepolia`). No mainnet addresses are published yet.
+The published tree contains both mainnet aliases (`ethereum`, `optimism`, `base`, `arbitrum`) and Sepolia aliases (`sepolia`, `optimism_sepolia`, `base_sepolia`, `arbitrum_sepolia`). Rollout generations differ per chain: inspect each canonical record and receipt rather than inferring deployment from the package version, a proposal, or another chain's artifacts. Keep all `_deprecated*.json` records for historical decoding and projects still using older implementations.
 
 #### Required env vars
 
@@ -332,7 +342,7 @@ Rehearsal flow (only for local testing on a fork):
 ./script/post-deploy.sh --chains=ethereum --rehearsal
 ```
 
-`gitDirty: true` entries are also surfaced inside every emitted artifact JSON (not just the sidecar manifest), so any downstream consumer of `deployments/<repo>/<chain>/<Contract>.json` can detect non-canonical builds without cross-referencing the manifest.
+`gitDirty: true` entries are also surfaced inside every emitted artifact JSON (not just the sidecar manifest), so any downstream consumer of `<repo>/deployments/<chain>/<Contract>.json` can detect non-canonical builds without cross-referencing the manifest.
 
 Source repos compile with `bytecode_hash = "none"` in their `foundry.toml` so the deployed runtime code is byte-equal to the artifact's `deployedBytecode.object`. This lets the verifier compare `extcodehash` directly against the artifact's runtime code hash; without `bytecode_hash = "none"`, solc embeds a per-build IPFS metadata hash in the trailing bytes which makes two byte-identical source compiles produce different on-chain code hashes.
 
