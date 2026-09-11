@@ -19,10 +19,13 @@ import {VerifyBuybackFloorFix} from "../../script/VerifyBuybackFloorFix.s.sol";
 /// @notice Runs the whole proposal body, Sphinx-free. Its code is etched over the infra Safe so every call it makes
 /// comes from the Safe: the registry owner, the router's one-shot deployer, and project 1's operator.
 contract BuybackFloorFixRehearsalHarness is BuybackFloorFixBase {
-    function rehearse() external {
+    function rehearse(address outgoingRouter) external {
         _setupChainAddresses();
         _loadCoreDeploymentAddresses();
         _loadBuybackDeploymentAddresses();
+        // The fork rehearses the original proposal against its historical outgoing router. Canonical deployment
+        // records now describe the production successor, which did not exist at the pinned fork block.
+        _oldRouterTerminal = JBRouterTerminal(payable(outgoingRouter));
         _deployFloorFix();
     }
 
@@ -77,13 +80,23 @@ contract DeployBuybackFloorFixForkTest is Test {
     address internal constant _SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
     address internal constant _USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     uint256 internal constant _FEE_PROJECT_ID = 1;
-    uint256 internal constant _BLOCK = 51_005_824;
+    string internal constant _FORK_FIXTURE = "test/fixtures/buyback-floor-fix/base-before-rollout.json";
 
     BuybackFloorFixRehearsalHarness internal harness;
+    address internal outgoingRouter;
     address internal payer = makeAddr("payer");
 
     function setUp() public {
-        vm.createSelectFork("base", _BLOCK);
+        string memory fixture = vm.readFile(_FORK_FIXTURE);
+        vm.createSelectFork("base", fixture.readUint(".forkBlock"));
+        assertEq(block.chainid, fixture.readUint(".chainId"), "fixture matches the fork chain");
+        outgoingRouter = fixture.readAddress(".routerTerminal");
+        assertGt(outgoingRouter.code.length, 0, "historical outgoing router exists at the fork block");
+        assertEq(
+            address(JBRouterTerminalRegistry(payable(_liveAddressOf("JBRouterTerminalRegistry"))).defaultTerminal()),
+            outgoingRouter,
+            "fixture matches the pre-rollout registry default"
+        );
         vm.etch(_SAFE, address(new BuybackFloorFixRehearsalHarness()).code);
         vm.allowCheatcodes(_SAFE);
         harness = BuybackFloorFixRehearsalHarness(_SAFE);
@@ -91,9 +104,9 @@ contract DeployBuybackFloorFixForkTest is Test {
 
     function test_deploysAndWiresTheGatewayGraphOnTheExistingRegistry() public {
         address registryBefore = _liveAddressOf("JBRouterTerminalRegistry");
-        address oldRouterBefore = _liveAddressOf("JBRouterTerminal");
+        address oldRouterBefore = outgoingRouter;
 
-        harness.rehearse();
+        harness.rehearse(outgoingRouter);
 
         JBRouterTerminalRegistry registry = harness.routerRegistry();
         JBRouterTerminal newRouter = harness.newRouterTerminal();
@@ -103,13 +116,18 @@ contract DeployBuybackFloorFixForkTest is Test {
 
         // The registry is the one REVDeployer pins; nothing here may replace it.
         assertEq(address(registry), registryBefore, "registry must be reused, never redeployed");
-        assertEq(address(oldRouter), oldRouterBefore, "outgoing router is the canonical deployment record");
+        assertEq(address(oldRouter), oldRouterBefore, "outgoing router is the historical deployment record");
 
         // Fresh contracts, new addresses.
         assertTrue(address(newHook).code.length != 0, "new buyback hook deployed");
         assertTrue(address(newRouter).code.length != 0, "new router deployed");
         assertTrue(address(gateway).code.length != 0, "gateway deployed");
         assertTrue(address(newRouter) != address(oldRouter), "router is replaced, not reused");
+
+        // The historical rehearsal must reproduce the contracts recorded by the executed production rollout.
+        assertEq(address(newHook), _liveAddressOf("JBBuybackHook"), "hook matches the executed artifact");
+        assertEq(address(newRouter), _liveAddressOf("JBRouterTerminal"), "router matches the executed artifact");
+        assertEq(address(gateway), _liveAddressOf("JBRouterTerminalGateway"), "gateway matches the executed artifact");
 
         // Registry -> Gateway -> Router(new hook).
         assertEq(address(registry.defaultTerminal()), address(gateway), "registry default is the gateway");
@@ -136,10 +154,10 @@ contract DeployBuybackFloorFixForkTest is Test {
     }
 
     function test_rerunIsANoOp() public {
-        harness.rehearse();
+        harness.rehearse(outgoingRouter);
 
         vm.startStateDiffRecording();
-        harness.rehearse();
+        harness.rehearse(outgoingRouter);
         VmSafe.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
 
         for (uint256 i; i < accesses.length; i++) {
@@ -154,7 +172,7 @@ contract DeployBuybackFloorFixForkTest is Test {
     }
 
     function test_usdcFeeRoutesThroughGatewayToTheNewRouter() public {
-        harness.rehearse();
+        harness.rehearse(outgoingRouter);
         JBRouterTerminalRegistry registry = harness.routerRegistry();
         JBRouterTerminalGateway gateway = harness.gateway();
         uint256 amount = 100e6;
@@ -181,7 +199,7 @@ contract DeployBuybackFloorFixForkTest is Test {
     /// Under the gateway, every outcome of an underfunded fee call conserves the input: it settles, it is retained
     /// in custody with a pending record, or the call reverts and the payer keeps it. It is never forgiven.
     function test_underfundedUsdcFeeIsRetainedOrRevertedNeverForgiven() public {
-        harness.rehearse();
+        harness.rehearse(outgoingRouter);
         JBRouterTerminalRegistry registry = harness.routerRegistry();
         JBRouterTerminalGateway gateway = harness.gateway();
         uint256 amount = 100e6;
@@ -237,13 +255,13 @@ contract DeployBuybackFloorFixForkTest is Test {
         );
         verifier.run();
 
-        harness.rehearse();
+        harness.rehearse(outgoingRouter);
         verifier.run();
     }
 
     /// @notice Operator mode must stay red until projects 2-7 are actually migrated by their operators.
     function test_verifierOperatorModeRejectsUnmigratedProjects() public {
-        harness.rehearse();
+        harness.rehearse(outgoingRouter);
         VerifyBuybackFloorFixOperatorsHarness verifier = new VerifyBuybackFloorFixOperatorsHarness();
         vm.allowCheatcodes(address(verifier));
 

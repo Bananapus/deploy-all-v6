@@ -1,0 +1,8 @@
+{
+  "chainId": 8453,
+  "forkBlock": 51005824,
+  "sourceCommit": "8522541297557c80f8bc2dd674c3098f8849b527",
+  "sourcePath": "deployments/base/JBRouterTerminal.json",
+  "routerTerminal": "0x0fbcbb3d10c8f524840d74ef81c1a9f161c418d7",
+  "routerDeploymentBlock": 48157387
+}
