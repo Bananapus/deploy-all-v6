@@ -85,7 +85,7 @@ contract VerifyBuybackFloorFix is BuybackFloorFixBase {
         });
         _newBuybackHook = JBBuybackHook(payable(hook));
         if (address(_oldBuybackHook) == address(_newBuybackHook)) {
-            _oldBuybackHook = JBBuybackHook(payable(_optionalDeploymentAddressOf("JBBuybackHook_deprecated")));
+            _oldBuybackHook = JBBuybackHook(payable(_previousDeploymentAddressOf("JBBuybackHook")));
         }
 
         (address routerTerminal,) = _isDeployed({
@@ -95,7 +95,7 @@ contract VerifyBuybackFloorFix is BuybackFloorFixBase {
         });
         _newRouterTerminal = JBRouterTerminal(payable(routerTerminal));
         if (address(_oldRouterTerminal) == address(_newRouterTerminal)) {
-            _oldRouterTerminal = JBRouterTerminal(payable(_optionalDeploymentAddressOf("JBRouterTerminal_deprecated")));
+            _oldRouterTerminal = JBRouterTerminal(payable(_previousDeploymentAddressOf("JBRouterTerminal")));
         }
 
         (address gateway,) = _isDeployed({
@@ -104,6 +104,13 @@ contract VerifyBuybackFloorFix is BuybackFloorFixBase {
             arguments: _routerTerminalGatewayCtorArgs(routerTerminal)
         });
         _gateway = JBRouterTerminalGateway(payable(gateway));
+    }
+
+    /// @notice The implementation retired by this floor fix is 1.1.1, kept as `_deprecated1` when v1 history is
+    /// present. Fall back to `_deprecated` for the earlier layout that retained only the outgoing implementation.
+    function _previousDeploymentAddressOf(string memory name) internal view returns (address previous) {
+        previous = _optionalDeploymentAddressOf(string.concat(name, "_deprecated1"));
+        if (previous == address(0)) previous = _optionalDeploymentAddressOf(string.concat(name, "_deprecated"));
     }
 
     /// @notice A deployment record that may legitimately be absent, such as a `_deprecated` copy before the first

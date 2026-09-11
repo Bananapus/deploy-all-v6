@@ -35,6 +35,8 @@ Use this repo when the question is "does the combined deployment still work?" Do
 | --- | --- |
 | `script/Deploy.s.sol` | Main end-to-end deployment entrypoint; bump its deployment nonce to recover from an interruption by redeploying from fresh salts |
 | `script/Verify.s.sol` | Post-deploy verification checks |
+| `script/DeployBuybackFloorFix.s.sol` | Per-chain ratio-feed, buyback 1.4.0, and router 1.3.0 plus gateway migration on the existing registries |
+| `script/VerifyBuybackFloorFix.s.sol` | Read-only verification of floor-fix feed registration, immutable wiring, registry defaults, and project migration |
 | `script/LivePostDeploySmoke.s.sol` | Budgeted Sphinx proposal for live post-deploy buyback, loan, and ops smoke checks |
 
 ## Mental model
@@ -85,6 +87,10 @@ forge test --deny notes --fail-fast --summary --detailed --skip "*/script/**"
 The test suite is fork-heavy and exercises realistic multi-repo compositions rather than isolated mocks.
 
 ## Deployment notes
+
+The [floor-fix runbook](./DEPLOY.md#post-launch-buyback-floor-fix--router-gateway) covers the executed rollout. Canonical records contain the new hook, router, gateway, and ratio feed on Ethereum, Optimism, Base, Arbitrum, Sepolia, Base Sepolia, and Arbitrum Sepolia; OP Sepolia has the feed only. The four mainnet executions are recorded with their receipts, and the outgoing stack remains in retired artifacts. Consumers activate each chain from those executed records and the project's live registry selection; a proposal or a new npm version alone does not establish a route.
+
+Consumers should read `deployments/<chain>/<Contract>.json`, including its ABI and receipt, or the matching flat records in each sibling package. Preserve `_deprecated.json`, `_deprecated1.json`, and later numbered retirements for existing project resolution and historical decoding. Check `hookOf(projectId)` and `terminalOf(projectId)` for the actual project configuration; the infra migration moves project 1, while projects 2–7 need their operators' migration transactions.
 
 This repo assumes the sibling V6 packages are present and their deployment artifacts are internally consistent. Some phases are intentionally chain-dependent, including skipping parts of the Uniswap stack on networks without the required external infrastructure. `Verify.s.sol` is a deployment check, not a full runtime review.
 

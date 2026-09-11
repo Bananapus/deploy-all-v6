@@ -17,6 +17,11 @@ For protocol-level risks, see the ecosystem [RISKS.md](../RISKS.md).
 | P0 | Wrong-chain or wrong-order deployment | Project IDs, singleton wiring, and inter-repo assumptions depend on exact deployment sequence. | Fixed phase ordering, chain-specific config review, and post-deploy parity checks. |
 | P0 | Unsafe replay after partial execution | Re-running a proposal after partial CREATE2 success can collide with already-deployed contracts and leave wiring inconsistent. | Bump the deployment nonce in `Deploy.s.sol` to redeploy from fresh salts into a clean address namespace, then run `Verify.s.sol`. Operator discipline not to replay the same salts blindly. |
 | P1 | Configuration drift across supported chains | Oracle, bridge, and dependency differences can silently invalidate omnichain assumptions or leave certain features unavailable. | Chain-specific config review, skipped-phase documentation, and post-deploy smoke tests on each chain. |
+| P1 | Treating proposals as executed migrations | A client can target an undeployed gateway or assume old projects migrated when only the default changed. | Gate each chain on verified executed artifacts, resolve project hook/terminal selections, and preserve retired records. |
+
+The floor-fix rollout uses a guarded migration script on existing registries; its replay rules differ from the full-stack fresh-salt deployment below. Verify the ratio feed's USD-per-NATIVE numerator and USD-per-USDC denominator, both project-0 USDC pricing pairs, and the gateway's immutable raw router. Selecting the raw router bypasses custody. Preserve every `_deprecated*.json` generation and distribute into the flat V6 sibling paths, or downstream address/ABI generation can silently retain stale data.
+
+The floor-fix verifier must check retirement of the immediately outgoing 1.1.1 hook and router. After canonical artifacts move to the new stack, resolve those previous implementations from `_deprecated1.json`, falling back to `_deprecated.json` only for the earlier single-history layout. Checking only the oldest v1 records could report success while the outgoing implementations remain selectable. Retiring an implementation blocks new selections; existing project pins and historical cohorts still require their own authorized migrations.
 
 ## 1. Trust assumptions
 

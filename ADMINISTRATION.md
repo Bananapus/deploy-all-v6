@@ -53,6 +53,10 @@ The important admin actions here are deployment-time assignments, not runtime se
 - Rehearse the full rollout before changing owner targets or post-deploy wiring.
 - Treat changes to `safeAddress()`, revnet operator addresses, and fee-project assumptions as control-plane changes, not script refactors.
 - Keep deployment order explicit; later phases assume earlier addresses are final.
+- For `DeployBuybackFloorFix.s.sol`, verify the project-0 ratio-feed pairs and immutable legs, then the new hook/router/gateway wiring and registry selection. The Safe migrates project 1; projects 2–7 need their own operators' `setHookFor`, `setPoolFor`, and `setTerminalFor` calls, and locks remain binding.
+- Select the gateway, leaving the raw router unallowlisted. Disallowing the previous hook/router prevents new selections but preserves existing project pins and historical defaults.
+- Execute and verify each chain before distributing its canonical artifacts. The floor-fix records now include all four mainnet executions; proposed records for later rollouts must still remain separate until execution. OP Sepolia needs the feed checks even though it has no hook/router/gateway deployment.
+- Keep all `_deprecated*.json` generations and distribute V6 sibling artifacts to flat `deployments/<chain>/` paths. Regenerate consumers after the canonical receipts and ABIs land.
 
 ## Machine notes
 
@@ -76,4 +80,6 @@ The important admin actions here are deployment-time assignments, not runtime se
 
 - `script/Deploy.s.sol`
 - `script/Verify.s.sol`
+- `script/DeployBuybackFloorFix.s.sol`
+- `script/VerifyBuybackFloorFix.s.sol`
 - `test/`

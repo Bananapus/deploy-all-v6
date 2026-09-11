@@ -22,6 +22,9 @@ The V6 stack is intentionally multi-repo and cross-chain. `Deploy.s.sol` perform
 | --- | --- | --- |
 | `script/Deploy.s.sol` | Main phased rollout via Sphinx | Happy-path deployment; carries the deployment nonce that recovery bumps for a fresh-salt redeploy |
 | `script/Verify.s.sol` | Deployment verification follow-up | Sanity and consistency checks; the verification step after any deploy or redeploy |
+| `script/DeployBuybackFloorFix.s.sol` | Guarded migration on the existing registries | Composed price feed, new hook, raw router, gateway, and explicit project-1 migration |
+| `script/VerifyBuybackFloorFix.s.sol` | Read-only migration checks | Chain-local feeds, wiring, allowlists, and optional operator migration checks |
+| `script/post-deploy/lib/distribute.mjs` | Canonical artifact distribution | Flat V6 sibling paths and numbered preservation of every retired generation |
 
 ## Trust boundaries
 
@@ -52,6 +55,10 @@ operator
 ```
 
 ## Accounting model
+
+The floor-fix migration leaves the existing buyback and router registries in place because deployed consumers pin them. It registers a ratio feed on every supported chain, including OP Sepolia; on chains with the Uniswap stack it deploys the new hook, a router bound to it, and a gateway. The gateway becomes the selectable registry default and project-1 terminal; the raw router remains unselectable. Historical cohorts and explicit pins survive retirement, so projects 2–7 require operator migration.
+
+Per-chain executed artifacts are the distribution boundary. A proposal does not replace canonical records, and a testnet deployment does not activate mainnet. Preserve the original ABI/receipt in `_deprecated.json`, the next retirement in `_deprecated1.json`, and subsequent numbered files; generators consume the new canonical files and retain historical records where they decode old activity.
 
 This repo does not own protocol accounting. Its economic risk is indirect: bad deployment order or wrong constructor args can instantiate the wrong accounting system downstream.
 
