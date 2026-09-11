@@ -4,7 +4,8 @@
 //   1. deploy-all-v6/deployments/<chain_alias>/<Contract>.json
 //      (aggregator copy — every contract on this chain in one place)
 //
-//   2. <monorepo>/<repo>/deployments/<sphinxProject>/<chain_alias>/<Contract>.json
+//   2. <monorepo>/<repo>/deployments/<chain_alias>/<Contract>.json (or deployments/<sphinxProject>/<chain_alias>/ for
+//      repos that keep the nested layout; see chains.json sphinxProjectByRepo)
 //      (per-repo copy — mirrors v5 layout so downstream tooling consumes
 //      addresses from each source repo's deployments/ directly)
 //
@@ -114,20 +115,23 @@ for (const target of targets) {
   // Per-repo destination. deploy-all-owned artifacts are already covered by the aggregator path.
   let perRepoPath = aggregatorPath;
   if (manifestEntry.repo !== 'deploy-all-v6') {
-    const sphinxProject = sphinxProjectByRepo[manifestEntry.repo];
-    if (!sphinxProject) {
-      console.warn(`  SKIP    ${target.name}: no sphinxProject mapping for repo ${manifestEntry.repo}`);
+    if (!(manifestEntry.repo in sphinxProjectByRepo)) {
+      console.warn(`  SKIP    ${target.name}: no deployments layout mapping for repo ${manifestEntry.repo}`);
       skipCount += 1;
       continue;
     }
-    perRepoPath = path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', sphinxProject, chain.alias, file);
+    // null = the flat deployments/<chain>/ layout every V6 repo tracks; a string keeps the nested v5 layout.
+    const sphinxProject = sphinxProjectByRepo[manifestEntry.repo];
+    perRepoPath = sphinxProject
+      ? path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', sphinxProject, chain.alias, file)
+      : path.join(MONOREPO_ROOT, manifestEntry.repo, 'deployments', chain.alias, file);
   }
 
   let written = 0;
   for (const dest of new Set([aggregatorPath, perRepoPath])) {
     // A canonical artifact that already records a different address is the outgoing deployment. Keep it as
-    // `<Name>_deprecated.json` so the retired contract stays resolvable (its ABI, args, and receipt) after the
-    // canonical name moves on to the replacement. A previous `_deprecated` file is superseded in turn.
+    // `<Name>_deprecated.json`, or `<Name>_deprecated1.json`, `_deprecated2.json`, ... once earlier retirements
+    // occupy the lower names, so every retired generation stays resolvable (its ABI, args, and receipt).
     const outgoing = deprecatedPathFor({dest, target});
     if (DRY_RUN) {
       if (outgoing) console.log(`  would keep   ${path.relative(MONOREPO_ROOT, outgoing)}`);
@@ -147,14 +151,23 @@ console.log(`Done. ${writeCount} write(s), ${skipCount} skip(s).`);
 process.exit(skipCount > 0 ? 1 : 0);
 
 // ── helpers ──
-// The `_deprecated` destination for an existing canonical artifact whose address is about to change, or null when
-// there is nothing to keep: no file yet, a suffixed (non-canonical) name, or the same address being rewritten.
+// The next free `_deprecated` destination for an existing canonical artifact whose address is about to change, or
+// null when there is nothing to keep: no file yet, a suffixed (non-canonical) name, the same address being
+// rewritten, or the outgoing address already retired under an earlier `_deprecated` name.
 function deprecatedPathFor({dest, target}) {
   if (target.name.includes('__') || !fs.existsSync(dest)) return null;
   let existing;
   try { existing = readJson({path: dest}); } catch { return null; }
-  if (String(existing.address || '').toLowerCase() === target.address) return null;
-  return path.join(path.dirname(dest), `${target.name}_deprecated.json`);
+  const outgoing = String(existing.address || '').toLowerCase();
+  if (outgoing === target.address) return null;
+  const dir = path.dirname(dest);
+  for (let n = 0; ; n += 1) {
+    const candidate = path.join(dir, `${target.name}_deprecated${n === 0 ? '' : n}.json`);
+    if (!fs.existsSync(candidate)) return candidate;
+    let retired;
+    try { retired = readJson({path: candidate}); } catch { continue; }
+    if (String(retired.address || '').toLowerCase() === outgoing) return null;
+  }
 }
 
 function artifactNameFor({name}) {
