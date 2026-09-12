@@ -70,8 +70,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
         rulesetConfig[0].splitGroups = new JBSplitGroup[](0);
         rulesetConfig[0].fundAccessLimitGroups = new JBFundAccessLimitGroup[](0);
 
-        projectId = jbController()
-            .launchProjectFor({
+        projectId = jbController().launchProjectFor({
             owner: projectOwner,
             projectUri: "flashLoanForkTest",
             rulesetConfigurations: rulesetConfig,
@@ -118,8 +117,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
         feeRulesetConfig[0].splitGroups = new JBSplitGroup[](0);
         feeRulesetConfig[0].fundAccessLimitGroups = new JBFundAccessLimitGroup[](0);
 
-        jbController()
-            .launchProjectFor({
+        jbController().launchProjectFor({
             owner: address(420),
             projectUri: "feeCollector",
             rulesetConfigurations: feeRulesetConfig,
@@ -154,8 +152,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
 
     function _cashOut(address holder, uint256 count) internal returns (uint256 reclaimAmount) {
         vm.prank(holder);
-        reclaimAmount = jbMultiTerminal()
-            .cashOutTokensOf({
+        reclaimAmount = jbMultiTerminal().cashOutTokensOf({
             holder: holder,
             projectId: projectId,
             cashOutCount: count,
@@ -256,8 +253,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
         });
         rulesetConfig[0].fundAccessLimitGroups = fundAccessLimitGroups;
 
-        uint256 sandwichProjectId = jbController()
-            .launchProjectFor({
+        uint256 sandwichProjectId = jbController().launchProjectFor({
             owner: projectOwner,
             projectUri: "sandwichForkTest",
             rulesetConfigurations: rulesetConfig,
@@ -296,8 +292,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
 
         // Payout happens.
         vm.prank(projectOwner);
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: sandwichProjectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
@@ -307,8 +302,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
 
         // Attacker back-runs: cashes out.
         vm.prank(attacker);
-        uint256 reclaimAmount = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimAmount = jbMultiTerminal().cashOutTokensOf({
             holder: attacker,
             projectId: sandwichProjectId,
             cashOutCount: attackerTokens,
@@ -362,8 +356,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
         rulesetConfig[0].splitGroups = new JBSplitGroup[](0);
         rulesetConfig[0].fundAccessLimitGroups = new JBFundAccessLimitGroup[](0);
 
-        uint256 reservedProjectId = jbController()
-            .launchProjectFor({
+        uint256 reservedProjectId = jbController().launchProjectFor({
             owner: projectOwner,
             projectUri: "reservedForkTest",
             rulesetConfigurations: rulesetConfig,
@@ -409,8 +402,7 @@ contract FlashLoanInvariantsForkTest is TestBaseWorkflow {
 
         // Core invariant: Alice's cashOut reclaim must not exceed her original payment.
         vm.prank(alice);
-        uint256 reclaimAmount = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimAmount = jbMultiTerminal().cashOutTokensOf({
             holder: alice,
             projectId: reservedProjectId,
             cashOutCount: aliceTokens,

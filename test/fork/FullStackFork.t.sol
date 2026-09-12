@@ -91,8 +91,7 @@ contract FullStackForkTest is RevnetForkBase {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: payerTokens,
@@ -192,8 +191,7 @@ contract FullStackForkTest is RevnetForkBase {
         uint256 suckerEthBefore = sucker.balance;
 
         vm.prank(sucker);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: sucker,
             projectId: revnetId,
             cashOutCount: suckerTokens,
@@ -266,8 +264,7 @@ contract FullStackForkTest is RevnetForkBase {
 
         uint256 payerEthBefore = PAYER.balance;
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: payerTokens,
@@ -347,8 +344,7 @@ contract FullStackForkTest is RevnetForkBase {
         uint256 borrowerEthBefore = BORROWER.balance;
 
         vm.prank(BORROWER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: BORROWER,
             projectId: revnetId,
             cashOutCount: cashOutCount,

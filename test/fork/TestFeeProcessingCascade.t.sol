@@ -132,8 +132,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             fundAccessLimitGroups: limits
         });
 
-        projectId = jbController()
-            .launchProjectFor({
+        projectId = jbController().launchProjectFor({
             owner: address(this),
             projectUri: "ipfs://fee-held",
             rulesetConfigurations: rulesets,
@@ -167,8 +166,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
         uint256 feeProjectBalanceBefore =
             jbTerminalStore().balanceOf(address(jbMultiTerminal()), FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
 
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
@@ -296,8 +294,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
 
         vm.prank(PAYER);
-        uint256 reclaimed = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: payerTokens,
@@ -334,8 +331,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
         });
 
         // Send payouts of 5 ETH. Fees held (~0.125 ETH).
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
@@ -441,8 +437,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             fundAccessLimitGroups: limits
         });
 
-        uint256 projectId = jbController()
-            .launchProjectFor({
+        uint256 projectId = jbController().launchProjectFor({
             owner: address(this),
             projectUri: "ipfs://multi-fee",
             rulesetConfigurations: rulesets,
@@ -463,8 +458,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
         });
 
         // Send first payout of 5 ETH (creates first held fee).
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
@@ -476,8 +470,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
         vm.warp(block.timestamp + 1 days);
 
         // Send second payout of 3 ETH (creates second held fee with later unlock).
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 3 ether,
@@ -597,8 +590,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             fundAccessLimitGroups: limits
         });
 
-        uint256 projectId = jbController()
-            .launchProjectFor({
+        uint256 projectId = jbController().launchProjectFor({
             owner: address(this),
             projectUri: "ipfs://fee-revert-test",
             rulesetConfigurations: rulesets,
@@ -649,8 +641,7 @@ contract TestFeeProcessingCascade is RevnetForkBase {
             caller: address(0) // We don't check the exact caller.
         });
 
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,

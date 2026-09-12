@@ -115,8 +115,7 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
 
         // Sucker cashes out all tokens.
         vm.prank(MOCK_SUCKER);
-        uint256 reclaimAmount = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimAmount = jbMultiTerminal().cashOutTokensOf({
             holder: MOCK_SUCKER,
             projectId: revnetId,
             cashOutCount: suckerTokens,
@@ -175,8 +174,7 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
 
         // --- Non-sucker cashes out first ---
         vm.prank(NON_SUCKER);
-        uint256 nonSuckerReclaim = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 nonSuckerReclaim = jbMultiTerminal().cashOutTokensOf({
             holder: NON_SUCKER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -196,8 +194,7 @@ contract SuckerBuybackForkTest is EcosystemForkTest {
 
         // --- Sucker cashes out second ---
         vm.prank(MOCK_SUCKER);
-        uint256 suckerReclaim = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 suckerReclaim = jbMultiTerminal().cashOutTokensOf({
             holder: MOCK_SUCKER,
             projectId: revnetId,
             cashOutCount: cashOutCount,

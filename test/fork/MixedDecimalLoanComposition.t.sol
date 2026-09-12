@@ -223,8 +223,7 @@ contract MixedDecimalLoanCompositionTest is RevnetForkBase {
         // Approve the terminal to spend the USDC.
         usdc.approve(address(jbMultiTerminal()), amount);
         // Pay the revnet and receive project tokens in return.
-        tokensReceived = jbMultiTerminal()
-            .pay({
+        tokensReceived = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: amount,

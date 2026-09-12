@@ -199,8 +199,7 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         uint256 cashOutCount = payerBalance / 4;
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -503,8 +502,7 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         } else if (context.currency == metadata.baseCurrency) {
             adjustedIssuance = uint256(ruleset.weight);
         } else {
-            try jbPrices()
-                .pricePerUnitOf({
+            try jbPrices().pricePerUnitOf({
                 projectId: projectId,
                 pricingCurrency: context.currency,
                 unitCurrency: metadata.baseCurrency,

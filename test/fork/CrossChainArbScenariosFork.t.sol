@@ -159,8 +159,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         // Step 4: direct cashOut during delay must revert.
         vm.expectRevert(); // REVOwner_CashOutDelayNotFinished
         vm.prank(holderL);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: holderL,
             projectId: revnetL,
             cashOutCount: holderL_tokens,
@@ -199,16 +198,16 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         IJBSucker(suckerL)
             .claim(
                 JBClaim({
-                token: JBConstants.NATIVE_TOKEN,
-                leaf: JBLeaf({
-                index: 0,
-                beneficiary: bytes32(uint256(uint160(primingBeneficiary))),
-                projectTokenCount: primeTokens,
-                terminalTokenAmount: primeEth,
-                metadata: bytes32(0)
-            }),
-                proof: _emptyBranchProof()
-            })
+                    token: JBConstants.NATIVE_TOKEN,
+                    leaf: JBLeaf({
+                        index: 0,
+                        beneficiary: bytes32(uint256(uint160(primingBeneficiary))),
+                        projectTokenCount: primeTokens,
+                        terminalTokenAmount: primeEth,
+                        metadata: bytes32(0)
+                    }),
+                    proof: _emptyBranchProof()
+                })
             );
 
         uint256 surplusL_afterPrime = _terminalBalance(revnetL, JBConstants.NATIVE_TOKEN);
@@ -228,8 +227,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         // Step 8: after the delay elapses, normal operations resume on L.
         vm.warp(cashOutDelay + 1);
         vm.prank(holderL);
-        uint256 reclaimed = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
             holder: holderL,
             projectId: revnetL,
             cashOutCount: holderL_tokens,
@@ -277,8 +275,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         uint256 whaleTokens = jbTokens().totalBalanceOf(holderA, revnetR);
         uint256 whaleCashOut = (whaleTokens * 80) / 100;
         vm.prank(holderA);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: holderA,
             projectId: revnetR,
             cashOutCount: whaleCashOut,
@@ -324,16 +321,16 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
             try IJBSucker(suckerR)
                 .claim(
                     JBClaim({
-                    token: JBConstants.NATIVE_TOKEN,
-                    leaf: JBLeaf({
-                    index: leafIdx,
-                    beneficiary: bytes32(uint256(uint160(arb))),
-                    projectTokenCount: cycleTokens,
-                    terminalTokenAmount: cycleEth,
-                    metadata: bytes32(0)
-                }),
-                    proof: _emptyBranchProof()
-                })
+                        token: JBConstants.NATIVE_TOKEN,
+                        leaf: JBLeaf({
+                            index: leafIdx,
+                            beneficiary: bytes32(uint256(uint160(arb))),
+                            projectTokenCount: cycleTokens,
+                            terminalTokenAmount: cycleEth,
+                            metadata: bytes32(0)
+                        }),
+                        proof: _emptyBranchProof()
+                    })
                 ) {
                 leafIdx++;
             } catch {
@@ -427,8 +424,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         // ─────────────────────────────────────────
         vm.expectRevert();
         vm.prank(holder);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: holder,
             projectId: revnetL,
             cashOutCount: holderTokens,
@@ -476,8 +472,7 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         // Holder calls sucker.prepare(...) — this triggers sucker's internal cashOutTokensOf call which
         // bypasses the delay via _isSuckerOf in REVOwner.
         vm.prank(holder);
-        IJBSucker(suckerL)
-            .prepare({
+        IJBSucker(suckerL).prepare({
             projectTokenCount: holderTokens,
             beneficiary: bytes32(uint256(uint160(holder))),
             minTokensReclaimed: 0,
@@ -605,12 +600,12 @@ contract CrossChainArbScenariosFork is RevnetForkBase {
         JBSucker(payable(suckerAddr))
             .fromRemote(
                 JBMessageRoot({
-                version: 1,
-                token: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
-                amount: terminalTokenAmount,
-                remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
-                accounts: accounts
-            })
+                    version: 1,
+                    token: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
+                    amount: terminalTokenAmount,
+                    remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
+                    accounts: accounts
+                })
             );
 
         // Fund the sucker with bridged terminal-token amount.

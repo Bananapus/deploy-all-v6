@@ -293,8 +293,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         usdc.mint(payer, amount);
         vm.startPrank(payer);
         usdc.approve(address(jbMultiTerminal()), amount);
-        tokensReceived = jbMultiTerminal()
-            .pay({
+        tokensReceived = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: amount,
@@ -427,8 +426,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         usdc.mint(PAYER, 100e6);
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 100e6);
-        jbMultiTerminal()
-            .pay({
+        jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: 100e6,
@@ -474,8 +472,7 @@ contract CrossCurrencyForkTest is RevnetEcosystemBase {
         usdc.mint(PAYER, 100e6);
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 100e6);
-        jbMultiTerminal()
-            .pay({
+        jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: 100e6,

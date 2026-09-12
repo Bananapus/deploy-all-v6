@@ -41,8 +41,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         uint256 cashOutCount = payerTokens / 2;
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -85,8 +84,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         // Do a NORMAL cashout first to measure baseline fee accrual.
         uint256 borrowerTokens = jbTokens().totalBalanceOf(BORROWER, revnetId);
         vm.prank(BORROWER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: BORROWER,
             projectId: revnetId,
             cashOutCount: borrowerTokens / 4,
@@ -114,8 +112,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         uint256 projectBalanceBefore = _terminalBalance(revnetId, JBConstants.NATIVE_TOKEN);
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -226,8 +223,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -256,8 +252,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         if (borrowerTokens > 0) {
             uint256 borrowerEthBefore = BORROWER.balance;
             vm.prank(BORROWER);
-            jbMultiTerminal()
-                .cashOutTokensOf({
+            jbMultiTerminal().cashOutTokensOf({
                 holder: BORROWER,
                 projectId: revnetId,
                 cashOutCount: borrowerTokens / 2,
@@ -315,8 +310,7 @@ contract HookCompositionForkTest is EcosystemForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,

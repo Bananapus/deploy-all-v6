@@ -229,8 +229,7 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         uint256 splitBeneficiaryBefore = SPLIT_BENEFICIARY.balance; // record balance before payout
 
         // Send payouts denominated in USD (cross-currency: limit is USD, balance is ETH).
-        uint256 amountPaidOut = jbMultiTerminal()
-            .sendPayoutsOf({
+        uint256 amountPaidOut = jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT_USD, // $1000 USD
@@ -340,8 +339,7 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         uint256 terminalBalanceBeforeCashOut = _terminalBalance(projectId, JBConstants.NATIVE_TOKEN);
 
         vm.prank(PAYER2); // cash out as PAYER2
-        uint256 reclaimAmount = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimAmount = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER2,
             projectId: projectId,
             cashOutCount: cashOutCount,
@@ -467,8 +465,7 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         rulesets[0] = _buildRulesetConfig(address(0)); // no data hook initially
 
         // Launch the project.
-        id = jbController()
-            .launchProjectFor({
+        id = jbController().launchProjectFor({
             owner: address(this), // test contract owns the project
             projectUri: "ipfs://lifecycle-test", // project metadata URI
             rulesetConfigurations: rulesets, // initial rulesets
@@ -640,8 +637,7 @@ contract CrossFeatureLifecycleForkTest is TestBaseWorkflow {
         rulesets[0] = _buildRulesetConfig(_hookAddr); // build with the hook address
 
         // Queue the ruleset (it will start after the current ruleset's duration ends).
-        jbController()
-            .queueRulesetsOf({
+        jbController().queueRulesetsOf({
             projectId: _projectId, // for our project
             rulesetConfigurations: rulesets, // the new ruleset
             memo: "queue ruleset with 721 hook" // memo

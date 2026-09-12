@@ -503,12 +503,12 @@ abstract contract RevnetForkBase is TestBaseWorkflow {
             .setPermissionsFor(
                 account,
                 JBPermissionsData({
-                // forge-lint: disable-next-line(unsafe-typecast)
-                operator: address(LOANS_CONTRACT),
-                // forge-lint: disable-next-line(unsafe-typecast)
-                projectId: uint64(revnetId),
-                permissionIds: permissionIds
-            })
+                    // forge-lint: disable-next-line(unsafe-typecast)
+                    operator: address(LOANS_CONTRACT),
+                    // forge-lint: disable-next-line(unsafe-typecast)
+                    projectId: uint64(revnetId),
+                    permissionIds: permissionIds
+                })
             );
     }
 

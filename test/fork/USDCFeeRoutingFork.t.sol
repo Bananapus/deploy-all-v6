@@ -125,8 +125,7 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
         uint256 payerTokens = jbTokens().totalBalanceOf({holder: PAYER, projectId: revnetId});
 
         vm.prank(PAYER);
-        uint256 reclaimed = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: payerTokens,
@@ -186,14 +185,14 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
         _payRevnetUSDC({revnetId: revnetId, payer: BORROWER, amount: 5000e6});
 
         uint256 feeProjectUSDCBefore = _feeProjectUSDCBalance();
-        uint256 feeProjectUSDCCoreBefore = jbTerminalStore()
-            .balanceOf({terminal: address(jbMultiTerminal()), projectId: FEE_PROJECT_ID, token: address(usdc)});
+        uint256 feeProjectUSDCCoreBefore = jbTerminalStore().balanceOf({
+            terminal: address(jbMultiTerminal()), projectId: FEE_PROJECT_ID, token: address(usdc)
+        });
 
         vm.recordLogs();
         uint256 payerTokens = jbTokens().totalBalanceOf({holder: PAYER, projectId: revnetId});
         vm.prank(PAYER);
-        uint256 reclaimed = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: payerTokens,
@@ -210,8 +209,9 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
         // NANA (project 1) collected ZERO USDC fee — on the registry-forward terminal AND on the core terminal.
         assertEq(_feeProjectUSDCBalance(), feeProjectUSDCBefore, "fee project collects no USDC on forward terminal");
         assertEq(
-            jbTerminalStore()
-                .balanceOf({terminal: address(jbMultiTerminal()), projectId: FEE_PROJECT_ID, token: address(usdc)}),
+            jbTerminalStore().balanceOf({
+                terminal: address(jbMultiTerminal()), projectId: FEE_PROJECT_ID, token: address(usdc)
+            }),
             feeProjectUSDCCoreBefore,
             "fee project collects no USDC on the core terminal either (fee forgiven)"
         );
@@ -306,8 +306,9 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
     /// @notice The fee project's USDC balance on the registry's forward target (the second core terminal).
     /// @return balance The fee project's USDC balance where routed fees land.
     function _feeProjectUSDCBalance() internal view returns (uint256 balance) {
-        return jbTerminalStore()
-            .balanceOf({terminal: address(jbMultiTerminal2()), projectId: FEE_PROJECT_ID, token: address(usdc)});
+        return jbTerminalStore().balanceOf({
+            terminal: address(jbMultiTerminal2()), projectId: FEE_PROJECT_ID, token: address(usdc)
+        });
     }
 
     /// @notice Launch the fee project (NANA, project 1) as a plain project whose core terminal accepts only native ETH.
@@ -356,8 +357,7 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
         });
 
         vm.prank(multisig());
-        jbController()
-            .launchRulesetsFor({
+        jbController().launchRulesetsFor({
             projectId: FEE_PROJECT_ID,
             projectUri: "ipfs://fee",
             rulesetConfigurations: rulesets,
@@ -375,8 +375,7 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
         usdc.mint(payer, amount);
         vm.startPrank(payer);
         usdc.approve({spender: address(jbMultiTerminal()), value: amount});
-        tokensReceived = jbMultiTerminal()
-            .pay({
+        tokensReceived = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: amount,
@@ -393,8 +392,9 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
     /// @return balance The revnet's USDC balance on the core terminal.
     function _revnetUSDCBalance(uint256 revnetId) internal view returns (uint256 balance) {
         return
-            jbTerminalStore()
-                .balanceOf({terminal: address(jbMultiTerminal()), projectId: revnetId, token: address(usdc)});
+            jbTerminalStore().balanceOf({
+                terminal: address(jbMultiTerminal()), projectId: revnetId, token: address(usdc)
+            });
     }
 
     /// @notice Record a USDC context for the fee project on a second core terminal, then register a router-terminal
@@ -409,8 +409,7 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
         // project's native base currency. Register a USDC->native feed on the fee project so that conversion succeeds.
         IJBPriceFeed usdcFeed = IJBPriceFeed(address(new MockPriceFeed({price: 3000e18, feedDecimals: 18})));
         vm.prank(feeProjectOwner);
-        jbController()
-            .addPriceFeedFor({
+        jbController().addPriceFeedFor({
             projectId: FEE_PROJECT_ID,
             pricingCurrency: uint32(uint160(address(usdc))),
             unitCurrency: uint256(uint32(uint160(JBConstants.NATIVE_TOKEN))),
@@ -454,8 +453,7 @@ contract USDCFeeRoutingForkTest is RevnetEcosystemBase {
         // than the second terminal — exactly the production wiring where the registry fronts USDC for the fee
         // project.
         vm.prank(feeProjectOwner);
-        jbDirectory()
-            .setPrimaryTerminalOf({
+        jbDirectory().setPrimaryTerminalOf({
             projectId: FEE_PROJECT_ID, token: address(usdc), terminal: IJBTerminal(address(registry))
         });
     }

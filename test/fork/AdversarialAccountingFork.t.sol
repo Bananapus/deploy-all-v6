@@ -231,8 +231,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: limits
         });
 
-        uint256 projectId = jbController()
-            .launchProjectFor({
+        uint256 projectId = jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "ipfs://holdFees-test",
             rulesetConfigurations: rulesets,
@@ -257,8 +256,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         uint256 feeProjectBalanceBefore = _terminalBalance(FEE_PROJECT_ID, JBConstants.NATIVE_TOKEN);
 
         // Execute sendPayoutsOf (5 ETH payout limit). Fees should be HELD, not processed.
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
@@ -338,8 +336,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
 
         // Register it as the default ETH/USD feed: USD -> NATIVE_TOKEN.
         vm.prank(multisig());
-        jbPrices()
-            .addPriceFeedFor({
+        jbPrices().addPriceFeedFor({
             projectId: 0,
             pricingCurrency: USD,
             unitCurrency: NATIVE_CURRENCY,
@@ -359,8 +356,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController()
-            .launchProjectFor({
+        uint256 projectId = jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "ipfs://zero-feed",
             rulesetConfigurations: rulesets,
@@ -406,8 +402,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
 
         // Register as default feed: USD -> NATIVE_TOKEN.
         vm.prank(multisig());
-        jbPrices()
-            .addPriceFeedFor({
+        jbPrices().addPriceFeedFor({
             projectId: 0, pricingCurrency: USD, unitCurrency: NATIVE_CURRENCY, feed: IJBPriceFeed(address(priceFeed))
         });
 
@@ -424,8 +419,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController()
-            .launchProjectFor({
+        uint256 projectId = jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "ipfs://cross-currency-roundtrip",
             rulesetConfigurations: rulesets,
@@ -455,8 +449,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        uint256 reclaimAmount = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimAmount = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: projectId,
             cashOutCount: tokensReceived,
@@ -503,8 +496,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController()
-            .launchProjectFor({
+        uint256 projectId = jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "ipfs://dust-rounding",
             rulesetConfigurations: rulesets,
@@ -570,8 +562,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             uint256 attackerEthBefore = ATTACKER.balance;
 
             vm.prank(ATTACKER);
-            jbMultiTerminal()
-                .cashOutTokensOf({
+            jbMultiTerminal().cashOutTokensOf({
                 holder: ATTACKER,
                 projectId: projectId,
                 cashOutCount: attackerTotalTokens,
@@ -595,8 +586,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             uint256 honestEthBefore = HONEST_PAYER.balance;
 
             vm.prank(HONEST_PAYER);
-            jbMultiTerminal()
-                .cashOutTokensOf({
+            jbMultiTerminal().cashOutTokensOf({
                 holder: HONEST_PAYER,
                 projectId: projectId,
                 cashOutCount: honestTokens,
@@ -639,8 +629,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             uint256 previewBeneficiaryTokens,
             uint256 previewReservedTokens,
             // JBPayHookSpecification[] memory previewPayHooks
-        ) = jbMultiTerminal()
-            .previewPayFor({
+        ) = jbMultiTerminal().previewPayFor({
             projectId: revnetId, token: JBConstants.NATIVE_TOKEN, amount: 1 ether, beneficiary: PAYER, metadata: ""
         });
 
@@ -672,8 +661,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         (, // JBRuleset memory cashOutRuleset
             uint256 previewReclaim,, // uint256 previewCashOutTaxRate
             // JBCashOutHookSpecification[] memory previewCashOutHooks
-        ) = jbMultiTerminal()
-            .previewCashOutFrom({
+        ) = jbMultiTerminal().previewCashOutFrom({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -684,8 +672,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
 
         // Actually cashout.
         vm.prank(PAYER);
-        uint256 actualReclaim = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 actualReclaim = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -747,8 +734,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController()
-            .launchProjectFor({
+        uint256 projectId = jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "ipfs://multi-terminal-surplus",
             rulesetConfigurations: rulesets,
@@ -761,8 +747,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         uint32 mockTokenCurrency = uint32(uint160(address(mockToken)));
         MockPriceFeed oneToOneFeed = new MockPriceFeed(1e18, 18);
         vm.prank(multisig());
-        jbPrices()
-            .addPriceFeedFor({
+        jbPrices().addPriceFeedFor({
             projectId: 0,
             pricingCurrency: mockTokenCurrency,
             unitCurrency: NATIVE_CURRENCY,
@@ -824,8 +809,7 @@ contract AdversarialAccountingForkTest is FullStackForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: projectId,
             cashOutCount: cashOutCount,

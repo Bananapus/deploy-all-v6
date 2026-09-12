@@ -333,8 +333,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         // Approve the terminal to spend the payer's WBTC.
         wbtc.approve(address(jbMultiTerminal()), amount);
         // Execute the payment and capture the number of project tokens received.
-        tokensReceived = jbMultiTerminal()
-            .pay({
+        tokensReceived = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(wbtc),
             amount: amount,
@@ -456,8 +455,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         // Approve the terminal to spend the payer's WBTC.
         wbtc.approve(address(jbMultiTerminal()), 2e5);
         // Pay with tier metadata to trigger NFT minting.
-        uint256 tokens = jbMultiTerminal()
-            .pay({
+        uint256 tokens = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(wbtc),
             amount: 2e5, // 0.002 WBTC in 8-decimal
@@ -503,8 +501,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
 
         // Execute the cash-out, reclaiming WBTC.
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -644,8 +641,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         // Approve the terminal.
         wbtc.approve(address(jbMultiTerminal()), 2e5);
         // Pay with tier metadata.
-        jbMultiTerminal()
-            .pay({
+        jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(wbtc),
             amount: 2e5, // 0.002 WBTC
@@ -769,8 +765,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
         wbtc.mint(PAYER, 2e5);
         vm.startPrank(PAYER);
         wbtc.approve(address(jbMultiTerminal()), 2e5);
-        uint256 tokensFromNFTPay = jbMultiTerminal()
-            .pay({
+        uint256 tokensFromNFTPay = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(wbtc),
             amount: 2e5,
@@ -792,8 +787,7 @@ contract WBTC8DecimalForkTest is RevnetForkBase {
 
         // Execute the cash-out.
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,

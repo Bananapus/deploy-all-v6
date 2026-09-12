@@ -67,8 +67,7 @@ contract DefifaGameForkTest is RevnetForkBase {
 
         // CRITICAL — mirror Deploy.s.sol: the DefifaDeployer is NEVER granted SET_SPLIT_GROUPS on the DEFIFA revnet.
         assertFalse(
-            jbPermissions()
-                .hasPermission({
+            jbPermissions().hasPermission({
                 operator: address(defifaDeployer),
                 account: address(REV_OWNER),
                 projectId: defifaRevnetId,
@@ -135,8 +134,7 @@ contract DefifaGameForkTest is RevnetForkBase {
 
         // Sanity: still NO SET_SPLIT_GROUPS grant to the deployer — the fix must not depend on one.
         assertFalse(
-            jbPermissions()
-                .hasPermission({
+            jbPermissions().hasPermission({
                 operator: address(defifaDeployer),
                 account: address(REV_OWNER),
                 projectId: defifaRevnetId,

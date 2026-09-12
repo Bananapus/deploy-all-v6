@@ -183,8 +183,7 @@ contract OmnichainOperatorForkTest is RevnetForkBase {
                 JBPermissionIds.USE_ALLOWANCE
             )
         );
-        jbMultiTerminal()
-            .useAllowanceOf({
+        jbMultiTerminal().useAllowanceOf({
             projectId: victimProjectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 1 ether,

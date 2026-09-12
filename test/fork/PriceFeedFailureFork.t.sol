@@ -65,8 +65,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
 
         // Register as default feed: USD → NATIVE_TOKEN (inverse auto-calculated).
         vm.prank(multisig());
-        jbPrices()
-            .addPriceFeedFor({
+        jbPrices().addPriceFeedFor({
             projectId: 0, pricingCurrency: USD, unitCurrency: NATIVE_CURRENCY, feed: IJBPriceFeed(address(feed))
         });
 
@@ -160,8 +159,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
             fundAccessLimitGroups: groups
         });
 
-        return jbController()
-            .launchProjectFor({
+        return jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "test://price-feed-failure",
             rulesetConfigurations: rulesets,
@@ -195,8 +193,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
             fundAccessLimitGroups: groups
         });
 
-        return jbController()
-            .launchProjectFor({
+        return jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "test://same-currency",
             rulesetConfigurations: rulesets,
@@ -236,8 +233,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
         // Attempt payout — should revert because price conversion fails.
         vm.prank(PROJECT_OWNER);
         vm.expectRevert();
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 500e18, // 500 USD worth
@@ -259,8 +255,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
 
         // Same-currency payout should succeed — no price conversion needed.
         vm.prank(PROJECT_OWNER);
-        uint256 paid = jbMultiTerminal()
-            .sendPayoutsOf({
+        uint256 paid = jbMultiTerminal().sendPayoutsOf({
             projectId: sameCurrencyProject,
             token: JBConstants.NATIVE_TOKEN,
             amount: 1 ether,
@@ -285,8 +280,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
         // Cashout should revert — surplus calculation requires price conversion.
         vm.prank(PAYER);
         vm.expectRevert();
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: projectId,
             cashOutCount: tokens / 2,
@@ -310,8 +304,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
 
         vm.prank(PROJECT_OWNER);
         vm.expectRevert();
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId, token: JBConstants.NATIVE_TOKEN, amount: 500e18, currency: USD, minTokensPaidOut: 0
         });
 
@@ -320,8 +313,7 @@ contract PriceFeedFailureForkTest is TestBaseWorkflow {
 
         // Now payout should succeed.
         vm.prank(PROJECT_OWNER);
-        uint256 paid = jbMultiTerminal()
-            .sendPayoutsOf({
+        uint256 paid = jbMultiTerminal().sendPayoutsOf({
             projectId: projectId, token: JBConstants.NATIVE_TOKEN, amount: 500e18, currency: USD, minTokensPaidOut: 0
         });
         assertGt(paid, 0, "Payout should succeed after feed recovery");
