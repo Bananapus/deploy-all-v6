@@ -507,7 +507,8 @@ for entry in "${LIB_SALTS[@]}"; do
   folded_salt_input=$(cast abi-encode "f(uint256,bytes32)" "$DEPLOYMENT_NONCE" "$base_salt")
   salt=$(cast keccak "$folded_salt_input")
   initcode_hash=$(cast keccak "$bytecode")
-  addr=$(cast create2 --deployer "$CREATE2_FACTORY" --salt "$salt" --init-code-hash "$initcode_hash")
+  # cast >= 1.8 prints the salt after the address, tab-separated; keep the address only.
+  addr=$(cast create2 --deployer "$CREATE2_FACTORY" --salt "$salt" --init-code-hash "$initcode_hash" | cut -f1)
   # Lowercase, strip 0x. Solc placeholder substitution requires lowercase hex.
   addr_hex=$(echo "$addr" | sed 's/^0x//' | awk '{print tolower($0)}')
   LIB_ADDR_HEX[$libname]=$addr_hex
