@@ -197,16 +197,16 @@ contract CrossChainArbHandler is Test {
         try IJBSucker(address(SUCKER))
             .claim(
                 JBClaim({
-                token: JBConstants.NATIVE_TOKEN,
-                leaf: JBLeaf({
-                index: _leafIndex,
-                beneficiary: beneficiary,
-                projectTokenCount: tokensOnL,
-                terminalTokenAmount: amount,
-                metadata: bytes32(0)
-            }),
-                proof: proof
-            })
+                    token: JBConstants.NATIVE_TOKEN,
+                    leaf: JBLeaf({
+                        index: _leafIndex,
+                        beneficiary: beneficiary,
+                        projectTokenCount: tokensOnL,
+                        terminalTokenAmount: amount,
+                        metadata: bytes32(0)
+                    }),
+                    proof: proof
+                })
             ) {
             totalBridgedIn += amount;
             claimCalls++;
@@ -536,12 +536,12 @@ contract CrossChainArbInvariant is RevnetForkBase {
         JBSucker(payable(address(sucker)))
             .fromRemote(
                 JBMessageRoot({
-                version: 1,
-                token: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
-                amount: terminalTokenAmount,
-                remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
-                accounts: accounts
-            })
+                    version: 1,
+                    token: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
+                    amount: terminalTokenAmount,
+                    remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
+                    accounts: accounts
+                })
             );
 
         // Fund sucker with the ETH that would have ridden the bridge.

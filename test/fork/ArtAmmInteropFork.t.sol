@@ -227,8 +227,7 @@ contract ArtAmmInteropForkTest is RevnetForkBase {
 
     function _payArtRevnetUSDC(uint256 projectId, address payer, uint256 amount) internal returns (uint256 tokenCount) {
         vm.startPrank(payer);
-        tokenCount = jbMultiTerminal()
-            .pay({
+        tokenCount = jbMultiTerminal().pay({
             projectId: projectId,
             token: address(usdc),
             amount: amount,

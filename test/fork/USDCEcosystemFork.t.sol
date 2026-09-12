@@ -228,8 +228,7 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
         usdc.mint(payer, amount);
         vm.startPrank(payer);
         usdc.approve(address(jbMultiTerminal()), amount);
-        tokensReceived = jbMultiTerminal()
-            .pay({
+        tokensReceived = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: amount,
@@ -294,8 +293,7 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
         usdc.mint(PAYER, 100e6);
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 100e6);
-        uint256 tokens = jbMultiTerminal()
-            .pay({
+        uint256 tokens = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: 100e6,
@@ -423,8 +421,7 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
         usdc.mint(PAYER, 100e6);
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 100e6);
-        uint256 tokensPostAMM = jbMultiTerminal()
-            .pay({
+        uint256 tokensPostAMM = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: 100e6,
@@ -443,8 +440,7 @@ contract USDCEcosystemForkTest is RevnetEcosystemBase {
         uint256 payerUSDCBefore = usdc.balanceOf(PAYER);
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,

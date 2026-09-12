@@ -142,8 +142,7 @@ contract SuckerPrepareBuybackBypassForkTest is RevnetForkBase {
 
         vm.prank(REGULAR_HOLDER);
         vm.expectRevert(BuybackHookWasCalled.selector);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: REGULAR_HOLDER,
             projectId: revnetId,
             cashOutCount: regularHolderTokens / 2,
@@ -162,8 +161,7 @@ contract SuckerPrepareBuybackBypassForkTest is RevnetForkBase {
         IERC20(projectToken).approve(sucker, prepareCount);
 
         vm.prank(TOKEN_HOLDER);
-        IJBSucker(sucker)
-            .prepare({
+        IJBSucker(sucker).prepare({
             projectTokenCount: prepareCount,
             beneficiary: bytes32(uint256(uint160(TOKEN_HOLDER))),
             minTokensReclaimed: 0,

@@ -190,8 +190,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
             // (b) Execute payouts from A -> B (cross-project split).
             // The payout limit resets each cycle, so we can pay out up to PAYOUT_LIMIT_ETH.
             uint256 projectBBalanceBefore = _terminalBalance(projectB, JBConstants.NATIVE_TOKEN); // record B's balance
-            jbMultiTerminal()
-                .sendPayoutsOf({
+            jbMultiTerminal().sendPayoutsOf({
                 projectId: projectA,
                 token: JBConstants.NATIVE_TOKEN,
                 amount: PAYOUT_LIMIT_ETH,
@@ -220,8 +219,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
                 uint256 cashOutCount = payerTokens / 5; // 20% of holdings
                 if (cashOutCount > 0) {
                     vm.prank(PAYER); // cash out as PAYER
-                    jbMultiTerminal()
-                        .cashOutTokensOf({
+                    jbMultiTerminal().cashOutTokensOf({
                         holder: PAYER,
                         projectId: projectA,
                         cashOutCount: cashOutCount,
@@ -437,8 +435,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
         });
 
         // Launch the project.
-        id = jbController()
-            .launchProjectFor({
+        id = jbController().launchProjectFor({
             owner: address(this), // test contract owns the project
             projectUri: string.concat("ipfs://", name), // project metadata URI
             rulesetConfigurations: rulesets, // initial rulesets
@@ -475,8 +472,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
         rulesets[0] = _buildProjectARuleset(address(0)); // no data hook initially (added via queue)
 
         // Launch the project.
-        id = jbController()
-            .launchProjectFor({
+        id = jbController().launchProjectFor({
             owner: address(this), // test contract owns the project
             projectUri: "ipfs://projectA", // project metadata URI
             rulesetConfigurations: rulesets, // initial rulesets
@@ -656,8 +652,7 @@ contract LongHorizonChurnForkTest is TestBaseWorkflow {
         rulesets[0] = _buildProjectARuleset(_hookAddr); // build with the hook address
 
         // Queue the ruleset (it will start after the current ruleset's duration ends).
-        jbController()
-            .queueRulesetsOf({
+        jbController().queueRulesetsOf({
             projectId: _projectId, // for Project A
             rulesetConfigurations: rulesets, // the new ruleset
             memo: "queue ruleset with 721 hook" // memo

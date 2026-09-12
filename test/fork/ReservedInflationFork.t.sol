@@ -55,8 +55,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        uint256 reclaimAmount = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimAmount = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -162,8 +161,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         uint256 cashOutCount = tokensA / 2;
 
         // Preview cashout for revnet A (undistributed).
-        (, uint256 reclaimA,,) = jbMultiTerminal()
-            .previewCashOutFrom({
+        (, uint256 reclaimA,,) = jbMultiTerminal().previewCashOutFrom({
             holder: payerA,
             projectId: revnetA,
             cashOutCount: cashOutCount,
@@ -173,8 +171,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         });
 
         // Preview cashout for revnet B (distributed).
-        (, uint256 reclaimB,,) = jbMultiTerminal()
-            .previewCashOutFrom({
+        (, uint256 reclaimB,,) = jbMultiTerminal().previewCashOutFrom({
             holder: payerB,
             projectId: revnetB,
             cashOutCount: cashOutCount,
@@ -233,8 +230,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         // Preview cash out to capture the totalSupply used in the bonding curve calculation.
         uint256 cashOutCount = payerTokens / 2;
 
-        (, uint256 reclaimAmount,,) = jbMultiTerminal()
-            .previewCashOutFrom({
+        (, uint256 reclaimAmount,,) = jbMultiTerminal().previewCashOutFrom({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -279,8 +275,7 @@ contract ReservedInflationForkTest is EcosystemForkTest {
         // So: actualReclaim = previewReclaim - feeAmountFrom(previewReclaim, FEE)
         uint256 payerEthBefore = PAYER.balance;
         vm.prank(PAYER);
-        uint256 actualReclaim = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 actualReclaim = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,

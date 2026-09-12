@@ -356,8 +356,7 @@ contract EcosystemForkTest is RevnetEcosystemBase {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,

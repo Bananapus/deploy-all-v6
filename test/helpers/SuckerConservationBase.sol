@@ -311,8 +311,7 @@ abstract contract SuckerConservationBase is RevnetForkBase {
         usdc.mint(payer, amount);
         vm.startPrank(payer);
         usdc.approve(address(jbMultiTerminal()), amount);
-        tokens = jbMultiTerminal()
-            .pay({
+        tokens = jbMultiTerminal().pay({
             projectId: id,
             token: address(usdc),
             amount: amount,
@@ -385,12 +384,12 @@ abstract contract SuckerConservationBase is RevnetForkBase {
         JBSucker(payable(sucker))
             .fromRemote(
                 JBMessageRoot({
-                version: 1,
-                token: bytes32(uint256(uint160(token))),
-                amount: terminalTokenAmount,
-                remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
-                accounts: accounts
-            })
+                    version: 1,
+                    token: bytes32(uint256(uint160(token))),
+                    amount: terminalTokenAmount,
+                    remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
+                    accounts: accounts
+                })
             );
         _creditSuckerBridged(sucker, token, terminalTokenAmount, false);
         _relayLeafIndex[sucker][token] = index + 1;
@@ -467,16 +466,16 @@ abstract contract SuckerConservationBase is RevnetForkBase {
         IJBSucker(sucker)
             .claim(
                 JBClaim({
-                token: token,
-                leaf: JBLeaf({
-                index: index,
-                beneficiary: beneficiary,
-                projectTokenCount: projectTokenCount,
-                terminalTokenAmount: terminalTokenAmount,
-                metadata: bytes32(0)
-            }),
-                proof: _emptyBranchProof()
-            })
+                    token: token,
+                    leaf: JBLeaf({
+                        index: index,
+                        beneficiary: beneficiary,
+                        projectTokenCount: projectTokenCount,
+                        terminalTokenAmount: terminalTokenAmount,
+                        metadata: bytes32(0)
+                    }),
+                    proof: _emptyBranchProof()
+                })
             );
     }
 

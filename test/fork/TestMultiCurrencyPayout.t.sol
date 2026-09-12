@@ -122,8 +122,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
             fundAccessLimitGroups: limitGroups
         });
 
-        projectId = jbController()
-            .launchProjectFor({
+        projectId = jbController().launchProjectFor({
             owner: address(this),
             projectUri: "ipfs://mcp-test",
             rulesetConfigurations: rulesets,
@@ -199,8 +198,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
 
         // Send payouts: $5000 USD limit at $2000/ETH = 2.5 ETH.
         uint256 recipientBefore = SPLIT_RECIPIENT.balance;
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId, token: JBConstants.NATIVE_TOKEN, amount: 5000e18, currency: USD, minTokensPaidOut: 0
         });
 
@@ -294,8 +292,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
             fundAccessLimitGroups: limits
         });
 
-        uint256 projectId = jbController()
-            .launchProjectFor({
+        uint256 projectId = jbController().launchProjectFor({
             owner: address(this),
             projectUri: "ipfs://mcp-usdc",
             rulesetConfigurations: rulesets,
@@ -306,8 +303,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
         // Pay 10,000 USDC.
         vm.startPrank(PAYER);
         usdc.approve(address(jbMultiTerminal()), 10_000e6);
-        jbMultiTerminal()
-            .pay({
+        jbMultiTerminal().pay({
             projectId: projectId,
             token: address(usdc),
             amount: 10_000e6,
@@ -323,8 +319,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
 
         // Send payouts: 5000 USDC payout limit, same currency as accounting context.
         uint256 recipientBefore = usdc.balanceOf(SPLIT_RECIPIENT);
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId, token: address(usdc), amount: 5000e6, currency: usdcCurrency, minTokensPaidOut: 0
         });
 
@@ -396,8 +391,7 @@ contract TestMultiCurrencyPayout is RevnetForkBase {
         usdc.mint(payer2, 2000e6);
         vm.startPrank(payer2);
         usdc.approve(address(jbMultiTerminal()), 2000e6);
-        uint256 tokensFromUSDC = jbMultiTerminal()
-            .pay({
+        uint256 tokensFromUSDC = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: 2000e6,

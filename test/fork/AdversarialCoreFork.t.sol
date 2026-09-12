@@ -157,8 +157,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        projectId = jbController()
-            .launchProjectFor({
+        projectId = jbController().launchProjectFor({
             owner: owner,
             projectUri: "ipfs://adversarial",
             rulesetConfigurations: rulesetConfigs,
@@ -250,8 +249,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
             fundAccessLimitGroups: fundAccessLimitGroups
         });
 
-        projectId = jbController()
-            .launchProjectFor({
+        projectId = jbController().launchProjectFor({
             owner: owner,
             projectUri: "ipfs://adversarial-split",
             rulesetConfigurations: rulesetConfigs,
@@ -430,8 +428,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         emit log_named_uint("Surplus before cashout", surplusBefore);
 
         vm.prank(ACCOMPLICE);
-        uint256 reclaimed = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
             holder: ACCOMPLICE,
             projectId: projectId,
             cashOutCount: accompliceTokens,
@@ -533,8 +530,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         emit log_named_uint("Terminal balance before payout", terminalBalBefore);
 
         // Step 6: Trigger payouts -- the hook will receive its share and try to cashOut PAYER2's tokens.
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 3 ether,
@@ -611,8 +607,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 payer2EthBefore = PAYER2.balance;
 
         vm.prank(PAYER2);
-        uint256 reclaimScenarioA = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimScenarioA = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER2,
             projectId: revnetId,
             cashOutCount: payer2Tokens,
@@ -637,8 +632,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        uint256 payerReclaim = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 payerReclaim = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: payerTokens,
@@ -659,8 +653,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         payer2EthBefore = PAYER2.balance;
 
         vm.prank(PAYER2);
-        uint256 reclaimScenarioB = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimScenarioB = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER2,
             projectId: revnetId,
             cashOutCount: payer2Tokens,
@@ -777,8 +770,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 latePayerEthBefore = latePayer.balance;
 
         vm.prank(latePayer);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: latePayer,
             projectId: revnetId,
             cashOutCount: latePayerTokens,
@@ -796,8 +788,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 exactPayerEthBefore = exactPayer.balance;
 
         vm.prank(exactPayer);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: exactPayer,
             projectId: revnetId,
             cashOutCount: exactPayerTokens,
@@ -850,8 +841,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         uint256 feePayerEthBefore = feePayer.balance;
 
         vm.prank(feePayer);
-        uint256 normalReclaim = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 normalReclaim = jbMultiTerminal().cashOutTokensOf({
             holder: feePayer,
             projectId: revnetId,
             cashOutCount: halfTokens,
@@ -893,8 +883,7 @@ contract AdversarialCoreForkTest is FullStackForkTest {
         emit log_named_uint("Fee project balance before mocked cashout", feeProjectBalBeforeMocked);
 
         vm.prank(feePayer);
-        uint256 mockedReclaim = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 mockedReclaim = jbMultiTerminal().cashOutTokensOf({
             holder: feePayer,
             projectId: revnetId,
             cashOutCount: remainingTokens,

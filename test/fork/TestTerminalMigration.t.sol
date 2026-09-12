@@ -133,8 +133,7 @@ contract TestTerminalMigration is RevnetForkBase {
             fundAccessLimitGroups: limits
         });
 
-        projectId = jbController()
-            .launchProjectFor({
+        projectId = jbController().launchProjectFor({
             owner: address(this),
             projectUri: "ipfs://mig-test",
             rulesetConfigurations: rulesets,
@@ -155,12 +154,12 @@ contract TestTerminalMigration is RevnetForkBase {
             .setPermissionsFor(
                 address(this),
                 JBPermissionsData({
-                // forge-lint: disable-next-line(unsafe-typecast)
-                operator: address(LOANS_CONTRACT),
-                // forge-lint: disable-next-line(unsafe-typecast)
-                projectId: uint64(projectId),
-                permissionIds: loanPermissionIds
-            })
+                    // forge-lint: disable-next-line(unsafe-typecast)
+                    operator: address(LOANS_CONTRACT),
+                    // forge-lint: disable-next-line(unsafe-typecast)
+                    projectId: uint64(projectId),
+                    permissionIds: loanPermissionIds
+                })
             );
     }
 

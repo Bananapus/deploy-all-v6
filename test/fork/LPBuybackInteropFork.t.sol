@@ -483,8 +483,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        uint256 reclaimed = jbMultiTerminal()
-            .cashOutTokensOf({
+        uint256 reclaimed = jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: payerTokens / 2,
@@ -570,8 +569,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        uint256 projectId = jbController()
-            .launchProjectFor({
+        uint256 projectId = jbController().launchProjectFor({
             owner: address(this),
             projectUri: "ipfs://standalone",
             rulesetConfigurations: rulesetConfigs,
@@ -635,8 +633,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         uint256 payerEthBefore = PAYER.balance;
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: projectId,
             cashOutCount: payerTokens / 4,

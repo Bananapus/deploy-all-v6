@@ -348,12 +348,12 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
         JBSucker(payable(address(sucker)))
             .fromRemote(
                 JBMessageRoot({
-                version: 1,
-                token: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
-                amount: terminalTokenAmount,
-                remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
-                accounts: accounts
-            })
+                    version: 1,
+                    token: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
+                    amount: terminalTokenAmount,
+                    remoteRoot: JBInboxTreeRoot({nonce: nonce, root: root}),
+                    accounts: accounts
+                })
             );
 
         // Fund the sucker with the bridged terminal-token amount so `_addToBalance` can forward to the project.
@@ -456,16 +456,16 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
         IJBSucker(address(sucker))
             .claim(
                 JBClaim({
-                token: JBConstants.NATIVE_TOKEN,
-                leaf: JBLeaf({
-                index: leafIndex,
-                beneficiary: beneficiary,
-                projectTokenCount: tokensOnL,
-                terminalTokenAmount: terminalTokenAmount,
-                metadata: bytes32(0)
-            }),
-                proof: proof
-            })
+                    token: JBConstants.NATIVE_TOKEN,
+                    leaf: JBLeaf({
+                        index: leafIndex,
+                        beneficiary: beneficiary,
+                        projectTokenCount: tokensOnL,
+                        terminalTokenAmount: terminalTokenAmount,
+                        metadata: bytes32(0)
+                    }),
+                    proof: proof
+                })
             );
 
         // Borrow on R against all the arbitrageur's currently-held tokens.
@@ -691,28 +691,28 @@ contract CrossChainArbCharacterizationFork is RevnetForkBase {
         JBSucker(payable(address(cleanSucker)))
             .fromRemote(
                 JBMessageRoot({
-                version: 1,
-                token: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
-                amount: ethPaidOnL,
-                remoteRoot: JBInboxTreeRoot({nonce: 1, root: root}),
-                accounts: accounts
-            })
+                    version: 1,
+                    token: bytes32(uint256(uint160(JBConstants.NATIVE_TOKEN))),
+                    amount: ethPaidOnL,
+                    remoteRoot: JBInboxTreeRoot({nonce: 1, root: root}),
+                    accounts: accounts
+                })
             );
         vm.deal(address(cleanSucker), address(cleanSucker).balance + ethPaidOnL);
 
         IJBSucker(address(cleanSucker))
             .claim(
                 JBClaim({
-                token: JBConstants.NATIVE_TOKEN,
-                leaf: JBLeaf({
-                index: 0,
-                beneficiary: beneficiary,
-                projectTokenCount: tokensOnL,
-                terminalTokenAmount: ethPaidOnL,
-                metadata: bytes32(0)
-            }),
-                proof: proof
-            })
+                    token: JBConstants.NATIVE_TOKEN,
+                    leaf: JBLeaf({
+                        index: 0,
+                        beneficiary: beneficiary,
+                        projectTokenCount: tokensOnL,
+                        terminalTokenAmount: ethPaidOnL,
+                        metadata: bytes32(0)
+                    }),
+                    proof: proof
+                })
             );
 
         _grantBurnPermission(arbitrageur, cleanRevnetId);

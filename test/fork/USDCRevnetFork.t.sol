@@ -259,8 +259,7 @@ contract USDCRevnetForkTest is RevnetForkBase {
         usdc.mint(payer, amount);
         vm.startPrank(payer);
         usdc.approve(address(jbMultiTerminal()), amount);
-        tokensReceived = jbMultiTerminal()
-            .pay({
+        tokensReceived = jbMultiTerminal().pay({
             projectId: revnetId,
             token: address(usdc),
             amount: amount,
@@ -389,8 +388,7 @@ contract USDCRevnetForkTest is RevnetForkBase {
 
         // Cash out tokens for USDC.
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,
@@ -492,8 +490,7 @@ contract USDCRevnetForkTest is RevnetForkBase {
         uint256 payerUSDCBefore = usdc.balanceOf(PAYER);
 
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER,
             projectId: revnetId,
             cashOutCount: cashOutCount,

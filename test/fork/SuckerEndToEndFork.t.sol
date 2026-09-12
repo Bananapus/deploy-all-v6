@@ -172,8 +172,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        return jbController()
-            .launchProjectFor({
+        return jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "test://sucker-e2e",
             rulesetConfigurations: rulesets,
@@ -282,8 +281,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         bytes32 remoteBeneficiary = bytes32(uint256(uint160(PAYER)));
 
         vm.prank(PAYER);
-        IJBSucker(suckerAddr)
-            .prepare({
+        IJBSucker(suckerAddr).prepare({
             projectTokenCount: prepareCount,
             beneficiary: remoteBeneficiary,
             minTokensReclaimed: 0,
@@ -353,8 +351,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         // prepare() should revert.
         vm.prank(PAYER);
         vm.expectRevert(abi.encodeWithSelector(JBSucker.JBSucker_Deprecated.selector, JBSuckerState.SENDING_DISABLED));
-        IJBSucker(suckerAddr)
-            .prepare({
+        IJBSucker(suckerAddr).prepare({
             projectTokenCount: tokens / 2,
             beneficiary: bytes32(uint256(uint160(PAYER))),
             minTokensReclaimed: 0,
@@ -380,8 +377,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         bytes32 remoteBeneficiary = bytes32(uint256(uint160(PAYER)));
 
         vm.prank(PAYER);
-        IJBSucker(suckerAddr)
-            .prepare({
+        IJBSucker(suckerAddr).prepare({
             projectTokenCount: prepareCount,
             beneficiary: remoteBeneficiary,
             minTokensReclaimed: 0,
@@ -403,8 +399,7 @@ contract SuckerEndToEndForkTest is TestBaseWorkflow {
         // Attempting a new prepare should fail because the token mapping is now disabled.
         vm.prank(PAYER);
         vm.expectRevert();
-        IJBSucker(suckerAddr)
-            .prepare({
+        IJBSucker(suckerAddr).prepare({
             projectTokenCount: 1e18,
             beneficiary: remoteBeneficiary,
             minTokensReclaimed: 0,

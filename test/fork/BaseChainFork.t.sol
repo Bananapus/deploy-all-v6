@@ -459,8 +459,7 @@ contract BaseChainForkTest is TestBaseWorkflow {
 
         // Cash out all of PAYER's tokens.
         vm.prank(PAYER);
-        jbMultiTerminal()
-            .cashOutTokensOf({
+        jbMultiTerminal().cashOutTokensOf({
             holder: PAYER, // The token holder cashing out.
             projectId: revnetId, // The project to cash out from.
             cashOutCount: payerTokens, // Cash out all tokens.

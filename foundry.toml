@@ -11,6 +11,9 @@ fs_permissions = [
 ]
 memory_limit = 1073741824
 gas_limit = 9223372036854775807
+# Forge 1.8 isolates each top-level test call as its own transaction; the fork harnesses deploy a whole
+# stack in one call and rely on the unbounded gas_limit above.
+isolate = false
 extra_output = ['storageLayout']
 
 [profile.verify_non_via_ir]
@@ -26,6 +29,9 @@ fs_permissions = [
 ]
 memory_limit = 1073741824
 gas_limit = 9223372036854775807
+# Forge 1.8 isolates each top-level test call as its own transaction; the fork harnesses deploy a whole
+# stack in one call and rely on the unbounded gas_limit above.
+isolate = false
 extra_output = ['storageLayout']
 
 [fuzz]

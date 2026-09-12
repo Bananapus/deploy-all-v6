@@ -128,8 +128,7 @@ contract ApprovalHookForkTest is TestBaseWorkflow {
             fundAccessLimitGroups: new JBFundAccessLimitGroup[](0)
         });
 
-        return jbController()
-            .launchProjectFor({
+        return jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "test://approval-hook",
             rulesetConfigurations: rulesets,
@@ -166,8 +165,7 @@ contract ApprovalHookForkTest is TestBaseWorkflow {
             fundAccessLimitGroups: groups
         });
 
-        return jbController()
-            .launchProjectFor({
+        return jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "test://approval-hook-payout",
             rulesetConfigurations: rulesets,
@@ -277,8 +275,7 @@ contract ApprovalHookForkTest is TestBaseWorkflow {
         // Request 2 ETH. The queued 10 ETH limit was rejected, so the terminal only pays the
         // base ruleset's 1 ETH limit.
         vm.prank(PROJECT_OWNER);
-        uint256 paid = jbMultiTerminal()
-            .sendPayoutsOf({
+        uint256 paid = jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 2 ether,

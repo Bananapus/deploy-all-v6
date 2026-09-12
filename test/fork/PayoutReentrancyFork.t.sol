@@ -211,8 +211,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         });
 
         // Launch the project.
-        projectId = jbController()
-            .launchProjectFor({
+        projectId = jbController().launchProjectFor({
             owner: PROJECT_OWNER,
             projectUri: "",
             rulesetConfigurations: rulesetConfigs,
@@ -268,8 +267,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         //   2. executePayout sends ETH to malicious hook and calls processSplitWith
         //   3. Hook tries to re-enter sendPayoutsOf -> recordPayoutFor returns 0 (limit consumed)
         //   4. The first payout still completes
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
@@ -302,8 +300,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
 
         // A second sendPayoutsOf also returns 0 since payout limit is consumed for this cycle.
         // Since duration=0, same ruleset stays active, so payout limit persists.
-        uint256 secondPaid = jbMultiTerminal()
-            .sendPayoutsOf({
+        uint256 secondPaid = jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
@@ -346,8 +343,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         // Step 5: Trigger payouts.
         // The hook will receive its split amount (after fee), then re-enter via addToBalanceOf
         // to send the ETH back to the project.
-        jbMultiTerminal()
-            .sendPayoutsOf({
+        jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,
@@ -378,8 +374,7 @@ contract PayoutReentrancyForkTest is EcosystemForkTest {
         );
 
         // No double-payout occurred: the consumed payout limit leaves nothing to pay.
-        uint256 secondPaid = jbMultiTerminal()
-            .sendPayoutsOf({
+        uint256 secondPaid = jbMultiTerminal().sendPayoutsOf({
             projectId: projectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: PAYOUT_LIMIT,

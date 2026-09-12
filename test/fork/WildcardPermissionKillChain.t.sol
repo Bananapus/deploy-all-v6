@@ -129,8 +129,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         termConfigs[0] = JBTerminalConfig({terminal: jbMultiTerminal(), accountingContextsToAccept: acc});
 
         // Launch the victim's project through the controller.
-        victimProjectId = jbController()
-            .launchProjectFor({
+        victimProjectId = jbController().launchProjectFor({
             owner: VICTIM_OWNER,
             projectUri: "ipfs://victim",
             rulesetConfigurations: rulesetConfigs,
@@ -179,8 +178,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         );
 
         // Attempt to mint tokens for the victim's project.
-        jbController()
-            .mintTokensOf({
+        jbController().mintTokensOf({
             projectId: victimProjectId,
             tokenCount: 1_000_000e18,
             beneficiary: address(REV_DEPLOYER),
@@ -261,8 +259,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         );
 
         // Attempt to drain surplus from the victim's project.
-        jbMultiTerminal()
-            .useAllowanceOf({
+        jbMultiTerminal().useAllowanceOf({
             projectId: victimProjectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 10 ether,
@@ -327,8 +324,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         );
 
         // Attempt to access funds from the victim's project.
-        jbMultiTerminal()
-            .useAllowanceOf({
+        jbMultiTerminal().useAllowanceOf({
             projectId: victimProjectId,
             token: JBConstants.NATIVE_TOKEN,
             amount: 5 ether,
@@ -393,8 +389,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         );
 
         // Attempt to mint tokens for the victim's project.
-        jbController()
-            .mintTokensOf({
+        jbController().mintTokensOf({
             projectId: victimProjectId,
             tokenCount: 1_000_000e18,
             beneficiary: address(OMNICHAIN_DEPLOYER),
@@ -420,20 +415,18 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         // MINT_TOKENS is permission ID 10.
         permissionIds[0] = JBPermissionIds.MINT_TOKENS;
         // Grant the permission from REVDeployer's account to CTDeployer for all projects (wildcard).
-        jbPermissions()
-            .setPermissionsFor({
+        jbPermissions().setPermissionsFor({
             account: address(REV_DEPLOYER),
             permissionsData: JBPermissionsData({
-            operator: address(CT_DEPLOYER),
-            projectId: 0, // wildcard: all projects
-            permissionIds: permissionIds
-        })
+                operator: address(CT_DEPLOYER),
+                projectId: 0, // wildcard: all projects
+                permissionIds: permissionIds
+            })
         });
 
         // ── Step 2: Verify CTDeployer now has the wildcard on REVDeployer's account ──
         // This confirms the permission was successfully set.
-        bool hasWildcard = jbPermissions()
-            .hasPermission({
+        bool hasWildcard = jbPermissions().hasPermission({
             operator: address(CT_DEPLOYER),
             account: address(REV_DEPLOYER),
             projectId: 0,
@@ -459,8 +452,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         );
 
         // Attempt to mint using the colluded permission — this must fail.
-        jbController()
-            .mintTokensOf({
+        jbController().mintTokensOf({
             projectId: victimProjectId,
             tokenCount: 1_000_000e18,
             beneficiary: address(CT_DEPLOYER),
@@ -486,15 +478,14 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         vm.expectRevert();
 
         // Attempt to set ROOT for REVDeployer on the victim's account.
-        jbPermissions()
-            .setPermissionsFor({
+        jbPermissions().setPermissionsFor({
             account: VICTIM_OWNER,
             permissionsData: JBPermissionsData({
-            operator: address(REV_DEPLOYER),
-            // forge-lint: disable-next-line(unsafe-typecast)
-            projectId: uint64(victimProjectId), // cast to uint64 for JBPermissionsData
-            permissionIds: rootPermission
-        })
+                operator: address(REV_DEPLOYER),
+                // forge-lint: disable-next-line(unsafe-typecast)
+                projectId: uint64(victimProjectId), // cast to uint64 for JBPermissionsData
+                permissionIds: rootPermission
+            })
         });
     }
 
@@ -514,14 +505,13 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         vm.expectRevert();
 
         // Attempt to set wildcard MINT_TOKENS for REVDeployer on the victim's account.
-        jbPermissions()
-            .setPermissionsFor({
+        jbPermissions().setPermissionsFor({
             account: VICTIM_OWNER,
             permissionsData: JBPermissionsData({
-            operator: address(REV_DEPLOYER),
-            projectId: 0, // wildcard
-            permissionIds: mintPermission
-        })
+                operator: address(REV_DEPLOYER),
+                projectId: 0, // wildcard
+                permissionIds: mintPermission
+            })
         });
     }
 
@@ -590,8 +580,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
 
         // ── Verify the LOANS_CONTRACT has USE_ALLOWANCE wildcard on REVDeployer's account ──
         // This is a legitimate wildcard permission that should work.
-        bool loansHasAllowance = jbPermissions()
-            .hasPermission({
+        bool loansHasAllowance = jbPermissions().hasPermission({
             operator: address(LOANS_CONTRACT),
             account: address(REV_OWNER),
             projectId: revnetId,
@@ -603,8 +592,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         assertTrue(loansHasAllowance, "LOANS should have USE_ALLOWANCE on REV_DEPLOYER's account via wildcard");
 
         // Verify the buyback registry has SET_BUYBACK_POOL wildcard on REVDeployer's account.
-        bool registryHasSetPool = jbPermissions()
-            .hasPermission({
+        bool registryHasSetPool = jbPermissions().hasPermission({
             operator: address(BUYBACK_REGISTRY),
             account: address(REV_OWNER),
             projectId: revnetId,
@@ -615,8 +603,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         assertTrue(registryHasSetPool, "BUYBACK_REGISTRY should have SET_BUYBACK_POOL via wildcard");
 
         // The registry maps tokens through its deployment override, so REVDeployer does not need this wildcard.
-        bool suckerRegistryHasMapToken = jbPermissions()
-            .hasPermission({
+        bool suckerRegistryHasMapToken = jbPermissions().hasPermission({
             operator: address(SUCKER_REGISTRY),
             account: address(REV_OWNER),
             projectId: revnetId,
@@ -627,8 +614,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         assertFalse(suckerRegistryHasMapToken, "SUCKER_REGISTRY should not have unused MAP_SUCKER_TOKEN wildcard");
 
         // ── Verify NONE of these singletons have permissions on the VICTIM project ──
-        bool loansOnVictim = jbPermissions()
-            .hasPermission({
+        bool loansOnVictim = jbPermissions().hasPermission({
             operator: address(LOANS_CONTRACT),
             account: VICTIM_OWNER,
             projectId: victimProjectId,
@@ -639,8 +625,7 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         // Assert the loans contract has NO permissions on the victim project.
         assertFalse(loansOnVictim, "LOANS should NOT have USE_ALLOWANCE on victim project");
 
-        bool revDeployerOnVictim = jbPermissions()
-            .hasPermission({
+        bool revDeployerOnVictim = jbPermissions().hasPermission({
             operator: address(REV_DEPLOYER),
             account: VICTIM_OWNER,
             projectId: victimProjectId,
@@ -678,14 +663,13 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         vm.expectRevert();
 
         // An attacker tries to set ROOT wildcard on REVDeployer's account.
-        jbPermissions()
-            .setPermissionsFor({
+        jbPermissions().setPermissionsFor({
             account: address(REV_DEPLOYER),
             permissionsData: JBPermissionsData({
-            operator: ATTACKER,
-            projectId: 0, // wildcard
-            permissionIds: rootPermission
-        })
+                operator: ATTACKER,
+                projectId: 0, // wildcard
+                permissionIds: rootPermission
+            })
         });
     }
 
@@ -706,14 +690,13 @@ contract WildcardPermissionKillChain is RevnetForkBase {
         vm.expectRevert();
 
         // Attempt to add MINT_TOKENS wildcard on REVDeployer's account from an attacker.
-        jbPermissions()
-            .setPermissionsFor({
+        jbPermissions().setPermissionsFor({
             account: address(REV_DEPLOYER),
             permissionsData: JBPermissionsData({
-            operator: ATTACKER,
-            projectId: 0, // wildcard
-            permissionIds: mintPermission
-        })
+                operator: ATTACKER,
+                projectId: 0, // wildcard
+                permissionIds: mintPermission
+            })
         });
     }
 }
