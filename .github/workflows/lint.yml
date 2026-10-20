@@ -20,5 +20,7 @@ jobs:
       - name: Check formatting
         run: forge fmt --check
 
+      # Joins continued lines and drops comments, then requires --prune-history with a positive count.
       - name: Check script Anvils keep state off disk
-        run: "! grep -rn --include='*.sh' -E '^[[:space:]]*anvil ' script | grep -v -- '--prune-history'"
+        run: |
+          ! find script -name '*.sh' -exec awk '/\\$/ { sub(/\\$/, ""); cmd = cmd $0; next } { cmd = cmd $0; sub(/[[:space:]]#.*/, "", cmd); print FILENAME ": " cmd; cmd = "" }' {} + | grep -E ': *[[:space:]]*anvil ' | grep -vE -- '--prune-history [1-9][0-9]*( |$)'
