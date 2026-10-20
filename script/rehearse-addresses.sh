@@ -29,7 +29,8 @@ set -euo pipefail
 
 # Every Anvil here starts through this. Unpruned, Anvil writes block states to ~/.foundry/anvil/tmp
 # and leaves them when killed; pruning keeps the newest 500 in memory (Anvil's default), none on disk.
-start_anvil() { anvil --prune-history 500 "$@"; }
+# `exec` keeps $! the Anvil PID when the caller backgrounds this.
+start_anvil() { exec anvil --prune-history 500 "$@"; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEPLOY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

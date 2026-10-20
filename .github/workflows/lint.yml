@@ -24,7 +24,7 @@ jobs:
       # launches anvil directly (a convention check; the function is the one launch path).
       - name: Check script Anvils keep state off disk
         run: |
-          stub=$(mktemp -d); printf '#!/bin/sh\necho "$*"\n' > "$stub/anvil"; chmod +x "$stub/anvil"
+          stub=$(mktemp -d); printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$@"' > "$stub/anvil"; chmod +x "$stub/anvil"
           eval "$(grep -E '^start_anvil\(\) ' script/rehearse-addresses.sh)"
-          test "$(PATH="$stub:$PATH" start_anvil --silent)" = "--prune-history 500 --silent"
-          test "$(grep -rEn --include='*.sh' '(^|[;&|({])[[:space:]]*anvil[[:space:]]' script | wc -l)" -eq 1
+          test "$(PATH="$stub:$PATH"; start_anvil --silent)" = "$(printf '%s\n' --prune-history 500 --silent)"
+          test "$(grep -rEn --include='*.sh' '(^|[;&|({]|exec)[[:space:]]*anvil[[:space:]]' script | wc -l)" -eq 1
