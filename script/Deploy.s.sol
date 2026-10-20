@@ -147,10 +147,13 @@ import {Banny721TokenUriResolver} from "@bannynet/core-v6/src/Banny721TokenUriRe
 import {ITypeface} from "lib/typeface/contracts/interfaces/ITypeface.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import {Defifa1155Hook} from "@ballkidz/defifa/src/Defifa1155Hook.sol";
 import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
 import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
 import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
+import {DefifaTiersHookStore} from "@ballkidz/defifa/src/DefifaTiersHookStore.sol";
 import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
+import {DefifaVotingReferee} from "@ballkidz/defifa/src/referees/DefifaVotingReferee.sol";
 
 // ── Project Handles ──
 import {JBProjectHandles} from "@bananapus/project-handles-v6/src/JBProjectHandles.sol";
@@ -231,6 +234,7 @@ contract Deploy is Script, Sphinx {
     bytes32 private constant CCIP_LIB_SALT = keccak256("_JBCCIPLibV6_");
     bytes32 private constant CCIP_HELPER_SALT = keccak256("_CCIPHelperV6_");
     bytes32 private constant DEFIFA_HOOK_LIB_SALT = keccak256("_DefifaHookLibV6_");
+    bytes32 private constant DEFIFA_1155_HOOK_LIB_SALT = keccak256("_Defifa1155HookLibV6_");
     bytes32 private constant UNIV4_LP_SPLIT_HOOK_MATH_LIB_SALT = keccak256("_JBUniswapV4LPSplitHookMathV6_");
 
     // ── Address Registry salt ──
@@ -295,6 +299,8 @@ contract Deploy is Script, Sphinx {
 
     // ── Defifa salt ──
     bytes32 private constant DEFIFA_SALT = "_DEFIFA_SALTV6_";
+    // The 1155 game type's governor has the same constructor args as the 721 one, so it needs its own salt.
+    bytes32 private constant DEFIFA_1155_SALT = "_DEFIFA_1155_SALTV6_";
 
     // ── Defifa Revnet salts ──
     bytes32 private constant DEFIFA_REV_ERC20_SALT = "_DEFIFA_ERC20V6_";
@@ -462,10 +468,15 @@ contract Deploy is Script, Sphinx {
     JBUniswapV4LPSplitHook private _banLpSplitHook;
 
     // Defifa
-    DefifaHook private _defifaHook;
+    DefifaTiersHookStore private _defifaStore;
     DefifaTokenUriResolver private _defifaTokenUriResolver;
+    DefifaHook private _defifaHook;
     DefifaGovernor private _defifaGovernor;
     DefifaDeployer private _defifaDeployer;
+    Defifa1155Hook private _defifa1155Hook;
+    DefifaGovernor private _defifa1155Governor;
+    DefifaDeployer private _defifa1155Deployer;
+    DefifaVotingReferee private _defifaVotingReferee;
     uint48 private _defifaRevStartTime;
 
     // Project Handles
@@ -591,7 +602,8 @@ contract Deploy is Script, Sphinx {
         // Must come BEFORE _deployDefifa so the revnet project ID can be used as the Defifa fee project.
         _deployDefifaRevnet();
 
-        // Phase 10: Defifa — deploys the Defifa game infrastructure (hook, resolver, governor, deployer).
+        // Phase 10: Defifa — deploys the Defifa game infrastructure (store, resolver, 721 and 1155 game types,
+        // referee).
         _deployDefifa();
 
         // Phase 10b: ART / Artizen (project ID 6) — Base-only USD-denominated revnet.
@@ -754,8 +766,10 @@ contract Deploy is Script, Sphinx {
         _deployPrecompiledIfNeeded({artifactName: "JBCCIPLib", salt: CCIP_LIB_SALT, ctorArgs: ""});
         // CCIPHelper — DELEGATECALL'd by JBCCIPSucker (chain selector / router lookups).
         _deployPrecompiledIfNeeded({artifactName: "CCIPHelper", salt: CCIP_HELPER_SALT, ctorArgs: ""});
-        // DefifaHookLib — DELEGATECALL'd by DefifaHook + DefifaGovernor.
+        // DefifaHookLib — DELEGATECALL'd by DefifaHook, DefifaGovernor, DefifaVotingReferee and Defifa1155HookLib.
         _deployPrecompiledIfNeeded({artifactName: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT, ctorArgs: ""});
+        // Defifa1155HookLib — DELEGATECALL'd by Defifa1155Hook. Linked against DefifaHookLib, so it deploys after it.
+        _deployPrecompiledIfNeeded({artifactName: "Defifa1155HookLib", salt: DEFIFA_1155_HOOK_LIB_SALT, ctorArgs: ""});
         // JBUniswapV4LPSplitHookMath — pricing math linked into JBUniswapV4LPSplitHook (EIP-170 extraction).
         _deployPrecompiledIfNeeded({
             artifactName: "JBUniswapV4LPSplitHookMath", salt: UNIV4_LP_SPLIT_HOOK_MATH_LIB_SALT, ctorArgs: ""
@@ -3614,33 +3628,28 @@ contract Deploy is Script, Sphinx {
     //  Phase 10: Defifa
     // ════════════════════════════════════════════════════════════════════
 
-    /// @notice Deploys the Defifa game infrastructure: hook code origin, token URI resolver, governor, and deployer.
+    /// @notice Deploys the Defifa game infrastructure: the shared tiers store and token URI resolver, the 721 and 1155
+    /// game types (each a hook code origin, a governor and a deployer), and the sample voting referee.
     /// @dev Uses the Defifa revnet (ID 5) as the Defifa fee project and the NANA fee project (ID 1) as the base
-    /// protocol project.
+    /// protocol project. The hooks read both projects' tokens through JBTokens, so their addresses are the same on
+    /// every chain.
     function _deployDefifa() internal {
         // Skip deployment on chains without a typeface (e.g. Tempo) — DefifaTokenUriResolver
         // requires a valid ITypeface and would cause tokenURI() to revert if deployed with address(0).
         if (_typeface == address(0)) return;
 
-        // Resolve the ERC-20 token for the Defifa fee project (DEFIFA revnet, project 5).
-        IERC20 defifaToken = IERC20(address(_tokens.tokenOf(_DEFIFA_REV_PROJECT_ID)));
+        // Skip deployment if either fee project's token is not yet deployed on this chain.
+        if (
+            address(_tokens.tokenOf(_DEFIFA_REV_PROJECT_ID)) == address(0)
+                || address(_tokens.tokenOf(_FEE_PROJECT_ID)) == address(0)
+        ) return;
 
-        // Resolve the ERC-20 token for the base protocol fee project (NANA, project 1).
-        IERC20 baseProtocolToken = IERC20(address(_tokens.tokenOf(_FEE_PROJECT_ID)));
-
-        // Skip deployment if either project token is not yet deployed on this chain.
-        if (address(defifaToken) == address(0) || address(baseProtocolToken) == address(0)) return;
-
-        // ── DefifaHook (code origin for clone-based game deployment) ──
-        _defifaHook = DefifaHook(
-            _deployPrecompiledIfNeeded({
-                artifactName: "DefifaHook",
-                salt: DEFIFA_SALT,
-                ctorArgs: abi.encode(_directory, defifaToken, baseProtocolToken)
-            })
+        // ── DefifaTiersHookStore (tier data for both game types) ──
+        _defifaStore = DefifaTiersHookStore(
+            _deployPrecompiledIfNeeded({artifactName: "DefifaTiersHookStore", salt: DEFIFA_SALT, ctorArgs: ""})
         );
 
-        // ── DefifaTokenUriResolver (on-chain SVG renderer for game NFTs) ──
+        // ── DefifaTokenUriResolver (on-chain SVG renderer for game tokens of both types) ──
         _defifaTokenUriResolver = DefifaTokenUriResolver(
             _deployPrecompiledIfNeeded({
                 artifactName: "DefifaTokenUriResolver", salt: DEFIFA_SALT, ctorArgs: abi.encode(safeAddress())
@@ -3652,65 +3661,106 @@ contract Deploy is Script, Sphinx {
             revert Deploy_ExistingAddressMismatch(_typeface, address(_defifaTokenUriResolver.typeface()));
         }
 
-        // ── DefifaGovernor (scorecard attestation and ratification) ──
-        _defifaGovernor = DefifaGovernor(
+        // ── ERC-721 games: one token per position ──
+        _defifaHook = DefifaHook(
+            _deployPrecompiledIfNeeded({artifactName: "DefifaHook", salt: DEFIFA_SALT, ctorArgs: _defifaHookCtorArgs()})
+        );
+        (_defifaGovernor, _defifaDeployer) =
+            _deployDefifaGame({hookCodeOrigin: address(_defifaHook), salt: DEFIFA_SALT});
+
+        // ── ERC-1155 games: positions are balances, one token ID per tier ──
+        _defifa1155Hook = Defifa1155Hook(
             _deployPrecompiledIfNeeded({
-                artifactName: "DefifaGovernor", salt: DEFIFA_SALT, ctorArgs: abi.encode(_controller, safeAddress())
+                artifactName: "Defifa1155Hook", salt: DEFIFA_1155_SALT, ctorArgs: _defifaHookCtorArgs()
+            })
+        );
+        (_defifa1155Governor, _defifa1155Deployer) =
+            _deployDefifaGame({hookCodeOrigin: address(_defifa1155Hook), salt: DEFIFA_1155_SALT});
+
+        // ── DefifaVotingReferee (sample holder-vote referee, judges games of both types) ──
+        _defifaVotingReferee = DefifaVotingReferee(
+            _deployPrecompiledIfNeeded({
+                artifactName: "DefifaVotingReferee", salt: DEFIFA_SALT, ctorArgs: abi.encode(_controller)
+            })
+        );
+    }
+
+    /// @notice The constructor args both Defifa hook code origins take.
+    function _defifaHookCtorArgs() internal view returns (bytes memory) {
+        return abi.encode(_directory, _tokens, _DEFIFA_REV_PROJECT_ID, _FEE_PROJECT_ID);
+    }
+
+    /// @notice Deploys one Defifa game type's governor and deployer, checks the deployer's wiring, and hands the
+    /// governor to the deployer.
+    /// @dev Each game type needs its own governor, since only the governor's owner can initialize games on it.
+    /// @param hookCodeOrigin The hook the deployer clones for each game.
+    /// @param salt The game type's salt.
+    /// @return governor The game type's governor.
+    /// @return deployer The game type's deployer.
+    function _deployDefifaGame(
+        address hookCodeOrigin,
+        bytes32 salt
+    )
+        internal
+        returns (DefifaGovernor governor, DefifaDeployer deployer)
+    {
+        // ── DefifaGovernor (ratifies each game's referee's scorecard after a timelock) ──
+        governor = DefifaGovernor(
+            _deployPrecompiledIfNeeded({
+                artifactName: "DefifaGovernor", salt: salt, ctorArgs: abi.encode(_controller, safeAddress())
             })
         );
 
-        // ── DefifaDeployer (factory that creates new Defifa games) ──
-        // DefifaDeployer takes all dependencies as constructor args. The resolver itself is chain-same, with the
-        // per-chain Capsules typeface configured through its one-shot setter above.
+        // ── DefifaDeployer (factory that creates new games of this type) ──
         bytes memory deployerArgs = abi.encode(
-            address(_defifaHook),
+            hookCodeOrigin,
             _defifaTokenUriResolver,
-            _defifaGovernor,
+            governor,
             _controller,
             _addressRegistry,
             _DEFIFA_REV_PROJECT_ID,
             _FEE_PROJECT_ID,
-            _hookStore,
+            _defifaStore,
             _trustedForwarder
         );
-        _defifaDeployer = DefifaDeployer(
-            _deployPrecompiledIfNeeded({artifactName: "DefifaDeployer", salt: DEFIFA_SALT, ctorArgs: deployerArgs})
+        deployer = DefifaDeployer(
+            _deployPrecompiledIfNeeded({artifactName: "DefifaDeployer", salt: salt, ctorArgs: deployerArgs})
         );
 
         // Verify the deployed factory carries the expected immutables (tautological on a fresh deploy; catches a
         // stale/mismatched factory on an idempotent re-deploy where the CREATE2 address already had code).
-        if (_defifaDeployer.HOOK_CODE_ORIGIN() != address(_defifaHook)) {
-            revert Deploy_ExistingAddressMismatch(address(_defifaHook), _defifaDeployer.HOOK_CODE_ORIGIN());
+        if (deployer.HOOK_CODE_ORIGIN() != hookCodeOrigin) {
+            revert Deploy_ExistingAddressMismatch(hookCodeOrigin, deployer.HOOK_CODE_ORIGIN());
         }
-        if (address(_defifaDeployer.TOKEN_URI_RESOLVER()) != address(_defifaTokenUriResolver)) {
+        if (address(deployer.TOKEN_URI_RESOLVER()) != address(_defifaTokenUriResolver)) {
             revert Deploy_ExistingAddressMismatch(
-                address(_defifaTokenUriResolver), address(_defifaDeployer.TOKEN_URI_RESOLVER())
+                address(_defifaTokenUriResolver), address(deployer.TOKEN_URI_RESOLVER())
             );
         }
-        if (address(_defifaDeployer.GOVERNOR()) != address(_defifaGovernor)) {
-            revert Deploy_ExistingAddressMismatch(address(_defifaGovernor), address(_defifaDeployer.GOVERNOR()));
+        if (address(deployer.GOVERNOR()) != address(governor)) {
+            revert Deploy_ExistingAddressMismatch(address(governor), address(deployer.GOVERNOR()));
         }
-        if (address(_defifaDeployer.CONTROLLER()) != address(_controller)) {
-            revert Deploy_ExistingAddressMismatch(address(_controller), address(_defifaDeployer.CONTROLLER()));
+        if (address(deployer.CONTROLLER()) != address(_controller)) {
+            revert Deploy_ExistingAddressMismatch(address(_controller), address(deployer.CONTROLLER()));
         }
-        if (address(_defifaDeployer.REGISTRY()) != address(_addressRegistry)) {
-            revert Deploy_ExistingAddressMismatch(address(_addressRegistry), address(_defifaDeployer.REGISTRY()));
+        if (address(deployer.REGISTRY()) != address(_addressRegistry)) {
+            revert Deploy_ExistingAddressMismatch(address(_addressRegistry), address(deployer.REGISTRY()));
         }
-        if (_defifaDeployer.DEFIFA_PROJECT_ID() != _DEFIFA_REV_PROJECT_ID) {
-            revert Deploy_ProjectIdMismatch(_DEFIFA_REV_PROJECT_ID, _defifaDeployer.DEFIFA_PROJECT_ID());
+        if (deployer.DEFIFA_PROJECT_ID() != _DEFIFA_REV_PROJECT_ID) {
+            revert Deploy_ProjectIdMismatch(_DEFIFA_REV_PROJECT_ID, deployer.DEFIFA_PROJECT_ID());
         }
-        if (_defifaDeployer.BASE_PROTOCOL_PROJECT_ID() != _FEE_PROJECT_ID) {
-            revert Deploy_ProjectIdMismatch(_FEE_PROJECT_ID, _defifaDeployer.BASE_PROTOCOL_PROJECT_ID());
+        if (deployer.BASE_PROTOCOL_PROJECT_ID() != _FEE_PROJECT_ID) {
+            revert Deploy_ProjectIdMismatch(_FEE_PROJECT_ID, deployer.BASE_PROTOCOL_PROJECT_ID());
         }
-        if (address(_defifaDeployer.HOOK_STORE()) != address(_hookStore)) {
-            revert Deploy_ExistingAddressMismatch(address(_hookStore), address(_defifaDeployer.HOOK_STORE()));
+        if (address(deployer.HOOK_STORE()) != address(_defifaStore)) {
+            revert Deploy_ExistingAddressMismatch(address(_defifaStore), address(deployer.HOOK_STORE()));
         }
 
-        if (_defifaGovernor.owner() == safeAddress()) {
+        if (governor.owner() == safeAddress()) {
             // Transfer governor ownership to the configured deployer so it can initialize games.
-            _defifaGovernor.transferOwnership(address(_defifaDeployer));
-        } else if (_defifaGovernor.owner() != address(_defifaDeployer)) {
-            revert Deploy_ExistingAddressMismatch(address(_defifaDeployer), _defifaGovernor.owner());
+            governor.transferOwnership(address(deployer));
+        } else if (governor.owner() != address(deployer)) {
+            revert Deploy_ExistingAddressMismatch(address(deployer), governor.owner());
         }
     }
 
@@ -5036,10 +5086,15 @@ contract Deploy is Script, Sphinx {
         _serializeIfSet({key: j, name: "REVDeployer", addr: address(_revDeployer)});
         _serializeIfSet({key: j, name: "Banny721TokenUriResolver", addr: address(_bannyResolver)});
         _serializeIfSet({key: j, name: "JBP6FeeLPSplitHook", addr: address(_banLpSplitHook)});
-        _serializeIfSet({key: j, name: "DefifaHook", addr: address(_defifaHook)});
+        _serializeIfSet({key: j, name: "DefifaTiersHookStore", addr: address(_defifaStore)});
         _serializeIfSet({key: j, name: "DefifaTokenUriResolver", addr: address(_defifaTokenUriResolver)});
+        _serializeIfSet({key: j, name: "DefifaHook", addr: address(_defifaHook)});
         _serializeIfSet({key: j, name: "DefifaGovernor", addr: address(_defifaGovernor)});
         _serializeIfSet({key: j, name: "DefifaDeployer", addr: address(_defifaDeployer)});
+        _serializeIfSet({key: j, name: "Defifa1155Hook", addr: address(_defifa1155Hook)});
+        _serializeIfSet({key: j, name: "Defifa1155Governor", addr: address(_defifa1155Governor)});
+        _serializeIfSet({key: j, name: "Defifa1155Deployer", addr: address(_defifa1155Deployer)});
+        _serializeIfSet({key: j, name: "DefifaVotingReferee", addr: address(_defifaVotingReferee)});
         _serializeIfSet({key: j, name: "JBProjectHandles", addr: address(_projectHandles)});
         _serializeIfSet({key: j, name: "JBProjectPayerDeployer", addr: address(_projectPayerDeployer)});
         _serializeImplementationFromDeployer({key: j, name: "JBProjectPayer", deployer: address(_projectPayerDeployer)});
@@ -5059,6 +5114,7 @@ contract Deploy is Script, Sphinx {
         _serializeLibrary({key: j, name: "JBCCIPLib", salt: CCIP_LIB_SALT});
         _serializeLibrary({key: j, name: "CCIPHelper", salt: CCIP_HELPER_SALT});
         _serializeLibrary({key: j, name: "DefifaHookLib", salt: DEFIFA_HOOK_LIB_SALT});
+        _serializeLibrary({key: j, name: "Defifa1155HookLib", salt: DEFIFA_1155_HOOK_LIB_SALT});
         _serializeLibrary({key: j, name: "JBUniswapV4LPSplitHookMath", salt: UNIV4_LP_SPLIT_HOOK_MATH_LIB_SALT});
 
         // JBERC20 — constructor (permissions, projects), shared with tokens.

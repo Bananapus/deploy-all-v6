@@ -32,8 +32,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @notice Fork tests verifying LP split hook and buyback hook interoperation on the same Uniswap V4 pool.
 ///
 /// Both hooks target the same native ETH hookless pool (Currency.wrap(address(0)) + projectToken,
-/// fee=10_000, tickSpacing=200). The LP split hook accumulates reserved tokens and deploys liquidity,
-/// while the buyback hook routes payments through that same pool when the swap price beats the mint price.
+/// fee=10_000, tickSpacing=200). The LP split hook turns reserved tokens into ask and bid liquidity (deploying the
+/// pool inline on a reserved distribution, or through `deployPool`), while the buyback hook routes payments through
+/// that same pool when the swap price beats the mint price.
 ///
 /// Tests both as a revnet (deployed via REVDeployer) and as a standalone JB project.
 ///
@@ -189,8 +190,8 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
     //  Revnet Tests -- LP Split Hook + Buyback Hook
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Full revnet lifecycle: deploy -> pay (pre-AMM) -> distribute reserved -> LP split accumulates ->
-    /// deploy pool via LP split hook -> pay again (post-AMM, buyback active) -> verify buyback routes through
+    /// @notice Full revnet lifecycle: deploy -> pay (pre-AMM) -> distribute reserved -> LP split hook deploys the
+    /// pool -> pay again (post-AMM, buyback active) -> verify buyback routes through
     /// the LP split hook's pool.
     /// @notice Full lifecycle: deploy -> pay -> distribute -> LP deploy -> buyback -> cashout.
     function test_interop_revnet_fullLifecycle() public {
@@ -218,33 +219,15 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         // Another payer to increase surplus.
         _payRevnet(revnetId, PAYER2, 10 ether);
 
-        // 2. Distribute reserved tokens -> LP split hook accumulates 50%.
+        // 2-3. Distribute reserved tokens (50% to the LP split hook) and end with the hook's pool deployed.
         uint256 pending = jbController().pendingReservedTokenBalanceOf(revnetId);
         assertGt(pending, 0, "should have pending reserved tokens");
 
-        jbController().sendReservedTokensToSplitsOf(revnetId);
-
-        uint256 accumulated = LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId);
-        assertGt(accumulated, 0, "LP split hook should accumulate tokens from reserved distribution");
+        _distributeAndDeployPool(revnetId);
 
         // Multisig should also get 50%.
         uint256 multisigTokens = jbTokens().totalBalanceOf(multisig(), revnetId);
         assertGt(multisigTokens, 0, "multisig should receive 50% of reserved tokens");
-
-        // 3. Deploy pool via LP split hook (uses accumulated tokens as liquidity).
-        LP_SPLIT_HOOK.deployPool(revnetId);
-
-        // deployPool consumes the accumulation into the LP position; only unpaired dust carries forward
-        // (JBUniswapV4LPSplitHook 0.0.53 never burns — post-deploy inflows route to addLiquidity).
-        assertLt(
-            LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId),
-            accumulated,
-            "deployPool should consume accumulation into the LP (only unpaired dust carries forward)"
-        );
-
-        // LP position should exist.
-        uint256 tokenId = LP_SPLIT_HOOK.tokenIdOf(revnetId, JBConstants.NATIVE_TOKEN);
-        assertGt(tokenId, 0, "LP position should exist");
 
         // Both hooks now target the SAME native ETH pool (address(0) + projectToken).
         // Verify pool parameters match (fee + tickSpacing).
@@ -262,7 +245,7 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         assertGt(_terminalBalance(revnetId, JBConstants.NATIVE_TOKEN), 0, "terminal should have balance");
     }
 
-    /// @notice Pre-AMM: reserved tokens accumulate in LP split hook, not burned.
+    /// @notice Pre-AMM: reserved tokens sent to the LP split hook become LP inventory across distributions, not burned.
     function test_interop_revnet_preAMM_accumulation() public {
         _deployFeeProject(5000);
 
@@ -279,22 +262,26 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         _payRevnet(revnetId, PAYER, 10 ether);
         _payRevnet(revnetId, PAYER2, 10 ether);
 
-        // First distribution.
+        // First distribution. The hook may deploy the pool inline, so its tokens are either ledgered or in the pool.
         jbController().sendReservedTokensToSplitsOf(revnetId);
-        uint256 accAfterFirst = LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId);
+        uint256 inventoryAfterFirst = _lpProjectTokenInventoryOf(revnetId);
+        assertGt(inventoryAfterFirst, 0, "first distribution should give the hook LP inventory");
 
         // More payments.
         _payRevnet(revnetId, PAYER, 5 ether);
 
-        // Second distribution should add more.
+        // Second distribution should add more, whether it is ledgered or recycled into the positions.
         jbController().sendReservedTokensToSplitsOf(revnetId);
-        uint256 accAfterSecond = LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId);
-        assertGt(accAfterSecond, accAfterFirst, "accumulation should increase with more distributions");
+        assertGt(
+            _lpProjectTokenInventoryOf(revnetId),
+            inventoryAfterFirst,
+            "LP inventory should increase with more distributions"
+        );
     }
 
-    /// @notice Post-deployment: reserved tokens going to the LP split hook accumulate for the next
-    /// `addLiquidity` (JBUniswapV4LPSplitHook 0.0.53 never burns — burning is a protocol-layer
-    /// 0xdead-split decision, not the hook's job).
+    /// @notice Post-deployment: reserved tokens going to the LP split hook are kept as LP inventory, either recycled
+    /// into the pool inline or held in the ledger for the next `addLiquidity`. The hook never burns them; burning is a
+    /// protocol-layer 0xdead-split decision, not the hook's job.
     function test_interop_revnet_postDeployment_accumulatesForAddLiquidity() public {
         _deployFeeProject(5000);
 
@@ -307,32 +294,30 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
 
         _mockOracleAtPoolTick(revnetId, 1);
 
-        // Pay and distribute -> accumulate.
+        // Pay, distribute, and end with the pool deployed.
         _payRevnet(revnetId, PAYER, 10 ether);
         _payRevnet(revnetId, PAYER2, 10 ether);
-        jbController().sendReservedTokensToSplitsOf(revnetId);
-
-        // Deploy pool.
-        LP_SPLIT_HOOK.deployPool(revnetId);
+        _distributeAndDeployPool(revnetId);
 
         // More payments -> more reserved tokens.
         _payRevnet(revnetId, PAYER, 5 ether);
 
-        uint256 hookBalanceBefore = jbTokens().totalBalanceOf(address(LP_SPLIT_HOOK), revnetId);
+        uint256 inventoryBefore = _lpProjectTokenInventoryOf(revnetId);
 
-        // Distribute again -- post-deploy inflows accumulate for the next addLiquidity (pool already deployed).
+        // Distribute again -- the pool is deployed, so the inflow is recycled into the positions inline or held in the
+        // ledger for the next addLiquidity.
         jbController().sendReservedTokensToSplitsOf(revnetId);
 
-        // Accumulation grows (held for addLiquidity), not burned.
+        // Either way the tokens stay LP inventory: in the hook or in the pool, never burned.
         assertGt(
-            LP_SPLIT_HOOK.accumulatedProjectTokens(revnetId),
-            0,
-            "post-deploy reserved tokens accumulate for the next addLiquidity (the hook never burns)"
+            _lpProjectTokenInventoryOf(revnetId),
+            inventoryBefore,
+            "post-deploy reserved tokens stay LP inventory (the hook never burns)"
         );
 
-        // Hook balance should increase (tokens held for addLiquidity, not burned).
-        uint256 hookBalanceAfter = jbTokens().totalBalanceOf(address(LP_SPLIT_HOOK), revnetId);
-        assertGt(hookBalanceAfter, hookBalanceBefore, "hook holds the accumulated tokens for addLiquidity");
+        // The permissionless addLiquidity recycles whatever the distribution left in the ledger into the pool.
+        LP_SPLIT_HOOK.addLiquidity({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN});
+        assertGt(_lpPositionsOf(revnetId), 0, "addLiquidity should leave the hook holding a position");
     }
 
     /// @notice Pool parameters match: both hooks use the same fee and tick spacing.
@@ -367,9 +352,8 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         _payRevnet(revnetId, PAYER, 20 ether);
         _payRevnet(revnetId, PAYER2, 20 ether);
 
-        // Distribute and deploy pool.
-        jbController().sendReservedTokensToSplitsOf(revnetId);
-        LP_SPLIT_HOOK.deployPool(revnetId);
+        // Distribute and end with the pool deployed.
+        _distributeAndDeployPool(revnetId);
 
         // Also add manual liquidity to the same native ETH pool to ensure swap path is competitive with mint.
         _seedBuybackPoolLiquidity(revnetId, 10_000 ether);
@@ -402,13 +386,9 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         // Build pending reserved tokens so the LP split hook has project tokens to pair with terminal surplus.
         _payRevnet({revnetId: revnetId, payer: PAYER, amount: 20 ether});
         _payRevnet({revnetId: revnetId, payer: PAYER2, amount: 20 ether});
-        jbController().sendReservedTokensToSplitsOf({projectId: revnetId});
 
         // Deploying through the split hook exercises the LP package, PositionManager, PoolManager, and Permit2 path.
-        LP_SPLIT_HOOK.deployPool(revnetId);
-
-        uint256 lpTokenId = LP_SPLIT_HOOK.tokenIdOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN});
-        assertGt(lpTokenId, 0, "LP split hook should own a position");
+        _distributeAndDeployPool(revnetId);
 
         // Native-token buyback pools are stored under address(0), matching Uniswap V4's native Currency convention.
         PoolKey memory buybackPoolKey = BUYBACK_HOOK.poolKeyOf({projectId: revnetId, terminalToken: address(0)});
@@ -474,9 +454,8 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         _payRevnet(revnetId, PAYER, 10 ether);
         _payRevnet(revnetId, PAYER2, 10 ether);
 
-        // Distribute and deploy pool.
-        jbController().sendReservedTokensToSplitsOf(revnetId);
-        LP_SPLIT_HOOK.deployPool(revnetId);
+        // Distribute and end with the pool deployed.
+        _distributeAndDeployPool(revnetId);
 
         // Cash out tokens -- bonding curve should work with pool deployed.
         uint256 payerTokens = jbTokens().totalBalanceOf(PAYER, revnetId);
@@ -588,27 +567,13 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
 
         _payRevnet(projectId, PAYER2, 10 ether);
 
-        // 4. Distribute reserved tokens -> LP split hook accumulates.
+        // 4-5. Distribute reserved tokens to the LP split hook and end with its pool deployed. The hook creates the
+        // pool at its own price, which must happen BEFORE the buyback hook is pointed at it: initializePoolFor would
+        // set tick 0, putting the LP corridor out of reach.
         uint256 pending = jbController().pendingReservedTokenBalanceOf(projectId);
         assertGt(pending, 0, "should have pending reserved tokens");
 
-        jbController().sendReservedTokensToSplitsOf(projectId);
-
-        uint256 accumulated = LP_SPLIT_HOOK.accumulatedProjectTokens(projectId);
-        assertGt(accumulated, 0, "LP split hook should accumulate tokens");
-
-        // 5. Deploy pool via LP split hook -- initializes pool at geometric mean price.
-        // Must happen BEFORE initializePoolFor, because initializePoolFor would set tick 0
-        // which puts the LP range out of reach (the range is one-sided project-token only).
-        // No permission grant needed -- address(this) IS the project owner.
-        LP_SPLIT_HOOK.deployPool(projectId);
-
-        assertLt(
-            LP_SPLIT_HOOK.accumulatedProjectTokens(projectId),
-            accumulated,
-            "deployPool should consume accumulation into the LP (only unpaired dust carries forward)"
-        );
-        assertGt(LP_SPLIT_HOOK.tokenIdOf(projectId, JBConstants.NATIVE_TOKEN), 0, "LP position should exist");
+        _distributeAndDeployPool(projectId);
 
         // 6. Configure buyback hook to use the pool the LP split hook created.
         // Pool already exists -> use setPoolFor (not initializePoolFor which would try to re-init).
@@ -647,5 +612,51 @@ contract LPBuybackInteropForkTest is RevnetEcosystemBase {
         });
 
         assertGt(PAYER.balance, payerEthBefore, "should receive ETH from cash out");
+    }
+
+    /// @notice Send a project's reserved tokens to its splits and end with the LP split hook's pool deployed.
+    /// @dev A reserved distribution that pushes the hook's ledger past its churn threshold attempts the deployment
+    /// inline. When that attempt is skipped or forgiven, the tokens must still be in the ledger, and the permissionless
+    /// `deployPool` consumes them.
+    /// @param projectId The ID of the project to distribute for.
+    function _distributeAndDeployPool(uint256 projectId) internal {
+        jbController().sendReservedTokensToSplitsOf(projectId);
+
+        if (!LP_SPLIT_HOOK.isPoolDeployed({projectId: projectId, terminalToken: JBConstants.NATIVE_TOKEN})) {
+            uint256 accumulated = LP_SPLIT_HOOK.accumulatedProjectTokens(projectId);
+            assertGt(accumulated, 0, "an undeployed LP split hook should ledger the distributed tokens");
+
+            LP_SPLIT_HOOK.deployPool(projectId);
+
+            // Only unpaired dust carries forward; the rest is minted into the positions.
+            assertLt(
+                LP_SPLIT_HOOK.accumulatedProjectTokens(projectId),
+                accumulated,
+                "deployPool should consume the accumulation into the LP"
+            );
+        }
+
+        assertTrue(
+            LP_SPLIT_HOOK.isPoolDeployed({projectId: projectId, terminalToken: JBConstants.NATIVE_TOKEN}),
+            "LP split hook pool should be deployed"
+        );
+        assertGt(_lpPositionsOf(projectId), 0, "LP position should exist");
+    }
+
+    /// @notice The project tokens backing the LP split hook's inventory: held by the hook (ledgered or awaiting a
+    /// recycle) plus those deposited in the PoolManager, where the hook's positions are the only liquidity in these
+    /// tests until `_seedBuybackPoolLiquidity` runs.
+    /// @param projectId The ID of the project.
+    /// @return inventory The project-token amount held by the hook and the PoolManager.
+    function _lpProjectTokenInventoryOf(uint256 projectId) internal view returns (uint256 inventory) {
+        IERC20 projectToken = IERC20(address(jbTokens().tokenOf(projectId)));
+        return projectToken.balanceOf(address(LP_SPLIT_HOOK)) + projectToken.balanceOf(address(poolManager));
+    }
+
+    /// @notice The sum of the LP split hook's ask and bid position IDs for a project's native-token pool: nonzero
+    /// once the hook holds either position.
+    function _lpPositionsOf(uint256 projectId) internal view returns (uint256) {
+        return LP_SPLIT_HOOK.askTokenIdOf({projectId: projectId, terminalToken: JBConstants.NATIVE_TOKEN})
+            + LP_SPLIT_HOOK.bidTokenIdOf({projectId: projectId, terminalToken: JBConstants.NATIVE_TOKEN});
     }
 }

@@ -259,27 +259,10 @@ abstract contract LpSplitHookFixBase is Script {
             revert LpSplitHookFix_InstanceAddressMismatch(address(hook), address(deployed));
         }
     }
-}
 
-/// @notice Sphinx deploy for the LP split hook fix. Propose per `deploy:propose:lp-split-hook-fix:*`.
-contract DeployLpSplitHookFix is LpSplitHookFixBase, Sphinx {
-    function configureSphinx() public override {
-        sphinxConfig.projectName = "v6-deployment";
-        sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
-        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
-    }
-
-    function run() public {
-        if (safeAddress() != _EXPECTED_SAFE) {
-            revert LpSplitHookFix_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
-        }
-        _setupChainAddresses();
-        if (!_shouldDeployLpStack()) return;
-        _loadExistingDeploymentAddresses();
-        deploy();
-    }
-
-    function deploy() public sphinx {
+    /// @notice Deploy the LP split hook stack: the math library, the hook implementation linked against it, its
+    /// deployer (wired to this chain's Uniswap V4 stack once), and the shared instance projects use.
+    function _deployLpStack() internal {
         // 1. New JBUniswapV4LPSplitHookMath library (carries the fix). New bytecode → fresh address, exactly where
         //    the build linker baked it into the rebuilt hook artifact (same 2-arg salt namespace).
         _deployPrecompiledIfNeeded({artifactName: "JBUniswapV4LPSplitHookMath", salt: _MATH_LIB_SALT, ctorArgs: ""});
@@ -316,16 +299,9 @@ contract DeployLpSplitHookFix is LpSplitHookFixBase, Sphinx {
         _lpSplitHookInstance = _deployLpSplitHookInstanceIfNeeded();
     }
 
-    /// @notice Post-deploy address dump (no broadcast) for the focused verify/emit/distribute pipeline. Writes only
-    /// the three LP-split contracts to `script/post-deploy/.cache/addresses-<chainId>.json` in the same
-    /// `jb-v6-addresses-1` format as `Deploy.s.sol._dumpAddresses`, so `post-deploy.sh --skip-dump` verifies and
-    /// emits exactly these (and no other contract). Addresses are the deterministic CREATE2 predictions off the
-    /// current artifacts — the contracts already exist on-chain, so `_isDeployed` returns true.
-    function dumpAddresses() external {
-        _setupChainAddresses();
-        if (!_shouldDeployLpStack()) return; // no LP stack on this chain → nothing to dump
-        _loadExistingDeploymentAddresses();
-
+    /// @notice Add the LP split hook stack's predicted addresses to the JSON object `j`. Addresses are the
+    /// deterministic CREATE2 predictions off the current artifacts.
+    function _serializeLpAddresses(string memory j) internal {
         (address mathLib,) = _isDeployed({
             salt: _MATH_LIB_SALT, creationCode: _loadArtifact("JBUniswapV4LPSplitHookMath"), arguments: ""
         });
@@ -343,11 +319,47 @@ contract DeployLpSplitHookFix is LpSplitHookFixBase, Sphinx {
         _lpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(deployer); // so the instance prediction resolves
         address instance = address(_predictLpSplitHookInstance());
 
-        string memory j = "_lpSplitHookFixAddresses";
         vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHookMath", value: mathLib});
         vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHook", value: hook});
         vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHookDeployer", value: deployer});
         vm.serializeAddress({objectKey: j, valueKey: "JBP6FeeLPSplitHook", value: instance});
+    }
+}
+
+/// @notice Sphinx deploy for the LP split hook fix. Propose per `deploy:propose:lp-split-hook-fix:*`.
+contract DeployLpSplitHookFix is LpSplitHookFixBase, Sphinx {
+    function configureSphinx() public override {
+        sphinxConfig.projectName = "v6-deployment";
+        sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
+        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
+    }
+
+    function run() public {
+        if (safeAddress() != _EXPECTED_SAFE) {
+            revert LpSplitHookFix_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
+        }
+        _setupChainAddresses();
+        if (!_shouldDeployLpStack()) return;
+        _loadExistingDeploymentAddresses();
+        deploy();
+    }
+
+    function deploy() public sphinx {
+        _deployLpStack();
+    }
+
+    /// @notice Post-deploy address dump (no broadcast) for the focused verify/emit/distribute pipeline. Writes only
+    /// the three LP-split contracts to `script/post-deploy/.cache/addresses-<chainId>.json` in the same
+    /// `jb-v6-addresses-1` format as `Deploy.s.sol._dumpAddresses`, so `post-deploy.sh --skip-dump` verifies and
+    /// emits exactly these (and no other contract). Addresses are the deterministic CREATE2 predictions off the
+    /// current artifacts — the contracts already exist on-chain, so `_isDeployed` returns true.
+    function dumpAddresses() external {
+        _setupChainAddresses();
+        if (!_shouldDeployLpStack()) return; // no LP stack on this chain → nothing to dump
+        _loadExistingDeploymentAddresses();
+
+        string memory j = "_lpSplitHookFixAddresses";
+        _serializeLpAddresses(j);
         vm.serializeString({objectKey: j, valueKey: "format", value: "jb-v6-addresses-1"});
         string memory out = vm.serializeUint({objectKey: j, valueKey: "chainId", value: block.chainid});
 
