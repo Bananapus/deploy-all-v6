@@ -19,3 +19,6 @@ jobs:
 
       - name: Check formatting
         run: forge fmt --check
+
+      - name: Check script Anvils keep state off disk
+        run: "! grep -rn --include='*.sh' -E '^[[:space:]]*anvil ' script | grep -v -- '--prune-history'"

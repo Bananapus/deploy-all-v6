@@ -131,7 +131,8 @@ for CHAIN_ID in "${CHAINS[@]}"; do
     fi
     FORK_BLOCK=$((TIP - 5))
 
-    anvil --fork-url "$RPC" --fork-block-number "$FORK_BLOCK" --auto-impersonate \
+    # Unpruned, Anvil writes block states to ~/.foundry/anvil/tmp and leaves them when killed.
+    anvil --prune-history 500 --fork-url "$RPC" --fork-block-number "$FORK_BLOCK" --auto-impersonate \
         --port "$ANVIL_PORT" --silent > "$OUT_DIR/$LABEL-anvil.log" 2>&1 &
     echo $! > "$ANVIL_PID_FILE"
     sleep 6
