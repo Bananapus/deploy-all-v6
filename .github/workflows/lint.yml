@@ -20,11 +20,11 @@ jobs:
       - name: Check formatting
         run: forge fmt --check
 
-      # Runs start_anvil against a stub to check its exact arguments, then checks no script line
+      # Runs start_anvil against a stub that asserts its exact arguments, then checks no script line
       # launches anvil directly (a convention check; the function is the one launch path).
       - name: Check script Anvils keep state off disk
         run: |
-          stub=$(mktemp -d); printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$@"' > "$stub/anvil"; chmod +x "$stub/anvil"
+          stub=$(mktemp -d); printf '%s\n' '#!/bin/sh' '[ $# -eq 3 ] && [ "$1" = --prune-history ] && [ "$2" = 500 ] && [ "$3" = --silent ]' > "$stub/anvil"; chmod +x "$stub/anvil"
           eval "$(grep -E '^start_anvil\(\) ' script/rehearse-addresses.sh)"
-          test "$(PATH="$stub:$PATH"; start_anvil --silent)" = "$(printf '%s\n' --prune-history 500 --silent)"
+          (PATH="$stub:$PATH"; start_anvil --silent)
           test "$(grep -rEn --include='*.sh' '(^|[;&|({]|exec)[[:space:]]*anvil[[:space:]]' script | wc -l)" -eq 1
