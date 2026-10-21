@@ -216,6 +216,9 @@ contract Verify is Script {
     // The Defifa deployer contract (optional, not deployed on all chains).
     DefifaDeployer public defifaDeployer;
 
+    // The Defifa 1155 game type's deployer contract (optional, not deployed on all chains).
+    DefifaDeployer public defifa1155Deployer;
+
     // Expected trusted forwarder address.
     address public expectedTrustedForwarder;
 
@@ -390,6 +393,8 @@ contract Verify is Script {
         addressRegistry = vm.envOr({name: "VERIFY_ADDRESS_REGISTRY", defaultValue: address(0)});
         // Read the Defifa deployer address from env (address(0) if not deployed on this chain).
         defifaDeployer = DefifaDeployer(vm.envOr({name: "VERIFY_DEFIFA_DEPLOYER", defaultValue: address(0)}));
+        // Read the Defifa 1155 deployer address from env (address(0) if not deployed on this chain).
+        defifa1155Deployer = DefifaDeployer(vm.envOr({name: "VERIFY_DEFIFA_1155_DEPLOYER", defaultValue: address(0)}));
 
         // Read the expected trusted forwarder address.
         expectedTrustedForwarder = vm.envOr({name: "VERIFY_TRUSTED_FORWARDER", defaultValue: address(0)});
@@ -439,6 +444,10 @@ contract Verify is Script {
             require(addressRegistry != address(0), "Verify: VERIFY_ADDRESS_REGISTRY required on production chain");
             require(
                 address(defifaDeployer) != address(0), "Verify: VERIFY_DEFIFA_DEPLOYER required on production chain"
+            );
+            require(
+                address(defifa1155Deployer) != address(0),
+                "Verify: VERIFY_DEFIFA_1155_DEPLOYER required on production chain"
             );
             require(
                 address(projectHandles) != address(0), "Verify: VERIFY_PROJECT_HANDLES required on production chain"
@@ -1296,86 +1305,123 @@ contract Verify is Script {
             _check({condition: addressRegistry.code.length > 0, label: "AddressRegistry has code", critical: true});
         }
 
-        // If the Defifa deployer is not set, skip these checks.
-        if (address(defifaDeployer) == address(0)) {
-            _skip("DefifaDeployer not deployed (VERIFY_DEFIFA_DEPLOYER not set)");
+        // Check each Defifa game type's deployer that is configured.
+        _verifyDefifaDeployer({deployer: defifaDeployer, label: "Defifa"});
+        _verifyDefifaDeployer({deployer: defifa1155Deployer, label: "Defifa 1155"});
+
+        // The two game types share one tiers store and one token URI resolver.
+        if (address(defifaDeployer) != address(0) && address(defifa1155Deployer) != address(0)) {
+            _check({
+                condition: address(defifaDeployer.HOOK_STORE()) == address(defifa1155Deployer.HOOK_STORE()),
+                label: "Defifa game types share one tiers store",
+                critical: true
+            });
+            _check({
+                condition: address(defifaDeployer.TOKEN_URI_RESOLVER())
+                    == address(defifa1155Deployer.TOKEN_URI_RESOLVER()),
+                label: "Defifa game types share one token URI resolver",
+                critical: true
+            });
+            _check({
+                condition: address(defifaDeployer.GOVERNOR()) != address(defifa1155Deployer.GOVERNOR()),
+                label: "Defifa game types have separate governors",
+                critical: true
+            });
+        }
+
+        // Log a blank line for readability.
+        console.log("");
+    }
+
+    /// @dev Validates one Defifa game type's deployer and the contracts it points at, if it is configured.
+    /// @param deployer The game type's deployer, or address(0) to skip.
+    /// @param label The prefix for this game type's check labels.
+    function _verifyDefifaDeployer(DefifaDeployer deployer, string memory label) internal {
+        // If the deployer is not set, skip these checks.
+        if (address(deployer) == address(0)) {
+            _skip(string.concat(label, " deployer not configured"));
         } else {
             // Verify the Defifa deployer is deployed (has code).
             _check({
-                condition: address(defifaDeployer).code.length > 0, label: "DefifaDeployer has code", critical: true
-            });
-            _check({
-                condition: defifaDeployer.DEFIFA_PROJECT_ID() == _DEFIFA_REV_PROJECT_ID,
-                label: "Defifa uses DEFIFA_REV(5) as fee project",
+                condition: address(deployer).code.length > 0,
+                label: string.concat(label, " deployer has code"),
                 critical: true
             });
             _check({
-                condition: defifaDeployer.BASE_PROTOCOL_PROJECT_ID() == _FEE_PROJECT_ID,
-                label: "Defifa uses NANA(1) as base protocol project",
+                condition: deployer.DEFIFA_PROJECT_ID() == _DEFIFA_REV_PROJECT_ID,
+                label: string.concat(label, " uses DEFIFA_REV(5) as fee project"),
                 critical: true
             });
             _check({
-                condition: address(defifaDeployer.CONTROLLER()) == address(controller),
-                label: "Defifa controller wiring",
+                condition: deployer.BASE_PROTOCOL_PROJECT_ID() == _FEE_PROJECT_ID,
+                label: string.concat(label, " uses NANA(1) as base protocol project"),
                 critical: true
             });
             _check({
-                condition: address(defifaDeployer.REGISTRY()) == addressRegistry,
-                label: "Defifa address registry wiring",
+                condition: address(deployer.CONTROLLER()) == address(controller),
+                label: string.concat(label, " controller wiring"),
                 critical: true
             });
             _check({
-                condition: address(defifaDeployer.HOOK_STORE()) == address(hookStore),
-                label: "Defifa HOOK_STORE == shared JB721TiersHookStore",
+                condition: address(deployer.REGISTRY()) == addressRegistry,
+                label: string.concat(label, " address registry wiring"),
+                critical: true
+            });
+            _check({
+                condition: address(deployer.HOOK_STORE()).code.length > 0,
+                label: string.concat(label, " tiers store has code"),
                 critical: true
             });
 
-            address hookCodeOrigin = defifaDeployer.HOOK_CODE_ORIGIN();
+            address hookCodeOrigin = deployer.HOOK_CODE_ORIGIN();
             _check({
-                condition: hookCodeOrigin.code.length > 0, label: "Defifa hook code origin has code", critical: true
+                condition: hookCodeOrigin.code.length > 0,
+                label: string.concat(label, " hook code origin has code"),
+                critical: true
             });
             if (hookCodeOrigin.code.length > 0) {
                 _check({
                     condition: address(DefifaHook(hookCodeOrigin).DEFIFA_TOKEN())
                         == address(tokens.tokenOf(_DEFIFA_REV_PROJECT_ID)),
-                    label: "Defifa hook code origin uses DEFIFA_REV token",
+                    label: string.concat(label, " hook code origin uses DEFIFA_REV token"),
                     critical: true
                 });
                 _check({
                     condition: address(DefifaHook(hookCodeOrigin).BASE_PROTOCOL_TOKEN())
                         == address(tokens.tokenOf(_FEE_PROJECT_ID)),
-                    label: "Defifa hook code origin uses NANA token",
+                    label: string.concat(label, " hook code origin uses NANA token"),
                     critical: true
                 });
                 _check({
                     condition: address(DefifaHook(hookCodeOrigin).DIRECTORY()) == address(directory),
-                    label: "Defifa hook code origin DIRECTORY == directory",
+                    label: string.concat(label, " hook code origin DIRECTORY == directory"),
                     critical: true
                 });
             }
 
-            address tokenUriResolver = address(defifaDeployer.TOKEN_URI_RESOLVER());
-            address governor = address(defifaDeployer.GOVERNOR());
+            address tokenUriResolver = address(deployer.TOKEN_URI_RESOLVER());
+            address governor = address(deployer.GOVERNOR());
             _check({
-                condition: tokenUriResolver.code.length > 0, label: "Defifa token URI resolver has code", critical: true
+                condition: tokenUriResolver.code.length > 0,
+                label: string.concat(label, " token URI resolver has code"),
+                critical: true
             });
-            _check({condition: governor.code.length > 0, label: "Defifa governor has code", critical: true});
+            _check({
+                condition: governor.code.length > 0, label: string.concat(label, " governor has code"), critical: true
+            });
             if (governor.code.length > 0) {
                 _check({
-                    condition: DefifaGovernor(governor).owner() == address(defifaDeployer),
-                    label: "Defifa governor owned by deployer",
+                    condition: DefifaGovernor(governor).owner() == address(deployer),
+                    label: string.concat(label, " governor owned by deployer"),
                     critical: true
                 });
                 _check({
                     condition: address(DefifaGovernor(governor).CONTROLLER()) == address(controller),
-                    label: "Defifa governor controller wiring",
+                    label: string.concat(label, " governor controller wiring"),
                     critical: true
                 });
             }
         }
-
-        // Log a blank line for readability.
-        console.log("");
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -4561,45 +4607,10 @@ contract Verify is Script {
         _requireArtifactIdentity({
             artifactName: "JBAddressRegistry", deployed: addressRegistry, label: "JBAddressRegistry"
         });
-        _requireArtifactIdentity({
-            artifactName: "DefifaDeployer", deployed: address(defifaDeployer), label: "DefifaDeployer"
+        _requireDefifaIdentity({deployer: address(defifaDeployer), hookArtifact: "DefifaHook", label: "Defifa"});
+        _requireDefifaIdentity({
+            deployer: address(defifa1155Deployer), hookArtifact: "Defifa1155Hook", label: "Defifa 1155"
         });
-        if (address(defifaDeployer) != address(0)) {
-            (bool okOrigin, bytes memory originData) =
-                address(defifaDeployer).staticcall(abi.encodeWithSignature("HOOK_CODE_ORIGIN()"));
-            if (okOrigin && originData.length >= 32) {
-                _requireArtifactIdentity({
-                    artifactName: "DefifaHook",
-                    deployed: abi.decode(originData, (address)),
-                    label: "DefifaHook code origin"
-                });
-            }
-            (bool okResolver, bytes memory resolverData) =
-                address(defifaDeployer).staticcall(abi.encodeWithSignature("TOKEN_URI_RESOLVER()"));
-            if (okResolver && resolverData.length >= 32) {
-                _requireArtifactIdentity({
-                    artifactName: "DefifaTokenUriResolver",
-                    deployed: abi.decode(resolverData, (address)),
-                    label: "DefifaTokenUriResolver"
-                });
-            }
-            (bool okGov, bytes memory govData) =
-                address(defifaDeployer).staticcall(abi.encodeWithSignature("GOVERNOR()"));
-            if (okGov && govData.length >= 32) {
-                _requireArtifactIdentity({
-                    artifactName: "DefifaGovernor", deployed: abi.decode(govData, (address)), label: "DefifaGovernor"
-                });
-            }
-            (bool okStore, bytes memory storeData) =
-                address(defifaDeployer).staticcall(abi.encodeWithSignature("HOOK_STORE()"));
-            if (okStore && storeData.length >= 32) {
-                _requireArtifactIdentity({
-                    artifactName: "JB721TiersHookStore",
-                    deployed: abi.decode(storeData, (address)),
-                    label: "Defifa JB721TiersHookStore"
-                });
-            }
-        }
 
         // Every implementation that backs a clone or per-route singleton carries its own
         // constructor-injected PERMISSIONS / trustedForwarder immutables. The artifact-identity
@@ -4711,6 +4722,51 @@ contract Verify is Script {
                     critical: true
                 });
             }
+        }
+    }
+
+    /// @dev Authenticate one Defifa game type's deployer and what it points at against their artifacts: the deployer,
+    /// its hook code origin (`DefifaHook` or `Defifa1155Hook`), the shared resolver and tiers store, and its governor.
+    /// @param deployer The game type's deployer, or address(0) to skip.
+    /// @param hookArtifact The artifact the deployer's hook code origin must match.
+    /// @param label The prefix for this game type's labels.
+    function _requireDefifaIdentity(address deployer, string memory hookArtifact, string memory label) internal {
+        _requireArtifactIdentity({
+            artifactName: "DefifaDeployer", deployed: deployer, label: string.concat(label, " deployer")
+        });
+        if (deployer == address(0)) return;
+        (bool okOrigin, bytes memory originData) = deployer.staticcall(abi.encodeWithSignature("HOOK_CODE_ORIGIN()"));
+        if (okOrigin && originData.length >= 32) {
+            _requireArtifactIdentity({
+                artifactName: hookArtifact,
+                deployed: abi.decode(originData, (address)),
+                label: string.concat(label, " hook code origin")
+            });
+        }
+        (bool okResolver, bytes memory resolverData) =
+            deployer.staticcall(abi.encodeWithSignature("TOKEN_URI_RESOLVER()"));
+        if (okResolver && resolverData.length >= 32) {
+            _requireArtifactIdentity({
+                artifactName: "DefifaTokenUriResolver",
+                deployed: abi.decode(resolverData, (address)),
+                label: string.concat(label, " token URI resolver")
+            });
+        }
+        (bool okGov, bytes memory govData) = deployer.staticcall(abi.encodeWithSignature("GOVERNOR()"));
+        if (okGov && govData.length >= 32) {
+            _requireArtifactIdentity({
+                artifactName: "DefifaGovernor",
+                deployed: abi.decode(govData, (address)),
+                label: string.concat(label, " governor")
+            });
+        }
+        (bool okStore, bytes memory storeData) = deployer.staticcall(abi.encodeWithSignature("HOOK_STORE()"));
+        if (okStore && storeData.length >= 32) {
+            _requireArtifactIdentity({
+                artifactName: "DefifaTiersHookStore",
+                deployed: abi.decode(storeData, (address)),
+                label: string.concat(label, " tiers store")
+            });
         }
     }
 

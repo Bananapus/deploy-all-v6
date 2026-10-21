@@ -62,7 +62,10 @@ const targets = Object.entries(addresses)
 console.log(`Distributing ${targets.length} artifact(s) for chain ${CHAIN_ID} (${chain.alias})${DRY_RUN ? ' [DRY RUN]' : ''}`);
 
 const ARTIFACT_ALIASES = new Map([
-  ['JBP6FeeLPSplitHook', 'JBUniswapV4LPSplitHook']
+  ['JBP6FeeLPSplitHook', 'JBUniswapV4LPSplitHook'],
+  // The 1155 Defifa game type deploys a second governor and deployer from the same artifacts.
+  ['Defifa1155Governor', 'DefifaGovernor'],
+  ['Defifa1155Deployer', 'DefifaDeployer']
 ]);
 
 let writeCount = 0;

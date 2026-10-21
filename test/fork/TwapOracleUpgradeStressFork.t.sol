@@ -153,7 +153,8 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
             "buyback and LP split should share one hooked pool"
         );
         assertGt(
-            _newLpSplitHook.tokenIdOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN}),
+            _newLpSplitHook.askTokenIdOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN})
+                + _newLpSplitHook.bidTokenIdOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN}),
             0,
             "new LP split should own a position"
         );
