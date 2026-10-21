@@ -69,6 +69,9 @@ abstract contract DefifaV2Base is LpSplitHookFixBase {
     // The 1155 game type's governor has the same constructor args as the 721 one, so it needs its own salt.
     bytes32 internal constant _DEFIFA_1155_SALT = "_DEFIFA_1155_SALTV6_";
 
+    // The standard LP split hook fee for new instances: 10% of collected LP fees to project 1.
+    uint256 internal constant _LP_SPLIT_HOOK_STANDARD_FEE_PERCENT = 1000;
+
     // ── State ──
     // `_directory`, `_tokens` and `_addressRegistry` come from LpSplitHookFixBase.
     IJBController internal _controller;
@@ -80,6 +83,13 @@ abstract contract DefifaV2Base is LpSplitHookFixBase {
 
     // ── Chain wiring ──
     /// @notice The Capsules typeface the token URI resolver renders with on this chain (mirrors Deploy.s.sol).
+    /// @notice This release's shared LP split hook instance takes the standard 10% fee.
+    /// @return The fee percent, out of 10_000, passed to `deployHookFor`.
+    function _lpSplitHookInstanceFeePercent() internal pure override returns (uint256) {
+        // Use the standard share rather than the 20% the earlier live instance was initialized with.
+        return _LP_SPLIT_HOOK_STANDARD_FEE_PERCENT;
+    }
+
     function _setupDefifaChainAddresses() internal {
         if (block.chainid == 1) {
             _typeface = 0xA77b7D93E79f1E6B4f77FaB29d9ef85733A3D44A;

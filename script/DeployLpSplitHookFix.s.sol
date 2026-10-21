@@ -240,7 +240,15 @@ abstract contract LpSplitHookFixBase is Script {
         );
     }
 
-    /// @notice Deploy the shared instance if not already present (idempotent). Params mirror the live instance.
+    /// @notice The fee share, out of 10_000, the shared instance pays to the fee project. Release scripts override it.
+    /// @return The fee percent passed to `deployHookFor`.
+    function _lpSplitHookInstanceFeePercent() internal pure virtual returns (uint256) {
+        // Default to the live instance's share so this fix script reproduces it.
+        return _LP_SPLIT_HOOK_INSTANCE_FEE_PERCENT;
+    }
+
+    /// @notice Deploy the shared instance if not already present (idempotent). Fee share from
+    /// `_lpSplitHookInstanceFeePercent`.
     function _deployLpSplitHookInstanceIfNeeded() internal returns (JBUniswapV4LPSplitHook hook) {
         hook = _predictLpSplitHookInstance();
         if (address(hook).code.length != 0) return hook;
@@ -249,7 +257,7 @@ abstract contract LpSplitHookFixBase is Script {
             payable(address(
                     _lpSplitHookDeployer.deployHookFor({
                         feeProjectId: _LP_SPLIT_HOOK_INSTANCE_FEE_PROJECT_ID,
-                        feePercent: _LP_SPLIT_HOOK_INSTANCE_FEE_PERCENT,
+                        feePercent: _lpSplitHookInstanceFeePercent(),
                         buybackHook: _buybackRegistry,
                         salt: _LP_SPLIT_HOOK_INSTANCE_SALT
                     })

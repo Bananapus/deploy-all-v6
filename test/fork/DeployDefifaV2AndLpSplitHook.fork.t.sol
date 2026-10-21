@@ -10,6 +10,8 @@ import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 
+import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
+
 import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
 import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
 import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
@@ -41,6 +43,10 @@ contract DefifaV2Harness is DefifaV2Base {
             salt: _MATH_LIB_SALT, creationCode: _loadArtifact("JBUniswapV4LPSplitHookMath"), arguments: ""
         });
         hook = address(_lpSplitHook);
+    }
+
+    function lpInstance() external view returns (JBUniswapV4LPSplitHook) {
+        return _predictLpSplitHookInstance();
     }
 
     function deployAll(address safe) external {
@@ -95,6 +101,12 @@ contract DeployDefifaV2ForkTest is Test {
         (address mathLib, address hook) = harness.deployLpStack();
         assertTrue(mathLib.code.length != 0, "math library deployed");
         assertTrue(_codeContains(hook, mathLib), "LP hook links the math library");
+
+        // The shared instance takes the standard fee: 10% of collected LP fees to project 1.
+        JBUniswapV4LPSplitHook instance = harness.lpInstance();
+        assertTrue(address(instance).code.length != 0, "shared instance deployed");
+        assertEq(instance.feeProjectId(), 1, "instance fee project");
+        assertEq(instance.feePercent(), 1000, "instance fee percent");
     }
 
     /// @notice The real script's post-deploy dump lists exactly this release's contracts at the predicted addresses,
