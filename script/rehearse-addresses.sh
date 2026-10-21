@@ -27,6 +27,11 @@
 
 set -euo pipefail
 
+# Every Anvil here starts through this. Unpruned, Anvil writes block states to ~/.foundry/anvil/tmp
+# and leaves them when killed; pruning keeps the newest 500 in memory (Anvil's default), none on disk.
+# `exec` keeps $! the Anvil PID when the caller backgrounds this.
+start_anvil() { exec anvil --prune-history 500 "$@"; }
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEPLOY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ARTIFACTS_DIR="$DEPLOY_ROOT/artifacts"
@@ -131,7 +136,7 @@ for CHAIN_ID in "${CHAINS[@]}"; do
     fi
     FORK_BLOCK=$((TIP - 5))
 
-    anvil --fork-url "$RPC" --fork-block-number "$FORK_BLOCK" --auto-impersonate \
+    start_anvil --fork-url "$RPC" --fork-block-number "$FORK_BLOCK" --auto-impersonate \
         --port "$ANVIL_PORT" --silent > "$OUT_DIR/$LABEL-anvil.log" 2>&1 &
     echo $! > "$ANVIL_PID_FILE"
     sleep 6
