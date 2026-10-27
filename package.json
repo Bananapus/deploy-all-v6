@@ -29,6 +29,8 @@
     "deploy:propose:defifa-v2-lp-split-hook:mainnets": "npx sphinx propose script/DeployDefifaV2AndLpSplitHook.s.sol --target-contract DeployDefifaV2AndLpSplitHook --networks mainnets",
     "deploy:propose:buyback-floor-fix:testnets": "npx sphinx propose script/DeployBuybackFloorFix.s.sol --target-contract DeployBuybackFloorFix --networks testnets",
     "deploy:propose:buyback-floor-fix:mainnets": "npx sphinx propose script/DeployBuybackFloorFix.s.sol --target-contract DeployBuybackFloorFix --networks mainnets",
+    "deploy:propose:hooks-v2:testnets": "npx sphinx propose script/DeployHooksV2.s.sol --target-contract DeployHooksV2 --networks testnets",
+    "deploy:propose:hooks-v2:mainnets": "npx sphinx propose script/DeployHooksV2.s.sol --target-contract DeployHooksV2 --networks mainnets",
     "deploy:propose:banny-drops:testnets": "npx sphinx propose script/DeployBannyDrops.s.sol --networks testnets",
     "deploy:propose:banny-drops:mainnets": "npx sphinx propose script/DeployBannyDrops.s.sol --networks mainnets",
     "deploy:propose:banny-drop1:testnets": "npx sphinx propose script/DeployBannyDrops.s.sol --target-contract DeployBannyDrop1 --networks testnets",
