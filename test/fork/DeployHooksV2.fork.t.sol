@@ -33,6 +33,8 @@ import {JBRouterTerminal} from "@bananapus/router-terminal-v6/src/JBRouterTermin
 import {JBRouterTerminalGateway} from "@bananapus/router-terminal-v6/src/JBRouterTerminalGateway.sol";
 import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRouterTerminalRegistry.sol";
 import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
+import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
+import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHookDeployer.sol";
 
 import {HooksV2Base} from "../../script/DeployHooksV2.s.sol";
 
@@ -78,7 +80,7 @@ contract HooksV2RehearsalHarness is HooksV2Base {
     }
 
     function buybackRegistry() external view returns (JBBuybackHookRegistry) {
-        return _buybackRegistry;
+        return JBBuybackHookRegistry(address(_buybackRegistry));
     }
 
     function routerRegistry() external view returns (JBRouterTerminalRegistry) {
@@ -91,6 +93,18 @@ contract HooksV2RehearsalHarness is HooksV2Base {
 
     function poolManager() external view returns (address) {
         return _poolManager;
+    }
+
+    function lpSplitHook() external view returns (JBUniswapV4LPSplitHook) {
+        return _lpSplitHook;
+    }
+
+    function lpSplitHookDeployer() external view returns (JBUniswapV4LPSplitHookDeployer) {
+        return _lpSplitHookDeployer;
+    }
+
+    function lpSplitHookInstance() external view returns (JBUniswapV4LPSplitHook) {
+        return _lpSplitHookInstance;
     }
 }
 
@@ -105,7 +119,7 @@ contract DeployHooksV2ForkTest is Test {
 
     address internal constant _SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
     uint256 internal constant _FEE_PROJECT_ID = 1;
-    uint256 internal constant _FORK_BLOCK = 53_138_000;
+    uint256 internal constant _FORK_BLOCK = 53_139_000;
 
     /// @notice A revnet that keeps its outgoing hook and gateway until its own operator migrates it.
     uint256 internal constant _UNMIGRATED_PROJECT_ID = 7;
@@ -174,6 +188,23 @@ contract DeployHooksV2ForkTest is Test {
         assertFalse(routerRegistry.isTerminalAllowed(IJBTerminal(address(harness.oldGateway()))), "old gateway retired");
         assertFalse(routerRegistry.isTerminalAllowed(IJBTerminal(address(router))), "raw router never selectable");
 
+        // A second LP split hook deployer around the 1.5.0 implementation, whose clones read the new V4 hook.
+        JBUniswapV4LPSplitHookDeployer lpDeployer = harness.lpSplitHookDeployer();
+        assertGt(address(harness.lpSplitHook()).code.length, 0, "1.5.0 implementation already live");
+        assertEq(
+            address(lpDeployer.hookImplementation()), address(harness.lpSplitHook()), "deployer wraps the 1.5.0 hook"
+        );
+        assertEq(address(lpDeployer.oracleHook()), address(univ4Hook), "LP clones read the new V4 hook");
+        assertEq(address(lpDeployer.poolManager()), harness.poolManager(), "LP PoolManager");
+        JBUniswapV4LPSplitHook lpInstance = harness.lpSplitHookInstance();
+        assertGt(address(lpInstance).code.length, 0, "shared LP instance deployed");
+        assertEq(address(lpInstance.oracleHook()), address(univ4Hook), "shared LP instance reads the new V4 hook");
+        assertEq(lpInstance.feeProjectId(), _FEE_PROJECT_ID, "LP fee project");
+        assertEq(lpInstance.feePercent(), 1000, "standard LP fee");
+        assertEq(
+            address(lpInstance.buybackHook()), address(buybackRegistry), "shared LP instance reads the buyback registry"
+        );
+
         // Project 1 moved; an unmigrated revnet keeps its outgoing contracts.
         assertEq(address(buybackRegistry.hookOf(_FEE_PROJECT_ID)), address(buybackHook), "project 1 hook");
         assertEq(address(routerRegistry.terminalOf(_FEE_PROJECT_ID)), address(gateway), "project 1 router");
@@ -226,8 +257,8 @@ contract DeployHooksV2ForkTest is Test {
         }
     }
 
-    /// @notice Someone initializes project 1's pool between the V4 hook's deploy and the pool step, at another
-    /// price. The proposal registers the pool as it is instead of reverting on `initializePoolFor`'s price check.
+    /// @notice Someone initializes project 1's pool at another price after the V4 hook exists. An already-built
+    /// proposal's `initializePoolFor` would fail; a rebuilt one registers the pool as it is with `setPoolFor`.
     function test_frontRunPoolIsRegisteredAsIs() public {
         // Learn the V4 hook's address and code, then rewind to before the proposal.
         uint256 snapshot = vm.snapshotState();
@@ -282,7 +313,7 @@ contract DeployHooksV2ForkTest is Test {
         IPoolManager manager = IPoolManager(harness.poolManager());
         PoolKey memory key = harness.buybackHook().poolKeyOf({projectId: _FEE_PROJECT_ID, terminalToken: address(0)});
         IERC20 nana = IERC20(Currency.unwrap(key.currency1));
-        (uint256 weight, uint256 payerShare) = _issuancePerEth();
+        (, uint256 payerShare) = _issuancePerEth();
 
         // Seed liquidity around the starting price, with tokens minted by paying the project.
         PoolModifyLiquidityTest lp = new PoolModifyLiquidityTest(manager);
@@ -334,9 +365,10 @@ contract DeployHooksV2ForkTest is Test {
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + 31 minutes);
 
+        IJBTerminal terminal = harness.terminal();
         vm.deal(payer, 0.01 ether);
         vm.prank(payer);
-        uint256 paid = harness.terminal().pay{value: 0.01 ether}({
+        uint256 paid = terminal.pay{value: 0.01 ether}({
             projectId: _FEE_PROJECT_ID,
             token: JBConstants.NATIVE_TOKEN,
             amount: 0.01 ether,
@@ -346,6 +378,7 @@ contract DeployHooksV2ForkTest is Test {
             metadata: ""
         });
         assertGt(paid, payerShare / 100, "the buyback hook bought from the pool, beating the mint");
+        assertEq(payer.balance, 0, "the payer paid");
     }
 
     receive() external payable {}

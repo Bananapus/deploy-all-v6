@@ -2,7 +2,6 @@
 pragma solidity 0.8.28;
 
 import {Sphinx} from "@sphinx-labs/contracts/contracts/foundry/SphinxPlugin.sol";
-import {Script, stdJson} from "forge-std/Script.sol";
 
 // ── Uniswap ──
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
@@ -12,6 +11,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
 // ── Buyback Hook ──
@@ -26,15 +26,16 @@ import {JBRouterTerminalRegistry} from "@bananapus/router-terminal-v6/src/JBRout
 // ── Uniswap V4 Hook ──
 import {JBUniswapV4Hook} from "@bananapus/univ4-router-v6/src/JBUniswapV4Hook.sol";
 
+// ── Uniswap V4 LP Split Hook ──
+import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHook.sol";
+import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHookDeployer.sol";
+
 // ── Core ──
 import {IJBController} from "@bananapus/core-v6/src/interfaces/IJBController.sol";
-import {IJBDirectory} from "@bananapus/core-v6/src/interfaces/IJBDirectory.sol";
-import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
 import {IJBPrices} from "@bananapus/core-v6/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core-v6/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
-import {IJBTokens} from "@bananapus/core-v6/src/interfaces/IJBTokens.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {JBRuleset} from "@bananapus/core-v6/src/structs/JBRuleset.sol";
@@ -42,6 +43,8 @@ import {JBRulesetMetadata} from "@bananapus/core-v6/src/structs/JBRulesetMetadat
 
 // ── Math ──
 import {mulDiv, sqrt} from "@prb/math/src/Common.sol";
+
+import {LpSplitHookFixBase} from "./DeployLpSplitHookFix.s.sol";
 
 /// @notice Rollout of buyback hook 2.0.0 and Uniswap V4 hook 2.0.0, with project 1 moved onto them.
 ///
@@ -51,39 +54,38 @@ import {mulDiv, sqrt} from "@prb/math/src/Common.sol";
 /// or a split. A pool is bound to its V4 hook for life, and a buyback hook reads one oracle hook, so the new buyback
 /// hook trades only against pools on the new V4 hook.
 ///
-/// Run by the infra Safe, which owns both registries and is project 1's operator. Steps, on every chain with the
-/// Uniswap stack (OP Sepolia has none and skips everything):
+/// Run by the infra Safe, which owns both registries and is project 1's operator. Steps, on every chain with a V4
+/// PositionManager (OP Sepolia has none and skips everything):
 ///   1. Deploy the V4 hook at a CREATE2 salt whose address carries its permission flags.
 ///   2. Deploy the buyback hook and point it at this chain's PoolManager and the new V4 hook.
-///   3. Deploy a router bound to the new buyback hook (the router pins its hook as an immutable), copy the live
+///   3. Deploy a second LP split hook deployer around the 1.5.0 implementation (from the LP split hook release, which
+///      must have run first), reading the new V4 hook, and the shared instance new projects use on it.
+///   4. Deploy a router bound to the new buyback hook (the router pins its hook as an immutable), copy the live
 ///      router's chain wiring into it with the new V4 hook, and put a gateway in front of it.
-///   4. Make the new buyback hook and gateway the registry defaults. That allows them, and covers only projects
+///   5. Make the new buyback hook and gateway the registry defaults. That allows them, and covers only projects
 ///      created afterwards.
-///   5. Pin project 1 to both, and register its ETH pool on the new V4 hook. The pool is new and empty, so it starts
+///   6. Pin project 1 to both, and register its ETH pool on the new V4 hook. The pool is new and empty, so it starts
 ///      at the issuance weight, as `REVDeployer` seeds revnet pools, where a pay breaks even between swap and mint.
-///   6. Disallow the outgoing buyback hook and gateway, so no project can newly select them.
+///   7. Disallow the outgoing buyback hook and gateway, so no project can newly select them.
 ///
 /// Every other project keeps its current hook and router until its operator migrates it (`setHookFor`,
 /// `setPoolFor` or `initializePoolFor`, `setTerminalFor`). Idempotent: each deploy skips a contract already at its
 /// predicted address, and each registry step checks the current state first.
-abstract contract HooksV2Base is Script {
-    using stdJson for string;
+///
+/// Sphinx records the calls when the proposal is built. Two of them can be front-run before execution: anyone can
+/// CREATE2 the same initcode through the factory, and anyone can initialize project 1's pool once the V4 hook exists.
+/// Either fails the batch without changing any state the proposal relies on; rebuilding the proposal skips the
+/// existing contract or registers the existing pool with `setPoolFor`.
+abstract contract HooksV2Base is LpSplitHookFixBase {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
     error HooksV2_FeeProjectHookLocked(uint256 projectId);
     error HooksV2_FeeProjectTerminalLocked(uint256 projectId);
-    error HooksV2_MissingDeployment(string name);
+    error HooksV2_MissingLpSplitHook(address expected);
     error HooksV2_MissingPoolPrice(uint256 projectId);
     error HooksV2_RouterPoolManagerMismatch(address expected, address actual);
     error HooksV2_UnexpectedSafe(address expected, address actual);
-    error HooksV2_UnsupportedChain(uint256 chainId);
-
-    // ── Constants (mirror Deploy.s.sol) ──
-    address internal constant _CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
-    address internal constant _EXPECTED_SAFE = 0x4dc161eF837fF1C4485b08DDFcDB182F2157bE18;
-    address internal constant _PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    uint256 internal constant DEPLOYMENT_NONCE = 13;
 
     uint256 internal constant _FEE_PROJECT_ID = 1;
 
@@ -96,18 +98,17 @@ abstract contract HooksV2Base is Script {
     bytes32 internal constant _ROUTER_TERMINAL_SALT = keccak256("JBRouterTerminalV6_BuybackHook2.0.0");
     bytes32 internal constant _ROUTER_TERMINAL_GATEWAY_SALT = keccak256("JBRouterTerminalGatewayV6_BuybackHook2.0.0");
 
-    // ── State ──
-    address internal _poolManager;
+    /// @notice A second LP split hook deployer, around the same 1.5.0 implementation, whose clones read the new V4
+    /// hook. The 1.5.0 deployer reads the outgoing V4 hook and keeps serving projects whose pools live there.
+    bytes32 internal constant _LP_SPLIT_HOOK_DEPLOYER_SALT_V4_HOOK_2 =
+        keccak256("JBUniswapV4LPSplitHookDeployerV6_V4Hook2.0.0");
 
+    // ── State ──
     address internal _trustedForwarder;
-    IJBDirectory internal _directory;
-    IJBPermissions internal _permissions;
     IJBPrices internal _prices;
     IJBProjects internal _projects;
     IJBTerminal internal _terminal;
-    IJBTokens internal _tokens;
 
-    JBBuybackHookRegistry internal _buybackRegistry;
     JBRouterTerminalRegistry internal _routerRegistry;
 
     JBBuybackHook internal _oldBuybackHook;
@@ -119,128 +120,21 @@ abstract contract HooksV2Base is Script {
     JBRouterTerminal internal _routerTerminal;
     JBRouterTerminalGateway internal _gateway;
 
-    // ── Chain wiring ──
-    function _setupChainAddresses() internal {
-        if (block.chainid == 1) {
-            _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-        } else if (block.chainid == 11_155_111) {
-            _poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
-        } else if (block.chainid == 10) {
-            _poolManager = 0x9a13F98Cb987694C9F086b1F5eB990EeA8264Ec3;
-        } else if (block.chainid == 11_155_420) {
-            _poolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
-        } else if (block.chainid == 8453) {
-            _poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
-        } else if (block.chainid == 84_532) {
-            _poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
-        } else if (block.chainid == 42_161) {
-            _poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
-        } else if (block.chainid == 421_614) {
-            _poolManager = 0xFB3e0C6F74eB1a21CC1Da29aeC80D2Dfe6C9a317;
-        } else {
-            revert HooksV2_UnsupportedChain(block.chainid);
-        }
-    }
-
-    /// @notice The Uniswap stack (and thus the buyback and router registries) was never deployed on OP Sepolia.
-    function _shouldDeployUniswapStack() internal view returns (bool) {
-        return block.chainid != 11_155_420;
-    }
-
     /// @notice Reads the live protocol from the canonical deployment records. The outgoing hook, router and gateway
     /// come from the records, not from the registries: once this proposal runs, the registry defaults are the new
     /// contracts, and a rerun must still compare against what it replaced.
     function _loadDeploymentAddresses() internal {
+        _loadExistingDeploymentAddresses();
         _trustedForwarder = _deploymentAddressOf("ERC2771Forwarder");
-        _directory = IJBDirectory(_deploymentAddressOf("JBDirectory"));
-        _permissions = IJBPermissions(_deploymentAddressOf("JBPermissions"));
         _prices = IJBPrices(_deploymentAddressOf("JBPrices"));
         _projects = IJBProjects(_deploymentAddressOf("JBProjects"));
         _terminal = IJBTerminal(_deploymentAddressOf("JBMultiTerminal"));
-        _tokens = IJBTokens(_deploymentAddressOf("JBTokens"));
 
-        _buybackRegistry = JBBuybackHookRegistry(_deploymentAddressOf("JBBuybackHookRegistry"));
         _routerRegistry = JBRouterTerminalRegistry(payable(_deploymentAddressOf("JBRouterTerminalRegistry")));
 
         _oldBuybackHook = JBBuybackHook(payable(_deploymentAddressOf("JBBuybackHook")));
         _oldRouterTerminal = JBRouterTerminal(payable(_deploymentAddressOf("JBRouterTerminal")));
         _oldGateway = JBRouterTerminalGateway(payable(_deploymentAddressOf("JBRouterTerminalGateway")));
-    }
-
-    function _deploymentAddressOf(string memory name) internal view returns (address addr) {
-        string memory path = string.concat("deployments/", _chainFolder(), "/", name, ".json");
-        string memory json = vm.readFile(path);
-        addr = json.readAddress(".address");
-        if (addr == address(0)) revert HooksV2_MissingDeployment(name);
-    }
-
-    function _chainFolder() internal view returns (string memory) {
-        if (block.chainid == 1) return "ethereum";
-        if (block.chainid == 11_155_111) return "sepolia";
-        if (block.chainid == 10) return "optimism";
-        if (block.chainid == 11_155_420) return "optimism_sepolia";
-        if (block.chainid == 8453) return "base";
-        if (block.chainid == 84_532) return "base_sepolia";
-        if (block.chainid == 42_161) return "arbitrum";
-        if (block.chainid == 421_614) return "arbitrum_sepolia";
-        revert HooksV2_UnsupportedChain(block.chainid);
-    }
-
-    // ── CREATE2 (mirror Deploy.s.sol's 2-arg fold) ──
-    function _saltOf(bytes32 base) internal pure returns (bytes32) {
-        return keccak256(abi.encode(DEPLOYMENT_NONCE, base));
-    }
-
-    function _loadArtifact(string memory artifactName) internal view returns (bytes memory) {
-        string memory json = vm.readFile(string.concat("artifacts/", artifactName, ".json"));
-        return vm.parseJsonBytes({json: json, key: ".bytecode.object"});
-    }
-
-    function _isDeployed(
-        bytes32 salt,
-        bytes memory creationCode,
-        bytes memory arguments
-    )
-        internal
-        view
-        returns (address deployedTo, bool isDeployed)
-    {
-        salt = _saltOf(salt);
-        deployedTo = vm.computeCreate2Address({
-            salt: salt, initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)), deployer: _CREATE2_FACTORY
-        });
-        isDeployed = deployedTo.code.length != 0;
-    }
-
-    function _deployViaFactory(
-        bytes32 salt,
-        bytes memory creationCode,
-        bytes memory constructorArgs
-    )
-        internal
-        returns (address addr)
-    {
-        bytes32 foldedSalt = _saltOf(salt);
-        bytes memory initCode = abi.encodePacked(creationCode, constructorArgs);
-        (bool success,) = _CREATE2_FACTORY.call(abi.encodePacked(foldedSalt, initCode));
-        require(success, "Factory CREATE2 failed");
-        addr =
-            vm.computeCreate2Address({salt: foldedSalt, initCodeHash: keccak256(initCode), deployer: _CREATE2_FACTORY});
-        require(addr.code.length != 0, "Factory CREATE2 produced no code");
-    }
-
-    function _deployPrecompiledIfNeeded(
-        string memory artifactName,
-        bytes32 salt,
-        bytes memory ctorArgs
-    )
-        internal
-        returns (address addr)
-    {
-        bytes memory code = _loadArtifact(artifactName);
-        bool already;
-        (addr, already) = _isDeployed({salt: salt, creationCode: code, arguments: ctorArgs});
-        if (!already) addr = _deployViaFactory({salt: salt, creationCode: code, constructorArgs: ctorArgs});
     }
 
     // ── V4 hook address (mirror DeployTwapOracleUpgrade.s.sol) ──
@@ -299,11 +193,11 @@ abstract contract HooksV2Base is Script {
 
     /// @notice The router pins its buyback hook as an immutable, so its identity follows the hook it is bound to.
     function _routerTerminalCtorArgs(address buybackHook) internal view returns (bytes memory) {
-        return abi.encode(_directory, _tokens, _PERMIT2, buybackHook, _trustedForwarder, _EXPECTED_SAFE);
+        return abi.encode(_directory, _tokens, address(_PERMIT2), buybackHook, _trustedForwarder, _EXPECTED_SAFE);
     }
 
     function _routerTerminalGatewayCtorArgs(address routerTerminal) internal view returns (bytes memory) {
-        return abi.encode(_directory, _PERMIT2, routerTerminal, _trustedForwarder);
+        return abi.encode(_directory, address(_PERMIT2), routerTerminal, _trustedForwarder);
     }
 
     // ── Project 1's pool price ──
@@ -350,7 +244,7 @@ abstract contract HooksV2Base is Script {
 
     /// @notice The whole proposal, Sphinx-free so a fork rehearsal can run it as the Safe.
     function _deployHooksV2() internal {
-        if (!_shouldDeployUniswapStack()) return;
+        if (!_shouldDeployLpStack()) return;
 
         // 1. The V4 hook, at the salt whose address carries its flags.
         {
@@ -375,7 +269,11 @@ abstract contract HooksV2Base is Script {
             });
         }
 
-        // 3. A router bound to the new buyback hook, wired like the live router but on the new V4 hook, behind a
+        // 3. An LP split hook deployer whose clones read the new V4 hook, around the 1.5.0 implementation the LP split
+        //    hook release deployed, and the shared instance new projects use on it.
+        _deployLpSplitHookDeployerOnNewV4Hook();
+
+        // 4. A router bound to the new buyback hook, wired like the live router but on the new V4 hook, behind a
         //    gateway. The PoolManager is cross-checked against the table above so a stale record cannot wire the
         //    router to a different V4.
         _routerTerminal = JBRouterTerminal(
@@ -406,7 +304,7 @@ abstract contract HooksV2Base is Script {
                 }))
         );
 
-        // 4. Registry defaults for projects created from here on. Setting a default allows it, which the pins below
+        // 5. Registry defaults for projects created from here on. Setting a default allows it, which the pins below
         //    require, and must precede the disallows: a registry refuses to disallow its current default.
         if (address(_buybackRegistry.defaultHook()) != address(_buybackHook)) {
             _buybackRegistry.setDefaultHook({hook: IJBRulesetDataHook(address(_buybackHook))});
@@ -415,11 +313,11 @@ abstract contract HooksV2Base is Script {
             _routerRegistry.setDefaultTerminal({terminal: IJBTerminal(address(_gateway))});
         }
 
-        // 5. Project 1 onto both. The Safe holds its SET_BUYBACK_HOOK, SET_BUYBACK_POOL and SET_ROUTER_TERMINAL
+        // 6. Project 1 onto both. The Safe holds its SET_BUYBACK_HOOK, SET_BUYBACK_POOL and SET_ROUTER_TERMINAL
         //    permissions as its operator.
         _migrateFeeProject();
 
-        // 6. Retire the outgoing hook and gateway: no project can newly select them. Existing pins and default
+        // 7. Retire the outgoing hook and gateway: no project can newly select them. Existing pins and default
         //    cohorts keep resolving to them by registry design. The raw outgoing router was never allowed.
         if (
             address(_oldBuybackHook) != address(_buybackHook)
@@ -433,6 +331,38 @@ abstract contract HooksV2Base is Script {
         ) {
             _routerRegistry.disallowTerminal({terminal: IJBTerminal(address(_oldGateway))});
         }
+    }
+
+    function _deployLpSplitHookDeployerOnNewV4Hook() internal {
+        (address implementation, bool implementationIsDeployed) = _isDeployed({
+            salt: _LP_SPLIT_HOOK_SALT,
+            creationCode: _loadArtifact("JBUniswapV4LPSplitHook"),
+            arguments: _lpSplitHookCtorArgs()
+        });
+        if (!implementationIsDeployed) revert HooksV2_MissingLpSplitHook(implementation);
+        _lpSplitHook = JBUniswapV4LPSplitHook(payable(implementation));
+
+        _lpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(
+            _deployPrecompiledIfNeeded({
+                artifactName: "JBUniswapV4LPSplitHookDeployer",
+                salt: _LP_SPLIT_HOOK_DEPLOYER_SALT_V4_HOOK_2,
+                ctorArgs: _lpSplitHookDeployerCtorArgs()
+            })
+        );
+        if (address(_lpSplitHookDeployer.poolManager()) == address(0)) {
+            _lpSplitHookDeployer.setChainSpecificConstants({
+                newPoolManager: IPoolManager(_poolManager),
+                newPositionManager: IPositionManager(_positionManager),
+                newOracleHook: IHooks(address(_univ4Hook))
+            });
+        }
+
+        _lpSplitHookInstance = _deployLpSplitHookInstanceIfNeeded();
+    }
+
+    /// @notice The shared instance takes the standard LP fee: 10% of collected fees to project 1.
+    function _lpSplitHookInstanceFeePercent() internal pure override returns (uint256) {
+        return 1000;
     }
 
     function _migrateFeeProject() internal {
@@ -498,7 +428,7 @@ contract DeployHooksV2 is HooksV2Base, Sphinx {
             revert HooksV2_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
         }
         _setupChainAddresses();
-        if (_shouldDeployUniswapStack()) _loadDeploymentAddresses();
+        if (_shouldDeployLpStack()) _loadDeploymentAddresses();
         deploy();
     }
 
@@ -507,12 +437,12 @@ contract DeployHooksV2 is HooksV2Base, Sphinx {
     }
 
     /// @notice Post-deploy address dump (no broadcast) for the focused verify, emit and distribute pipeline, in the
-    /// `jb-v6-addresses-1` format of `Deploy.s.sol._dumpAddresses`. Writes the four contracts this script deploys to
+    /// `jb-v6-addresses-1` format of `Deploy.s.sol._dumpAddresses`. Writes the six contracts this script deploys to
     /// `script/post-deploy/.cache/addresses-<chainId>.json`, as their deterministic CREATE2 predictions off the
     /// current artifacts. No file is written on a chain without the Uniswap stack.
     function dumpAddresses() external {
         _setupChainAddresses();
-        if (!_shouldDeployUniswapStack()) return;
+        if (!_shouldDeployLpStack()) return;
         _loadDeploymentAddresses();
 
         string memory j = "_hooksV2Addresses";
@@ -536,6 +466,24 @@ contract DeployHooksV2 is HooksV2Base, Sphinx {
             arguments: _routerTerminalGatewayCtorArgs(routerTerminal)
         });
         vm.serializeAddress({objectKey: j, valueKey: "JBRouterTerminalGateway", value: gateway});
+
+        // The LP split hook deployer on the new V4 hook supersedes the 1.5.0 one as the record new projects read.
+        (address lpSplitHook,) = _isDeployed({
+            salt: _LP_SPLIT_HOOK_SALT,
+            creationCode: _loadArtifact("JBUniswapV4LPSplitHook"),
+            arguments: _lpSplitHookCtorArgs()
+        });
+        _lpSplitHook = JBUniswapV4LPSplitHook(payable(lpSplitHook));
+        (address lpSplitHookDeployer,) = _isDeployed({
+            salt: _LP_SPLIT_HOOK_DEPLOYER_SALT_V4_HOOK_2,
+            creationCode: _loadArtifact("JBUniswapV4LPSplitHookDeployer"),
+            arguments: _lpSplitHookDeployerCtorArgs()
+        });
+        _lpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(lpSplitHookDeployer);
+        vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHookDeployer", value: lpSplitHookDeployer});
+        vm.serializeAddress({
+            objectKey: j, valueKey: "JBP6FeeLPSplitHook", value: address(_predictLpSplitHookInstance())
+        });
 
         vm.serializeString({objectKey: j, valueKey: "format", value: "jb-v6-addresses-1"});
         string memory out = vm.serializeUint({objectKey: j, valueKey: "chainId", value: block.chainid});
