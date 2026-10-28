@@ -18,6 +18,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { deprecatedPathFor } from './deprecated.mjs';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -133,9 +134,9 @@ for (const target of targets) {
   let written = 0;
   for (const dest of new Set([aggregatorPath, perRepoPath])) {
     // A canonical artifact that already records a different address is the outgoing deployment. Keep it as
-    // `<Name>_deprecated.json`, or `<Name>_deprecated1.json`, `_deprecated2.json`, ... once earlier retirements
-    // occupy the lower names, so every retired generation stays resolvable (its ABI, args, and receipt).
-    const outgoing = deprecatedPathFor({dest, target});
+    // `<Name>_deprecated.json`, or after the highest `_deprecated<N>.json` already in use, so every retired
+    // generation stays resolvable (its ABI, args, and receipt) and the numbering stays chronological.
+    const outgoing = deprecatedPathFor({dest, name: target.name, address: target.address});
     if (DRY_RUN) {
       if (outgoing) console.log(`  would keep   ${path.relative(MONOREPO_ROOT, outgoing)}`);
       console.log(`  would write  ${path.relative(MONOREPO_ROOT, dest)}`);
@@ -154,25 +155,6 @@ console.log(`Done. ${writeCount} write(s), ${skipCount} skip(s).`);
 process.exit(skipCount > 0 ? 1 : 0);
 
 // ── helpers ──
-// The next free `_deprecated` destination for an existing canonical artifact whose address is about to change, or
-// null when there is nothing to keep: no file yet, a suffixed (non-canonical) name, the same address being
-// rewritten, or the outgoing address already retired under an earlier `_deprecated` name.
-function deprecatedPathFor({dest, target}) {
-  if (target.name.includes('__') || !fs.existsSync(dest)) return null;
-  let existing;
-  try { existing = readJson({path: dest}); } catch { return null; }
-  const outgoing = String(existing.address || '').toLowerCase();
-  if (outgoing === target.address) return null;
-  const dir = path.dirname(dest);
-  for (let n = 0; ; n += 1) {
-    const candidate = path.join(dir, `${target.name}_deprecated${n === 0 ? '' : n}.json`);
-    if (!fs.existsSync(candidate)) return candidate;
-    let retired;
-    try { retired = readJson({path: candidate}); } catch { continue; }
-    if (String(retired.address || '').toLowerCase() === outgoing) return null;
-  }
-}
-
 function artifactNameFor({name}) {
   const baseName = name.split('__')[0];
   return ARTIFACT_ALIASES.get(baseName) || baseName;
