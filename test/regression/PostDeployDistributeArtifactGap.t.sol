@@ -48,6 +48,7 @@ contract PostDeployDistributeArtifactGapTest is Test {
             _contains(chainsConfig, '"nana-project-handles-v6": "nana-project-handles-v6"'),
             "project-handles keeps its nested layout"
         );
+        assertTrue(_contains(chainsConfig, '"defifa": "defifa"'), "defifa keeps its nested deployments/defifa/ layout");
         assertTrue(
             _contains(distributeSource, "for (const dest of new Set([aggregatorPath, perRepoPath]))"),
             "distribution loop deduplicates destinations via Set"
