@@ -149,7 +149,8 @@ abstract contract HooksV2Base is LpSplitHookFixBase {
     }
 
     /// @notice The first salt index whose folded CREATE2 address carries exactly the hook's flags. The search is
-    /// deterministic over the artifact, so every chain lands on the same salt and address.
+    /// deterministic over the artifact and the chain's constructor arguments, so reruns on a chain land on the same
+    /// salt and address. Chains with different PoolManagers land on different ones.
     function _findHookSalt(
         uint160 flags,
         bytes memory creationCode,
