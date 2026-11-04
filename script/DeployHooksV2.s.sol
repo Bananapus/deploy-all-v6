@@ -74,8 +74,9 @@ import {LpSplitHookFixBase} from "./DeployLpSplitHookFix.s.sol";
 ///
 /// Sphinx records the calls when the proposal is built. Two of them can be front-run before execution: anyone can
 /// CREATE2 the same initcode through the factory, and anyone can initialize project 1's pool once the V4 hook exists.
-/// Either fails the batch without changing any state the proposal relies on; rebuilding the proposal skips the
-/// existing contract or registers the existing pool with `setPoolFor`.
+/// Either reverts that call. Sphinx executes the batch as several transactions, so the calls before it stay
+/// executed; rebuilding the proposal skips them, skips the existing contract and registers the existing pool with
+/// `setPoolFor`.
 abstract contract HooksV2Base is LpSplitHookFixBase {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
