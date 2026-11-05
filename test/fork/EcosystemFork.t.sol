@@ -277,6 +277,10 @@ contract EcosystemForkTest is RevnetEcosystemBase {
         // Deploy JuiceboxSwapRouter utility.
         JuiceboxSwapRouter jbSwapRouter = new JuiceboxSwapRouter(poolManager);
 
+        // The hook treats a missing WETH terminal as one without code. The oracle mock etched at `address(0)` answers
+        // every call, so clear it as on a live chain.
+        vm.etch(address(0), "");
+
         // PAYER swaps WETH -> project token via the router.
         vm.prank(PAYER);
         weth.deposit{value: 1 ether}();
