@@ -200,7 +200,45 @@ It confirms the project-0 feeds, the new hook and router and gateway deployed an
 
 Distribution preserves each outgoing canonical file at the first available `<Name>_deprecated.json`, `<Name>_deprecated1.json`, `<Name>_deprecated2.json`, and so on. For this rollout, `_deprecated.json` remains the original 1.0.x generation and `_deprecated1.json` preserves the outgoing 1.1.1 hook/router on migrated chains. `script/Verify.s.sol` then expects the registry default and project 1 on the gateway (`VERIFY_ROUTER_TERMINAL_GATEWAY`), the gateway bound to the router and the router to the canonical hook, and the raw and previous routers unselectable. Until operators migrate projects 2-7, set `VERIFY_ROUTER_TERMINAL_PREVIOUS` to the retired router so their unchanged pins verify; it is never accepted for project 1.
 
-The proposal is rehearsed end to end on a Base fork by `test/fork/DeployBuybackFloorFix.fork.t.sol`.
+The script refuses to run unless `artifacts/` was built from buyback hook 1.4.0 and router terminal 1.3.0, the releases it deployed. Its Base fork rehearsal was retired once the packages moved to the hooks 2.0.0 rollout; it remains in git history.
+
+### Defifa 2.0 + LP split hook 1.5.0
+
+`script/DeployDefifaV2AndLpSplitHook.s.sol` deploys `@ballkidz/defifa` 2.0.0 and `@bananapus/univ4-lp-split-hook-v6` 1.5.0 in one `v6-deployment` proposal from the 4-of-8 Safe:
+
+- **LP split hook:** the math library, hook and deployer, plus a shared instance. The instance pays 10% of collected LP fees to project 1. This happens on every chain with a V4 PositionManager; OP Sepolia has none.
+- **Defifa:** both libraries, the shared tier store and token URI resolver, and a hook, governor and deployer for each game type (721 and ERC-1155). Each governor is owned by its deployer. The `DefifaVotingReferee` deploys too. This happens wherever the typeface and both fee-project ERC-20s exist.
+
+```bash
+npm run deploy:propose:defifa-v2-lp-split-hook:testnets
+npm run deploy:propose:defifa-v2-lp-split-hook:mainnets
+```
+
+After execution, verify on the explorers, then emit and distribute the artifacts. The deploy-all copies go to `deployments/<chain>/`, the Defifa copies to `defifa/deployments/defifa/<chain>/`, and the LP copies to `univ4-lp-split-hook-v6/deployments/<chain>/`:
+
+```bash
+npm run deploy:post:defifa-v2-lp-split-hook:testnets
+# or:
+npm run deploy:post:defifa-v2-lp-split-hook:mainnets
+```
+
+Then run the read-only verifier per chain:
+
+```bash
+npm run deploy:verify:defifa-v2-lp-split-hook -- --rpc-url <RPC_URL> -vvv
+```
+
+It checks:
+
+- every contract is deployed at its CREATE2 prediction, and the hooks link their libraries;
+- the LP deployer is wired to the chain's V4 contracts and clones the 1.5.0 hook;
+- the shared LP instance is registered to that deployer and charges 1 / 10%;
+- each Defifa deployer points at its hook, its governor, the shared store and resolver, the controller and fee projects 5 and 1, and each governor is owned by its deployer;
+- every `deployments/<chain>/` record matches what is on chain. This check fails until the artifacts are emitted.
+
+Distribution keeps each outgoing file at the next free `_deprecated` suffix. That is how the Defifa 1.0.2 records and the previous LP split hook records are kept.
+
+The proposal is rehearsed on every chain by `test/fork/DeployDefifaV2AndLpSplitHook.fork.t.sol` (set `DEFIFA_V2_FORK=<chain>`).
 
 ### Post-launch TWAP oracle upgrade
 
@@ -447,6 +485,7 @@ export VERIFY_REV_DEPLOYER=0x...
 export VERIFY_REV_OWNER=0x...
 export VERIFY_REV_LOANS=0x...
 export VERIFY_DEFIFA_DEPLOYER=0x...
+export VERIFY_DEFIFA_1155_DEPLOYER=0x...
 export VERIFY_TRUSTED_FORWARDER=0x...
 export VERIFY_SAFE=0x...                    # DEPLOYMENT Safe — sucker-deployer LAYER_SPECIFIC_CONFIGURATOR / admin-gate checks
 export VERIFY_INFRA_OWNER=0x...             # Post-handoff owner of the Ownable singletons + fee project + creation-fee payer (distinct from VERIFY_SAFE)

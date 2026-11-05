@@ -72,6 +72,9 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
     uint256 internal constant _FEE_PROJECT_ID = 1;
     uint256 internal constant _LP_SPLIT_FEE_PERCENT = 2000;
 
+    /// @notice The TWAP window the test warps past and checks observation coverage for.
+    uint32 internal constant _TWAP_PERIOD = 1800;
+
     address internal PAYER2 = makeAddr("payer2");
 
     JBBuybackHook internal _newBuybackHook;
@@ -139,7 +142,7 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         // TWAP, and the migration initialized the hooked pool moments ago — its oracle holds a single observation,
         // so a lookback of a full window still predates it. Let the window elapse the way an operator would have to
         // wait after a migration; the oracle then reports the (untraded) initialization tick for real.
-        vm.warp(block.timestamp + _newOracleHook.TWAP_PERIOD());
+        vm.warp(block.timestamp + _TWAP_PERIOD);
 
         _newLpSplitHook.deployPool(revnetId);
 
@@ -153,7 +156,8 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
             "buyback and LP split should share one hooked pool"
         );
         assertGt(
-            _newLpSplitHook.tokenIdOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN}),
+            _newLpSplitHook.askTokenIdOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN})
+                + _newLpSplitHook.bidTokenIdOf({projectId: revnetId, terminalToken: JBConstants.NATIVE_TOKEN}),
             0,
             "new LP split should own a position"
         );
@@ -162,7 +166,7 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         _warmOracleCoverage(buybackKey);
 
         assertTrue(
-            _newOracleHook.hasObservationCoverage({key: buybackKey, secondsAgo: _newOracleHook.TWAP_PERIOD()}),
+            _newOracleHook.hasObservationCoverage({key: buybackKey, secondsAgo: _TWAP_PERIOD}),
             "oracle should cover the TWAP window"
         );
 
@@ -478,7 +482,7 @@ contract TwapOracleUpgradeStressForkTest is RevnetEcosystemBase {
         vm.warp(block.timestamp + 1);
         _swapNativeThroughHook({key: key, amount: 0.001 ether});
 
-        vm.warp(block.timestamp + _newOracleHook.TWAP_PERIOD());
+        vm.warp(block.timestamp + _TWAP_PERIOD);
         _swapNativeThroughHook({key: key, amount: 0.001 ether});
     }
 

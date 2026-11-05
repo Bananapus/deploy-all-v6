@@ -26,6 +26,9 @@ jobs:
         with:
           version: v1.7.0
 
+      - name: Post-deploy helper tests
+        run: npm run test:post-deploy
+
       - name: Build deploy artifacts
         # The deploy script and its fork tests load precompiled creation bytecode from `artifacts/`,
         # which is not committed, so regenerate it before the suite runs. The artifact build requires a

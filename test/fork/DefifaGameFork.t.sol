@@ -10,6 +10,7 @@ import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
 
 import {DefifaDeployer} from "@ballkidz/defifa/src/DefifaDeployer.sol";
 import {DefifaHook} from "@ballkidz/defifa/src/DefifaHook.sol";
+import {DefifaTiersHookStore} from "@ballkidz/defifa/src/DefifaTiersHookStore.sol";
 import {DefifaTokenUriResolver} from "@ballkidz/defifa/src/DefifaTokenUriResolver.sol";
 import {DefifaGovernor} from "@ballkidz/defifa/src/DefifaGovernor.sol";
 import {IDefifaGovernor} from "@ballkidz/defifa/src/interfaces/IDefifaGovernor.sol";
@@ -47,7 +48,12 @@ contract DefifaGameForkTest is RevnetForkBase {
         IERC20 baseToken = IERC20(address(jbTokens().tokenOf(FEE_PROJECT_ID)));
         assertTrue(address(defifaToken) != address(0) && address(baseToken) != address(0), "revnet tokens exist");
 
-        DefifaHook hook = new DefifaHook(jbDirectory(), defifaToken, baseToken);
+        DefifaHook hook = new DefifaHook({
+            directory: jbDirectory(),
+            tokens: jbTokens(),
+            defifaProjectId: defifaRevnetId,
+            baseProtocolProjectId: FEE_PROJECT_ID
+        });
         DefifaTokenUriResolver resolver = new DefifaTokenUriResolver(address(this));
         DefifaGovernor governor = new DefifaGovernor(jbController(), address(this));
 
@@ -59,7 +65,7 @@ contract DefifaGameForkTest is RevnetForkBase {
             ADDRESS_REGISTRY,
             defifaRevnetId,
             FEE_PROJECT_ID,
-            HOOK_STORE,
+            new DefifaTiersHookStore(),
             address(0)
         );
         // Mirror Deploy.s.sol: governor ownership goes to the deployer so it can initialize games.
@@ -116,14 +122,14 @@ contract DefifaGameForkTest is RevnetForkBase {
             refundPeriodDuration: 0,
             start: 0,
             splits: splits,
-            attestationStartTime: 0,
-            attestationGracePeriod: 1 days,
             defaultAttestationDelegate: address(0),
             defaultTokenUriResolver: IJB721TokenUriResolver(address(0)),
             terminal: IJBTerminal(address(jbMultiTerminal())),
             minParticipation: 0,
             scorecardTimeout: 7 days,
-            timelockDuration: 0
+            timelockDuration: 0,
+            referee: address(0xBEEF),
+            refereeData: ""
         });
     }
 

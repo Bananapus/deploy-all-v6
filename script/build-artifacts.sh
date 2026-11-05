@@ -189,10 +189,14 @@ CONTRACTS=(
 
   # ── defifa ──
   "defifa:DefifaHookLib:src/libraries/DefifaHookLib.sol"
+  "defifa:Defifa1155HookLib:src/libraries/Defifa1155HookLib.sol"
+  "defifa:DefifaTiersHookStore:src/DefifaTiersHookStore.sol"
   "defifa:DefifaHook:src/DefifaHook.sol"
+  "defifa:Defifa1155Hook:src/Defifa1155Hook.sol"
   "defifa:DefifaDeployer:src/DefifaDeployer.sol"
   "defifa:DefifaGovernor:src/DefifaGovernor.sol"
   "defifa:DefifaTokenUriResolver:src/DefifaTokenUriResolver.sol"
+  "defifa:DefifaVotingReferee:src/referees/DefifaVotingReferee.sol"
 
   # ── nana-project-handles-v6 ──
   "nana-project-handles-v6:JBProjectHandles:src/JBProjectHandles.sol"
@@ -487,6 +491,7 @@ LIB_SALTS=(
   "JBCCIPLib:_JBCCIPLibV6_"
   "CCIPHelper:_CCIPHelperV6_"
   "DefifaHookLib:_DefifaHookLibV6_"
+  "Defifa1155HookLib:_Defifa1155HookLibV6_"
   "JBUniswapV4LPSplitHookMath:_JBUniswapV4LPSplitHookMathV6_"
 )
 
@@ -503,6 +508,28 @@ for entry in "${LIB_SALTS[@]}"; do
     continue
   fi
   bytecode=$(jq -r '.bytecode.object' "$art")
+
+  # A library can call an earlier library in LIB_SALTS (Defifa1155HookLib calls DefifaHookLib). Link it against
+  # those first and save the result, so its address is computed from the bytecode that will actually be deployed.
+  if [[ "$bytecode" == *'__$'* ]]; then
+    deployed_bytecode=$(jq -r '.deployedBytecode.object' "$art")
+    for dep_short in "${!PLACEHOLDER_TO_LIB[@]}"; do
+      dep_placeholder="__\$${dep_short}\$__"
+      dep_addr_hex="${LIB_ADDR_HEX[${PLACEHOLDER_TO_LIB[$dep_short]}]}"
+      bytecode="${bytecode//$dep_placeholder/$dep_addr_hex}"
+      deployed_bytecode="${deployed_bytecode//$dep_placeholder/$dep_addr_hex}"
+    done
+    if [[ "$bytecode" == *'__$'* ]]; then
+      echo "ERROR: $libname links a library that isn't listed before it in LIB_SALTS"
+      errors=$((errors + 1))
+      continue
+    fi
+    tmp=$(mktemp)
+    jq --arg bc "$bytecode" --arg dc "$deployed_bytecode" \
+      '.bytecode.object = $bc | .deployedBytecode.object = $dc' "$art" > "$tmp" && mv "$tmp" "$art"
+    echo "  linked $libname against earlier libraries before computing its address"
+  fi
+
   base_salt=$(cast keccak "$salt_str")
   folded_salt_input=$(cast abi-encode "f(uint256,bytes32)" "$DEPLOYMENT_NONCE" "$base_salt")
   salt=$(cast keccak "$folded_salt_input")
