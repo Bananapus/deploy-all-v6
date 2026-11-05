@@ -37,14 +37,20 @@ import {JBUniswapV4LPSplitHook} from "@bananapus/univ4-lp-split-hook-v6/src/JBUn
 import {JBUniswapV4LPSplitHookDeployer} from "@bananapus/univ4-lp-split-hook-v6/src/JBUniswapV4LPSplitHookDeployer.sol";
 
 import {HooksV2Base} from "../../script/DeployHooksV2.s.sol";
+import {JBArtifactVersions} from "../../script/libraries/JBArtifactVersions.sol";
 
 /// @notice Runs the whole proposal body, Sphinx-free. Its code is etched over the infra Safe so every call it makes
 /// comes from the Safe: both registries' owner, the hooks' and router's one-shot deployer, and project 1's operator.
 contract HooksV2RehearsalHarness is HooksV2Base {
     function rehearse() external {
+        _requireArtifactVersions();
         _setupChainAddresses();
         _loadDeploymentAddresses();
         _deployHooksV2();
+    }
+
+    function requireArtifactVersion(string calldata artifact, string calldata expected) external view {
+        JBArtifactVersions.requireVersion({artifact: artifact, expected: expected});
     }
 
     function feeProjectPoolSqrtPriceX96() external view returns (bool ok, uint160 sqrtPriceX96) {
@@ -132,6 +138,17 @@ contract DeployHooksV2ForkTest is Test {
         vm.etch(_SAFE, address(new HooksV2RehearsalHarness()).code);
         vm.allowCheatcodes(_SAFE);
         harness = HooksV2RehearsalHarness(_SAFE);
+    }
+
+    /// @notice The script deploys only artifacts built from the releases it names, so stale artifacts cannot put
+    /// older code under the 2.0.0 salts.
+    function test_refusesArtifactsFromAnotherRelease() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBArtifactVersions.JBArtifactVersions_UnexpectedVersion.selector, "JBBuybackHook", "1.4.1", "2.0.0"
+            )
+        );
+        harness.requireArtifactVersion({artifact: "JBBuybackHook", expected: "1.4.1"});
     }
 
     function test_deploysAndWiresTheNewGraph() public {

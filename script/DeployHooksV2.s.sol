@@ -45,6 +45,7 @@ import {JBRulesetMetadata} from "@bananapus/core-v6/src/structs/JBRulesetMetadat
 import {mulDiv, sqrt} from "@prb/math/src/Common.sol";
 
 import {LpSplitHookFixBase} from "./DeployLpSplitHookFix.s.sol";
+import {JBArtifactVersions} from "./libraries/JBArtifactVersions.sol";
 
 /// @notice Rollout of buyback hook 2.0.0 and Uniswap V4 hook 2.0.0, with project 1 moved onto them.
 ///
@@ -120,6 +121,15 @@ abstract contract HooksV2Base is LpSplitHookFixBase {
     JBBuybackHook internal _buybackHook;
     JBRouterTerminal internal _routerTerminal;
     JBRouterTerminalGateway internal _gateway;
+
+    /// @notice Reverts unless `artifacts/` holds the releases this rollout deploys and its salts name.
+    function _requireArtifactVersions() internal view {
+        JBArtifactVersions.requireVersion({artifact: "JBUniswapV4Hook", expected: "2.0.0"});
+        JBArtifactVersions.requireVersion({artifact: "JBBuybackHook", expected: "2.0.0"});
+        JBArtifactVersions.requireVersion({artifact: "JBRouterTerminal", expected: "1.4.0"});
+        JBArtifactVersions.requireVersion({artifact: "JBRouterTerminalGateway", expected: "1.4.0"});
+        JBArtifactVersions.requireVersion({artifact: "JBUniswapV4LPSplitHookDeployer", expected: "1.5.0"});
+    }
 
     /// @notice Reads the live protocol from the canonical deployment records. The outgoing hook, router and gateway
     /// come from the records, not from the registries: once this proposal runs, the registry defaults are the new
@@ -429,6 +439,7 @@ contract DeployHooksV2 is HooksV2Base, Sphinx {
         if (safeAddress() != _EXPECTED_SAFE) {
             revert HooksV2_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
         }
+        _requireArtifactVersions();
         _setupChainAddresses();
         if (_shouldDeployLpStack()) _loadDeploymentAddresses();
         deploy();
@@ -443,6 +454,7 @@ contract DeployHooksV2 is HooksV2Base, Sphinx {
     /// `script/post-deploy/.cache/addresses-<chainId>.json`, as their deterministic CREATE2 predictions off the
     /// current artifacts. No file is written on a chain without the Uniswap stack.
     function dumpAddresses() external {
+        _requireArtifactVersions();
         _setupChainAddresses();
         if (!_shouldDeployLpStack()) return;
         _loadDeploymentAddresses();

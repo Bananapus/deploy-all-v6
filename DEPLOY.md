@@ -200,7 +200,7 @@ It confirms the project-0 feeds, the new hook and router and gateway deployed an
 
 Distribution preserves each outgoing canonical file at the first available `<Name>_deprecated.json`, `<Name>_deprecated1.json`, `<Name>_deprecated2.json`, and so on. For this rollout, `_deprecated.json` remains the original 1.0.x generation and `_deprecated1.json` preserves the outgoing 1.1.1 hook/router on migrated chains. `script/Verify.s.sol` then expects the registry default and project 1 on the gateway (`VERIFY_ROUTER_TERMINAL_GATEWAY`), the gateway bound to the router and the router to the canonical hook, and the raw and previous routers unselectable. Until operators migrate projects 2-7, set `VERIFY_ROUTER_TERMINAL_PREVIOUS` to the retired router so their unchanged pins verify; it is never accepted for project 1.
 
-The proposal is rehearsed end to end on a Base fork by `test/fork/DeployBuybackFloorFix.fork.t.sol`.
+The script refuses to run unless `artifacts/` was built from buyback hook 1.4.0 and router terminal 1.3.0, the releases it deployed. Its Base fork rehearsal was retired once the packages moved to the hooks 2.0.0 rollout; it remains in git history.
 
 ### Post-launch TWAP oracle upgrade
 

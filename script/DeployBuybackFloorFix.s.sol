@@ -32,6 +32,7 @@ import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBCurrencyIds} from "@bananapus/core-v6/src/libraries/JBCurrencyIds.sol";
 
 // ── Deploy script helpers ──
+import {JBArtifactVersions} from "./libraries/JBArtifactVersions.sol";
 import {JBChainTokens} from "./libraries/JBChainTokens.sol";
 
 /// @notice Focused redeploy of the buyback hook for buyback-hook-v6 1.4.0, which carries two changes over the live
@@ -230,6 +231,13 @@ abstract contract BuybackFloorFixBase is Script {
     // ── CREATE2 (mirror Deploy.s.sol's 2-arg fold) ──
     function _saltOf(bytes32 base) internal pure returns (bytes32) {
         return keccak256(abi.encode(DEPLOYMENT_NONCE, base));
+    }
+
+    /// @notice Reverts unless `artifacts/` holds the releases this rollout deployed and its salts name.
+    function _requireArtifactVersions() internal view {
+        JBArtifactVersions.requireVersion({artifact: "JBBuybackHook", expected: "1.4.0"});
+        JBArtifactVersions.requireVersion({artifact: "JBRouterTerminal", expected: "1.3.0"});
+        JBArtifactVersions.requireVersion({artifact: "JBRouterTerminalGateway", expected: "1.3.0"});
     }
 
     function _loadArtifact(string memory artifactName) internal view returns (bytes memory) {
@@ -516,6 +524,7 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
         if (safeAddress() != _EXPECTED_SAFE) {
             revert BuybackFloorFix_UnexpectedSafe({expected: _EXPECTED_SAFE, actual: safeAddress()});
         }
+        _requireArtifactVersions();
         _setupChainAddresses();
         _loadCoreDeploymentAddresses();
         if (_shouldDeployUniswapStack()) _loadBuybackDeploymentAddresses();
@@ -542,6 +551,7 @@ contract DeployBuybackFloorFix is BuybackFloorFixBase, Sphinx {
     /// contracts. The addresses are the deterministic CREATE2 predictions off the current artifacts. No file is
     /// written when a chain gets neither, which the focused post-deploy script reads as "nothing to do here".
     function dumpAddresses() external {
+        _requireArtifactVersions();
         _setupChainAddresses();
         _loadCoreDeploymentAddresses();
 
