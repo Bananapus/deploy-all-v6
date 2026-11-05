@@ -307,26 +307,33 @@ abstract contract LpSplitHookFixBase is Script {
         _lpSplitHookInstance = _deployLpSplitHookInstanceIfNeeded();
     }
 
-    /// @notice Add the LP split hook stack's predicted addresses to the JSON object `j`. Addresses are the
-    /// deterministic CREATE2 predictions off the current artifacts.
-    function _serializeLpAddresses(string memory j) internal {
-        (address mathLib,) = _isDeployed({
+    /// @notice The LP split hook stack's deterministic CREATE2 predictions off the current artifacts. Sets
+    /// `_lpSplitHook` and `_lpSplitHookDeployer` so the dependent ctor args and the instance prediction resolve.
+    function _predictLpAddresses()
+        internal
+        returns (address mathLib, address hook, address deployer, address instance)
+    {
+        (mathLib,) = _isDeployed({
             salt: _MATH_LIB_SALT, creationCode: _loadArtifact("JBUniswapV4LPSplitHookMath"), arguments: ""
         });
-        (address hook,) = _isDeployed({
+        (hook,) = _isDeployed({
             salt: _LP_SPLIT_HOOK_SALT,
             creationCode: _loadArtifact("JBUniswapV4LPSplitHook"),
             arguments: _lpSplitHookCtorArgs()
         });
         _lpSplitHook = JBUniswapV4LPSplitHook(payable(hook)); // so the deployer ctor args reference the right hook
-        (address deployer,) = _isDeployed({
+        (deployer,) = _isDeployed({
             salt: _LP_SPLIT_HOOK_DEPLOYER_SALT,
             creationCode: _loadArtifact("JBUniswapV4LPSplitHookDeployer"),
             arguments: _lpSplitHookDeployerCtorArgs()
         });
         _lpSplitHookDeployer = JBUniswapV4LPSplitHookDeployer(deployer); // so the instance prediction resolves
-        address instance = address(_predictLpSplitHookInstance());
+        instance = address(_predictLpSplitHookInstance());
+    }
 
+    /// @notice Add the LP split hook stack's predicted addresses to the JSON object `j`.
+    function _serializeLpAddresses(string memory j) internal {
+        (address mathLib, address hook, address deployer, address instance) = _predictLpAddresses();
         vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHookMath", value: mathLib});
         vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHook", value: hook});
         vm.serializeAddress({objectKey: j, valueKey: "JBUniswapV4LPSplitHookDeployer", value: deployer});
