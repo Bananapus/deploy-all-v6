@@ -240,6 +240,24 @@ Distribution keeps each outgoing file at the next free `_deprecated` suffix. Tha
 
 The proposal is rehearsed on every chain by `test/fork/DeployDefifaV2AndLpSplitHook.fork.t.sol` (set `DEFIFA_V2_FORK=<chain>`).
 
+### Hooks 2.0.0
+
+`script/DeployHooksV2.s.sol` deploys V4 hook 2.0.0, buyback hook 2.0.0 and router 1.4.0 with a new gateway, plus an LP split hook deployer and project 1 instance on the new V4 hook. It makes the new buyback hook and gateway the registry defaults, moves project 1 onto them with a new pool, and disallows the previous hook and gateway. OP Sepolia has no V4 PositionManager and gets nothing.
+
+```bash
+npm run deploy:propose:hooks-v2:testnets
+npm run deploy:propose:hooks-v2:mainnets
+```
+
+After execution, verify, emit and distribute. The per-repo copies go to the buyback, router, V4 router and LP split hook repos:
+
+```bash
+npm run deploy:post:hooks-v2:testnets
+npm run deploy:post:hooks-v2:mainnets
+```
+
+Every other project keeps its old hook, pool and router until its operator moves it with `setHookFor`, `setPoolFor` or `initializePoolFor`, and `setTerminalFor`. A project with liquidity in its old pool moves that liquidity itself.
+
 ### Post-launch TWAP oracle upgrade
 
 This is the earlier migration that introduced the outgoing hook/router generation. For the latest replacement and gateway rollout, use the buyback floor-fix section above. The two-day TWAP verification in this section describes that earlier hook's configuration; the floor-fix migration registers project 1's pool on the new hook with a 30-minute window.

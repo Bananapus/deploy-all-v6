@@ -60,7 +60,9 @@
     "deploy:post:defifa-v2-lp-split-hook:testnets": "./script/post-deploy-focused.sh script/DeployDefifaV2AndLpSplitHook.s.sol --chains=all-testnets",
     "deploy:post:defifa-v2-lp-split-hook:mainnets": "./script/post-deploy-focused.sh script/DeployDefifaV2AndLpSplitHook.s.sol --chains=all-mainnets",
     "deploy:post:buyback-floor-fix:testnets": "./script/post-deploy-focused.sh script/DeployBuybackFloorFix.s.sol --chains=all-testnets",
-    "deploy:post:buyback-floor-fix:mainnets": "./script/post-deploy-focused.sh script/DeployBuybackFloorFix.s.sol --chains=all-mainnets"
+    "deploy:post:buyback-floor-fix:mainnets": "./script/post-deploy-focused.sh script/DeployBuybackFloorFix.s.sol --chains=all-mainnets",
+    "deploy:post:hooks-v2:testnets": "./script/post-deploy-focused.sh script/DeployHooksV2.s.sol --chains=all-testnets",
+    "deploy:post:hooks-v2:mainnets": "./script/post-deploy-focused.sh script/DeployHooksV2.s.sol --chains=all-mainnets"
   },
   "dependencies": {
     "@arbitrum/nitro-contracts": "3.2.0",
