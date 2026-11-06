@@ -37,6 +37,8 @@ Use this repo when the question is "does the combined deployment still work?" Do
 | `script/Verify.s.sol` | Post-deploy verification checks |
 | `script/DeployBuybackFloorFix.s.sol` | Per-chain ratio-feed, buyback 1.4.0, and router 1.3.0 plus gateway migration on the existing registries |
 | `script/VerifyBuybackFloorFix.s.sol` | Read-only verification of floor-fix feed registration, immutable wiring, registry defaults, and project migration |
+| `script/DeployHooksV2.s.sol` | Per-chain V4 hook 2.0.0, buyback 2.0.0 and router 1.4.0 plus gateway rollout, with project 1's move onto them |
+| `script/post-deploy-focused.sh` | Verify, emit and distribute only the contracts one rollout script deploys |
 | `script/LivePostDeploySmoke.s.sol` | Budgeted Sphinx proposal for live post-deploy buyback, loan, and ops smoke checks |
 
 ## Mental model
