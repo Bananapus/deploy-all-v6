@@ -1,28 +1,29 @@
 #!/usr/bin/env bash
-# Focused post-deploy for the buyback hook 1.4.0 redeploy (derived-floor fix + payer skipSplits) and the router
-# 1.3.0 + gateway rollout that rides with it.
+# Focused post-deploy for one rollout script.
 #
-# Dumps ONLY what that script deploys per chain — the new buyback hook (JBBuybackHook), the router bound to it
-# (JBRouterTerminal), its gateway (JBRouterTerminalGateway), and the USDC-per-NATIVE price feed (JBRatioPriceFeed) —
-# via DeployBuybackFloorFix.dumpAddresses(), then verifies + emits + distributes
-# just those through the shared post-deploy pipeline (post-deploy.sh --skip-dump reuses our focused dump). This
-# avoids re-running the full Deploy.s.sol dump / re-touching every other contract's artifacts.
-#
-# OP Sepolia has no Uniswap stack, so it dumps the price feed alone.
+# Dumps ONLY the rollout's contract addresses per chain via <script>.dumpAddresses(), then verifies + emits +
+# distributes just those through the shared post-deploy pipeline (post-deploy.sh --skip-dump reuses our focused dump).
+# This avoids re-running the full Deploy.s.sol dump / re-touching every other contract's artifacts. A chain where
+# dumpAddresses() writes no file gets nothing from that rollout.
 #
 # Usage:
-#   ./script/post-deploy-buyback-floor-fix.sh --chains=all-testnets
-#   ./script/post-deploy-buyback-floor-fix.sh --chains=all-mainnets
-#   ./script/post-deploy-buyback-floor-fix.sh --chains=base_sepolia          # one chain
-#   ./script/post-deploy-buyback-floor-fix.sh --chains=all-mainnets --skip-verify   # emit + distribute only
+#   ./script/post-deploy-focused.sh script/DeployHooksV2.s.sol --chains=all-testnets
+#   ./script/post-deploy-focused.sh script/DeployHooksV2.s.sol --chains=all-mainnets
+#   ./script/post-deploy-focused.sh script/DeployHooksV2.s.sol --chains=base_sepolia          # one chain
+#   ./script/post-deploy-focused.sh script/DeployHooksV2.s.sol --chains=all-mainnets --skip-verify   # emit + distribute only
 #
 # Requires ETHERSCAN_API_KEY (unless --skip-verify) and each chain's RPC env var, same as post-deploy.sh.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEPLOY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CACHE_DIR="$SCRIPT_DIR/post-deploy/.cache"
 CHAINS_JSON="$SCRIPT_DIR/post-deploy/chains.json"
+
+DEPLOY_SCRIPT="${1:-}"
+[[ "$DEPLOY_SCRIPT" == *.s.sol ]] || { echo "ERROR: first argument must be the rollout script, e.g. script/DeployHooksV2.s.sol"; exit 2; }
+shift
 
 CHAINS_ARG=""
 PASSTHRU=()
@@ -70,14 +71,14 @@ for alias in $(resolve_chains "$CHAINS_ARG"); do
     echo "  SKIP — missing chainId or \$$rpc_env"; FAIL=1; continue
   fi
 
-  # Fresh focused dump — remove any stale full-deploy dump so post-deploy processes ONLY the new buyback hook.
+  # Fresh focused dump — remove any stale full-deploy dump so post-deploy processes ONLY this rollout's contracts.
   rm -f "$CACHE_DIR/addresses-${cid}.json"
-  echo "  [dump] buyback hook + price feed addresses…"
-  (cd "$DEPLOY_ROOT" && forge script script/DeployBuybackFloorFix.s.sol --sig "dumpAddresses()" --rpc-url "$rpc" --silent) \
+  echo "  [dump] $DEPLOY_SCRIPT addresses…"
+  (cd "$DEPLOY_ROOT" && forge script "$DEPLOY_SCRIPT" --sig "dumpAddresses()" --rpc-url "$rpc" --silent) \
     || { echo "  dump failed on $alias"; FAIL=1; continue; }
 
   if [[ ! -f "$CACHE_DIR/addresses-${cid}.json" ]]; then
-    echo "  $alias has nothing this script deploys — nothing to verify/emit."
+    echo "  $alias gets nothing from $DEPLOY_SCRIPT — nothing to verify/emit."
     continue
   fi
 
@@ -89,4 +90,4 @@ for alias in $(resolve_chains "$CHAINS_ARG"); do
   fi
 done
 
-[[ "$FAIL" -eq 0 ]] && echo "" && echo "✅ Buyback floor fix post-deploy complete." || { echo ""; echo "⚠ completed with failures — review above."; exit 1; }
+[[ "$FAIL" -eq 0 ]] && echo "" && echo "✅ $DEPLOY_SCRIPT post-deploy complete." || { echo ""; echo "⚠ completed with failures — review above."; exit 1; }

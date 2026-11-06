@@ -55,12 +55,14 @@
     "deploy:post:mainnets": "./script/post-deploy.sh --chains=all-mainnets",
     "deploy:post:verify-only": "./script/post-deploy.sh --chains=all-testnets --skip-artifacts --skip-distribute",
     "deploy:post:artifacts-only": "./script/post-deploy.sh --chains=all-testnets --skip-verify",
-    "deploy:post:lp-split-hook-fix:testnets": "./script/post-deploy-lp-split-hook-fix.sh --chains=all-testnets",
-    "deploy:post:lp-split-hook-fix:mainnets": "./script/post-deploy-lp-split-hook-fix.sh --chains=all-mainnets",
-    "deploy:post:defifa-v2-lp-split-hook:testnets": "./script/post-deploy-defifa-v2-lp-split-hook.sh --chains=all-testnets",
-    "deploy:post:defifa-v2-lp-split-hook:mainnets": "./script/post-deploy-defifa-v2-lp-split-hook.sh --chains=all-mainnets",
-    "deploy:post:buyback-floor-fix:testnets": "./script/post-deploy-buyback-floor-fix.sh --chains=all-testnets",
-    "deploy:post:buyback-floor-fix:mainnets": "./script/post-deploy-buyback-floor-fix.sh --chains=all-mainnets"
+    "deploy:post:lp-split-hook-fix:testnets": "./script/post-deploy-focused.sh script/DeployLpSplitHookFix.s.sol --chains=all-testnets",
+    "deploy:post:lp-split-hook-fix:mainnets": "./script/post-deploy-focused.sh script/DeployLpSplitHookFix.s.sol --chains=all-mainnets",
+    "deploy:post:defifa-v2-lp-split-hook:testnets": "./script/post-deploy-focused.sh script/DeployDefifaV2AndLpSplitHook.s.sol --chains=all-testnets",
+    "deploy:post:defifa-v2-lp-split-hook:mainnets": "./script/post-deploy-focused.sh script/DeployDefifaV2AndLpSplitHook.s.sol --chains=all-mainnets",
+    "deploy:post:buyback-floor-fix:testnets": "./script/post-deploy-focused.sh script/DeployBuybackFloorFix.s.sol --chains=all-testnets",
+    "deploy:post:buyback-floor-fix:mainnets": "./script/post-deploy-focused.sh script/DeployBuybackFloorFix.s.sol --chains=all-mainnets",
+    "deploy:post:hooks-v2:testnets": "./script/post-deploy-focused.sh script/DeployHooksV2.s.sol --chains=all-testnets",
+    "deploy:post:hooks-v2:mainnets": "./script/post-deploy-focused.sh script/DeployHooksV2.s.sol --chains=all-mainnets"
   },
   "dependencies": {
     "@arbitrum/nitro-contracts": "3.2.0",

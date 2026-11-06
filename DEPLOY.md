@@ -155,6 +155,8 @@ pnpm deploy:propose:lp-split-hook-fix:testnets
 pnpm deploy:propose:lp-split-hook-fix:mainnets
 ```
 
+Its Base fork rehearsal was retired once the hooks 2.0.0 records replaced the V4 hook it checked the deployer against; it remains in git history.
+
 ### Post-launch buyback floor fix + router gateway
 
 `script/DeployBuybackFloorFix.s.sol` is the second post-launch migration of the Uniswap-facing stack. One infra Safe proposal per chain:
@@ -239,6 +241,26 @@ It checks:
 Distribution keeps each outgoing file at the next free `_deprecated` suffix. That is how the Defifa 1.0.2 records and the previous LP split hook records are kept.
 
 The proposal is rehearsed on every chain by `test/fork/DeployDefifaV2AndLpSplitHook.fork.t.sol` (set `DEFIFA_V2_FORK=<chain>`).
+
+### Hooks 2.0.0
+
+`script/DeployHooksV2.s.sol` deploys V4 hook 2.0.0, buyback hook 2.0.0 and router 1.4.0 with a new gateway, plus an LP split hook deployer and project 1 instance on the new V4 hook. It makes the new buyback hook and gateway the registry defaults, moves project 1 onto them with a new pool, and disallows the previous hook and gateway. OP Sepolia has no V4 PositionManager and gets nothing.
+
+```bash
+npm run deploy:propose:hooks-v2:testnets
+npm run deploy:propose:hooks-v2:mainnets
+```
+
+After execution, verify, emit and distribute. The per-repo copies go to the buyback, router, V4 router and LP split hook repos:
+
+```bash
+npm run deploy:post:hooks-v2:testnets
+npm run deploy:post:hooks-v2:mainnets
+```
+
+`test/fork/DeployHooksV2.fork.t.sol` checks the executed rollout against live state and these records: the wiring, project 1's pool, the disallowed outgoing hook and gateway, and that rerunning the proposal changes nothing. Set `HOOKS_V2_FORK=<chain>` (default `base`).
+
+Every other project keeps its old hook, pool and router until its operator moves it with `setHookFor`, `setPoolFor` or `initializePoolFor`, and `setTerminalFor`. A project with liquidity in its old pool moves that liquidity itself.
 
 ### Post-launch TWAP oracle upgrade
 
