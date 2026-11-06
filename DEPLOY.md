@@ -155,6 +155,8 @@ pnpm deploy:propose:lp-split-hook-fix:testnets
 pnpm deploy:propose:lp-split-hook-fix:mainnets
 ```
 
+Its Base fork rehearsal was retired once the hooks 2.0.0 records replaced the V4 hook it checked the deployer against; it remains in git history.
+
 ### Post-launch buyback floor fix + router gateway
 
 `script/DeployBuybackFloorFix.s.sol` is the second post-launch migration of the Uniswap-facing stack. One infra Safe proposal per chain:
