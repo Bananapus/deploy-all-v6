@@ -256,6 +256,8 @@ npm run deploy:post:hooks-v2:testnets
 npm run deploy:post:hooks-v2:mainnets
 ```
 
+Its Base fork rehearsal was retired once these records replaced the ones it read at its pre-rollout block; it remains in git history.
+
 Every other project keeps its old hook, pool and router until its operator moves it with `setHookFor`, `setPoolFor` or `initializePoolFor`, and `setTerminalFor`. A project with liquidity in its old pool moves that liquidity itself.
 
 ### Post-launch TWAP oracle upgrade
